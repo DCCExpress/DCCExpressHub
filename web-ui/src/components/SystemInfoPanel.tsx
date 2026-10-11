@@ -377,37 +377,64 @@ export default function SystemInfoPanel({
   const locoNet =
     telemetry?.locoNet ?? null;
 
-  const isZ21 =
-    telemetry?.commandCenterType === "z21" ||
-    z21 !== null;
+  // Prefer the live commandCenterInfo protocol; periodic dccExStatus can
+  // arrive later. Do not assume every non-Z21 station is DCC-EX.
+  const protocolType = (
+    commandCenter.type ||
+    telemetry?.commandCenterType ||
+    ""
+  ).trim().toLowerCase();
+
+  const transport = (
+    telemetry?.transport ||
+    (protocolType === "loconet-serial" || protocolType === "dcc-ex-serial"
+      ? "serial"
+      : protocolType === "loconet" || protocolType === "dcc-ex-tcp"
+        ? "tcp"
+        : protocolType === "z21"
+          ? "udp"
+          : "")
+  ).toLowerCase();
+
+  const isDccEx =
+    protocolType === "dcc-ex" ||
+    protocolType.startsWith("dcc-ex-");
+  const isLocoNetSerial = protocolType === "loconet-serial";
+  const isLocoNetTcp = protocolType === "loconet" || protocolType === "loconet-tcp";
+  const isLocoNet = isLocoNetSerial || isLocoNetTcp;
+  const isZ21 = protocolType === "z21" || (!protocolType && z21 !== null);
 
   const isYaMoRc =
-    telemetry?.commandCenterProfile === "yamorc7010" ||
-    z21?.profile === "yamorc7010";
+    isZ21 &&
+    (telemetry?.commandCenterProfile === "yamorc7010" ||
+     z21?.profile === "yamorc7010");
 
   const commandCenterTitle =
-    isYaMoRc
-      ? "YD7010"
-      : isZ21
-        ? "Z21"
-        : "DCC-EX / EX-CSB1";
+    isLocoNetSerial ? "LocoNet Serial"
+    : isLocoNetTcp ? "LocoNet TCP"
+    : isZ21 ? "Z21"
+    : isDccEx ? (transport === "serial" ? "DCC-EX Serial" : "DCC-EX TCP")
+    : commandCenter.name || telemetry?.commandCenterName || "—";
+
+  const targetSerialPort =
+    telemetry?.serialPort || commandCenter.serialPort;
+  const targetHost =
+    telemetry?.host || commandCenter.ip;
+  const targetPort =
+    telemetry?.port || commandCenter.port;
 
   const target =
-    telemetry?.transport === "serial" ||
-    Boolean(telemetry?.serialPort)
-      ? telemetry?.serialPort
-        ? `${telemetry.serialPort} @ ${telemetry.baudRate ?? 115200} baud`
-        : "—"
-      : telemetry?.host
-        ? `${telemetry.host}:${telemetry.port ?? (isZ21 ? 21105 : 2560)}${isZ21 ? " / UDP" : ""}`
-        : "—";
+    (isLocoNetSerial || transport === "serial")
+      ? targetSerialPort
+        ? `${targetSerialPort} @ ${telemetry?.baudRate || 115200} baud`
+        : commandCenter.connectionString || "—"
+      : targetHost
+        ? `${targetHost}:${targetPort ?? (isZ21 ? 21105 : isLocoNetTcp ? 1234 : 2560)}${isZ21 ? " / UDP" : ""}`
+        : commandCenter.connectionString || "—";
 
-  const commandVersion =
-    telemetry?.version
-      ? isZ21
-        ? telemetry.version
-        : `V-${telemetry.version}`
-      : "—";
+  const commandVersion = telemetry?.version
+    ? isDccEx ? `V-${telemetry.version}` : telemetry.version
+    : "—";
 
   const z21StateAvailable =
     z21 !== null &&
@@ -507,39 +534,49 @@ export default function SystemInfoPanel({
               color="cyan"
             />
 
-            <InfoRow
-              label={
-                isYaMoRc
-                  ? i18next.t("ui.z21InterfaceFirmware")
-                  : isZ21
-                    ? i18next.t("ui.firmware")
-                    : i18next.t("ui.dccExVersion")
-              }
-              value={commandVersion}
-              color="violet"
-            />
+            {(isDccEx || isZ21 || (telemetry?.version && telemetry.version.length > 0)) && (
+              <InfoRow
+                label={
+                  isDccEx
+                    ? i18next.t("ui.dccExVersion")
+                    : isYaMoRc
+                      ? i18next.t("ui.z21InterfaceFirmware")
+                      : i18next.t("ui.firmware")
+                }
+                value={commandVersion}
+                color="violet"
+              />
+            )}
 
-            <InfoRow
-              label={
-                isZ21
-                  ? i18next.t("ui.protocol")
-                  : i18next.t("ui.processor")
-              }
-              value={telemetry?.processor || "—"}
-              color="indigo"
-            />
+            {isLocoNet ? (
+              <>
+                <InfoRow
+                  label={i18next.t("ui.protocol")}
+                  value="LocoNet"
+                  color="indigo"
+                />
+                <InfoRow
+                  label={i18next.t("ui.interface")}
+                  value={isLocoNetSerial ? "Serial" : "TCP"}
+                  color="cyan"
+                />
+              </>
+            ) : (
+              <>
+                <InfoRow
+                  label={isZ21 ? i18next.t("ui.protocol") : i18next.t("ui.processor")}
+                  value={telemetry?.processor || "—"}
+                  color="indigo"
+                />
+                <InfoRow
+                  label={isZ21 ? i18next.t("ui.hardware") : i18next.t("ui.motorDriver")}
+                  value={telemetry?.hardware || "—"}
+                  color="cyan"
+                />
+              </>
+            )}
 
-            <InfoRow
-              label={
-                isZ21
-                  ? i18next.t("ui.hardware")
-                  : i18next.t("ui.motorDriver")
-              }
-              value={telemetry?.hardware || "—"}
-              color="cyan"
-            />
-
-            {!isZ21 && (
+            {isDccEx && (
               <>
                 <InfoRow
                   label={i18next.t("ui.build")}
@@ -618,7 +655,7 @@ export default function SystemInfoPanel({
               />
             ))}
 
-            {tracks.length === 0 && (
+            {tracks.length === 0 && (isDccEx || isZ21) && (
               <Text size="xs" c="dimmed">
                 {isZ21
                   ? i18next.t("ui.waitingForZ21SystemState")
@@ -727,16 +764,15 @@ export default function SystemInfoPanel({
               </>
             )}
 
-            {!isZ21 && (
+            {isDccEx && (
               <>
-                <InfoRow
-                  label={i18next.t("ui.tcpLinkUptime")}
-                  value={formatUptime(
-                    telemetry?.linkUptimeMs,
-                  )}
-                  color="teal"
-                />
-
+                {transport === "tcp" && (
+                  <InfoRow
+                    label={i18next.t("ui.tcpLinkUptime")}
+                    value={formatUptime(telemetry?.linkUptimeMs)}
+                    color="teal"
+                  />
+                )}
                 <Text size="xs" c="dimmed">
                   {i18next.t("ui.trackCurrentIsRequestedFromDccExEvery1000Ms")}
                 </Text>
