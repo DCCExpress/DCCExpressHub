@@ -96,6 +96,9 @@ public sealed class LayoutRuntime
     // Authoritative physical runtime state.
     // Sensors are NOT reconciled to the layout. They come from <Q> / Q/q.
     readonly Dictionary<ushort, bool> _sensorStates = new();
+    // OFF must remain stable for one second; ON is processed immediately.
+    const int SensorOffDelayMs = 1000;
+    readonly Dictionary<ushort, CancellationTokenSource> _pendingSensorOff = new();
 
     // Basic/extended endpoints ARE reconciled to the current layout topology.
     Dictionary<ushort, bool> _basicAccessoryStates = new();
@@ -965,6 +968,9 @@ public sealed class LayoutRuntime
         bool hadKnown;
         lock (_gate)
         {
+            foreach (var pending in _pendingSensorOff.Values)
+                pending.Cancel();
+            _pendingSensorOff.Clear();
             hadKnown = _sensorStates.Count > 0;
             _sensorStates.Clear();
         }
@@ -975,13 +981,31 @@ public sealed class LayoutRuntime
 
     public bool SetSensor(ushort address, bool on)
     {
-        bool changed;
+        bool changed = false;
+        CancellationTokenSource? pendingOff = null;
 
         lock (_gate)
         {
-            changed = !_sensorStates.TryGetValue(address, out var old) || old != on;
-            _sensorStates[address] = on;
+            if (_pendingSensorOff.Remove(address, out var previous))
+                previous.Cancel();
+
+            if (!on && _sensorStates.TryGetValue(address, out var wasOn) && wasOn)
+            {
+                // A brief loss of current must not release a block or fire LEAVE.
+                pendingOff = new CancellationTokenSource();
+                _pendingSensorOff[address] = pendingOff;
+            }
+            else
+            {
+                // The first known OFF sample remains OFF; do not manufacture
+                // an occupied state for sensors which have never reported ON.
+                changed = !_sensorStates.TryGetValue(address, out var old) || old != on;
+                _sensorStates[address] = on;
+            }
         }
+
+        if (pendingOff is not null)
+            _ = ConfirmSensorOffAsync(address, pendingOff);
 
         if (changed)
         {
@@ -990,6 +1014,37 @@ public sealed class LayoutRuntime
         }
 
         return true;
+    }
+
+    async Task ConfirmSensorOffAsync(ushort address, CancellationTokenSource pending)
+    {
+        try
+        {
+            await Task.Delay(SensorOffDelayMs, pending.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        bool changed = false;
+        lock (_gate)
+        {
+            if (_pendingSensorOff.TryGetValue(address, out var current) &&
+                ReferenceEquals(current, pending) &&
+                !pending.IsCancellationRequested)
+            {
+                _pendingSensorOff.Remove(address);
+                changed = _sensorStates.TryGetValue(address, out var previous) && previous;
+                _sensorStates[address] = false;
+            }
+        }
+
+        if (changed)
+        {
+            Changed?.Invoke("sensorChanged", new { address, on = false });
+            SensorTransitionProcessed?.Invoke();
+        }
     }
 
     public bool SetBlock(ushort id, string locoId, ushort locoAddress)
