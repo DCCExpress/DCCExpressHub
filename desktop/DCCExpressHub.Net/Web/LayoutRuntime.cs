@@ -98,27 +98,43 @@ public sealed class LayoutRuntime
     readonly Dictionary<ushort, bool> _sensorStates = new();
     // OFF must remain stable for 250 ms; ON is processed immediately.
     int _sensorOffDelayMs = 250;
+    int _turnoutCommandIntervalMs = 150;
+    int _turnoutSettlingTimeMs = 100;
     readonly string _sensorSettingsPath;
-    public int SensorOffDelayMs
-    {
-        get { lock (_gate) return _sensorOffDelayMs; }
-    }
+    public int SensorOffDelayMs { get { lock (_gate) return _sensorOffDelayMs; } }
+    public int TurnoutCommandIntervalMs { get { lock (_gate) return _turnoutCommandIntervalMs; } }
+    public int TurnoutSettlingTimeMs { get { lock (_gate) return _turnoutSettlingTimeMs; } }
 
-    public bool SaveSensorOffDelayMs(int milliseconds)
+    public bool SaveTimingSettings(int sensorOffMs, int turnoutIntervalMs, int turnoutSettlingMs)
     {
-        if (milliseconds is < 100 or > 1000) return false;
+        if (sensorOffMs is < 100 or > 1000 ||
+            turnoutIntervalMs is < 0 or > 5000 ||
+            turnoutSettlingMs is < 0 or > 30000)
+            return false;
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(_sensorSettingsPath)!);
-            var json = JsonSerializer.Serialize(new { sensorOffDelayMs = milliseconds });
+            var json = JsonSerializer.Serialize(new {
+                sensorOffDelayMs = sensorOffMs,
+                turnoutCommandIntervalMs = turnoutIntervalMs,
+                turnoutSettlingTimeMs = turnoutSettlingMs
+            });
             var tmp = _sensorSettingsPath + ".tmp";
             File.WriteAllText(tmp, json);
             File.Move(tmp, _sensorSettingsPath, true);
-            lock (_gate) _sensorOffDelayMs = milliseconds;
+            lock (_gate)
+            {
+                _sensorOffDelayMs = sensorOffMs;
+                _turnoutCommandIntervalMs = turnoutIntervalMs;
+                _turnoutSettlingTimeMs = turnoutSettlingMs;
+            }
             return true;
         }
         catch { return false; }
     }
+
+    public bool SaveSensorOffDelayMs(int milliseconds) =>
+        SaveTimingSettings(milliseconds, TurnoutCommandIntervalMs, TurnoutSettlingTimeMs);
     readonly Dictionary<ushort, CancellationTokenSource> _pendingSensorOff = new();
 
     // Basic/extended endpoints ARE reconciled to the current layout topology.
@@ -172,6 +188,12 @@ public sealed class LayoutRuntime
                 if (doc.RootElement.TryGetProperty("sensorOffDelayMs", out var delay) &&
                     delay.TryGetInt32(out var ms) && ms is >= 100 and <= 1000)
                     _sensorOffDelayMs = ms;
+                if (doc.RootElement.TryGetProperty("turnoutCommandIntervalMs", out var interval) &&
+                    interval.TryGetInt32(out var intervalMs) && intervalMs is >= 0 and <= 5000)
+                    _turnoutCommandIntervalMs = intervalMs;
+                if (doc.RootElement.TryGetProperty("turnoutSettlingTimeMs", out var settling) &&
+                    settling.TryGetInt32(out var settlingMs) && settlingMs is >= 0 and <= 30000)
+                    _turnoutSettlingTimeMs = settlingMs;
             }
         }
         catch { /* Invalid settings must not prevent startup. */ }
