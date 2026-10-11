@@ -890,6 +890,64 @@ function LitePropertyPanel({
   );
 }
 
+function SensorSettingsCard() {
+  const [value, setValue] = useState<number | string>(250);
+  const [savedValue, setSavedValue] = useState(250);
+  const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = wsClient.on(
+      "sensorSettings" as Parameters<typeof wsClient.on>[0],
+      (data: { sensorOffDelayMs: number; saved?: boolean }) => {
+        setValue(data.sensorOffDelayMs);
+        setSavedValue(data.sensorOffDelayMs);
+        setSaving(false);
+        setLoaded(true);
+        if (data.saved) showNotification({ message: "Sensor settings saved", color: "green" });
+      }
+    );
+    wsClient.send({ type: "sensorSettings", data: { action: "get" } } as Parameters<typeof wsClient.send>[0]);
+    return unsubscribe;
+  }, []);
+
+  const valid = typeof value === "number" && Number.isInteger(value) && value >= 100 && value <= 1000;
+  return (
+    <Card withBorder p="sm">
+      <Stack gap="xs">
+        <Group gap="xs"><IconSettings size={17} /><Text fw={600}>Settings</Text></Group>
+        <NumberInput
+          label="Sensor OFF delay (ms)"
+          description="ON is immediate. OFF is confirmed only after the selected delay (100–1000 ms)."
+          value={value}
+          onChange={setValue}
+          min={100}
+          max={1000}
+          step={50}
+          allowDecimal={false}
+          clampBehavior="strict"
+        />
+        <Group justify="flex-end">
+          <Button
+            size="xs"
+            leftSection={<IconDeviceFloppy size={15} />}
+            disabled={!loaded || !valid || value === savedValue || saving}
+            loading={saving}
+            onClick={() => {
+              if (!valid) return;
+              if (!wsClient.send({ type: "sensorSettings", data: { action: "save", sensorOffDelayMs: value } } as Parameters<typeof wsClient.send>[0])) {
+                showNotification({ message: "WebSocket is not connected", color: "red" });
+                return;
+              }
+              setSaving(true);
+            }}
+          >Save</Button>
+        </Group>
+      </Stack>
+    </Card>
+  );
+}
+
 export default function LiteLayoutPage({
   version,
   locos,
@@ -2174,12 +2232,15 @@ export default function LiteLayoutPage({
                   </Tabs.Panel>
 
                   <Tabs.Panel value="info" className="lite-info-tab-panel">
-                    <SystemInfoPanel
-                      status={dccExStatus}
-                      wsStatus={wsStatus}
-                      flashInfo={flashInfo}
-                      version={version}
-                    />
+                    <Stack gap="sm">
+                      <SystemInfoPanel
+                        status={dccExStatus}
+                        wsStatus={wsStatus}
+                        flashInfo={flashInfo}
+                        version={version}
+                      />
+                      <SensorSettingsCard />
+                    </Stack>
                   </Tabs.Panel>
 
                   <Tabs.Panel value="log" className="lite-info-tab-panel">
