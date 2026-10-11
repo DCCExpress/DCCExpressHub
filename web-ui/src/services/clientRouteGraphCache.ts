@@ -31,7 +31,7 @@ import {
 
 // v4 introduces directed block parts inside an unchanged physical section.
 // Invalidate persisted v3 graphs (which flattened all blocks into one node).
-const ROUTE_TOPOLOGY_VERSION = 4;
+const ROUTE_TOPOLOGY_VERSION = 5;
 
 const ROUTE_TOPOLOGY_FIELD =
   "routeTopology";
