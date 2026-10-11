@@ -66,6 +66,7 @@ export class Layout<
   ) {
     this.layers = [
       this.layerFactory("buildings", "Épületek"),
+      this.layerFactory("buttons", "Buttons"),
       this.layerFactory("blocks", "Blokkok"),
       this.layerFactory("sensors", "Sensors"),
       this.layerFactory("signals", "Signals"),
@@ -94,6 +95,7 @@ export class Layout<
   public get sensors(): TLayer { return this.requireLayer("sensors"); }
   public get signals(): TLayer { return this.requireLayer("signals"); }
   public get buildings(): TLayer { return this.requireLayer("buildings"); }
+  public get buttons(): TLayer { return this.requireLayer("buttons"); }
 
   public addLayer(id: LayerId, name: string, options?: LayerOptions): TLayer {
     const existing = this.getLayer(id);
@@ -204,6 +206,7 @@ export class Layout<
       ...this.signals.elements,
       ...this.sensors.elements,
       ...this.buildings.elements,
+      ...this.buttons.elements,
     ];
   }
 
