@@ -1280,6 +1280,11 @@ function Z21ProgrammingPage({
   const [accessoryValue, setAccessoryValue] =
     useState<NumberValue>(0);
 
+  const [z21ReadStatus, setZ21ReadStatus] =
+    useState<Record<"address" | "service" | "loco" | "accessory", ReadStatus>>({
+      address: "idle", service: "idle", loco: "idle", accessory: "idle",
+    });
+
   const disconnected =
     status !== "connected";
 
@@ -1290,8 +1295,9 @@ function Z21ProgrammingPage({
       cv?: number;
       value?: number;
     },
-    onValue?: (value: number) => void,
+    onValue?: (value: NumberValue) => void,
     confirmText?: string,
+    readTarget?: "service" | "loco" | "accessory",
   ) => {
     if (
       confirmText &&
@@ -1300,6 +1306,14 @@ function Z21ProgrammingPage({
       )
     ) {
       return;
+    }
+
+    const isReading = action === "readCv" ||
+      action === "pomReadCv" || action === "accessoryPomReadCv";
+    const target = isReading ? readTarget : undefined;
+    if (target) {
+      onValue?.("");
+      setZ21ReadStatus(current => ({ ...current, [target]: "reading" }));
     }
 
     setBusy(true);
@@ -1316,18 +1330,24 @@ function Z21ProgrammingPage({
           values,
         );
 
-      setResult(response);
-
-      if (
-        response.ok &&
+      const validRead = response.ok &&
         typeof response.value === "number" &&
-        response.value >= 0
-      ) {
-        onValue?.(
-          response.value
-        );
+        Number.isInteger(response.value) &&
+        response.value >= 0 && response.value <= 255;
+      if (target) {
+        setZ21ReadStatus(current => ({ ...current, [target]: validRead ? "ok" : "nok" }));
+      }
+      setResult(target && !validRead && response.ok
+        ? { ...response, ok: false, message: "NOK — invalid or missing CV read value." }
+        : response);
+
+      if (target && validRead) {
+        onValue?.(response.value!);
       }
     } catch (error) {
+      if (target) {
+        setZ21ReadStatus(current => ({ ...current, [target]: "nok" }));
+      }
       setResult({
         requestId: "local",
         action,
@@ -1361,6 +1381,9 @@ function Z21ProgrammingPage({
   };
 
   const readZ21Address = async (): Promise<void> => {
+    // The old address must not survive a failed multi-CV read.
+    setLocoAddress("");
+    setZ21ReadStatus(current => ({ ...current, address: "reading" }));
     setBusy(true);
     setResult(null);
 
@@ -1435,9 +1458,10 @@ function Z21ProgrammingPage({
           cv1.value;
       }
 
-      setLocoAddress(
-        address
-      );
+      if (!Number.isInteger(address) || address < 1 || address > 10239)
+        throw new Error("Invalid decoder address returned by command station.");
+      setLocoAddress(address);
+      setZ21ReadStatus(current => ({ ...current, address: "ok" }));
 
       setResult({
         requestId: "z21-address-read",
@@ -1449,6 +1473,7 @@ function Z21ProgrammingPage({
           address,
       });
     } catch (error) {
+      setZ21ReadStatus(current => ({ ...current, address: "nok" }));
       setResult({
         requestId: "z21-address-read",
         action: "readAddress",
@@ -1468,6 +1493,7 @@ function Z21ProgrammingPage({
       numberValue(locoAddress);
 
     if (
+      !Number.isInteger(address) ||
       address < 1 ||
       address > 10239
     ) {
