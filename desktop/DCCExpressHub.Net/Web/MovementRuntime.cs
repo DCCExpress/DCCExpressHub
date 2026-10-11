@@ -4105,7 +4105,10 @@ public sealed class MovementRuntime
                 CancellationToken.None);
 
         if (!ok)
+        {
+            _log.LogCritical("Command center rejected or failed to send emergency stop");
             return;
+        }
 
         _hubState.EmergencyStop =
             _commandCenter.EmergencyPauseStateKnown
@@ -4113,6 +4116,40 @@ public sealed class MovementRuntime
                 : true;
 
         PowerStateChanged?.Invoke();
+
+        // Z21 emergency stop (LAN_X_SET_STOP) pauses the command station,
+        // but does not clear each locomotive's last speed command. Otherwise
+        // a locomotive may resume at its old speed when E-STOP is released.
+        // Send an explicit zero for every known locomotive while still paused.
+        if (_hubState.EmergencyStop)
+        {
+            var locos = _hubState.Locos.Values.ToArray();
+            foreach (var loco in locos)
+            {
+                try
+                {
+                    var zeroSent = await _commandCenter.SetLocoAsync(
+                        loco.Address, 0, loco.Forward, CancellationToken.None);
+                    if (!zeroSent)
+                    {
+                        _log.LogCritical(
+                            "Emergency stop: zero-speed command failed for locomotive #{Address}",
+                            loco.Address);
+                        continue;
+                    }
+
+                    var zero = loco with { Speed = 0 };
+                    _hubState.Locos[loco.Address] = zero;
+                    LocoChanged?.Invoke(zero);
+                }
+                catch (Exception ex)
+                {
+                    _log.LogCritical(ex,
+                        "Emergency stop: could not set locomotive #{Address} speed to zero",
+                        loco.Address);
+                }
+            }
+        }
     }
 
     public void EmergencyStop() =>
