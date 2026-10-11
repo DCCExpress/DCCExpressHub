@@ -152,7 +152,7 @@ public sealed class LocoNetCommandCenter : BackgroundService, ICommandCenter
         foreach (var value in rawPacket) checksum ^= value;
         if (checksum != 0xFF)
         {
-            _log.LogDebug("Invalid LocoNet serial packet checksum: {Packet}", Convert.ToHexString(rawPacket));
+            _log.LogDebug("Invalid LocoNet packet checksum: {Packet}", Convert.ToHexString(rawPacket));
             return;
         }
 
@@ -599,7 +599,7 @@ public sealed class LocoNetCommandCenter : BackgroundService, ICommandCenter
 
     public async Task<bool> SetTrackPowerAsync(bool on, bool includeProgramming = true, CancellationToken ct = default)
     {
-        if (on && _emergencyPaused) return false;
+        if (on && _emergencyPaused && _transport.Kind == "serial") return false;
         var sent = await SendPacketAsync(new byte[] { on ? (byte)0x83 : (byte)0x82 }, ct);
         _log.LogInformation("LocoNet power {Power}: TX {Result} to {Endpoint}",
             on ? "ON" : "OFF", sent ? "sent" : "failed", Endpoint);
@@ -882,7 +882,7 @@ public sealed class LocoNetCommandCenter : BackgroundService, ICommandCenter
         if (!await _snapshotGate.WaitAsync(0, ct)) return false;
         try
         {
-            // YaMoRC COM port and JMRI use eight OPC_SW_REQ interrogations
+            // YaMoRC / JMRI use eight OPC_SW_REQ interrogations
             // for LocoNet feedback modules. Avoid flooding the shared bus.
             byte[] sw1 = [0x78, 0x79, 0x7A, 0x7B, 0x78, 0x79, 0x7A, 0x7B];
             byte[] sw2 = [0x27, 0x27, 0x27, 0x27, 0x07, 0x07, 0x07, 0x07];
