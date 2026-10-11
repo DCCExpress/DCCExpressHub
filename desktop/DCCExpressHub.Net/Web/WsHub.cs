@@ -23,6 +23,9 @@ public sealed class WsHub
     readonly TimetableRuntime Timetable;
     private readonly ILogger<WsHub> Logger;
     private readonly FastClockRuntime FastClock;
+    private readonly object _manualTurnoutTimingGate = new();
+    private readonly Dictionary<ushort, long> _manualTurnoutLastIssued = new();
+    private long _manualTurnoutLastGlobalIssued = -1;
     private readonly ConcurrentDictionary<Guid, IHubWebSocketClient> Clients = new();
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
@@ -844,6 +847,13 @@ public sealed class WsHub
                     return;
                 case "setTrackPower":
                     ok = await CommandCenter.SetTrackPowerAsync(B(data, "on"), CommandCenterConfigStore.Current.PowerIncludesProgramming, ct);
+                    if (!B(data, "on"))
+                    {
+                        // Persist before acknowledging OFF: callers may close the app.
+                        var saved = await RuntimeStateStore.SaveAsync();
+                        if (!saved)
+                            ok = false;
+                    }
                     break;
                 case "setProgrammingPower":
                     ok = await CommandCenter.SetProgrammingPowerAsync(B(data, "on"), ct);
@@ -854,6 +864,8 @@ public sealed class WsHub
                     {
                         HubState.EmergencyStop = CommandCenter.EmergencyPauseStateKnown ? CommandCenter.EmergencyPaused : true;
                         await BroadcastPower();
+                        if (HubState.EmergencyStop)
+                            await ZeroKnownLocoSpeedsAfterEmergencyAsync();
                     }
                     break;
                 case "writeDccExDirectCommand":
@@ -895,8 +907,32 @@ public sealed class WsHub
                         break;
                     }
                 case "getLoco":
-                    ok = await CommandCenter.RequestLocoAsync(I(data, "locoAddress"), ct);
-                    break;
+                    {
+                        int address = I(data, "locoAddress");
+                        if (address is < 1 or > 10239) return;
+
+                        // Switching the throttle must always restore the last
+                        // authoritative Hub state for THIS locomotive, even
+                        // when the physical command station responds later or
+                        // cannot immediately return its function mask.
+                        // A later hardware feedback message can correct it.
+                        if (HubState.Locos.TryGetValue(address, out var cached))
+                        {
+                            await Send(ws, "locoState", new
+                            {
+                                loco = new
+                                {
+                                    address = cached.Address,
+                                    speed = cached.Speed,
+                                    direction = cached.Forward ? "forward" : "reverse",
+                                    functionsMask = cached.FunctionsMask
+                                }
+                            });
+                        }
+
+                        ok = await CommandCenter.RequestLocoAsync(address, ct);
+                        break;
+                    }
                 case "setLocoFunction":
                     {
                         int a = I(data, "locoAddress"), fn = I(data, "functionNumber");
@@ -935,7 +971,10 @@ public sealed class WsHub
                         finally
                         {
                             if (leaseOwner is not null)
+                            {
+                                await Task.Delay(LayoutRuntime.TurnoutSettlingTimeMs, CancellationToken.None);
                                 SwitchMan.ReleaseOwned(new[] { a }, leaseOwner);
+                            }
                         }
                         break;
                     }
@@ -965,7 +1004,10 @@ public sealed class WsHub
                         finally
                         {
                             if (leaseOwner is not null)
+                            {
+                                await Task.Delay(LayoutRuntime.TurnoutSettlingTimeMs, CancellationToken.None);
                                 SwitchMan.ReleaseOwned(new[] { a }, leaseOwner);
+                            }
                         }
                         break;
                     }
@@ -989,7 +1031,10 @@ public sealed class WsHub
                         finally
                         {
                             if (leaseOwner is not null)
+                            {
+                                await Task.Delay(LayoutRuntime.TurnoutSettlingTimeMs, CancellationToken.None);
                                 SwitchMan.ReleaseOwned(new[] { a }, leaseOwner);
+                            }
                         }
                         break;
                     }
@@ -1013,9 +1058,34 @@ public sealed class WsHub
                         finally
                         {
                             if (leaseOwner is not null)
+                            {
+                                await Task.Delay(LayoutRuntime.TurnoutSettlingTimeMs, CancellationToken.None);
                                 SwitchMan.ReleaseOwned(new[] { a }, leaseOwner);
+                            }
                         }
                         break;
+                    }
+                case "sensorSettings":
+                    {
+                        var action = S(data, "action");
+                        if (action == "save")
+                        {
+                            var sensorMs = I(data, "sensorOffDelayMs");
+                            var intervalMs = I(data, "turnoutCommandIntervalMs");
+                            var settlingMs = I(data, "turnoutSettlingTimeMs");
+                            if (!LayoutRuntime.SaveTimingSettings(sensorMs, intervalMs, settlingMs))
+                            {
+                                await Send(ws, "error", new { message = "timing_settings_save_failed_or_out_of_range" });
+                                return;
+                            }
+                        }
+                        await Send(ws, "sensorSettings", new {
+                            sensorOffDelayMs = LayoutRuntime.SensorOffDelayMs,
+                            turnoutCommandIntervalMs = LayoutRuntime.TurnoutCommandIntervalMs,
+                            turnoutSettlingTimeMs = LayoutRuntime.TurnoutSettlingTimeMs,
+                            saved = action == "save"
+                        });
+                        return;
                     }
                 case "setSensor":
                     {
@@ -1086,7 +1156,33 @@ public sealed class WsHub
             ct);
 
         if (result.Ok)
+        {
+            long remaining;
+            lock (_manualTurnoutTimingGate)
+            {
+                var now = Environment.TickCount64;
+                var interval = LayoutRuntime.TurnoutCommandIntervalMs;
+                var settling = LayoutRuntime.TurnoutSettlingTimeMs;
+                var globalRemaining = _manualTurnoutLastGlobalIssued < 0
+                    ? 0 : interval - (now - _manualTurnoutLastGlobalIssued);
+                var localRemaining = _manualTurnoutLastIssued.TryGetValue(address, out var last)
+                    ? Math.Max(interval, settling) - (now - last) : 0;
+                remaining = Math.Max(0, Math.Max(globalRemaining, localRemaining));
+                if (remaining == 0)
+                {
+                    _manualTurnoutLastIssued[address] = now;
+                    _manualTurnoutLastGlobalIssued = now;
+                }
+            }
+
+            if (remaining > 0)
+            {
+                SwitchMan.ReleaseOwned(new[] { address }, ownerId);
+                await Send(ws, "error", new { message = "turnout_cooldown", address, retryAfterMs = remaining });
+                return (false, null);
+            }
             return (true, ownerId);
+        }
 
         var blockingLock = result.Conflicts.FirstOrDefault();
         await Send(ws, "error", new
@@ -2930,6 +3026,10 @@ public sealed class WsHub
     private object CommandCenterInfo()
     {
         var x = CommandCenterConfigStore.Current;
+        var serialBaud = CommandCenter.Type == "loconet-serial"
+            ? (CommandCenter as ConfiguredCommandCenter)?.GetLocoNetSerialDiagnostics()?.BaudRate
+                ?? CommandCenterSettings.DccExSerialBaudRate
+            : CommandCenterSettings.DccExSerialBaudRate;
 
         return new
         {
@@ -2941,9 +3041,9 @@ public sealed class WsHub
             ip = x.IsSerial ? "" : x.TcpHost,
             port = x.IsSerial ? 0 : x.TcpPort,
             serialPort = x.IsSerial ? x.SerialPort : "",
-            baudRate = x.IsSerial ? CommandCenterSettings.DccExSerialBaudRate : 0,
+            baudRate = x.IsSerial ? serialBaud : 0,
             connectionString = x.IsSerial
-                ? $"{x.SerialPort} @ {CommandCenterSettings.DccExSerialBaudRate} baud"
+                ? $"{x.SerialPort} @ {serialBaud} baud"
                 : $"{x.TcpHost}:{x.TcpPort}"
         };
     }
@@ -2998,6 +3098,14 @@ public sealed class WsHub
             configured?
                 .GetLocoNetDiagnostics();
 
+        var locoNetSerial =
+            configured?
+                .GetLocoNetSerialDiagnostics();
+
+        var locoNetStandard =
+            configured?
+                .GetLocoNetStandardTelemetry();
+
         return new
         {
             commandCenterType =
@@ -3015,7 +3123,7 @@ public sealed class WsHub
             port = x.IsSerial ? 0 : x.TcpPort,
             serialPort = x.IsSerial ? x.SerialPort : "",
             baudRate = x.IsSerial
-                ? CommandCenterSettings.DccExSerialBaudRate
+                ? (locoNetSerial?.BaudRate ?? CommandCenterSettings.DccExSerialBaudRate)
                 : 0,
             alive = CommandCenter.Connected,
             maxLocos = HubState.Station.MaxLocos,
@@ -3060,6 +3168,34 @@ public sealed class WsHub
                             z21.Capabilities,
                         lastSystemStateAgeMs =
                             z21.LastSystemStateAgeMs
+                    },
+            locoNetStandard =
+                locoNetStandard is null
+                    ? null
+                    : new
+                    {
+                        rxFrames = locoNetStandard.RxFrames,
+                        txFrames = locoNetStandard.TxFrames,
+                        sensorReports = locoNetStandard.SensorReports,
+                        turnoutReports = locoNetStandard.TurnoutReports,
+                        powerReports = locoNetStandard.PowerReports,
+                        reportedTrackPowerOn = locoNetStandard.ReportedTrackPowerOn,
+                        lastRxAgeMs = locoNetStandard.LastRxAgeMs,
+                        lastPowerReportAgeMs = locoNetStandard.LastPowerReportAgeMs,
+                        trackCurrentMa = locoNetStandard.TrackCurrentMa,
+                        trackVoltageV = locoNetStandard.TrackVoltageV,
+                        temperatureC = locoNetStandard.TemperatureC
+                    },
+            locoNetSerial =
+                locoNetSerial is null
+                    ? null
+                    : new
+                    {
+                        port = locoNetSerial.Port,
+                        baudRate = locoNetSerial.BaudRate,
+                        linkUptimeMs = locoNetSerial.LinkUptimeMs,
+                        rxPackets = locoNetSerial.RxPackets,
+                        txPackets = locoNetSerial.TxPackets
                     },
             locoNet =
                 locoNet is null
@@ -3127,6 +3263,30 @@ public sealed class WsHub
         programmingModeActive = HubState.ProgrammingPower,
         programmingJoined = HubState.ProgrammingJoined
     });
+
+    public async Task ZeroKnownLocoSpeedsAfterEmergencyAsync()
+    {
+        foreach (var loco in HubState.Locos.Values.ToArray())
+        {
+            try
+            {
+                if (!await CommandCenter.SetLocoAsync(
+                        loco.Address, 0, loco.Forward, CancellationToken.None))
+                {
+                    Logger.LogCritical("E-STOP zero-speed command failed for loco #{Address}", loco.Address);
+                    continue;
+                }
+
+                var stopped = loco with { Speed = 0 };
+                HubState.Locos[loco.Address] = stopped;
+                await BroadcastLoco(stopped);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogCritical(ex, "E-STOP zero-speed command failed for loco #{Address}", loco.Address);
+            }
+        }
+    }
 
     private Task BroadcastLoco(LocoFeedback l) => Broadcast("locoState", new
     {

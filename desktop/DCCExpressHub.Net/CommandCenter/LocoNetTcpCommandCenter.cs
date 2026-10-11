@@ -16,7 +16,9 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
     private readonly string _host;
     private readonly int _port;
     private readonly SemaphoreSlim _txGate = new(1, 1);
+    private readonly SemaphoreSlim _accessoryPulseGate = new(1, 1);
     private readonly object _connectionGate = new();
+    private readonly LocoNetStandardTelemetry _standardTelemetry = new();
     private StreamWriter? _writer;
     private volatile bool _connected;
     private volatile bool _emergencyPaused;
@@ -54,6 +56,7 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
     public string Endpoint => $"{_host}:{_port}";
     public bool EmergencyPauseStateKnown => true;
     public bool EmergencyPaused => _emergencyPaused;
+    public LocoNetStandardTelemetrySnapshot StandardTelemetry => _standardTelemetry.Snapshot();
 
     public event Action<string>? RawInfo;
     public event Action<StationInfo>? StationInfoChanged;
@@ -80,10 +83,11 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
                 { AutoFlush = true, NewLine = "\n" };
 
                 lock (_connectionGate) _writer = writer;
+                _standardTelemetry.Reset();
                 _connected = true;
                 ConnectionChanged?.Invoke(true);
                 RawInfo?.Invoke($"LocoNet TCP connected: {Endpoint}");
-                StationInfoChanged?.Invoke(new StationInfo(Processor: "LocoNet TCP", Hardware: "YD7010 (experimental)"));
+                StationInfoChanged?.Invoke(new StationInfo(Processor: "LocoNet", Hardware: "TCP interface"));
 
                 while (!stoppingToken.IsCancellationRequested)
                 {
@@ -100,6 +104,7 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
             finally
             {
                 _connected = false;
+                _standardTelemetry.Reset();
                 lock (_slotSync)
                 {
                     _slots.Clear();
@@ -163,6 +168,8 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
         byte checksum = 0;
         foreach (var item in packet) checksum ^= item;
         if (checksum != 0xFF) return;
+
+        _standardTelemetry.ObserveReceived(packet.ToArray());
 
         if (packet.Count == 2 && packet[0] == 0x85)
         {
@@ -251,7 +258,13 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
                 changed = !_sensors.TryGetValue(address, out var previous) || previous != occupied;
                 _sensors[address] = occupied;
             }
-            if (changed) SensorFeedbackChanged?.Invoke(address, occupied);
+            if (changed)
+            {
+                _log.LogInformation(
+                    "LocoNet sensor RX OPC_INPUT_REP: raw={RawPacket}, address=#{Address}, state={State}",
+                    Convert.ToHexString(packet.ToArray()), address, occupied ? "ON" : "OFF");
+                SensorFeedbackChanged?.Invoke(address, occupied);
+            }
         }
         else if (packet[0] == 0xB0 && packet.Count == 4)
         {
@@ -496,6 +509,7 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
             lock (_connectionGate) writer = _writer;
             if (writer is null) return false;
             await writer.WriteLineAsync(line.AsMemory(), ct);
+            _standardTelemetry.ObserveTransmitted();
             RawInfo?.Invoke("LocoNet TX: " + line);
             return true;
         }
@@ -510,15 +524,66 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
     public async Task<bool> SetTurnoutAsync(int address, bool closed, CancellationToken ct = default)
     {
         if (address is < 1 or > 2048) return false;
-        int a = address - 1;
-        byte low = (byte)(a & 0x7F);
-        byte high = (byte)(((a >> 7) & 0x0F) | (closed ? 0x20 : 0));
-        // JMRI LnTurnout sends an ON pulse followed by OFF. The previous
-        // implementation kept the accessory activation asserted indefinitely.
-        if (!await SendPacketAsync(new byte[] { 0xB0, low, (byte)(high | 0x10) }, ct))
-            return false;
-        await Task.Delay(200, ct);
-        return await SendPacketAsync(new byte[] { 0xB0, low, high }, ct);
+        var queuedAt = System.Diagnostics.Stopwatch.GetTimestamp();
+        await _accessoryPulseGate.WaitAsync(ct);
+        var queueMs = System.Diagnostics.Stopwatch.GetElapsedTime(queuedAt).TotalMilliseconds;
+        try
+        {
+            _log.LogInformation(
+                "LocoNet turnout #{Address} requested closed={Closed}; pulse-gate wait={QueueMs:F1} ms",
+                address, closed, queueMs);
+            int a = address - 1;
+            byte low = (byte)(a & 0x7F);
+            byte high = (byte)(((a >> 7) & 0x0F) | (closed ? 0x20 : 0));
+
+            // Repeat the complete ON/OFF command pair, not just the ON edge.
+            // Holding the pulse gate across both pairs prevents other turnouts
+            // from interleaving their magnet pulses.
+            for (var attempt = 1; attempt <= 2; attempt++)
+            {
+                bool activated = false;
+                try
+                {
+                    if (!await SendPacketAsync([0xB0, low, (byte)(high | 0x10)], ct))
+                        return false;
+                    activated = true;
+                    _log.LogInformation(
+                        "LocoNet turnout #{Address}: pulse {Attempt}/2 ON sent to LBServer (not decoder-confirmed)",
+                        address, attempt);
+                    await Task.Delay(200, ct);
+
+                    // Always release the output even if cancellation occurs.
+                    var released = await SendPacketAsync(
+                        [0xB0, low, high], CancellationToken.None);
+                    if (!released)
+                    {
+                        _log.LogWarning(
+                            "LocoNet turnout #{Address}: pulse {Attempt}/2 OFF failed",
+                            address, attempt);
+                        return false;
+                    }
+
+                    activated = false;
+                    _log.LogInformation(
+                        "LocoNet turnout #{Address}: pulse {Attempt}/2 OFF sent (physical position unconfirmed)",
+                        address, attempt);
+                }
+                finally
+                {
+                    if (activated &&
+                        !await SendPacketAsync([0xB0, low, high], CancellationToken.None))
+                        _log.LogError(
+                            "LocoNet turnout #{Address}: failed to release output after interruption",
+                            address);
+                }
+
+                if (attempt == 1)
+                    await Task.Delay(250, ct);
+            }
+
+            return true;
+        }
+        finally { _accessoryPulseGate.Release(); }
     }
 
     public async Task<bool> SetAccessoryAsync(int address, bool active, CancellationToken ct = default)
@@ -527,26 +592,32 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
         // by an activation pulse. It must be encoded independently of the
         // layout's logical turnout state.
         if (address is < 1 or > 2048) return false;
-        int a = address - 1;
-        byte low = (byte)(a & 0x7F);
-        byte high = (byte)(((a >> 7) & 0x0F) | (active ? 0x20 : 0));
-        bool activated = false;
+        await _accessoryPulseGate.WaitAsync(ct);
         try
         {
-            if (!await SendPacketAsync([0xB0, low, (byte)(high | 0x10)], ct))
-                return false;
-            activated = true;
-            await Task.Delay(200, ct);
-            var released = await SendPacketAsync([0xB0, low, high], CancellationToken.None);
-            activated = false;
-            return released;
+            int a = address - 1;
+            byte low = (byte)(a & 0x7F);
+            byte high = (byte)(((a >> 7) & 0x0F) | (active ? 0x20 : 0));
+            bool activated = false;
+            try
+            {
+                if (!await SendPacketAsync([0xB0, low, (byte)(high | 0x10)], ct))
+                    return false;
+                activated = true;
+                await Task.Delay(200, ct);
+                var released = await SendPacketAsync([0xB0, low, high], CancellationToken.None);
+                activated = false;
+                return released;
+            }
+            finally
+            {
+                if (activated)
+                    await SendPacketAsync([0xB0, low, high], CancellationToken.None);
+            }
         }
-        finally
-        {
-            if (activated)
-                await SendPacketAsync([0xB0, low, high], CancellationToken.None);
-        }
+        finally { _accessoryPulseGate.Release(); }
     }
+
     public async Task<bool> SetTrackPowerAsync(bool on, bool includeProgramming = true, CancellationToken ct = default)
     {
         var sent = await SendPacketAsync(new byte[] { on ? (byte)0x83 : (byte)0x82 }, ct);
@@ -790,6 +861,8 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
                 if (!await SendPacketAsync([0xB0, sw1[i], sw2[i]], ct)) return false;
                 await Task.Delay(250, ct);
             }
+            _log.LogInformation(
+                "LocoNet sensor interrogation: 8 requests sent; complete sensor snapshot is NOT confirmed by the protocol");
             return true;
         }
         finally { _snapshotGate.Release(); }

@@ -20,6 +20,7 @@ import type {
 } from "@/models/editor/core/LayoutView";
 
 import {
+  applyPartSegmentLabels,
   buildClientRouteGraph,
   type ClientRouteGraphBuildResult,
 } from "@/services/clientRouteGraphBuilder";
@@ -28,7 +29,9 @@ import {
   createClientGraphFromRouteGraphDto,
 } from "@/services/routeGraphDtoMapper";
 
-const ROUTE_TOPOLOGY_VERSION = 3;
+// v4 introduces directed block parts inside an unchanged physical section.
+// Invalidate persisted v3 graphs (which flattened all blocks into one node).
+const ROUTE_TOPOLOGY_VERSION = 5;
 
 const ROUTE_TOPOLOGY_FIELD =
   "routeTopology";
@@ -1018,14 +1021,20 @@ function resultFromPersisted(
       persisted.graph
     );
 
+  const trackRuntime =
+    persisted.graph.trackRuntime.map(
+      item => ({
+        ...item,
+      })
+    );
+
+  // Older saved v4 graphs already contain Sx.y nodes, but their
+  // trackRuntime may predate the visual-only partSegment metadata.
+  applyPartSegmentLabels(graph, trackRuntime);
+
   return {
     graph,
-    trackRuntime:
-      persisted.graph.trackRuntime.map(
-        item => ({
-          ...item,
-        })
-      ),
+    trackRuntime,
     routes:
       graph.getRunnableBlockRoutes(),
   };

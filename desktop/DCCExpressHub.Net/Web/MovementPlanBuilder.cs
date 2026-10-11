@@ -772,7 +772,7 @@ public sealed class MovementPlanBuilder
                 topology,
                 "version");
 
-        if (version is not (2 or 3))
+        if (version is not (2 or 3 or 4 or 5))
             throw new InvalidOperationException(
                 "movement_route_topology_unsupported");
 
@@ -1171,6 +1171,10 @@ public sealed class MovementPlanBuilder
                     ReadTurnoutStates(
                         passage,
                         "turnoutStates");
+
+                if (turnoutStates.Length == 0)
+                    throw new InvalidOperationException(
+                        "movement_route_turnout_state_missing");
 
                 var fallbackAddress =
                     turnoutStates

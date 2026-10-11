@@ -39,6 +39,14 @@ public sealed partial class WatsonWebServerService
             "/api/command-center-loconet-test",
             TestCommandCenterLocoNetAsync);
 
+        Add(server, WatsonHttpMethod.GET, "/api/loconet-serial-config",
+            async ctx => await SendAsync(ctx,
+                Service<CommandCenterApi>().GetLocoNetSerialSettings()));
+        Add(server, WatsonHttpMethod.POST, "/api/loconet-serial-config",
+            SaveLocoNetSerialSettingsAsync);
+        Add(server, WatsonHttpMethod.POST, "/api/loconet-serial-test",
+            TestLocoNetSerialSettingsAsync);
+
         Add(
             server,
             WatsonHttpMethod.GET,
@@ -62,6 +70,40 @@ public sealed partial class WatsonWebServerService
                     Service<CommandCenterApi>()
                         .GetCapabilities());
             });
+    }
+
+    async Task SaveLocoNetSerialSettingsAsync(HttpContextBase ctx)
+    {
+        if (!IsUrlEncodedForm(ctx))
+        {
+            await SendAsync(ctx, HubApiResponse.Error(400, new { ok = false, message = "Missing form data" }));
+            return;
+        }
+        var form = await ReadUrlEncodedFormAsync(ctx);
+        if (!int.TryParse(Get(form, "baudRate"), out var baudRate))
+        {
+            await SendAsync(ctx, HubApiResponse.Error(400, new { ok = false, message = "Invalid baud rate" }));
+            return;
+        }
+        await SendAsync(ctx, Service<CommandCenterApi>().SaveLocoNetSerialSettings(
+            Get(form, "enabled") == "true", Get(form, "port"), baudRate));
+    }
+
+    async Task TestLocoNetSerialSettingsAsync(HttpContextBase ctx)
+    {
+        if (!IsUrlEncodedForm(ctx))
+        {
+            await SendAsync(ctx, HubApiResponse.Error(400, new { ok = false, message = "Missing form data" }));
+            return;
+        }
+        var form = await ReadUrlEncodedFormAsync(ctx);
+        if (!int.TryParse(Get(form, "baudRate"), out var baudRate))
+        {
+            await SendAsync(ctx, HubApiResponse.Error(400, new { ok = false, message = "Invalid baud rate" }));
+            return;
+        }
+        await SendAsync(ctx, await Service<CommandCenterApi>()
+            .TestLocoNetSerialSettingsAsync(Get(form, "port"), baudRate));
     }
 
     async Task SaveCommandCenterConfigAsync(

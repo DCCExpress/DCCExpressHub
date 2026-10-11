@@ -172,6 +172,13 @@ public sealed partial class WatsonWebServerService
             return;
         }
 
+        if (!await api.SaveBeforeShutdownAsync())
+        {
+            await SendAsync(ctx, HubApiResponse.Error(
+                503, new { ok = false, message = "Runtime state save failed; shutdown cancelled" }));
+            return;
+        }
+
         await SendAsync(
             ctx,
             api.ShutdownResponse());

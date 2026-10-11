@@ -890,6 +890,90 @@ function LitePropertyPanel({
   );
 }
 
+function SensorSettingsCard() {
+  const [sensorOffMs, setSensorOffMs] = useState<number | string>(250);
+  const [commandIntervalMs, setCommandIntervalMs] = useState<number | string>(150);
+  const [settlingMs, setSettlingMs] = useState<number | string>(100);
+  const [saved, setSaved] = useState({ sensorOffMs: 250, commandIntervalMs: 150, settlingMs: 100 });
+  const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = wsClient.on("sensorSettings", data => {
+      setSensorOffMs(data.sensorOffDelayMs);
+      setCommandIntervalMs(data.turnoutCommandIntervalMs);
+      setSettlingMs(data.turnoutSettlingTimeMs);
+      setSaved({
+        sensorOffMs: data.sensorOffDelayMs,
+        commandIntervalMs: data.turnoutCommandIntervalMs,
+        settlingMs: data.turnoutSettlingTimeMs,
+      });
+      setSaving(false);
+      setLoaded(true);
+      if (data.saved) showNotification({ message: "Settings saved", color: "green" });
+    });
+    wsClient.send({ type: "sensorSettings", data: { action: "get" } });
+    return unsubscribe;
+  }, []);
+
+  const isInt = (value: number | string, min: number, max: number) =>
+    typeof value === "number" && Number.isInteger(value) && value >= min && value <= max;
+  const valid = isInt(sensorOffMs, 100, 1000) &&
+    isInt(commandIntervalMs, 0, 5000) && isInt(settlingMs, 0, 30000);
+  const dirty = sensorOffMs !== saved.sensorOffMs ||
+    commandIntervalMs !== saved.commandIntervalMs || settlingMs !== saved.settlingMs;
+
+  return (
+    <Card withBorder p="sm" bg="var(--mantine-color-body)">
+      <Stack gap="xs">
+        <Group gap="xs"><IconSettings size={17} /><Text fw={600}>Settings</Text></Group>
+        <NumberInput
+          label="Sensor OFF delay (ms)"
+          description="ON is immediate; OFF must remain stable for this time."
+          value={sensorOffMs}
+          onChange={setSensorOffMs}
+          min={100} max={1000} step={50} allowDecimal={false} clampBehavior="strict"
+        />
+        <NumberInput
+          label="Turnout command interval (ms)"
+          description="Minimum interval between commands for different turnouts."
+          value={commandIntervalMs}
+          onChange={setCommandIntervalMs}
+          min={0} max={5000} step={50} allowDecimal={false} clampBehavior="strict"
+        />
+        <NumberInput
+          label="Turnout settling time (ms)"
+          description="Wait before granting route authority. Settling times of multiple turnouts overlap."
+          value={settlingMs}
+          onChange={setSettlingMs}
+          min={0} max={30000} step={50} allowDecimal={false} clampBehavior="strict"
+        />
+        <Group justify="flex-end">
+          <Button
+            size="xs"
+            leftSection={<IconDeviceFloppy size={15} />}
+            disabled={!loaded || !valid || !dirty || saving}
+            loading={saving}
+            onClick={() => {
+              if (!valid || typeof sensorOffMs !== "number" ||
+                  typeof commandIntervalMs !== "number" || typeof settlingMs !== "number") return;
+              if (!wsClient.send({ type: "sensorSettings", data: {
+                action: "save", sensorOffDelayMs: sensorOffMs,
+                turnoutCommandIntervalMs: commandIntervalMs,
+                turnoutSettlingTimeMs: settlingMs,
+              } })) {
+                showNotification({ message: "WebSocket is not connected", color: "red" });
+                return;
+              }
+              setSaving(true);
+            }}
+          >Save</Button>
+        </Group>
+      </Stack>
+    </Card>
+  );
+}
+
 export default function LiteLayoutPage({
   version,
   locos,
@@ -2110,7 +2194,7 @@ export default function LiteLayoutPage({
                   </Tabs.List>
 
                   <Tabs.Panel value="tasks" className="lite-info-tab-panel">
-                    <MovementTaskManager document={movementDocument} locos={locos} />
+                    <MovementTaskManager document={movementDocument} locos={locos} layout={layout} />
                   </Tabs.Panel>
 
                   <Tabs.Panel value="automation" className="lite-info-tab-panel">
@@ -2174,12 +2258,17 @@ export default function LiteLayoutPage({
                   </Tabs.Panel>
 
                   <Tabs.Panel value="info" className="lite-info-tab-panel">
-                    <SystemInfoPanel
-                      status={dccExStatus}
-                      wsStatus={wsStatus}
-                      flashInfo={flashInfo}
-                      version={version}
-                    />
+                    <ScrollArea h="100%" type="auto" scrollbarSize={9} className="lite-info-scroll">
+                      <Stack gap="sm">
+                        <SensorSettingsCard />
+                        <SystemInfoPanel
+                          status={dccExStatus}
+                          wsStatus={wsStatus}
+                          flashInfo={flashInfo}
+                          version={version}
+                        />
+                      </Stack>
+                    </ScrollArea>
                   </Tabs.Panel>
 
                   <Tabs.Panel value="log" className="lite-info-tab-panel">

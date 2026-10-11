@@ -150,6 +150,9 @@ public sealed class RuntimeSystemApi
 
             await _ws
                 .BroadcastPowerState();
+
+            if (_hubState.EmergencyStop)
+                await _ws.ZeroKnownLocoSpeedsAfterEmergencyAsync();
         }
 
         return ok

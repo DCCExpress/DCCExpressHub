@@ -76,6 +76,9 @@ export abstract class TrackElement extends BaseElement {
 
   section: number = 0;
 
+  /** Visual-only subsegment name; not persisted as a physical section. */
+  partSegment: string = "";
+
   isRoute: boolean = false;
 
   /** Runtime indices of the traversed connection pairs (crossing lines). */
@@ -176,7 +179,7 @@ export abstract class TrackElement extends BaseElement {
       ctx,
       this.centerX,
       this.centerY + 12,
-      "S" + this.section.toString(),
+      this.partSegment || "S" + this.section.toString(),
       "white",
       "black",
     );

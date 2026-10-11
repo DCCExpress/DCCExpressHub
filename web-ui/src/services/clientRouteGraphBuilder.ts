@@ -36,7 +36,7 @@ export type ClientRouteGraphBuildResult = {
 function sectionFromNodeName(
   name: string
 ): number {
-  const match = /^S(\d+)$/.exec(name);
+  const match = /^S(\d+)(?:\.\d+)?$/.exec(name);
 
   if (!match) {
     return 0;
@@ -47,6 +47,41 @@ function sectionFromNodeName(
   return Number.isInteger(value) && value > 0
     ? value
     : 0;
+}
+
+/**
+ * The graph may split one physical section S6 into S6.1 / S6.2.
+ * Carry that node name only for visualization; physical section numbers
+ * remain unchanged for Dispatcher ownership and sensor resource locking.
+ * This also upgrades already-persisted v4 graphs without a regeneration.
+ */
+export function applyPartSegmentLabels(
+  graph: Graph,
+  trackRuntime: RouteGraphTrackRuntimeDto[]
+): void {
+  const byId = new Map(
+    trackRuntime.map(item => [item.id, item])
+  );
+
+  for (const item of trackRuntime) {
+    item.partSegment = "";
+  }
+
+  for (const node of graph.nodes) {
+    if (!/^S\d+\.\d+$/.test(node.name)) {
+      continue;
+    }
+
+    for (const elementId of [
+      ...node.elementIds,
+      ...node.blocks.map(block => block.id),
+    ]) {
+      const runtime = byId.get(elementId);
+      if (runtime) {
+        runtime.partSegment = node.name;
+      }
+    }
+  }
 }
 
 export function buildClientRouteGraph(
@@ -162,6 +197,8 @@ export function buildClientRouteGraph(
 
   const trackRuntime =
     [...runtimeById.values()];
+
+  applyPartSegmentLabels(graph, trackRuntime);
 
   // Apply generated section/direction metadata to the actual editor objects.
   // TrackElement.toJSON persists section, therefore the next layout save

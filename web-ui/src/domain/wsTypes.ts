@@ -522,6 +522,7 @@ export type ServerWsPayloadMap = {
   turnoutChanged: TurnoutChangedPayload;
   sensorChanged: SensorChangedPayload;
   sensorSnapshot: SensorSnapshotPayload;
+  sensorSettings: { sensorOffDelayMs: number; turnoutCommandIntervalMs: number; turnoutSettlingTimeMs: number; saved?: boolean };
   runtimePhysicalSnapshot: RuntimePhysicalSnapshotPayload;
   accessoryChanged: AccessoryChangedPayload;
   vpinChanged: VpinChangedPayload;

@@ -20,16 +20,19 @@ public sealed class DesktopControlApi
         "DCCEXPRESS_DESKTOP_SHUTDOWN_TOKEN";
 
     readonly ICommandCenter _commandCenter;
+    readonly RuntimeStateStore _stateStore;
     readonly CommandCenterConfigStore _commandCenterConfig;
     readonly IHostApplicationLifetime _lifetime;
 
     public DesktopControlApi(
         ICommandCenter commandCenter,
+        RuntimeStateStore stateStore,
         CommandCenterConfigStore commandCenterConfig,
         IHostApplicationLifetime lifetime)
     {
         _commandCenter =
             commandCenter;
+        _stateStore = stateStore;
 
         _commandCenterConfig =
             commandCenterConfig;
@@ -104,6 +107,12 @@ public sealed class DesktopControlApi
                         .PowerIncludesProgramming,
                     cancellationToken);
 
+        // The desktop shell may terminate the backend immediately after this
+        // response; finish the physical runtime snapshot first.
+        var saved = await _stateStore.SaveAsync();
+        if (!saved)
+            return HubApiResponse.Error(503, new { ok = false, message = "Runtime state save failed" });
+
         return ok
             ? HubApiResponse.Ok(
                 new
@@ -131,6 +140,9 @@ public sealed class DesktopControlApi
                 message =
                     "Backend shutdown requested"
             });
+
+    public async Task<bool> SaveBeforeShutdownAsync() =>
+        await _stateStore.SaveAsync();
 
     public void RequestShutdown() =>
         _lifetime.StopApplication();

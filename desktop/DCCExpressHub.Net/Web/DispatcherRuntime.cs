@@ -100,6 +100,8 @@ public sealed record DispatcherRouteAcquireResult(
 public sealed class DispatcherRuntime
 {
     readonly object _gate = new();
+    readonly SemaphoreSlim _turnoutCommandGate = new(1, 1);
+    long _lastTurnoutCommandAtMs = -1;
     readonly LayoutRuntime _runtime;
     readonly ICommandCenter _commandCenter;
     readonly SwitchManManager _switchMan;
@@ -661,6 +663,25 @@ public sealed class DispatcherRuntime
         return ok;
     }
 
+    async Task<bool> SetTurnoutWithIntervalAsync(
+        DispatcherTurnoutRequirement requirement, string ownerId, CancellationToken ct)
+    {
+        await _turnoutCommandGate.WaitAsync(ct);
+        try
+        {
+            var interval = _runtime.TurnoutCommandIntervalMs;
+            if (_lastTurnoutCommandAtMs >= 0)
+            {
+                var remaining = interval - (Environment.TickCount64 - _lastTurnoutCommandAtMs);
+                if (remaining > 0) await Task.Delay((int)remaining, ct);
+            }
+            var sent = await SetTurnoutAsync(requirement, ownerId, ct);
+            if (sent) _lastTurnoutCommandAtMs = Environment.TickCount64;
+            return sent;
+        }
+        finally { _turnoutCommandGate.Release(); }
+    }
+
     public async Task<DispatcherAcquireResult> AcquireLegAsync(
         DispatcherLegRequest request,
         CancellationToken ct = default)
@@ -840,6 +861,7 @@ public sealed class DispatcherRuntime
                     null,
                     BlockingSensor: safety.BlockingSensor);
 
+            long lastTurnoutReadyAtMs = 0;
             for (
                 var index = 0;
                 index < turnouts.Length;
@@ -865,7 +887,13 @@ public sealed class DispatcherRuntime
                     currentClosed !=
                         turnout.Closed;
 
-                if (!await SetTurnoutAsync(
+                _log.LogInformation(
+                    "Dispatcher automated turnout owner={Owner}, loco=#{Loco}, leg={From}->{To}, index={Index}/{Total}, address=#{Address}, closed={Closed} (command about to send)",
+                    request.OwnerId, request.LocoAddress, request.FromBlockId,
+                    request.ToBlockId, index + 1, turnouts.Length,
+                    turnout.Address, turnout.Closed);
+
+                if (!await SetTurnoutWithIntervalAsync(
                         turnout,
                         request.OwnerId,
                         ct))
@@ -879,16 +907,13 @@ public sealed class DispatcherRuntime
                  * turnout change leave a short mechanical/command-station
                  * settling interval before issuing the next turnout command.
                  */
-                if (needsChange &&
-                    index + 1 <
-                        turnouts.Length)
-                    await Task.Delay(
-                        Math.Clamp(
-                            request.TurnoutSetDelayMs,
-                            0,
-                            600000),
-                        ct);
+                if (needsChange)
+                    lastTurnoutReadyAtMs = Math.Max(lastTurnoutReadyAtMs,
+                        Environment.TickCount64 + _runtime.TurnoutSettlingTimeMs);
             }
+
+            if (lastTurnoutReadyAtMs > Environment.TickCount64)
+                await Task.Delay((int)(lastTurnoutReadyAtMs - Environment.TickCount64), ct);
 
             // Final safety check after physical turnout commands.
             destinationError =
@@ -938,11 +963,13 @@ public sealed class DispatcherRuntime
                 _leases[request.OwnerId] = lease;
 
             _log.LogInformation(
-                "Dispatcher acquired leg {FromBlock}->{ToBlock} for loco #{LocoAddress}, owner {OwnerId}",
+                "Dispatcher acquired leg {FromBlock}->{ToBlock} for loco #{LocoAddress}, owner {OwnerId}; turnouts=[{Turnouts}], safetySensors=[{SafetySensors}]",
                 request.FromBlockId,
                 request.ToBlockId,
                 request.LocoAddress,
-                request.OwnerId);
+                request.OwnerId,
+                string.Join(",", turnoutAddresses),
+                string.Join(",", sensors));
 
             Changed?.Invoke(Snapshot());
 
@@ -1151,6 +1178,7 @@ public sealed class DispatcherRuntime
                     BlockingBlock:
                         blockingBlock);
 
+            long lastTurnoutReadyAtMs = 0;
             for (
                 var index = 0;
                 index < turnouts.Length;
@@ -1176,7 +1204,13 @@ public sealed class DispatcherRuntime
                     currentClosed !=
                         turnout.Closed;
 
-                if (!await SetTurnoutAsync(
+                _log.LogInformation(
+                    "Dispatcher automated turnout owner={Owner}, loco=#{Loco}, leg={From}->{To}, index={Index}/{Total}, address=#{Address}, closed={Closed} (command about to send)",
+                    request.OwnerId, request.LocoAddress, request.SourceBlockId,
+                    request.DownstreamBlocks.LastOrDefault()?.BlockId ?? 0, index + 1, turnouts.Length,
+                    turnout.Address, turnout.Closed);
+
+                if (!await SetTurnoutWithIntervalAsync(
                         turnout,
                         request.OwnerId,
                         ct))
@@ -1185,16 +1219,13 @@ public sealed class DispatcherRuntime
                         "turnout_command_failed",
                         null);
 
-                if (needsChange &&
-                    index + 1 <
-                        turnouts.Length)
-                    await Task.Delay(
-                        Math.Clamp(
-                            request.TurnoutSetDelayMs,
-                            0,
-                            600000),
-                        ct);
+                if (needsChange)
+                    lastTurnoutReadyAtMs = Math.Max(lastTurnoutReadyAtMs,
+                        Environment.TickCount64 + _runtime.TurnoutSettlingTimeMs);
             }
+
+            if (lastTurnoutReadyAtMs > Environment.TickCount64)
+                await Task.Delay((int)(lastTurnoutReadyAtMs - Environment.TickCount64), ct);
 
             sourceError =
                 ValidateSourceBlock(
@@ -1639,12 +1670,27 @@ public sealed class DispatcherRuntime
             ownerId,
             lease.ResourceTokens);
 
+        var sourceBlock = FindBlock(lease.FromBlockId);
+        var destinationBlock = FindBlock(lease.ToBlockId);
+        bool? sourceSensorOn = sourceBlock is not null &&
+            sourceBlock.SensorAddress > 0 &&
+            _runtime.TryGetSensorState(sourceBlock.SensorAddress, out var sourceOn)
+                ? sourceOn : null;
+        bool? destinationSensorOn = destinationBlock is not null &&
+            destinationBlock.SensorAddress > 0 &&
+            _runtime.TryGetSensorState(destinationBlock.SensorAddress, out var destinationOn)
+                ? destinationOn : null;
+
         _log.LogInformation(
-            "Dispatcher released leg {FromBlock}->{ToBlock} for loco #{LocoAddress}, owner {OwnerId}",
+            "Dispatcher released leg {FromBlock}->{ToBlock} for loco #{LocoAddress}, owner {OwnerId}; heldMs={HeldMs}, turnouts=[{Turnouts}], sourceSensorOn={SourceSensorOn}, destinationSensorOn={DestinationSensorOn}",
             lease.FromBlockId,
             lease.ToBlockId,
             lease.LocoAddress,
-            ownerId);
+            ownerId,
+            Environment.TickCount64 - lease.AcquiredAtMs,
+            string.Join(",", lease.TurnoutAddresses),
+            sourceSensorOn,
+            destinationSensorOn);
 
         Changed?.Invoke(Snapshot());
 

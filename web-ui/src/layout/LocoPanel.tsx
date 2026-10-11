@@ -337,16 +337,30 @@ export default function LocoPanel({
       : null;
   }, [locos, selectedLocoId]);
 
-  useEffect(() => {
-    currentAddressRef.current =
-      currentLoco?.address ?? null;
+  const currentLocoAddress = currentLoco?.address ?? null;
 
+  useEffect(() => {
+    currentAddressRef.current = currentLocoAddress;
     clearRuntimeState();
 
-    if (currentLoco) {
-      wsApi.getLoco(currentLoco.address);
+    if (currentLocoAddress !== null) {
+      // Loco state is cached per DCC address by WsClient. Restoring the
+      // selected address synchronously from that cache prevents the F0–F28
+      // buttons from staying cleared when the command station does not
+      // immediately answer a getLoco request (e.g. a LocoNet slot lookup).
+      // Never reuse function states belonging to the previous locomotive.
+      const cached = wsClient.getLatestLocoState(currentLocoAddress);
+      if (cached) {
+        setSpeed(cached.speed);
+        setDirection(cached.direction);
+        currentDirectionRef.current = cached.direction;
+        setActiveFunctions(functionsMaskToRecord(cached.functionsMask ?? 0));
+        setReservation(cached.reservation ?? null);
+      }
+
+      wsApi.getLoco(currentLocoAddress);
     }
-  }, [currentLoco, clearRuntimeState]);
+  }, [currentLocoAddress, clearRuntimeState]);
 
   useEffect(() => {
     const unsubscribe =
@@ -956,6 +970,7 @@ export default function LocoPanel({
 
                 <div className="mobile-throttle-functions">
                   <LocoFunctionGrid
+                    key={currentLoco.id}
                     loco={currentLoco}
                     activeFunctions={activeFunctions}
                     disabled={controlsDisabled}

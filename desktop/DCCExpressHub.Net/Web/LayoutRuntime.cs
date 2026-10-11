@@ -96,6 +96,46 @@ public sealed class LayoutRuntime
     // Authoritative physical runtime state.
     // Sensors are NOT reconciled to the layout. They come from <Q> / Q/q.
     readonly Dictionary<ushort, bool> _sensorStates = new();
+    // OFF must remain stable for 250 ms; ON is processed immediately.
+    int _sensorOffDelayMs = 250;
+    int _turnoutCommandIntervalMs = 150;
+    int _turnoutSettlingTimeMs = 100;
+    readonly string _sensorSettingsPath;
+    public int SensorOffDelayMs { get { lock (_gate) return _sensorOffDelayMs; } }
+    public int TurnoutCommandIntervalMs { get { lock (_gate) return _turnoutCommandIntervalMs; } }
+    public int TurnoutSettlingTimeMs { get { lock (_gate) return _turnoutSettlingTimeMs; } }
+
+    public bool SaveTimingSettings(int sensorOffMs, int turnoutIntervalMs, int turnoutSettlingMs)
+    {
+        if (sensorOffMs is < 100 or > 1000 ||
+            turnoutIntervalMs is < 0 or > 5000 ||
+            turnoutSettlingMs is < 0 or > 30000)
+            return false;
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(_sensorSettingsPath)!);
+            var json = JsonSerializer.Serialize(new {
+                sensorOffDelayMs = sensorOffMs,
+                turnoutCommandIntervalMs = turnoutIntervalMs,
+                turnoutSettlingTimeMs = turnoutSettlingMs
+            });
+            var tmp = _sensorSettingsPath + ".tmp";
+            File.WriteAllText(tmp, json);
+            File.Move(tmp, _sensorSettingsPath, true);
+            lock (_gate)
+            {
+                _sensorOffDelayMs = sensorOffMs;
+                _turnoutCommandIntervalMs = turnoutIntervalMs;
+                _turnoutSettlingTimeMs = turnoutSettlingMs;
+            }
+            return true;
+        }
+        catch { return false; }
+    }
+
+    public bool SaveSensorOffDelayMs(int milliseconds) =>
+        SaveTimingSettings(milliseconds, TurnoutCommandIntervalMs, TurnoutSettlingTimeMs);
+    readonly Dictionary<ushort, CancellationTokenSource> _pendingSensorOff = new();
 
     // Basic/extended endpoints ARE reconciled to the current layout topology.
     Dictionary<ushort, bool> _basicAccessoryStates = new();
@@ -139,6 +179,24 @@ public sealed class LayoutRuntime
     public LayoutRuntime(AppPaths env)
     {
         _env = env;
+        _sensorSettingsPath = Path.Combine(env.ContentRootPath, "data", "state", "sensor-settings.json");
+        try
+        {
+            if (File.Exists(_sensorSettingsPath))
+            {
+                using var doc = JsonDocument.Parse(File.ReadAllText(_sensorSettingsPath));
+                if (doc.RootElement.TryGetProperty("sensorOffDelayMs", out var delay) &&
+                    delay.TryGetInt32(out var ms) && ms is >= 100 and <= 1000)
+                    _sensorOffDelayMs = ms;
+                if (doc.RootElement.TryGetProperty("turnoutCommandIntervalMs", out var interval) &&
+                    interval.TryGetInt32(out var intervalMs) && intervalMs is >= 0 and <= 5000)
+                    _turnoutCommandIntervalMs = intervalMs;
+                if (doc.RootElement.TryGetProperty("turnoutSettlingTimeMs", out var settling) &&
+                    settling.TryGetInt32(out var settlingMs) && settlingMs is >= 0 and <= 30000)
+                    _turnoutSettlingTimeMs = settlingMs;
+            }
+        }
+        catch { /* Invalid settings must not prevent startup. */ }
         Rebuild();
     }
 
@@ -965,6 +1023,9 @@ public sealed class LayoutRuntime
         bool hadKnown;
         lock (_gate)
         {
+            foreach (var pending in _pendingSensorOff.Values)
+                pending.Cancel();
+            _pendingSensorOff.Clear();
             hadKnown = _sensorStates.Count > 0;
             _sensorStates.Clear();
         }
@@ -975,13 +1036,36 @@ public sealed class LayoutRuntime
 
     public bool SetSensor(ushort address, bool on)
     {
-        bool changed;
+        bool changed = false;
+        CancellationTokenSource? pendingOff = null;
 
         lock (_gate)
         {
-            changed = !_sensorStates.TryGetValue(address, out var old) || old != on;
-            _sensorStates[address] = on;
+            // Repeated OFF reports (including R-BUS snapshots) must not restart
+            // the delay indefinitely. Only ON cancels a pending OFF.
+            if (!on && _pendingSensorOff.ContainsKey(address))
+                return true;
+
+            if (_pendingSensorOff.Remove(address, out var previous))
+                previous.Cancel();
+
+            if (!on && _sensorStates.TryGetValue(address, out var wasOn) && wasOn)
+            {
+                // A brief loss of current must not release a block or fire LEAVE.
+                pendingOff = new CancellationTokenSource();
+                _pendingSensorOff[address] = pendingOff;
+            }
+            else
+            {
+                // The first known OFF sample remains OFF; do not manufacture
+                // an occupied state for sensors which have never reported ON.
+                changed = !_sensorStates.TryGetValue(address, out var old) || old != on;
+                _sensorStates[address] = on;
+            }
         }
+
+        if (pendingOff is not null)
+            _ = ConfirmSensorOffAsync(address, pendingOff);
 
         if (changed)
         {
@@ -990,6 +1074,37 @@ public sealed class LayoutRuntime
         }
 
         return true;
+    }
+
+    async Task ConfirmSensorOffAsync(ushort address, CancellationTokenSource pending)
+    {
+        try
+        {
+            await Task.Delay(SensorOffDelayMs, pending.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        bool changed = false;
+        lock (_gate)
+        {
+            if (_pendingSensorOff.TryGetValue(address, out var current) &&
+                ReferenceEquals(current, pending) &&
+                !pending.IsCancellationRequested)
+            {
+                _pendingSensorOff.Remove(address);
+                changed = _sensorStates.TryGetValue(address, out var previous) && previous;
+                _sensorStates[address] = false;
+            }
+        }
+
+        if (changed)
+        {
+            Changed?.Invoke("sensorChanged", new { address, on = false });
+            SensorTransitionProcessed?.Invoke();
+        }
     }
 
     public bool SetBlock(ushort id, string locoId, ushort locoAddress)

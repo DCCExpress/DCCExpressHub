@@ -299,11 +299,7 @@ public sealed class MovementRuntime
         var name =
             block.Name.Trim();
 
-        return name.Contains(
-                idLabel,
-                StringComparison.OrdinalIgnoreCase)
-            ? name
-            : name + " (" + idLabel + ")";
+        return name;
     }
 
     static string OccupancyError(
@@ -313,6 +309,25 @@ public sealed class MovementRuntime
         ", sensor #" +
         block.SensorAddress +
         ".";
+
+    // A sensor address shared by multiple blocks makes its physical occupancy
+    // ambiguous. Never infer a locomotive owner from such a reading.
+    static string? DuplicateBlockSensorError(
+        IReadOnlyList<RuntimeBlock> blocks)
+    {
+        var duplicate = blocks
+            .Where(block => block.SensorAddress > 0)
+            .GroupBy(block => block.SensorAddress)
+            .FirstOrDefault(group => group.Count() > 1);
+
+        if (duplicate is null)
+            return null;
+
+        return "Occupancy sensor #" + duplicate.Key +
+               " is assigned to multiple blocks: " +
+               string.Join(", ", duplicate.Select(BlockLabel)) +
+               ". Assign a unique block occupancy sensor address before running Movements.";
+    }
 
     RuntimeBlock? FindUnknownOccupiedBlock()
     {
@@ -520,11 +535,42 @@ public sealed class MovementRuntime
         if (executions.Length == 0)
             return;
 
+        // Keep the fail-closed occupancy check. If a live sensor is shared
+        // across blocks, report the mapping conflict rather than pretending
+        // the event belongs to whichever block was checked first.
+        var liveBlocks = _layout.BlocksForPersistence();
+        var ambiguousLiveSensor = liveBlocks
+            .Where(block => block.SensorAddress > 0 &&
+                _layout.TryGetSensorState(block.SensorAddress, out var on) && on)
+            .GroupBy(block => block.SensorAddress)
+            .FirstOrDefault(group => group.Count() > 1);
+
+        if (ambiguousLiveSensor is not null)
+        {
+            var blocks = ambiguousLiveSensor.ToArray();
+            _log.LogCritical(
+                "Ambiguous live occupancy: sensor #{Sensor} belongs to blocks {Blocks}; emergency stop requested.",
+                ambiguousLiveSensor.Key,
+                string.Join(", ", blocks.Select(BlockLabel)));
+            _ = TripOccupancySafetyAsync(
+                CreateSafetyTrip("unknown_occupancy", blocks[0], executions));
+            return;
+        }
+
         var unknownOccupancy =
             FindUnknownOccupiedBlock();
 
         if (unknownOccupancy is not null)
         {
+            var sensorBlocks = _layout.BlocksForPersistence()
+                .Where(block => block.SensorAddress == unknownOccupancy.SensorAddress)
+                .ToArray();
+            if (sensorBlocks.Length > 1)
+                _log.LogCritical(
+                    "Ambiguous block occupancy: sensor #{Sensor} is assigned to {Blocks}",
+                    unknownOccupancy.SensorAddress,
+                    string.Join(", ", sensorBlocks.Select(BlockLabel)));
+
             _ =
                 TripOccupancySafetyAsync(
                     CreateSafetyTrip(
@@ -2624,6 +2670,7 @@ public sealed class MovementRuntime
         execution.ActiveLegOwnerId =
             lease.OwnerId;
 
+        var legCompleted = false;
         try
         {
             if (leg.DepartWhen.Length > 0)
@@ -2993,6 +3040,27 @@ public sealed class MovementRuntime
                  * The committed destination is now the source of the next leg,
                  * so release the old leg before trying to reserve it again.
                  */
+                // Diagnostic: ARRIVED means the destination detector is ON.
+                // It does not guarantee that the trailing train has cleared
+                // the source block or its turnout section.
+                if (leg.From.SensorAddress is >= 1 and <= 65535 &&
+                    _layout.TryGetSensorState(
+                        (ushort)leg.From.SensorAddress.Value,
+                        out var sourceStillOccupied) &&
+                    sourceStillOccupied)
+                {
+                    _log.LogWarning(
+                        "Movement {Movement} loco #{Loco}: Dispatcher leg {From}->{To} is being released at ARRIVED while SOURCE sensor #{Sensor} remains ON; source LEAVE completed={LeaveFired}; owner={Owner}; turnouts={Turnouts}",
+                        execution.Page.Name,
+                        execution.LocoAddress,
+                        leg.From.Name,
+                        leg.To.Name,
+                        leg.From.SensorAddress.Value,
+                        blockLeaveState.Fired,
+                        lease.OwnerId,
+                        string.Join(",", lease.TurnoutAddresses));
+                }
+
                 _dispatcher.ReleaseLeg(
                     lease.OwnerId);
 
@@ -3201,18 +3269,69 @@ public sealed class MovementRuntime
                 execution,
                 info: "Arrived: " + leg.To.Name,
                 setInfo: true);
+
+            legCompleted = true;
         }
         finally
         {
-            if (string.Equals(
-                    execution.ActiveLegOwnerId,
-                    lease.OwnerId,
-                    StringComparison.Ordinal))
-                execution.ActiveLegOwnerId =
-                    null;
+            var safeToRelease = true;
 
-            _dispatcher.ReleaseLeg(
-                lease.OwnerId);
+            if (!legCompleted)
+            {
+                // A failed/cancelled leg must STOP the physical locomotive
+                // before its Dispatcher authority and SwitchMan locks go away.
+                // RunExecution's outer catch runs only AFTER this finally.
+                execution.Moving = false;
+                execution.DesiredSpeed = 0;
+                try
+                {
+                    await ApplySpeed(
+                        execution,
+                        force: true,
+                        cancellationToken: CancellationToken.None);
+                }
+                catch (Exception stopError)
+                {
+                    safeToRelease = false;
+                    _log.LogCritical(
+                        stopError,
+                        "Movement {Movement} loco #{Loco}: zero-speed not confirmed. Retaining Dispatcher authority {Owner} and attempting E-STOP.",
+                        execution.Page.Name,
+                        execution.LocoAddress,
+                        lease.OwnerId);
+                    try
+                    {
+                        await EnsureEmergencyStopAsync();
+                    }
+                    catch (Exception emergencyError)
+                    {
+                        _log.LogCritical(
+                            emergencyError,
+                            "Movement {Movement}: emergency-stop attempt failed; route authority retained.",
+                            execution.Page.Name);
+                    }
+                }
+            }
+
+            if (safeToRelease)
+            {
+                if (string.Equals(
+                        execution.ActiveLegOwnerId,
+                        lease.OwnerId,
+                        StringComparison.Ordinal))
+                    execution.ActiveLegOwnerId =
+                        null;
+
+                _dispatcher.ReleaseLeg(
+                    lease.OwnerId);
+            }
+            else
+            {
+                _log.LogCritical(
+                    "Dispatcher lease {Owner} for loco #{Loco} remains locked after unconfirmed STOP. Operator intervention required.",
+                    lease.OwnerId,
+                    execution.LocoAddress);
+            }
 
             /*
              * When ARRIVED already prepared the next leg, keep that target
@@ -3644,6 +3763,15 @@ public sealed class MovementRuntime
                 source.SensorAddress.Value +
                 " is not ON.");
 
+        var duplicateSensorError =
+            DuplicateBlockSensorError(_layout.BlocksForPersistence());
+
+        if (duplicateSensorError is not null)
+        {
+            _log.LogCritical("Movement start blocked: {Error}", duplicateSensorError);
+            return (false, duplicateSensorError);
+        }
+
         var unknownOccupancy =
             FindUnknownOccupiedBlock();
 
@@ -3973,7 +4101,10 @@ public sealed class MovementRuntime
                 CancellationToken.None);
 
         if (!ok)
+        {
+            _log.LogCritical("Command center rejected or failed to send emergency stop");
             return;
+        }
 
         _hubState.EmergencyStop =
             _commandCenter.EmergencyPauseStateKnown
@@ -3981,6 +4112,40 @@ public sealed class MovementRuntime
                 : true;
 
         PowerStateChanged?.Invoke();
+
+        // Z21 emergency stop (LAN_X_SET_STOP) pauses the command station,
+        // but does not clear each locomotive's last speed command. Otherwise
+        // a locomotive may resume at its old speed when E-STOP is released.
+        // Send an explicit zero for every known locomotive while still paused.
+        if (_hubState.EmergencyStop)
+        {
+            var locos = _hubState.Locos.Values.ToArray();
+            foreach (var loco in locos)
+            {
+                try
+                {
+                    var zeroSent = await _commandCenter.SetLocoAsync(
+                        loco.Address, 0, loco.Forward, CancellationToken.None);
+                    if (!zeroSent)
+                    {
+                        _log.LogCritical(
+                            "Emergency stop: zero-speed command failed for locomotive #{Address}",
+                            loco.Address);
+                        continue;
+                    }
+
+                    var zero = loco with { Speed = 0 };
+                    _hubState.Locos[loco.Address] = zero;
+                    LocoChanged?.Invoke(zero);
+                }
+                catch (Exception ex)
+                {
+                    _log.LogCritical(ex,
+                        "Emergency stop: could not set locomotive #{Address} speed to zero",
+                        loco.Address);
+                }
+            }
+        }
     }
 
     public void EmergencyStop() =>

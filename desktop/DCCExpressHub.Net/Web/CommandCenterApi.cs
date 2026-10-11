@@ -58,6 +58,44 @@ public sealed class CommandCenterApi
                 StringComparison.OrdinalIgnoreCase);
     }
 
+    public HubApiResponse GetLocoNetSerialSettings()
+    {
+        var settings = YaMoRcLocoNetSerialSettings.Load();
+        return HubApiResponse.Ok(new {
+            ok = true, enabled = settings.Enabled, port = settings.Port,
+            baudRate = settings.BaudRate, restartRequired = true
+        });
+    }
+
+    public HubApiResponse SaveLocoNetSerialSettings(bool enabled, string port, int baudRate)
+    {
+        if (!string.Equals(_commandCenter.Type, "loconet-serial", StringComparison.OrdinalIgnoreCase) &&
+            _physical.GetLocoNetDiagnostics() is null)
+            return HubApiResponse.Error(400, new { ok = false, message = "LocoNet USB Serial is available only for YaMoRC YD7010." });
+
+        var settings = new YaMoRcLocoNetSerialSettings(enabled, port.Trim(), baudRate);
+        if (!settings.IsValid())
+            return HubApiResponse.Error(400, new { ok = false, message = "Invalid LocoNet serial port or baud rate." });
+        if (!settings.Save())
+            return HubApiResponse.Error(500, new { ok = false, message = "Could not save LocoNet serial settings." });
+        return HubApiResponse.Ok(new { ok = true, enabled, port = settings.Port,
+            baudRate, restartRequired = true });
+    }
+
+    public async Task<HubApiResponse> TestLocoNetSerialSettingsAsync(string port, int baudRate)
+    {
+        try
+        {
+            await using var serial = new YaMoRcLocoNetSerialTransport(port, baudRate);
+            serial.Open();
+            return HubApiResponse.Ok(new { ok = true, message = "COM port opened successfully. LocoNet packet framing has not yet been verified.", port, baudRate });
+        }
+        catch (Exception ex)
+        {
+            return HubApiResponse.Error(400, new { ok = false, message = ex.Message, port, baudRate });
+        }
+    }
+
     public HubApiResponse GetConfig()
     {
         var x = _store.Current;
@@ -210,10 +248,20 @@ public sealed class CommandCenterApi
                     });
             }
 
+            if (current.Transport == "loconet-serial" &&
+                !serialPort.Equals(_commandCenter.Endpoint, StringComparison.OrdinalIgnoreCase))
+            {
+                return HubApiResponse.Error(409, new
+                {
+                    ok = false,
+                    message = "Change the LocoNet Serial COM port in the Desktop launcher and restart the backend."
+                });
+            }
+
             next =
                 new CommandCenterSettings
                 {
-                    Transport = "serial",
+                    Transport = current.Transport,
                     TcpHost = current.TcpHost,
                     TcpPort = current.TcpPort,
                     SerialPort = serialPort,
@@ -330,7 +378,9 @@ public sealed class CommandCenterApi
                 });
         }
 
-        if (
+        // USB LocoNet Serial uses the Desktop-selected COM port. Unlike DCC-EX,
+        // the port cannot be hot-switched: persist the setting, then restart.
+        if (current.Transport != "loconet-serial" &&
             !_physical.SetEndpoint(
                 endpoint,
                 endpointValue)
@@ -357,6 +407,7 @@ public sealed class CommandCenterApi
             {
                 ok = true,
                 transport = saved.Transport,
+                restartRequired = saved.Transport == "loconet-serial",
                 host =
                     saved.IsSerial
                         ? ""
@@ -542,6 +593,9 @@ public sealed class CommandCenterApi
             _store.Current;
         var isLocoNet = string.Equals(
             _commandCenter.Type, "loconet", StringComparison.OrdinalIgnoreCase);
+        var isLocoNetSerial = string.Equals(
+            _commandCenter.Type, "loconet-serial", StringComparison.OrdinalIgnoreCase);
+        var isLocoNetProtocol = isLocoNet || isLocoNetSerial;
 
         return HubApiResponse.Ok(
             new
@@ -556,7 +610,7 @@ public sealed class CommandCenterApi
                 defaultPort =
                     x.IsZ21
                         ? RocoZ21CommandCenter.DefaultPort
-                        : isLocoNet ? 1234 : 2560,
+                        : isLocoNet ? 1234 : isLocoNetSerial ? 0 : 2560,
                 defaultBaudRate =
                     CommandCenterSettings.DccExSerialBaudRate,
                 connected =
@@ -570,9 +624,9 @@ public sealed class CommandCenterApi
                         ? 0
                         : x.TcpPort,
                 serialPort =
-                    x.IsSerial
-                        ? x.SerialPort
-                        : "",
+                    isLocoNetSerial
+                        ? _commandCenter.Endpoint
+                        : x.IsSerial ? x.SerialPort : "",
                 baudRate =
                     x.IsSerial
                         ? CommandCenterSettings.DccExSerialBaudRate
@@ -582,22 +636,22 @@ public sealed class CommandCenterApi
                     {
                         trackPower = true,
                         programmingTrackPower =
-                            !x.IsZ21 && !isLocoNet,
+                            !x.IsZ21 && !isLocoNetProtocol,
                         serviceModeProgramming = true,
                         pomProgramming = true,
                         pomRead =
-                            x.IsZ21 || isLocoNet,
+                            x.IsZ21 || isLocoNetProtocol,
                         accessoryPomProgramming =
-                            x.IsZ21 || isLocoNet,
+                            x.IsZ21 || isLocoNetProtocol,
                         accessoryPomRead =
                             x.IsZ21,
                         rawCommand =
-                            !x.IsZ21 && !isLocoNet,
+                            !x.IsZ21 && !isLocoNetProtocol,
                         vPin =
-                            !x.IsZ21 && !isLocoNet,
+                            !x.IsZ21 && !isLocoNetProtocol,
                         extendedAccessory = true,
-                        currentTelemetry = !isLocoNet,
-                        trackConfiguration = !isLocoNet,
+                        currentTelemetry = !isLocoNetProtocol,
+                        trackConfiguration = !isLocoNetProtocol,
                         locomotiveControl = true,
                         locomotiveFunctions = true,
                         turnoutControl = true,

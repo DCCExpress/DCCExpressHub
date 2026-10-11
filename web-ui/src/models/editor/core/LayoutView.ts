@@ -818,6 +818,7 @@ export class LayoutView
 
     for (const element of trackElements) {
       element.section = 0;
+      element.partSegment = "";
       element.travelDirection = "unknown";
     }
 
@@ -842,6 +843,9 @@ export class LayoutView
 
       element.section =
         runtime.section;
+
+      element.partSegment =
+        runtime.partSegment ?? "";
 
       element.travelDirection =
         runtime.travelDirection;
