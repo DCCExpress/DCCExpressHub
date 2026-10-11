@@ -3098,6 +3098,10 @@ public sealed class WsHub
             configured?
                 .GetLocoNetSerialDiagnostics();
 
+        var locoNetStandard =
+            configured?
+                .GetLocoNetStandardTelemetry();
+
         return new
         {
             commandCenterType =
@@ -3160,6 +3164,23 @@ public sealed class WsHub
                             z21.Capabilities,
                         lastSystemStateAgeMs =
                             z21.LastSystemStateAgeMs
+                    },
+            locoNetStandard =
+                locoNetStandard is null
+                    ? null
+                    : new
+                    {
+                        rxFrames = locoNetStandard.RxFrames,
+                        txFrames = locoNetStandard.TxFrames,
+                        sensorReports = locoNetStandard.SensorReports,
+                        turnoutReports = locoNetStandard.TurnoutReports,
+                        powerReports = locoNetStandard.PowerReports,
+                        reportedTrackPowerOn = locoNetStandard.ReportedTrackPowerOn,
+                        lastRxAgeMs = locoNetStandard.LastRxAgeMs,
+                        lastPowerReportAgeMs = locoNetStandard.LastPowerReportAgeMs,
+                        trackCurrentMa = locoNetStandard.TrackCurrentMa,
+                        trackVoltageV = locoNetStandard.TrackVoltageV,
+                        temperatureC = locoNetStandard.TemperatureC
                     },
             locoNetSerial =
                 locoNetSerial is null
