@@ -3027,8 +3027,7 @@ public sealed class WsHub
     {
         var x = CommandCenterConfigStore.Current;
         var serialBaud = CommandCenter.Type == "loconet-serial"
-            ? (CommandCenter as ConfiguredCommandCenter)?
-                .GetLocoNetSerialDiagnostics()?.BaudRate
+            ? (CommandCenter as ConfiguredCommandCenter)?.GetLocoNetSerialDiagnostics()?.BaudRate
                 ?? CommandCenterSettings.DccExSerialBaudRate
             : CommandCenterSettings.DccExSerialBaudRate;
 
