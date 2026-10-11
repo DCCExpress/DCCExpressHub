@@ -44,7 +44,7 @@ export default function LocoFunctionGrid({
             verticalSpacing="xs"
           >
             {Array.from(
-              { length: 28 },
+              { length: 29 },
               (_, index) => {
                 const fn =
                   loco.functions.find(
