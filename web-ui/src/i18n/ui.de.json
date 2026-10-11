@@ -524,6 +524,7 @@
   "s88Payload": "S88-Nutzdaten",
   "ownedAndReportedByTheAdapter": "Vom Adapter verwaltet und gemeldet",
   "protocol": "Protokoll",
+  "interface": "Schnittstelle",
   "readOnlyAdapterCapabilityInformation": "Schreibgeschützte Informationen zu den Adapterfähigkeiten",
   "s88AdapterEnabled": "S88-Adapter aktiviert",
   "inputRange": "Eingangsbereich:",
