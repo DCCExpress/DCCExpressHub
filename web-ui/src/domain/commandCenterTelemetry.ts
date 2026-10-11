@@ -111,6 +111,20 @@ export type DccExStatusPayload = {
     lastSystemStateAgeMs: number;
   } | null;
 
+  locoNetStandard?: {
+    rxFrames: number;
+    txFrames: number;
+    sensorReports: number;
+    turnoutReports: number;
+    powerReports: number;
+    reportedTrackPowerOn: boolean | null;
+    lastRxAgeMs: number;
+    lastPowerReportAgeMs: number;
+    trackCurrentMa: number | null;
+    trackVoltageV: number | null;
+    temperatureC: number | null;
+  } | null;
+
   locoNetSerial?: {
     port: string;
     baudRate: number;
