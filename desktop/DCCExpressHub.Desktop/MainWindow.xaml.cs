@@ -421,7 +421,7 @@ namespace DCCExpressHub.Desktop
                 var portText =
                     TcpPortText.Text.Trim();
 
-                if (SelectedProtocol is "z21" or "yamorc7010" or "loconet-serial" &&
+                if (SelectedProtocol is "z21" or "yamorc7010" &&
                     portText == "2560")
                 {
                     TcpPortText.Text = "21105";
@@ -439,9 +439,9 @@ namespace DCCExpressHub.Desktop
             }
 
             UpdateProtocolPanels();
-            if (SelectedProtocol == "loconet-serial" &&
-                (string.IsNullOrWhiteSpace(SerialPortCombo.Text) ||
-                 SerialPortCombo.Text == "COM1") &&
+            if (!_initializingSetup &&
+                SelectedProtocol == "loconet-serial" &&
+                _settings.Protocol != "loconet-serial" &&
                 SerialPort.GetPortNames().Contains("COM6", StringComparer.OrdinalIgnoreCase))
                 SerialPortCombo.Text = "COM6";
             HideTestResult();
@@ -452,7 +452,7 @@ namespace DCCExpressHub.Desktop
             {
                 "z21" or "yamorc7010" => 21105,
                 "loconet" => 1234,
-                "loconet-serial" => 21105,
+                "loconet-serial" => 0,
                 _ => 2560
             };
 
