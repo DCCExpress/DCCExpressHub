@@ -92,17 +92,17 @@ builder.Services.AddSingleton<FileManagerApi>();
 builder.Services.AddSingleton<ScriptInfoApi>();
 builder.Services.AddSingleton<DesktopControlApi>();
 
-if (useLocoNetSerial)
+if (useLocoNetSerial || useLocoNetTcp)
 {
-    builder.Services.AddSingleton<LocoNetSerialCommandCenter>();
+    builder.Services.AddSingleton<ILocoNetTransport>(sp =>
+        useLocoNetSerial
+            ? new LocoNetSerialTransport(builder.Configuration,
+                sp.GetRequiredService<ILogger<LocoNetSerialTransport>>())
+            : new LocoNetTcpTransport(builder.Configuration,
+                sp.GetRequiredService<ILogger<LocoNetTcpTransport>>()));
+    builder.Services.AddSingleton<LocoNetCommandCenter>();
     builder.Services.AddHostedService(
-        sp => sp.GetRequiredService<LocoNetSerialCommandCenter>());
-}
-else if (useLocoNetTcp)
-{
-    builder.Services.AddSingleton<LocoNetTcpCommandCenter>();
-    builder.Services.AddHostedService(
-        sp => sp.GetRequiredService<LocoNetTcpCommandCenter>());
+        sp => sp.GetRequiredService<LocoNetCommandCenter>());
 }
 else if (useYaMoRcZ21)
 {
@@ -157,10 +157,8 @@ builder.Services
         sp =>
         {
             ICommandCenter inner =
-                useLocoNetSerial
-                    ? sp.GetRequiredService<LocoNetSerialCommandCenter>()
-                    : useLocoNetTcp
-                    ? sp.GetRequiredService<LocoNetTcpCommandCenter>()
+                (useLocoNetSerial || useLocoNetTcp)
+                    ? sp.GetRequiredService<LocoNetCommandCenter>()
                     : useYaMoRcZ21
                     ? sp.GetRequiredService<
                         YaMoRcZ21CommandCenter>()
