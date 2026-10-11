@@ -1793,7 +1793,7 @@ function Z21ProgrammingPage({
                     <Button
                       color="orange"
                       leftSection={<IconDeviceFloppy size={17} />}
-                      disabled={busy || disconnected}
+                      disabled={busy || disconnected || !Number.isInteger(numberValue(locoAddress))}
                       onClick={() =>
                         void writeZ21Address()
                       }
@@ -1834,8 +1834,8 @@ function Z21ProgrammingPage({
                       allowDecimal={false}
                     />
                   </SimpleGrid>
-
-                  <BitEditor
+                  {Number.isFinite(serviceCvValue) && <>
+<BitEditor
                     value={serviceCvValue}
                     onChange={setServiceValue}
                   />
@@ -1849,6 +1849,7 @@ function Z21ProgrammingPage({
                     value={serviceCvValue}
                     onChange={setServiceValue}
                   />
+                  </>}
 
                   <SimpleGrid cols={{ base: 1, sm: 2 }}>
                     <Button
@@ -1866,6 +1867,8 @@ function Z21ProgrammingPage({
                             cv: serviceCvNumber,
                           },
                           setServiceValue,
+                          undefined,
+                          "service",
                         )
                       }
                     >
@@ -1878,7 +1881,8 @@ function Z21ProgrammingPage({
                       disabled={
                         busy ||
                         disconnected ||
-                        !info.capabilities.serviceModeProgramming
+                        !info.capabilities.serviceModeProgramming ||
+                        !Number.isInteger(serviceCvValue) || serviceCvValue < 0 || serviceCvValue > 255
                       }
                       onClick={() =>
                         void run(
@@ -1964,8 +1968,8 @@ function Z21ProgrammingPage({
                       allowDecimal={false}
                     />
                   </SimpleGrid>
-
-                  <BitEditor
+                  {Number.isFinite(locoCvValue) && <>
+<BitEditor
                     value={locoCvValue}
                     onChange={setLocoValue}
                   />
@@ -1979,6 +1983,7 @@ function Z21ProgrammingPage({
                     value={locoCvValue}
                     onChange={setLocoValue}
                   />
+                  </>}
 
                   <SimpleGrid cols={{ base: 1, sm: 2 }}>
                     <Button
@@ -1997,6 +2002,8 @@ function Z21ProgrammingPage({
                             cv: locoCvNumber,
                           },
                           setLocoValue,
+                          undefined,
+                          "loco",
                         )
                       }
                     >
@@ -2009,7 +2016,8 @@ function Z21ProgrammingPage({
                       disabled={
                         busy ||
                         disconnected ||
-                        !info.capabilities.pomProgramming
+                        !info.capabilities.pomProgramming ||
+                        !Number.isInteger(locoCvValue) || locoCvValue < 0 || locoCvValue > 255
                       }
                       onClick={() =>
                         void run(
@@ -2085,8 +2093,8 @@ function Z21ProgrammingPage({
                       allowDecimal={false}
                     />
                   </SimpleGrid>
-
-                  <BitEditor
+                  {Number.isFinite(accessoryCvValue) && <>
+<BitEditor
                     value={accessoryCvValue}
                     onChange={setAccessoryValue}
                   />
@@ -2100,6 +2108,7 @@ function Z21ProgrammingPage({
                     value={accessoryCvValue}
                     onChange={setAccessoryValue}
                   />
+                  </>}
 
                   <SimpleGrid cols={{ base: 1, sm: 2 }}>
                     <Button
@@ -2118,6 +2127,8 @@ function Z21ProgrammingPage({
                             cv: accessoryCvNumber,
                           },
                           setAccessoryValue,
+                          undefined,
+                          "accessory",
                         )
                       }
                     >
@@ -2130,7 +2141,8 @@ function Z21ProgrammingPage({
                       disabled={
                         busy ||
                         disconnected ||
-                        !info.capabilities.accessoryPomProgramming
+                        !info.capabilities.accessoryPomProgramming ||
+                        !Number.isInteger(accessoryCvValue) || accessoryCvValue < 0 || accessoryCvValue > 255
                       }
                       onClick={() =>
                         void run(
