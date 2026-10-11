@@ -59,13 +59,16 @@ var commandCenterProtocol =
 var useLocoNetTcp =
     commandCenterProtocol == "loconet";
 
+var useLocoNetSerial =
+    commandCenterProtocol == "loconet-serial";
+
 var useRocoZ21 =
     commandCenterProtocol ==
     "z21";
 
 var useYaMoRcZ21 =
-    commandCenterProtocol is
-    "yamorc7010" or "loconet-serial";
+    commandCenterProtocol ==
+    "yamorc7010";
 
 builder.Services.AddSingleton<HubState>();
 builder.Services.AddSingleton<LayoutRuntime>();
@@ -89,7 +92,13 @@ builder.Services.AddSingleton<FileManagerApi>();
 builder.Services.AddSingleton<ScriptInfoApi>();
 builder.Services.AddSingleton<DesktopControlApi>();
 
-if (useLocoNetTcp)
+if (useLocoNetSerial)
+{
+    builder.Services.AddSingleton<LocoNetSerialCommandCenter>();
+    builder.Services.AddHostedService(
+        sp => sp.GetRequiredService<LocoNetSerialCommandCenter>());
+}
+else if (useLocoNetTcp)
 {
     builder.Services.AddSingleton<LocoNetTcpCommandCenter>();
     builder.Services.AddHostedService(
@@ -148,7 +157,9 @@ builder.Services
         sp =>
         {
             ICommandCenter inner =
-                useLocoNetTcp
+                useLocoNetSerial
+                    ? sp.GetRequiredService<LocoNetSerialCommandCenter>()
+                    : useLocoNetTcp
                     ? sp.GetRequiredService<LocoNetTcpCommandCenter>()
                     : useYaMoRcZ21
                     ? sp.GetRequiredService<
