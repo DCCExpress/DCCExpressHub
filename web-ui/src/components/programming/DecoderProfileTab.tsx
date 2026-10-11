@@ -150,18 +150,29 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
         }
         const cv = cvs[i]!;
         setActiveCv(cv);
-        let item: Result;
-        try {
-          const response = await wsApi.programmingRequest(
-            `cv-profile-${cv}-${Date.now()}-${i}`, "readCv", { cv }, 30000
-          );
-          item = response.ok && typeof response.value === "number" &&
-            Number.isInteger(response.value) && response.value >= 0 &&
-            response.value <= 255
-            ? { value: response.value }
-            : { error: response.message ?? "No valid decoder acknowledgement" };
-        } catch (e) {
-          item = { error: e instanceof Error ? e.message : String(e) };
+        let item: Result = { error: "CV read did not complete." };
+        // Retry only a genuine decoder-ACK failure. A profile scan is a
+        // sequence of service-track transactions, unlike a manual CV read.
+        // Never retry transport disconnects, timeouts or other errors here.
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          if (cancel.current) break;
+          try {
+            const response = await wsApi.programmingRequest(
+              `cv-profile-${cv}-${Date.now()}-${i}-${attempt}`,
+              "readCv", { cv }, 30000
+            );
+            item = response.ok && typeof response.value === "number" &&
+              Number.isInteger(response.value) && response.value >= 0 &&
+              response.value <= 255
+              ? { value: response.value }
+              : { error: response.message ?? "No valid decoder acknowledgement" };
+          } catch (e) {
+            item = { error: e instanceof Error ? e.message : String(e) };
+          }
+          if (!item.error || !/NO DECODER|No decoder detected/i.test(item.error) || attempt === 2)
+            break;
+          // Let the programmer and decoder recover before one read-only retry.
+          await new Promise<void>(resolve => setTimeout(resolve, 1500));
         }
         setResults(prev => ({ ...prev, [cv]: item }));
         setProgress({ done: i + 1, total: cvs.length });
