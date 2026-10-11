@@ -218,3 +218,27 @@ Log out and back in for the group change to take effect.
 ## License
 
 See [LICENSE](LICENSE) for license information.
+
+## Legal Notices & Trademarks
+
+### Trademarks
+
+- **Z21 / z21** and **ROCO** are trademarks of their respective owners in the Modelleisenbahn group (including Modelleisenbahn GmbH).
+- **LocoNet** is a registered trademark of Digitrax, Inc.
+- **YaMoRC** is a brand of Drenth Design & Consulting B.V.
+
+DCCExpressHub is an independent open-source project. It is **not affiliated with, authorized, endorsed, or sponsored by** Modelleisenbahn GmbH / ROCO, Digitrax, Inc., or YaMoRC / Drenth Design & Consulting B.V. Product names and trademarks are used only to identify supported systems and describe interoperability. All third-party trademarks remain the property of their respective owners.
+
+### Third-party Protocols and Intellectual Property
+
+Compatibility with third-party products does not imply a license to any third-party trademarks, patents, proprietary specifications, or other intellectual property. In particular, Digitrax publishes its LocoNet Personal Use Edition under separate restrictions. Development, use, and distribution of LocoNet-compatible implementations should be assessed against the applicable terms and permissions. See [Digitrax's official LocoNet information and licensing terms](https://www.digitrax.com/support/loconet/home/).
+
+### Disclaimer of Warranty and Limitation of Liability
+
+DCCExpressHub is distributed under the **GNU General Public License, version 3 (GPLv3)**, as provided in [LICENSE](LICENSE).
+
+The software is provided **"as is", without warranty of any kind**, to the extent permitted by applicable law. The applicable disclaimer of warranty and limitation of liability are set out in **Sections 15–17 of the GPLv3**. Nothing in this notice overrides applicable law or the terms of the project's license.
+
+### Operational Safety
+
+This software can control physical model railway equipment. Use it carefully: verify wiring, command-station compatibility, sensor feedback, turnout settings, and emergency-stop behavior before operating trains. Supervise initial tests and automated movements. Software safety checks are not a substitute for appropriate hardware protection and safe operating practices.
