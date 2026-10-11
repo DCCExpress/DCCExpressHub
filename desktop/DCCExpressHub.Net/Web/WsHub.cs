@@ -3094,6 +3094,10 @@ public sealed class WsHub
             configured?
                 .GetLocoNetDiagnostics();
 
+        var locoNetSerial =
+            configured?
+                .GetLocoNetSerialDiagnostics();
+
         return new
         {
             commandCenterType =
@@ -3156,6 +3160,17 @@ public sealed class WsHub
                             z21.Capabilities,
                         lastSystemStateAgeMs =
                             z21.LastSystemStateAgeMs
+                    },
+            locoNetSerial =
+                locoNetSerial is null
+                    ? null
+                    : new
+                    {
+                        port = locoNetSerial.Port,
+                        baudRate = locoNetSerial.BaudRate,
+                        linkUptimeMs = locoNetSerial.LinkUptimeMs,
+                        rxPackets = locoNetSerial.RxPackets,
+                        txPackets = locoNetSerial.TxPackets
                     },
             locoNet =
                 locoNet is null
