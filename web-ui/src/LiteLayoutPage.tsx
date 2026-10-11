@@ -2258,15 +2258,17 @@ export default function LiteLayoutPage({
                   </Tabs.Panel>
 
                   <Tabs.Panel value="info" className="lite-info-tab-panel">
-                    <Stack gap="sm">
-                      <SystemInfoPanel
-                        status={dccExStatus}
-                        wsStatus={wsStatus}
-                        flashInfo={flashInfo}
-                        version={version}
-                      />
-                      <SensorSettingsCard />
-                    </Stack>
+                    <ScrollArea h="100%" type="auto" scrollbarSize={9} className="lite-info-scroll">
+                      <Stack gap="sm">
+                        <SensorSettingsCard />
+                        <SystemInfoPanel
+                          status={dccExStatus}
+                          wsStatus={wsStatus}
+                          flashInfo={flashInfo}
+                          version={version}
+                        />
+                      </Stack>
+                    </ScrollArea>
                   </Tabs.Panel>
 
                   <Tabs.Panel value="log" className="lite-info-tab-panel">
