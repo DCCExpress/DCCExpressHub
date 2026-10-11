@@ -1,3 +1,4 @@
+using System.IO.Ports;
 using System.Net.Sockets;
 
 namespace DCCExpressHub.Net.CommandCenter;
@@ -23,6 +24,9 @@ public sealed class YaMoRcLocoNetClient
     private readonly string _host;
     private readonly int _lbServerPort;
     private readonly int _binaryPort;
+    private readonly string _serialPortName;
+    private readonly int _serialBaudRate;
+    private readonly bool _serialFeedbackEnabled;
     private readonly bool _lbServerEnabled;
     private readonly bool _binaryFeedbackEnabled;
     private readonly int _sensorOffset;
@@ -70,6 +74,11 @@ public sealed class YaMoRcLocoNetClient
                     "LocoNet:BinaryPort",
                     DefaultBinaryPort),
                 DefaultBinaryPort);
+
+        _serialPortName = (configuration["LocoNet:SerialPort"] ?? "").Trim();
+        _serialBaudRate = configuration.GetValue("LocoNet:SerialBaudRate", 115200);
+        _serialFeedbackEnabled = configuration.GetValue("LocoNet:SerialFeedback", false) &&
+                                 _serialPortName.Length > 0;
 
         _lbServerEnabled =
             configuration.GetValue(
@@ -344,6 +353,9 @@ public sealed class YaMoRcLocoNetClient
                     ct));
         }
 
+        if (_serialFeedbackEnabled)
+            tasks.Add(RunSerialAsync(ct));
+
         if (tasks.Count == 0)
         {
             try
@@ -602,6 +614,28 @@ public sealed class YaMoRcLocoNetClient
 
             if (!await DelayReconnectAsync(ct))
                 break;
+        }
+    }
+
+    private async Task RunSerialAsync(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                await using var serial = new YaMoRcLocoNetSerialTransport(
+                    _serialPortName, _serialBaudRate);
+                serial.Open();
+                _log.LogInformation("YD7010 LocoNet USB serial opened {Port} at {Baud} baud", _serialPortName, _serialBaudRate);
+                RawInfo?.Invoke($"LocoNet USB serial opened {_serialPortName}");
+                await ReadBinaryAsync(serial.ReadAsync, ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { break; }
+            catch (Exception ex)
+            {
+                _log.LogWarning(ex, "YD7010 LocoNet USB serial unavailable: {Port}", _serialPortName);
+            }
+            if (!await DelayReconnectAsync(ct)) break;
         }
     }
 
@@ -865,6 +899,11 @@ public sealed class YaMoRcLocoNetClient
 
     private async Task ReadBinaryAsync(
         NetworkStream stream,
+        CancellationToken ct) =>
+        await ReadBinaryAsync((buffer, token) => stream.ReadAsync(buffer, token), ct);
+
+    private async Task ReadBinaryAsync(
+        Func<Memory<byte>, CancellationToken, ValueTask<int>> read,
         CancellationToken ct)
     {
         var readBuffer =
@@ -879,9 +918,7 @@ public sealed class YaMoRcLocoNetClient
         while (!ct.IsCancellationRequested)
         {
             var count =
-                await stream.ReadAsync(
-                    readBuffer,
-                    ct);
+                await read(readBuffer, ct);
 
             if (count <= 0)
                 return;
