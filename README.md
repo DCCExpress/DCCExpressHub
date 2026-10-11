@@ -49,13 +49,14 @@ Configure button assignments on the **Gamepad** page. Settings are saved for the
 
 ## Supported protocols
 
-DCCExpressHub supports three command-center communication profiles on **Windows** and **Linux**. Select the protocol supported by your command station and connect the corresponding interface.
+DCCExpressHub supports DCC-EX, Z21, and LocoNet communication protocols on **Windows** and **Linux**, with transport-specific connection options. Select the protocol supported by your command station and connect the corresponding interface.
 
 | Protocol / connection | Tested on (command stations) | Feedback | CV programming |
 | --- | --- | --- | --- |
 | **DCC-EX** — TCP/IP or USB/serial | DCC-EX (including EX-CSB1) | DCC-EX sensor reporting; optional S88 adapter | Service-track CV programming and supported operations-mode programming |
 | **Z21 + R-BUS** — LAN/UDP | Roco z21 / Z21; YaMoRC YD7010 in Z21-compatible mode | R-BUS occupancy sensors, with configurable offset | Supported Z21 programming operations (subject to command station capabilities) |
 | **LocoNet** — TCP (LBServer) | YaMoRC YD7010 with LocoNet server enabled | LocoNet occupancy feedback (including supported S88 modules), with configurable offset | Native LocoNet service-track CV reading/writing, locomotive POM, and accessory POM writing |
+| **LocoNet** — USB/Serial (COM) | LocoNet-compatible serial interface (YaMoRC YD7010 USB configuration under evaluation) | Native LocoNet sensor feedback; serial interface and feedback compatibility depend on hardware | Native LocoNet service-track CV read/write, locomotive POM and accessory POM commands implemented; hardware validation pending |
 
 ### DCC-EX
 
@@ -69,13 +70,13 @@ Connect over the **Z21 LAN protocol (UDP)**. This profile supports Roco z21 / Z2
 
 The white z21 supports R-BUS; hardware variants and their available feedback interfaces differ. Do not assume that black Z21 CAN, S88, or LocoNet feedback is exposed through this R-BUS profile.
 
-### Native LocoNet TCP
+### Native LocoNet — TCP and USB/Serial
 
-Connect to the **YaMoRC YD7010 LocoNet LBServer** over TCP (typically port **1234**, depending on configuration). This is a **separate protocol driver**, not an extension of the Z21 UDP driver.
+Connect to the **YaMoRC YD7010 LocoNet LBServer** over TCP (typically port **1234**, depending on configuration), or select **LocoNet Serial** with the relevant COM port and baud rate (for example, **COM16 @ 115200 baud** in the current test setup). Both transports carry LocoNet messages using separate transport drivers, not the Z21 UDP protocol. Opening the COM port alone does not confirm the interface's protocol compatibility.
 
 The HUB supports locomotive control and functions, turnouts, basic accessories, extended signal aspects, LocoNet sensor feedback, and native LocoNet CV programming. The Programming page includes the **Decoder Profile** reader. Service-mode programming requires the decoder to be connected to the command station's **isolated programming-track output**. Reading many CVs can take several minutes.
 
-**YaMoRC YD7010:** Choose either **Z21 + R-BUS** or **native LocoNet TCP** according to how you connect and which feedback bus you use. Their connection settings and sensor offsets are independent; do not enable both profiles for one connection unless you intentionally configured a supported arrangement.
+**YaMoRC YD7010:** Choose **Z21 + R-BUS**, **native LocoNet TCP**, or **LocoNet Serial** according to the available interface and feedback bus. The LocoNet Serial implementation still requires end-to-end hardware verification. Their connection settings and sensor offsets are independent; do not enable both profiles for one connection unless you intentionally configured a supported arrangement.
 
 
 ## Installation
