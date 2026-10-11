@@ -524,6 +524,7 @@
   "s88Payload": "S88 payload",
   "ownedAndReportedByTheAdapter": "Owned and reported by the adapter",
   "protocol": "Protocol",
+  "interface": "Interface",
   "readOnlyAdapterCapabilityInformation": "Read-only adapter capability information",
   "s88AdapterEnabled": "S88 adapter enabled",
   "inputRange": "Input range:",
