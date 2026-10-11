@@ -52,12 +52,17 @@ public sealed class LocoNetCommandCenter : BackgroundService, ICommandCenter
     public bool EmergencyPaused => _emergencyPaused;
     public LocoNetStandardTelemetrySnapshot StandardTelemetry => _standardTelemetry.Snapshot();
 
-    public LocoNetSerialRuntimeDiagnostics? SerialDiagnostics =>
-        _transport is LocoNetSerialTransport serial
-            ? new(serial.Endpoint, serial.BaudRate, serial.LinkUptimeMs,
-                _standardTelemetry.Snapshot().RxFrames,
-                _standardTelemetry.Snapshot().TxFrames)
-            : null;
+    public LocoNetSerialRuntimeDiagnostics? SerialDiagnostics
+    {
+        get
+        {
+            if (_transport is not LocoNetSerialTransport serial) return null;
+            var snapshot = _standardTelemetry.Snapshot();
+            return new LocoNetSerialRuntimeDiagnostics(
+                serial.Endpoint, serial.BaudRate, serial.LinkUptimeMs,
+                snapshot.RxFrames, snapshot.TxFrames);
+        }
+    }
 
     public event Action<string>? RawInfo;
     public event Action<StationInfo>? StationInfoChanged;
