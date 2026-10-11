@@ -90,6 +90,11 @@ public sealed class ConfiguredCommandCenter : ICommandCenter
             ? yamorc.LocoNetDiagnostics
             : null;
 
+    public LocoNetSerialRuntimeDiagnostics? GetLocoNetSerialDiagnostics() =>
+        _inner is LocoNetSerialCommandCenter serial
+            ? serial.Diagnostics
+            : null;
+
     public Task<LocoNetConnectionTestResult?> TestLocoNetConnectionAsync(
         string? hostOverride = null,
         CancellationToken ct = default) =>
