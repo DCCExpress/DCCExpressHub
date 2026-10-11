@@ -838,7 +838,12 @@ function DccExProgrammingPage({
                 <NumberInput
                   label={i18next.t("ui.address")}
                   value={locoAddress}
-                  onChange={setLocoAddress}
+                  onChange={value => {
+                    setLocoAddress(value);
+                    setDccReadStatus(current => ({ ...current, address: "idle" }));
+                  }}
+                  error={dccReadStatus.address === "nok" ? "NOK" : undefined}
+                  placeholder={dccReadStatus.address === "reading" ? "Reading..." : undefined}
                   min={1}
                   max={10239}
                   allowDecimal={false}
@@ -855,7 +860,7 @@ function DccExProgrammingPage({
                   <Button
                     color="orange"
                     leftSection={<IconDeviceFloppy size={17} />}
-                    disabled={busy || disconnected}
+                    disabled={busy || disconnected || !Number.isInteger(numberValue(locoAddress))}
                     onClick={() =>
                       void run(
                         "writeAddress",
@@ -911,25 +916,23 @@ function DccExProgrammingPage({
                   <NumberInput
                     label={i18next.t("ui.value")}
                     value={cvValue}
-                    onChange={setCvValue}
+                    onChange={value => {
+                      setCvValue(value);
+                      setDccReadStatus(current => ({ ...current, locomotive: "idle" }));
+                    }}
+                    error={dccReadStatus.locomotive === "nok" ? "NOK" : undefined}
+                    placeholder={dccReadStatus.locomotive === "reading" ? "Reading..." : undefined}
                     min={0}
                     max={255}
                     allowDecimal={false}
                   />
                 </SimpleGrid>
 
-                <BitEditor
-                  value={safeLocoValue}
-                  onChange={setCvValue}
-                />
-
-                <CvValueFormats value={safeLocoValue} />
-
-                <CvHelpPanel
-                  cv={locoCv}
-                  value={safeLocoValue}
-                  onChange={setCvValue}
-                />
+                {safeLocoValue !== null && <>
+                  <BitEditor value={safeLocoValue} onChange={setCvValue} />
+                  <CvValueFormats value={safeLocoValue} />
+                  <CvHelpPanel cv={locoCv} value={safeLocoValue} onChange={setCvValue} />
+                </>}
 
                 <SimpleGrid cols={{ base: 1, sm: pom ? 1 : 2 }}>
                   {!pom && (
@@ -951,7 +954,7 @@ function DccExProgrammingPage({
                   <Button
                     color="orange"
                     leftSection={<IconDeviceFloppy size={17} />}
-                    disabled={busy || disconnected}
+                    disabled={busy || disconnected || safeLocoValue === null}
                     onClick={() =>
                       void run(
                         pom ? "pomWriteCv" : "writeCv",
@@ -1003,25 +1006,23 @@ function DccExProgrammingPage({
                   <NumberInput
                     label={i18next.t("ui.value")}
                     value={accessoryCvValue}
-                    onChange={setAccessoryCvValue}
+                    onChange={value => {
+                      setAccessoryCvValue(value);
+                      setDccReadStatus(current => ({ ...current, accessory: "idle" }));
+                    }}
+                    error={dccReadStatus.accessory === "nok" ? "NOK" : undefined}
+                    placeholder={dccReadStatus.accessory === "reading" ? "Reading..." : undefined}
                     min={0}
                     max={255}
                     allowDecimal={false}
                   />
                 </SimpleGrid>
 
-                <BitEditor
-                  value={safeAccValue}
-                  onChange={setAccessoryCvValue}
-                />
-
-                <CvValueFormats value={safeAccValue} />
-
-                <CvHelpPanel
-                  cv={accCv}
-                  value={safeAccValue}
-                  onChange={setAccessoryCvValue}
-                />
+                {safeAccValue !== null && <>
+                  <BitEditor value={safeAccValue} onChange={setAccessoryCvValue} />
+                  <CvValueFormats value={safeAccValue} />
+                  <CvHelpPanel cv={accCv} value={safeAccValue} onChange={setAccessoryCvValue} />
+                </>}
 
                 <SimpleGrid cols={{ base: 1, sm: 2 }}>
                   <Button
@@ -1039,7 +1040,7 @@ function DccExProgrammingPage({
 
                   <Button
                     color="orange"
-                    disabled={busy || disconnected}
+                    disabled={busy || disconnected || safeAccValue === null}
                     onClick={() =>
                       void run(
                         "writeCv",
