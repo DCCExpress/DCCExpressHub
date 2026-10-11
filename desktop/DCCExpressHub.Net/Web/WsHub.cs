@@ -1031,14 +1031,21 @@ public sealed class WsHub
                         var action = S(data, "action");
                         if (action == "save")
                         {
-                            var ms = I(data, "sensorOffDelayMs");
-                            if (!LayoutRuntime.SaveSensorOffDelayMs(ms))
+                            var sensorMs = I(data, "sensorOffDelayMs");
+                            var intervalMs = I(data, "turnoutCommandIntervalMs");
+                            var settlingMs = I(data, "turnoutSettlingTimeMs");
+                            if (!LayoutRuntime.SaveTimingSettings(sensorMs, intervalMs, settlingMs))
                             {
-                                await Send(ws, "error", new { message = "sensor_off_delay_save_failed_or_out_of_range" });
+                                await Send(ws, "error", new { message = "timing_settings_save_failed_or_out_of_range" });
                                 return;
                             }
                         }
-                        await Send(ws, "sensorSettings", new { sensorOffDelayMs = LayoutRuntime.SensorOffDelayMs, saved = action == "save" });
+                        await Send(ws, "sensorSettings", new {
+                            sensorOffDelayMs = LayoutRuntime.SensorOffDelayMs,
+                            turnoutCommandIntervalMs = LayoutRuntime.TurnoutCommandIntervalMs,
+                            turnoutSettlingTimeMs = LayoutRuntime.TurnoutSettlingTimeMs,
+                            saved = action == "save"
+                        });
                         return;
                     }
                 case "setSensor":
