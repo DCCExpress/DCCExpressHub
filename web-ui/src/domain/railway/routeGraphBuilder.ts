@@ -45,6 +45,9 @@ export class RouteGraphBuilder {
   private readonly sectionNodes =
     new Map<number, GraphNode>();
 
+  // A physical section may contain several separately occupied blocks.
+  private readonly partNodeByTrackId = new Map<number, GraphNode>();
+
   private readonly createdEdgeKeys =
     new Set<string>();
 
@@ -84,6 +87,7 @@ export class RouteGraphBuilder {
       this.topology.getPhysicalTrackElements();
 
     this.sectionNodes.clear();
+    this.partNodeByTrackId.clear();
     this.createdEdgeKeys.clear();
     this.sectionByTrackConnectionKey.clear();
     this.visitedTrackConnectionKeys.clear();
@@ -184,6 +188,104 @@ export class RouteGraphBuilder {
 
     this.graph.addNode(node);
     this.sectionNodes.set(sectionNumber, node);
+    this.splitSectionIntoBlockParts(sectionNumber, sectionElements, node);
+  }
+
+  /**
+   * Preserve the physical section number for locking and persistence, but
+   * represent its successive occupancy blocks as separately routed nodes.
+   * Assignment of unblocked rail cells uses connected-track distance, never
+   * lexical block name or sensor address order.
+   */
+  private splitSectionIntoBlockParts(
+    section: number,
+    elements: TopologyTrackElement[],
+    originalNode: GraphNode
+  ): void {
+    if (originalNode.blocks.length < 2) {
+      for (const elem of elements) this.partNodeByTrackId.set(elem.id, originalNode);
+      return;
+    }
+
+    const byId = new Map(elements.map(elem => [elem.id, elem]));
+    const adjacency = new Map<number, TopologyTrackElement[]>();
+    for (const elem of elements) {
+      const neighbors: TopologyTrackElement[] = [];
+      for (const group of this.getTrackConnectionGroups(elem)) {
+        for (const point of group.endpoints) {
+          const other = this.topology.getPhysicalTrackAt(point);
+          if (other && byId.has(other.id) &&
+              this.hasTrackConnectionAt(other, elem.pos) &&
+              !neighbors.some(item => item.id === other.id)) {
+            neighbors.push(other);
+          }
+        }
+      }
+      adjacency.set(elem.id, neighbors);
+    }
+
+    // Multi-source BFS: seed each block at the rails physically inside it.
+    const owners = new Map<number, number>();
+    const distances = new Map<number, number>();
+    const queue: TopologyTrackElement[] = [];
+    originalNode.blocks.forEach((block, index) => {
+      const physicalBlock = this.topology.getBlocks().find(item => item.id === block.id);
+      if (!physicalBlock) return;
+      for (const elem of elements) {
+        if (!this.isSectionElementInsideBlock(elem, physicalBlock)) continue;
+        if (owners.has(elem.id)) continue;
+        owners.set(elem.id, index);
+        distances.set(elem.id, 0);
+        queue.push(elem);
+      }
+    });
+    for (let head = 0; head < queue.length; head++) {
+      const elem = queue[head]!;
+      const owner = owners.get(elem.id)!;
+      const distance = distances.get(elem.id)!;
+      for (const neighbor of adjacency.get(elem.id) ?? []) {
+        if (owners.has(neighbor.id)) continue;
+        owners.set(neighbor.id, owner);
+        distances.set(neighbor.id, distance + 1);
+        queue.push(neighbor);
+      }
+    }
+
+    // Fail closed if a physical branch cannot be assigned to a block.
+    if (owners.size !== elements.length ||
+        new Set(owners.values()).size !== originalNode.blocks.length) return;
+
+    const parts = originalNode.blocks.map((block, index) => {
+      const cells = elements.filter(elem => owners.get(elem.id) === index);
+      const node = this.createSectionGraphNode(section, cells);
+      node.name = `S${section}.${index + 1}`;
+      node.blocks = [block];
+      return node;
+    });
+
+    // Replace the coarse node; each block now has one unambiguous graph node.
+    const nodeIndex = this.graph.nodes.indexOf(originalNode);
+    this.graph.nodes.splice(nodeIndex, 1, ...parts);
+    for (const elem of elements) {
+      this.partNodeByTrackId.set(elem.id, parts[owners.get(elem.id)!]!);
+    }
+
+    // Every adjacency between different parts represents an actual traversable
+    // piece of rail. Add directed edges, deriving direction from rail geometry.
+    for (const elem of elements) {
+      for (const next of adjacency.get(elem.id) ?? []) {
+        const from = this.partNodeByTrackId.get(elem.id)!;
+        const to = this.partNodeByTrackId.get(next.id)!;
+        if (from === to) continue;
+        const side = this.getLinearConnectionSideTowards(elem, next.pos);
+        let direction: TravelDirection = "unknown";
+        if (side === "next") direction = elem.travelDirection;
+        else if (side === "prev")
+          direction = elem.travelDirection === "forward" ? "reverse" :
+            elem.travelDirection === "reverse" ? "forward" : "unknown";
+        this.addRouteEdgeIfMissing(from, to, [], [], direction);
+      }
+    }
   }
 
   private walkTrackSection(
@@ -449,6 +551,7 @@ export class RouteGraphBuilder {
         }
 
         const fromNode =
+          this.partNodeByTrackId.get(connectedElem.id) ??
           this.sectionNodes.get(connectedSection);
 
         if (!fromNode) {
@@ -606,6 +709,7 @@ export class RouteGraphBuilder {
     }
 
     const toNode =
+      this.partNodeByTrackId.get(targetElem.id) ??
       this.sectionNodes.get(targetSection);
 
     if (!toNode || toNode === fromNode) {
