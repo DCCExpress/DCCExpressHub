@@ -327,8 +327,12 @@ public sealed class LocoNetCommandCenter : BackgroundService, ICommandCenter
                 _pendingProgramming.TrySetResult(new ProgrammingReply(false, -1,
                     "Command station programmer is busy or rejected the request.", raw));
             else if (response == 0x40 && _pendingProgrammingWrite)
-                _pendingProgramming.TrySetResult(new ProgrammingReply(true, -1,
-                    "Command station accepted the write without decoder confirmation.", raw));
+            {
+                // The command station accepted the request, but that is not a
+                // decoder acknowledgement. Wait for programmer slot 124 PSTAT.
+                _log.LogInformation(
+                    "LocoNet CV write accepted by station; awaiting decoder programming result (slot 124).");
+            }
             else if (response is not (1 or 0x23 or 0x2B or 0x6B or 0x40 or 0x7F))
                 _pendingProgramming.TrySetResult(new ProgrammingReply(false, -1,
                     $"Unexpected LocoNet programming acknowledgement 0x{response:X2}.", raw));
