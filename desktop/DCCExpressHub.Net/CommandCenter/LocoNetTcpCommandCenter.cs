@@ -84,7 +84,7 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
                 _connected = true;
                 ConnectionChanged?.Invoke(true);
                 RawInfo?.Invoke($"LocoNet TCP connected: {Endpoint}");
-                StationInfoChanged?.Invoke(new StationInfo(Processor: "LocoNet TCP", Hardware: "YD7010 (experimental)"));
+                StationInfoChanged?.Invoke(new StationInfo(Processor: "LocoNet", Hardware: "TCP interface"));
 
                 while (!stoppingToken.IsCancellationRequested)
                 {
