@@ -22,6 +22,10 @@ export class ButtonScriptElement extends BaseElement implements IButtonScriptEle
   textOn = "JS";
   textOff = "JS";
   script = DEFAULT_SCRIPT;
+  constructor(x: number, y: number) {
+    super(x, y);
+    this.layerName = "buttons";
+  }
   override draw(ctx: CanvasRenderingContext2D, options?: DrawOptions): void {
     if (!this.visible) return;
     this.beginDraw(ctx, options);
@@ -63,7 +67,7 @@ export class ButtonScriptElement extends BaseElement implements IButtonScriptEle
     const element = new ButtonScriptElement(data.x, data.y);
     element.id = data.id;
     element.name = data.name;
-    element.layerName = data.layerName;
+    element.layerName = "buttons";
     element.rotation = data.rotation;
     element.rotationStep = data.rotationStep;
     element.bg = data.bg;
