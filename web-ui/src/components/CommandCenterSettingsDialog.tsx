@@ -1370,7 +1370,7 @@ export default function CommandCenterSettingsDialog(
 
         {hasLocoNet && (
           <Stack gap="xs">
-            <Text size="sm" fw={700}>LocoNet Serial (YD7010 USB)</Text>
+            <Text size="sm" fw={700}>LocoNet Serial</Text>
             <Switch
               label="Enable LocoNet Serial feedback"
               description="Dedicated YD7010 USB LocoNet COM port. Restart backend after saving."
