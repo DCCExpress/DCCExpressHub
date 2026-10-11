@@ -3026,6 +3026,11 @@ public sealed class WsHub
     private object CommandCenterInfo()
     {
         var x = CommandCenterConfigStore.Current;
+        var serialBaud = CommandCenter.Type == "loconet-serial"
+            ? (CommandCenter as ConfiguredCommandCenter)?
+                .GetLocoNetSerialDiagnostics()?.BaudRate
+                ?? CommandCenterSettings.DccExSerialBaudRate
+            : CommandCenterSettings.DccExSerialBaudRate;
 
         return new
         {
@@ -3037,9 +3042,9 @@ public sealed class WsHub
             ip = x.IsSerial ? "" : x.TcpHost,
             port = x.IsSerial ? 0 : x.TcpPort,
             serialPort = x.IsSerial ? x.SerialPort : "",
-            baudRate = x.IsSerial ? CommandCenterSettings.DccExSerialBaudRate : 0,
+            baudRate = x.IsSerial ? serialBaud : 0,
             connectionString = x.IsSerial
-                ? $"{x.SerialPort} @ {CommandCenterSettings.DccExSerialBaudRate} baud"
+                ? $"{x.SerialPort} @ {serialBaud} baud"
                 : $"{x.TcpHost}:{x.TcpPort}"
         };
     }
@@ -3119,7 +3124,7 @@ public sealed class WsHub
             port = x.IsSerial ? 0 : x.TcpPort,
             serialPort = x.IsSerial ? x.SerialPort : "",
             baudRate = x.IsSerial
-                ? CommandCenterSettings.DccExSerialBaudRate
+                ? (locoNetSerial?.BaudRate ?? CommandCenterSettings.DccExSerialBaudRate)
                 : 0,
             alive = CommandCenter.Connected,
             maxLocos = HubState.Station.MaxLocos,
