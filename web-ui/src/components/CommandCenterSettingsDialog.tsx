@@ -242,7 +242,7 @@ export default function CommandCenterSettingsDialog(
     );
 
   const [lnSerialEnabled, setLnSerialEnabled] = useState(false);
-  const [lnSerialPort, setLnSerialPort] = useState("COM6");
+  const [lnSerialPort, setLnSerialPort] = useState("COM16");
   const [lnSerialBaud, setLnSerialBaud] = useState<number | string>(115200);
   const [lnSerialBusy, setLnSerialBusy] = useState(false);
 
@@ -252,7 +252,7 @@ export default function CommandCenterSettingsDialog(
       .then(response => response.json())
       .then((data: { enabled?: boolean; port?: string; baudRate?: number }) => {
         setLnSerialEnabled(data.enabled === true);
-        setLnSerialPort(data.port || "COM6");
+        setLnSerialPort(data.port || "COM16");
         setLnSerialBaud(data.baudRate || 115200);
       })
       .catch(() => {});
@@ -1382,7 +1382,7 @@ export default function CommandCenterSettingsDialog(
               label="LocoNet COM port"
               value={lnSerialPort}
               onChange={event => setLnSerialPort(event.currentTarget.value)}
-              placeholder="COM6"
+              placeholder="COM16"
               disabled={lnSerialBusy}
             />
             <NumberInput
