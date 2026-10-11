@@ -12,6 +12,8 @@ export type RouteGraphTrackRuntimeDto = {
   id: LayoutElementId;
   section: number;
   travelDirection: TravelDirection;
+  /** Visual-only node label such as S6.1; section remains the physical S6. */
+  partSegment?: string;
 };
 
 export type RouteGraphNodeDto = {
