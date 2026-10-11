@@ -360,18 +360,19 @@ function DccExProgrammingPage({
         }
       }
 
-      if (readTarget && readValueValid) {
+      const readValue = response.value;
+      if (readTarget && readValueValid && typeof readValue === "number") {
         if (action === "readAddress") {
-          setLocoAddress(response.value);
-          setQuickTestAddress(response.value);
+          setLocoAddress(readValue);
+          setQuickTestAddress(readValue);
         }
 
         if (action === "readCv" && valueTarget === "locomotive") {
-          setCvValue(response.value);
+          setCvValue(readValue);
         }
 
         if (action === "readCv" && valueTarget === "accessory") {
-          setAccessoryCvValue(response.value);
+          setAccessoryCvValue(readValue);
         }
       }
     } catch (error) {
