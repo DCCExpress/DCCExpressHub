@@ -76,9 +76,9 @@ public sealed class YaMoRcLocoNetClient
                 DefaultBinaryPort);
 
         var savedSerial = YaMoRcLocoNetSerialSettings.Load();
-        _serialPortName = savedSerial.Port.Trim();
-        _serialBaudRate = savedSerial.BaudRate;
-        _serialFeedbackEnabled = savedSerial.Enabled ||
+        _serialPortName = (configuration["LocoNet:SerialPort"] ?? savedSerial.Port).Trim();
+        _serialBaudRate = configuration.GetValue("LocoNet:SerialBaudRate", savedSerial.BaudRate);
+        _serialFeedbackEnabled = configuration.GetValue("LocoNet:SerialFeedback", false) || savedSerial.Enabled ||
             string.Equals(configuration["CommandCenter:Protocol"], "loconet-serial", StringComparison.OrdinalIgnoreCase);
 
         // Never activate two concurrent LocoNet feedback sources for the
