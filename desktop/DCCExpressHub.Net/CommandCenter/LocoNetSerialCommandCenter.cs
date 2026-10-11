@@ -5,7 +5,7 @@ namespace DCCExpressHub.Net.CommandCenter;
 /// <summary>
 /// Dedicated YD7010 LocoNet USB serial command station driver. All commands
 /// use native LocoNet binary frames over the selected COM port only.
-/// Adapted from the existing LocoNet Serial command station protocol logic.
+/// Adapted from the existing LocoNet TCP command station's packet logic.
 /// </summary>
 public sealed class LocoNetSerialCommandCenter : BackgroundService, ICommandCenter
 {
@@ -657,7 +657,7 @@ public sealed class LocoNetSerialCommandCenter : BackgroundService, ICommandCent
         var sent = await SendPacketAsync(new byte[] { on ? (byte)0x83 : (byte)0x82 }, ct);
         _log.LogInformation("LocoNet power {Power}: TX {Result} to {Endpoint}",
             on ? "ON" : "OFF", sent ? "sent" : "failed", Endpoint);
-        // TCP write success does not guarantee the command station changed power.
+        // A serial write confirms transmission only, not physical track power.
         return sent;
     }
     public async Task<bool> EmergencyStopAsync(CancellationToken ct = default)
