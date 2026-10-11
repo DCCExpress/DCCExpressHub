@@ -51,7 +51,6 @@ public sealed class LocoNetTcpTransport : ILocoNetTransport
                 if (line is null) break;
                 if (!line.StartsWith("RECEIVE ", StringComparison.OrdinalIgnoreCase))
                     continue;
-                Information?.Invoke("LocoNet RX: " + line);
                 var tokens = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 if (tokens.Length < 3 || tokens.Length > 129) continue;
                 var frame = new byte[tokens.Length - 1];
