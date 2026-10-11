@@ -986,6 +986,11 @@ public sealed class LayoutRuntime
 
         lock (_gate)
         {
+            // Repeated OFF reports (including R-BUS snapshots) must not restart
+            // the delay indefinitely. Only ON cancels a pending OFF.
+            if (!on && _pendingSensorOff.ContainsKey(address))
+                return true;
+
             if (_pendingSensorOff.Remove(address, out var previous))
                 previous.Cancel();
 
