@@ -166,7 +166,14 @@ export class Layout<
   }
 
   public addElement(element: TElement, layerId?: LayerId): void {
-    const layer = layerId ? this.requireLayer(layerId) : this.activeLayer;
+    const buttonTypes = new Set<string>([
+      ELEMENT_TYPES.BUTTON, ELEMENT_TYPES.BUTTON_SCRIPT,
+      ELEMENT_TYPES.BUTTON_AUDIO, ELEMENT_TYPES.BUTTON_AUDIO_LIST,
+      ELEMENT_TYPES.BUTTON_ROUTE, ELEMENT_TYPES.BUTTON_ROUTE_EXTENDED,
+    ]);
+    const destination = buttonTypes.has(element.type) ? "buttons" : layerId;
+    const layer = destination ? this.requireLayer(destination) : this.activeLayer;
+    if (buttonTypes.has(element.type)) element.layerName = "buttons";
     if (layer.locked) return;
 
     const duplicate =
