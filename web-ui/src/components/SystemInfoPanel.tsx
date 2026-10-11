@@ -381,7 +381,7 @@ export default function SystemInfoPanel({
     telemetry?.locoNetSerial ?? null;
 
   const locoNetStandard =
-    telemetry?.locoNetStandard ?? null;
+    dccAlive ? (telemetry?.locoNetStandard ?? null) : null;
 
   // Prefer the live commandCenterInfo protocol; periodic dccExStatus can
   // arrive later. Do not assume every non-Z21 station is DCC-EX.
