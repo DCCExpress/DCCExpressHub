@@ -42,7 +42,7 @@ public sealed class LocoNetSerialCommandCenter : BackgroundService, ICommandCent
     public LocoNetSerialCommandCenter(IConfiguration config, ILogger<LocoNetSerialCommandCenter> log)
     {
         _log = log;
-        _portName = (config["LocoNet:SerialPort"] ?? "COM6").Trim();
+        _portName = (config["LocoNet:SerialPort"] ?? "COM16").Trim();
         _baudRate = config.GetValue("LocoNet:SerialBaudRate", 115200);
     }
 
