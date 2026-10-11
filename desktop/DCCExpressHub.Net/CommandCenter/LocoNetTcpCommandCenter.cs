@@ -104,6 +104,7 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
             finally
             {
                 _connected = false;
+                _standardTelemetry.Reset();
                 lock (_slotSync)
                 {
                     _slots.Clear();
