@@ -924,7 +924,7 @@ function SensorSettingsCard() {
     commandIntervalMs !== saved.commandIntervalMs || settlingMs !== saved.settlingMs;
 
   return (
-    <Card withBorder p="sm">
+    <Card withBorder p="sm" bg="var(--mantine-color-body)">
       <Stack gap="xs">
         <Group gap="xs"><IconSettings size={17} /><Text fw={600}>Settings</Text></Group>
         <NumberInput
