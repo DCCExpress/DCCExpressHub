@@ -96,8 +96,8 @@ public sealed class LayoutRuntime
     // Authoritative physical runtime state.
     // Sensors are NOT reconciled to the layout. They come from <Q> / Q/q.
     readonly Dictionary<ushort, bool> _sensorStates = new();
-    // OFF must remain stable for one second; ON is processed immediately.
-    const int SensorOffDelayMs = 1000;
+    // OFF must remain stable for 250 ms; ON is processed immediately.
+    const int SensorOffDelayMs = 250;
     readonly Dictionary<ushort, CancellationTokenSource> _pendingSensorOff = new();
 
     // Basic/extended endpoints ARE reconciled to the current layout topology.
