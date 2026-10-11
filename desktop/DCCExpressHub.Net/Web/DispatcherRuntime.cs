@@ -893,7 +893,7 @@ public sealed class DispatcherRuntime
                     request.ToBlockId, index + 1, turnouts.Length,
                     turnout.Address, turnout.Closed);
 
-                if (!await SetTurnoutAsync(
+                if (!await SetTurnoutWithIntervalAsync(
                         turnout,
                         request.OwnerId,
                         ct))
@@ -1149,9 +1149,6 @@ public sealed class DispatcherRuntime
                     true;
             }
 
-            if (lastTurnoutReadyAtMs > Environment.TickCount64)
-                await Task.Delay((int)(lastTurnoutReadyAtMs - Environment.TickCount64), ct);
-
             sourceError =
                 ValidateSourceBlock(
                     request.SourceBlockId,
@@ -1213,7 +1210,7 @@ public sealed class DispatcherRuntime
                     request.DownstreamBlocks.LastOrDefault()?.BlockId ?? 0, index + 1, turnouts.Length,
                     turnout.Address, turnout.Closed);
 
-                if (!await SetTurnoutAsync(
+                if (!await SetTurnoutWithIntervalAsync(
                         turnout,
                         request.OwnerId,
                         ct))
