@@ -154,3 +154,30 @@ directory. Built React files live separately under `wwwroot/`.
 
 Missing `/api/*` routes return JSON 404 instead of falling through to the SPA
 index.
+
+
+### YD7010 USB LocoNet Serial (experimental receive-only)
+
+The YD7010 provides a dedicated **USB virtual COM port for LocoNet**, separate from
+YD.Control and XpressNet (YaMoRC YD7010 Configuration Guide, USB 2.0, page 26).
+The following opt-in settings activate an independent serial **feedback receiver**,
+reusing the existing LocoNet binary OPC_INPUT_REP decoder:
+
+```text
+LocoNet__SerialFeedback=true
+LocoNet__SerialPort=COM7
+LocoNet__SerialBaudRate=115200
+LocoNet__LbServerFeedback=false
+LocoNet__BinaryFeedback=false
+```
+
+Replace COM7 with the actual **LocoNet** COM port shown in the YaMoRC
+configuration utility. **115200 is a test configuration, NOT a baud rate
+verified from YaMoRC documentation.** Confirm the correct baud/framing on the
+physical YD7010 before enabling layout automation. There is no serial transmit,
+initial feedback interrogation, or command-station/throttle control through this
+transport yet. Z21 UDP continues to handle command-station control.
+
+Leave the serial receiver disabled until the port and packet framing have
+been verified. Do not enable the network and USB LocoNet receivers
+simultaneously for the same sensors without an explicit deduplication strategy.
