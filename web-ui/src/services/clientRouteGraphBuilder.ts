@@ -36,7 +36,7 @@ export type ClientRouteGraphBuildResult = {
 function sectionFromNodeName(
   name: string
 ): number {
-  const match = /^S(\d+)$/.exec(name);
+  const match = /^S(\d+)(?:\.\d+)?$/.exec(name);
 
   if (!match) {
     return 0;
