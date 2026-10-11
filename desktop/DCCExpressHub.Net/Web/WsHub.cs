@@ -861,6 +861,8 @@ public sealed class WsHub
                     {
                         HubState.EmergencyStop = CommandCenter.EmergencyPauseStateKnown ? CommandCenter.EmergencyPaused : true;
                         await BroadcastPower();
+                        if (HubState.EmergencyStop)
+                            await ZeroKnownLocoSpeedsAfterEmergencyAsync();
                     }
                     break;
                 case "writeDccExDirectCommand":
@@ -3134,6 +3136,30 @@ public sealed class WsHub
         programmingModeActive = HubState.ProgrammingPower,
         programmingJoined = HubState.ProgrammingJoined
     });
+
+    public async Task ZeroKnownLocoSpeedsAfterEmergencyAsync()
+    {
+        foreach (var loco in HubState.Locos.Values.ToArray())
+        {
+            try
+            {
+                if (!await CommandCenter.SetLocoAsync(
+                        loco.Address, 0, loco.Forward, CancellationToken.None))
+                {
+                    Logger.LogCritical("E-STOP zero-speed command failed for loco #{Address}", loco.Address);
+                    continue;
+                }
+
+                var stopped = loco with { Speed = 0 };
+                HubState.Locos[loco.Address] = stopped;
+                await BroadcastLoco(stopped);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogCritical(ex, "E-STOP zero-speed command failed for loco #{Address}", loco.Address);
+            }
+        }
+    }
 
     private Task BroadcastLoco(LocoFeedback l) => Broadcast("locoState", new
     {
