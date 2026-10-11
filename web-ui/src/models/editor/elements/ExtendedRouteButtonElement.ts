@@ -19,7 +19,7 @@ export class ExtendedRouteButtonElement
   constructor(x: number, y: number) {
     super(x, y);
     this.type = ELEMENT_TYPES.BUTTON_ROUTE_EXTENDED;
-    this.layerName = "buildings";
+    this.layerName = "buttons";
     this.w = 1;
     this.h = 1;
     this.rotationStep = 0;
