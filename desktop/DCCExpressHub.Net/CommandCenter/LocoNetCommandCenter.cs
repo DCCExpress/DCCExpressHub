@@ -608,6 +608,12 @@ public sealed class LocoNetCommandCenter : BackgroundService, ICommandCenter
     }
     public async Task<bool> EmergencyStopAsync(CancellationToken ct = default)
     {
+        // Preserve the previous TCP behavior on existing layouts: STOP/RESUME
+        // acts on Hub-owned locomotive slots without changing track power.
+        // Serial retains its previous global track-power-off fail-safe policy.
+        if (_transport.Kind == "tcp")
+            return await EmergencyStopOwnedSlotsAsync(ct);
+
         if (!_connected) return false;
 
         if (_emergencyPaused)
@@ -656,6 +662,55 @@ public sealed class LocoNetCommandCenter : BackgroundService, ICommandCenter
         RawInfo?.Invoke("LocoNet E-STOP: track power OFF; " +
             (allSlotsStopped ? "known loco speeds cleared" : "some loco zero-speed commands FAILED"));
         return allSlotsStopped;
+    }
+
+    private async Task<bool> EmergencyStopOwnedSlotsAsync(CancellationToken ct)
+    {
+        if (!_connected) return false;
+
+        // Keep the alpha5 LocoNet TCP behavior unchanged: emergency speed for
+        // Hub-owned slots, not OPC_IDLE (problematic on YD7010) or power-off.
+        var resume = _emergencyPaused;
+        int[] slots;
+        lock (_slotSync) slots = _slots.Values.Distinct().ToArray();
+
+        if (slots.Length == 0)
+        {
+            _log.LogWarning(
+                "LocoNet emergency {Action}: no Hub-owned locomotive slots; cannot guarantee a global stop",
+                resume ? "resume" : "stop");
+            return false;
+        }
+
+        if (!resume) _emergencyPaused = true;
+        foreach (var slot in slots)
+        {
+            var value = resume ? (byte)0 : (byte)1;
+            if (!await SendPacketAsync([0xA0, (byte)slot, value], ct))
+            {
+                _log.LogError("LocoNet emergency {Action} failed on slot {Slot}",
+                    resume ? "resume" : "stop", slot);
+                return false;
+            }
+        }
+
+        (int Address, int Slot, byte Dirf, byte Snd)[] stopped;
+        lock (_slotSync)
+        {
+            stopped = _slots.Select(pair => (
+                pair.Key, pair.Value,
+                _dirf.GetValueOrDefault(pair.Value),
+                _snd.GetValueOrDefault(pair.Value))).ToArray();
+            foreach (var loco in stopped) _speeds[loco.Slot] = 0;
+        }
+        foreach (var loco in stopped)
+            PublishLocoSlot(loco.Slot);
+
+        if (resume) _emergencyPaused = false;
+        RawInfo?.Invoke(resume
+            ? "LocoNet emergency RESUME: Hub locomotive slots set to speed 0; track power unchanged"
+            : "LocoNet emergency STOP: Hub locomotive slots sent emergency speed 1; track power unchanged");
+        return true;
     }
 
     public Task<bool> SendRawAsync(string command, bool log = true, CancellationToken ct = default) =>
