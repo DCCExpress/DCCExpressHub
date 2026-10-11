@@ -1227,6 +1227,9 @@ public sealed class DispatcherRuntime
                         Environment.TickCount64 + _runtime.TurnoutSettlingTimeMs);
             }
 
+            if (lastTurnoutReadyAtMs > Environment.TickCount64)
+                await Task.Delay((int)(lastTurnoutReadyAtMs - Environment.TickCount64), ct);
+
             sourceError =
                 ValidateSourceBlock(
                     request.SourceBlockId,
