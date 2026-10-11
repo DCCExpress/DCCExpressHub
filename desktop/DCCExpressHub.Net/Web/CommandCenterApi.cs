@@ -58,6 +58,44 @@ public sealed class CommandCenterApi
                 StringComparison.OrdinalIgnoreCase);
     }
 
+    public HubApiResponse GetLocoNetSerialSettings()
+    {
+        var settings = YaMoRcLocoNetSerialSettings.Load();
+        return HubApiResponse.Ok(new {
+            ok = true, enabled = settings.Enabled, port = settings.Port,
+            baudRate = settings.BaudRate, restartRequired = true
+        });
+    }
+
+    public HubApiResponse SaveLocoNetSerialSettings(bool enabled, string port, int baudRate)
+    {
+        if (!string.Equals(_commandCenter.Type, "yamorc7010", StringComparison.OrdinalIgnoreCase) &&
+            _physical.GetLocoNetDiagnostics() is null)
+            return HubApiResponse.Error(400, new { ok = false, message = "LocoNet USB Serial is available only for YaMoRC YD7010." });
+
+        var settings = new YaMoRcLocoNetSerialSettings(enabled, port.Trim(), baudRate);
+        if (!settings.IsValid())
+            return HubApiResponse.Error(400, new { ok = false, message = "Invalid LocoNet serial port or baud rate." });
+        if (!settings.Save())
+            return HubApiResponse.Error(500, new { ok = false, message = "Could not save LocoNet serial settings." });
+        return HubApiResponse.Ok(new { ok = true, enabled, port = settings.Port,
+            baudRate, restartRequired = true });
+    }
+
+    public async Task<HubApiResponse> TestLocoNetSerialSettingsAsync(string port, int baudRate)
+    {
+        try
+        {
+            await using var serial = new YaMoRcLocoNetSerialTransport(port, baudRate);
+            serial.Open();
+            return HubApiResponse.Ok(new { ok = true, message = "COM port opened successfully. LocoNet packet framing has not yet been verified.", port, baudRate });
+        }
+        catch (Exception ex)
+        {
+            return HubApiResponse.Error(400, new { ok = false, message = ex.Message, port, baudRate });
+        }
+    }
+
     public HubApiResponse GetConfig()
     {
         var x = _store.Current;
