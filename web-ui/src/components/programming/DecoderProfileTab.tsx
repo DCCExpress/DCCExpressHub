@@ -138,6 +138,12 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
       let consecutiveNoDecoder = 0;
       for (let i=0; i<cvs.length; i++) {
         if (cancel.current) break;
+        // YD7010 service-track reads may need additional settling between
+        // successive decoder ACK cycles. Do not slow single CV reads.
+        if (i > 0) {
+          await new Promise<void>(resolve => setTimeout(resolve, 500));
+          if (cancel.current) break;
+        }
         const cv = cvs[i]!;
         setActiveCv(cv);
         let item: Result;
