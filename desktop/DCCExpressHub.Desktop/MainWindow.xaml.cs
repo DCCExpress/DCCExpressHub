@@ -442,8 +442,8 @@ namespace DCCExpressHub.Desktop
             if (!_initializingSetup &&
                 SelectedProtocol == "loconet-serial" &&
                 _settings.Protocol != "loconet-serial" &&
-                SerialPort.GetPortNames().Contains("COM6", StringComparer.OrdinalIgnoreCase))
-                SerialPortCombo.Text = "COM6";
+                SerialPort.GetPortNames().Contains("COM16", StringComparer.OrdinalIgnoreCase))
+                SerialPortCombo.Text = "COM16";
             HideTestResult();
         }
 
