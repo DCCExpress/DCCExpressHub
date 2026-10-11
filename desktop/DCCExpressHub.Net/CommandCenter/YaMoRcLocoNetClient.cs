@@ -75,10 +75,10 @@ public sealed class YaMoRcLocoNetClient
                     DefaultBinaryPort),
                 DefaultBinaryPort);
 
-        _serialPortName = (configuration["LocoNet:SerialPort"] ?? "").Trim();
-        _serialBaudRate = configuration.GetValue("LocoNet:SerialBaudRate", 115200);
-        _serialFeedbackEnabled = configuration.GetValue("LocoNet:SerialFeedback", false) &&
-                                 _serialPortName.Length > 0;
+        var savedSerial = YaMoRcLocoNetSerialSettings.Load();
+        _serialPortName = savedSerial.Port.Trim();
+        _serialBaudRate = savedSerial.BaudRate;
+        _serialFeedbackEnabled = savedSerial.Enabled;
 
         _lbServerEnabled =
             configuration.GetValue(
