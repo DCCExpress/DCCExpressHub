@@ -68,7 +68,7 @@ export function applyPartSegmentLabels(
   }
 
   for (const node of graph.nodes) {
-    if (!/^S\\d+\\.\\d+$/.test(node.name)) {
+    if (!/^S\d+\.\d+$/.test(node.name)) {
       continue;
     }
 
