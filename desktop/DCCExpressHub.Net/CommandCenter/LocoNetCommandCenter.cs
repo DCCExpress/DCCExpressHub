@@ -25,7 +25,12 @@ public sealed class LocoNetCommandCenter : BackgroundService, ICommandCenter
     private readonly Dictionary<int, bool> _sensors = new();
     private readonly SemaphoreSlim _snapshotGate = new(1, 1);
     private readonly SemaphoreSlim _programmingGate = new(1, 1);
-    private int _serviceRecoveryMs = 100;
+    // A short fixed service-track spacing replaces the previous adaptive
+    // 0.9-2.0 second penalty that slowed later successful reads.
+    private const int ServiceTrackSpacingMs = 100;
+    // An explicit opt-in enables retries for stations that occasionally miss ACKs.
+    // One read attempt by default: surface the first real NO DECODER response.
+    private readonly int _serviceReadAttempts;
     private readonly object _programmingSync = new();
     private TaskCompletionSource<ProgrammingReply>? _pendingProgramming;
     private int _pendingProgrammingCv;
@@ -35,10 +40,15 @@ public sealed class LocoNetCommandCenter : BackgroundService, ICommandCenter
     private TaskCompletionSource<(int Address, int Slot, byte Status, byte Speed, byte Dirf, byte Snd)>? _pendingSlot;
     private int _pendingAddress;
 
-    public LocoNetCommandCenter(ILocoNetTransport transport, ILogger<LocoNetCommandCenter> log)
+    public LocoNetCommandCenter(
+        ILocoNetTransport transport,
+        ILogger<LocoNetCommandCenter> log,
+        IConfiguration config)
     {
         _transport = transport;
         _log = log;
+        _serviceReadAttempts = Math.Clamp(
+            config.GetValue("LocoNet:ServiceReadAttempts", 1), 1, 3);
         _transport.ConnectionChanged += OnConnectionChanged;
         _transport.Information += message => RawInfo?.Invoke(message);
     }
@@ -348,10 +358,10 @@ public sealed class LocoNetCommandCenter : BackgroundService, ICommandCenter
                     ((cvZero & 0x80) >> 7) | ((value & 0x80) >> 6)),
                 (byte)(cvZero & 0x7F), (byte)(value & 0x7F), 0x7F, 0x7F
             };
-            // Retry only service-track reads that the station explicitly reports
-            // as transient NO DECODER. A CV write must never be retried blindly.
-            const int maxAttempts = 3;
-            int attempts = !write && address == 0 ? maxAttempts : 1;
+            // Retries are opt-in. CV writes are never retried automatically.
+            // The default single read lets the UI report real YD7010 errors
+            // without hiding them behind 3 station cycles and two delays.
+            int attempts = !write && address == 0 ? _serviceReadAttempts : 1;
             for (int attempt = 1; attempt <= attempts; attempt++)
             {
                 attemptCount = attempt;
@@ -384,27 +394,29 @@ public sealed class LocoNetCommandCenter : BackgroundService, ICommandCenter
                         "No programming result from YD7010 (timeout). Check PROG TRACK / decoder ACK.");
                 }
 
+                var responseMs = attemptTimer.ElapsedMilliseconds;
                 _log.LogInformation(
-                    "LocoNet CV{Cv} attempt {Attempt}/{MaxAttempts}: response {ResponseMs} ms, ok={Ok}, message={Message}",
-                    cv, attempt, attempts, attemptTimer.ElapsedMilliseconds, reply.Ok, reply.Message);
+                    "LocoNet CV{Cv} attempt {Attempt}/{MaxAttempts}: transport={Transport}, response={ResponseMs} ms, ok={Ok}, message={Message}, raw={Raw}",
+                    cv, attempt, attempts, _transport.Kind, responseMs, reply.Ok, reply.Message, reply.Raw);
+                RawInfo?.Invoke(
+                    $"LocoNet CV{cv} {(write ? "write" : "read")} {_transport.Kind}: " +
+                    $"response={responseMs} ms, attempt={attempt}/{attempts}, ok={reply.Ok}");
                 if (reply.Ok)
-                {
-                    if (address == 0)
-                        _serviceRecoveryMs = Math.Max(100, _serviceRecoveryMs - 150);
-                    return new(true, cv, write ? value : reply.Value, reply.Message, reply.Raw);
-                }
+                    return new(true, cv, write ? value : reply.Value,
+                        $"{reply.Message} (response {responseMs} ms; attempts {attempt}).",
+                        reply.Raw);
 
                 bool noDecoder = reply.Message.StartsWith(
                     "YD7010 reports NO DECODER", StringComparison.Ordinal);
-                if (address == 0 && noDecoder)
-                    _serviceRecoveryMs = Math.Min(2000,
-                        Math.Max(900, _serviceRecoveryMs * 2));
                 if (!noDecoder || attempt == attempts)
+                {
+                    var reason = noDecoder && attempt > 1
+                        ? $"YD7010 reported NO DECODER after {attempt} read attempts. Check PROG TRACK contacts and ACK current."
+                        : reply.Message;
                     return new(false, cv, -1,
-                        noDecoder && attempt > 1
-                            ? $"YD7010 reported NO DECODER after {attempt} read attempts. Check PROG TRACK contacts and ACK current."
-                            : reply.Message,
+                        $"{reason} (response {responseMs} ms; total {totalTimer.ElapsedMilliseconds} ms; attempts {attempt}).",
                         reply.Raw);
+                }
 
                 _log.LogWarning(
                     "LocoNet service-mode CV{Cv} returned NO DECODER on attempt {Attempt}. Retrying after recovery delay.",
@@ -421,13 +433,14 @@ public sealed class LocoNetCommandCenter : BackgroundService, ICommandCenter
         finally
         {
             lock (_programmingSync) _pendingProgramming = null;
-            // The slot-124 reply is the completion signal. Use minimal spacing
-            // after clean operations; increase recovery only when decoder ACKs fail.
+            // Keep only a bounded 100 ms programming-track settle interval;
+            // failed reads must not penalize the next successful read by seconds.
             if (address == 0 && _connected && !ct.IsCancellationRequested)
             {
-                _log.LogInformation("LocoNet CV{Cv} completed: attempts={Attempts}, queue={QueueMs} ms, operation={OperationMs} ms, recovery={RecoveryMs} ms",
-                    cv, attemptCount, queueMs, totalTimer.ElapsedMilliseconds - queueMs, _serviceRecoveryMs);
-                await Task.Delay(_serviceRecoveryMs, CancellationToken.None);
+                _log.LogInformation("LocoNet CV{Cv} completed: attempts={Attempts}, queue={QueueMs} ms, operation={OperationMs} ms, spacing={SpacingMs} ms",
+                    cv, attemptCount, queueMs, totalTimer.ElapsedMilliseconds - queueMs,
+                    ServiceTrackSpacingMs);
+                await Task.Delay(ServiceTrackSpacingMs, CancellationToken.None);
             }
             _programmingGate.Release();
         }
