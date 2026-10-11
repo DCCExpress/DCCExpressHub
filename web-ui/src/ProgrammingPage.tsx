@@ -60,6 +60,7 @@ type Props = {
 };
 
 type NumberValue = string | number;
+type ReadStatus = "idle" | "reading" | "ok" | "nok";
 
 type ProgrammingPowerInfo = WsPowerInfoPayload & {
   programmingJoined?: boolean;
@@ -155,11 +156,12 @@ function ProgrammingResult({
           : <IconAlertTriangle size={18} />
       }
     >
+      {!result.ok && <Text size="sm" fw={700} c="red">NOK</Text>}
       <Text size="sm" fw={600}>
         {result.message ?? (result.ok ? i18next.t("ui.commandCompleted") : i18next.t("ui.commandFailed"))}
       </Text>
 
-      {typeof result.value === "number" && result.value >= 0 && (
+      {result.ok && typeof result.value === "number" && result.value >= 0 && (
         <Text size="sm"> {i18next.t("ui.returnedValue")} <strong>{result.value}</strong>
         </Text>
       )}
@@ -225,6 +227,9 @@ function DccExProgrammingPage({
   const [locoAddress, setLocoAddress] = useState<NumberValue>(3);
   const [cv, setCv] = useState<NumberValue>(1);
   const [cvValue, setCvValue] = useState<NumberValue>(0);
+  const [dccReadStatus, setDccReadStatus] = useState<Record<"address" | "locomotive" | "accessory", ReadStatus>>({
+    address: "idle", locomotive: "idle", accessory: "idle",
+  });
   const [pom, setPom] = useState(false);
 
   const [quickTestAddress, setQuickTestAddress] = useState<NumberValue>(3);
@@ -272,6 +277,21 @@ function DccExProgrammingPage({
         action === "writeCv"
       );
 
+    const readTarget = action === "readAddress"
+      ? "address"
+      : action === "readCv" ? valueTarget : undefined;
+    if (readTarget) {
+      setDccReadStatus(current => ({ ...current, [readTarget]: "reading" }));
+      if (readTarget === "address") {
+        setLocoAddress("");
+        setQuickTestAddress("");
+      } else if (readTarget === "locomotive") {
+        setCvValue("");
+      } else {
+        setAccessoryCvValue("");
+      }
+    }
+
     setBusy(true);
     setResult(null);
 
@@ -285,7 +305,20 @@ function DccExProgrammingPage({
         values,
       );
 
-      setResult(response);
+      const readValueValid = response.ok &&
+        typeof response.value === "number" &&
+        Number.isInteger(response.value) &&
+        (readTarget === "address"
+          ? response.value >= 1 && response.value <= 10239
+          : response.value >= 0 && response.value <= 255);
+      if (readTarget) {
+        setDccReadStatus(current => ({
+          ...current, [readTarget]: readValueValid ? "ok" : "nok",
+        }));
+      }
+      setResult(readTarget && !readValueValid && response.ok
+        ? { ...response, ok: false, message: "NOK — invalid or missing programming read value." }
+        : response);
 
       // DCC-EX service-track writes acknowledge the requested CV, but
       // follow them with an independent read to detect ACK/decoder failures.
@@ -327,11 +360,7 @@ function DccExProgrammingPage({
         }
       }
 
-      if (
-        response.ok &&
-        typeof response.value === "number" &&
-        response.value >= 0
-      ) {
+      if (readTarget && readValueValid) {
         if (action === "readAddress") {
           setLocoAddress(response.value);
           setQuickTestAddress(response.value);
@@ -346,6 +375,9 @@ function DccExProgrammingPage({
         }
       }
     } catch (error) {
+      if (readTarget) {
+        setDccReadStatus(current => ({ ...current, [readTarget]: "nok" }));
+      }
       setResult({
         requestId: "local",
         action,
@@ -508,8 +540,8 @@ function DccExProgrammingPage({
   const accCv = numberValue(accessoryCv);
   const accValue = numberValue(accessoryCvValue);
 
-  const safeLocoValue = Number.isFinite(locoValue) ? locoValue : 0;
-  const safeAccValue = Number.isFinite(accValue) ? accValue : 0;
+  const safeLocoValue = Number.isFinite(locoValue) ? locoValue : null;
+  const safeAccValue = Number.isFinite(accValue) ? accValue : null;
 
   return (
     <Stack gap="lg">
