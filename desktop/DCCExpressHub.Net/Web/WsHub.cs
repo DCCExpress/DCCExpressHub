@@ -947,8 +947,10 @@ public sealed class WsHub
                         finally
                         {
                             if (leaseOwner is not null)
+                            {
                                 await Task.Delay(LayoutRuntime.TurnoutSettlingTimeMs, CancellationToken.None);
                                 SwitchMan.ReleaseOwned(new[] { a }, leaseOwner);
+                            }
                         }
                         break;
                     }
@@ -978,8 +980,10 @@ public sealed class WsHub
                         finally
                         {
                             if (leaseOwner is not null)
+                            {
                                 await Task.Delay(LayoutRuntime.TurnoutSettlingTimeMs, CancellationToken.None);
                                 SwitchMan.ReleaseOwned(new[] { a }, leaseOwner);
+                            }
                         }
                         break;
                     }
@@ -1003,8 +1007,10 @@ public sealed class WsHub
                         finally
                         {
                             if (leaseOwner is not null)
+                            {
                                 await Task.Delay(LayoutRuntime.TurnoutSettlingTimeMs, CancellationToken.None);
                                 SwitchMan.ReleaseOwned(new[] { a }, leaseOwner);
+                            }
                         }
                         break;
                     }
@@ -1028,8 +1034,10 @@ public sealed class WsHub
                         finally
                         {
                             if (leaseOwner is not null)
+                            {
                                 await Task.Delay(LayoutRuntime.TurnoutSettlingTimeMs, CancellationToken.None);
                                 SwitchMan.ReleaseOwned(new[] { a }, leaseOwner);
+                            }
                         }
                         break;
                     }
