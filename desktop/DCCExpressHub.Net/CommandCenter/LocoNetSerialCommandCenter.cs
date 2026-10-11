@@ -2,8 +2,15 @@ using System.IO.Ports;
 
 namespace DCCExpressHub.Net.CommandCenter;
 
+public sealed record LocoNetSerialRuntimeDiagnostics(
+    string Port,
+    int BaudRate,
+    long LinkUptimeMs,
+    long RxPackets,
+    long TxPackets);
+
 /// <summary>
-/// Dedicated YD7010 LocoNet USB serial command station driver. All commands
+/// LocoNet serial command station driver. All commands
 /// use native LocoNet binary frames over the selected COM port only.
 /// Adapted from the existing LocoNet TCP command station's packet logic.
 /// </summary>
@@ -18,6 +25,9 @@ public sealed class LocoNetSerialCommandCenter : BackgroundService, ICommandCent
     private SerialPort? _serialPort;
     private volatile bool _connected;
     private volatile bool _emergencyPaused;
+    private long _connectedAtTick = -1;
+    private long _rxPackets;
+    private long _txPackets;
     private readonly SemaphoreSlim _slotGate = new(1, 1);
     private readonly object _slotSync = new();
     private readonly Dictionary<int, int> _slots = new();
@@ -53,6 +63,15 @@ public sealed class LocoNetSerialCommandCenter : BackgroundService, ICommandCent
     public bool EmergencyPauseStateKnown => true;
     public bool EmergencyPaused => _emergencyPaused;
 
+    public LocoNetSerialRuntimeDiagnostics Diagnostics => new(
+        _portName,
+        _baudRate,
+        _connected
+            ? Math.Max(0, Environment.TickCount64 - Interlocked.Read(ref _connectedAtTick))
+            : -1,
+        Interlocked.Read(ref _rxPackets),
+        Interlocked.Read(ref _txPackets));
+
     public event Action<string>? RawInfo;
     public event Action<StationInfo>? StationInfoChanged;
     public event Action<TrackInfo>? TrackConfigurationChanged;
@@ -81,10 +100,13 @@ public sealed class LocoNetSerialCommandCenter : BackgroundService, ICommandCent
                 };
                 port.Open();
                 lock (_connectionGate) _serialPort = port;
+                Interlocked.Exchange(ref _connectedAtTick, Environment.TickCount64);
+                Interlocked.Exchange(ref _rxPackets, 0);
+                Interlocked.Exchange(ref _txPackets, 0);
                 _connected = true;
                 ConnectionChanged?.Invoke(true);
                 RawInfo?.Invoke($"LocoNet Serial connected: {_portName} @ {_baudRate}");
-                StationInfoChanged?.Invoke(new StationInfo(Processor: "LocoNet USB", Hardware: "YD7010"));
+                StationInfoChanged?.Invoke(new StationInfo(Processor: "LocoNet", Hardware: "Serial interface"));
                 await ReadSerialFramesAsync(port.BaseStream, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
@@ -103,6 +125,7 @@ public sealed class LocoNetSerialCommandCenter : BackgroundService, ICommandCent
             finally
             {
                 _connected = false;
+                Interlocked.Exchange(ref _connectedAtTick, -1);
                 lock (_connectionGate) _serialPort = null;
                 port?.Dispose();
                 lock (_slotSync)
@@ -208,6 +231,7 @@ public sealed class LocoNetSerialCommandCenter : BackgroundService, ICommandCent
             return;
         }
 
+        Interlocked.Increment(ref _rxPackets);
         var packet = rawPacket.ToArray();
         var line = Convert.ToHexString(packet);
         RawInfo?.Invoke("LocoNet RX: " + line);
@@ -552,6 +576,7 @@ public sealed class LocoNetSerialCommandCenter : BackgroundService, ICommandCent
             if (port?.IsOpen != true) return false;
             await port.BaseStream.WriteAsync(frame, ct);
             await port.BaseStream.FlushAsync(ct);
+            Interlocked.Increment(ref _txPackets);
             RawInfo?.Invoke("LocoNet Serial TX: " + Convert.ToHexString(frame));
             return true;
         }
