@@ -50,9 +50,7 @@ function formatBlockLabel(
     return idLabel;
   }
 
-  return trimmed.includes(idLabel)
-    ? trimmed
-    : `${trimmed} (${idLabel})`;
+  return trimmed;
 }
 
 export default function SafetyEmergencyStopDialog() {
