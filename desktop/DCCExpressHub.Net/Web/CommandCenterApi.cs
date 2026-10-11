@@ -251,7 +251,7 @@ public sealed class CommandCenterApi
             next =
                 new CommandCenterSettings
                 {
-                    Transport = "serial",
+                    Transport = current.Transport,
                     TcpHost = current.TcpHost,
                     TcpPort = current.TcpPort,
                     SerialPort = serialPort,
@@ -368,7 +368,9 @@ public sealed class CommandCenterApi
                 });
         }
 
-        if (
+        // USB LocoNet Serial uses the Desktop-selected COM port. Unlike DCC-EX,
+        // the port cannot be hot-switched: persist the setting, then restart.
+        if (current.Transport != "loconet-serial" &&
             !_physical.SetEndpoint(
                 endpoint,
                 endpointValue)
@@ -395,6 +397,7 @@ public sealed class CommandCenterApi
             {
                 ok = true,
                 transport = saved.Transport,
+                restartRequired = saved.Transport == "loconet-serial",
                 host =
                     saved.IsSerial
                         ? ""
@@ -580,6 +583,9 @@ public sealed class CommandCenterApi
             _store.Current;
         var isLocoNet = string.Equals(
             _commandCenter.Type, "loconet", StringComparison.OrdinalIgnoreCase);
+        var isLocoNetSerial = string.Equals(
+            _commandCenter.Type, "loconet-serial", StringComparison.OrdinalIgnoreCase);
+        var isLocoNetProtocol = isLocoNet || isLocoNetSerial;
 
         return HubApiResponse.Ok(
             new
@@ -594,7 +600,7 @@ public sealed class CommandCenterApi
                 defaultPort =
                     x.IsZ21
                         ? RocoZ21CommandCenter.DefaultPort
-                        : isLocoNet ? 1234 : 2560,
+                        : isLocoNet ? 1234 : isLocoNetSerial ? 0 : 2560,
                 defaultBaudRate =
                     CommandCenterSettings.DccExSerialBaudRate,
                 connected =
@@ -620,22 +626,22 @@ public sealed class CommandCenterApi
                     {
                         trackPower = true,
                         programmingTrackPower =
-                            !x.IsZ21 && !isLocoNet,
+                            !x.IsZ21 && !isLocoNetProtocol,
                         serviceModeProgramming = true,
                         pomProgramming = true,
                         pomRead =
-                            x.IsZ21 || isLocoNet,
+                            x.IsZ21 || isLocoNetProtocol,
                         accessoryPomProgramming =
-                            x.IsZ21 || isLocoNet,
+                            x.IsZ21 || isLocoNetProtocol,
                         accessoryPomRead =
                             x.IsZ21,
                         rawCommand =
-                            !x.IsZ21 && !isLocoNet,
+                            !x.IsZ21 && !isLocoNetProtocol,
                         vPin =
-                            !x.IsZ21 && !isLocoNet,
+                            !x.IsZ21 && !isLocoNetProtocol,
                         extendedAccessory = true,
-                        currentTelemetry = !isLocoNet,
-                        trackConfiguration = !isLocoNet,
+                        currentTelemetry = !isLocoNetProtocol,
+                        trackConfiguration = !isLocoNetProtocol,
                         locomotiveControl = true,
                         locomotiveFunctions = true,
                         turnoutControl = true,
