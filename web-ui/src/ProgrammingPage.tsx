@@ -1397,7 +1397,9 @@ function Z21ProgrammingPage({
 
       if (
         !cv29.ok ||
-        typeof cv29.value !== "number"
+        typeof cv29.value !== "number" ||
+        !Number.isInteger(cv29.value) ||
+        cv29.value < 0 || cv29.value > 255
       ) {
         throw new Error(
           cv29.message ??
@@ -1426,7 +1428,9 @@ function Z21ProgrammingPage({
           !cv17.ok ||
           !cv18.ok ||
           typeof cv17.value !== "number" ||
-          typeof cv18.value !== "number"
+          typeof cv18.value !== "number" ||
+          !Number.isInteger(cv17.value) || cv17.value < 0 || cv17.value > 255 ||
+          !Number.isInteger(cv18.value) || cv18.value < 0 || cv18.value > 255
         ) {
           throw new Error(
             cv17.message ??
@@ -1447,7 +1451,8 @@ function Z21ProgrammingPage({
 
         if (
           !cv1.ok ||
-          typeof cv1.value !== "number"
+          typeof cv1.value !== "number" ||
+          !Number.isInteger(cv1.value) || cv1.value < 0 || cv1.value > 255
         ) {
           throw new Error(
             cv1.message ??
