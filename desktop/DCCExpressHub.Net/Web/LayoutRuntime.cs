@@ -97,7 +97,28 @@ public sealed class LayoutRuntime
     // Sensors are NOT reconciled to the layout. They come from <Q> / Q/q.
     readonly Dictionary<ushort, bool> _sensorStates = new();
     // OFF must remain stable for 250 ms; ON is processed immediately.
-    const int SensorOffDelayMs = 250;
+    int _sensorOffDelayMs = 250;
+    readonly string _sensorSettingsPath;
+    public int SensorOffDelayMs
+    {
+        get { lock (_gate) return _sensorOffDelayMs; }
+    }
+
+    public bool SaveSensorOffDelayMs(int milliseconds)
+    {
+        if (milliseconds is < 100 or > 1000) return false;
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(_sensorSettingsPath)!);
+            var json = JsonSerializer.Serialize(new { sensorOffDelayMs = milliseconds });
+            var tmp = _sensorSettingsPath + ".tmp";
+            File.WriteAllText(tmp, json);
+            File.Move(tmp, _sensorSettingsPath, true);
+            lock (_gate) _sensorOffDelayMs = milliseconds;
+            return true;
+        }
+        catch { return false; }
+    }
     readonly Dictionary<ushort, CancellationTokenSource> _pendingSensorOff = new();
 
     // Basic/extended endpoints ARE reconciled to the current layout topology.
@@ -142,6 +163,18 @@ public sealed class LayoutRuntime
     public LayoutRuntime(AppPaths env)
     {
         _env = env;
+        _sensorSettingsPath = Path.Combine(env.ContentRootPath, "data", "state", "sensor-settings.json");
+        try
+        {
+            if (File.Exists(_sensorSettingsPath))
+            {
+                using var doc = JsonDocument.Parse(File.ReadAllText(_sensorSettingsPath));
+                if (doc.RootElement.TryGetProperty("sensorOffDelayMs", out var delay) &&
+                    delay.TryGetInt32(out var ms) && ms is >= 100 and <= 1000)
+                    _sensorOffDelayMs = ms;
+            }
+        }
+        catch { /* Invalid settings must not prevent startup. */ }
         Rebuild();
     }
 
