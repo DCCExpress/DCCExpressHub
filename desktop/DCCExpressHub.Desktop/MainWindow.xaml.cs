@@ -391,7 +391,7 @@ namespace DCCExpressHub.Desktop
             // Preserve previously saved combined Z21/LocoNet profiles,
             // without offering a vendor-specific profile for new setups.
             LegacyCombinedProtocolItem.Visibility =
-                protocol == "yamorc7010"
+                protocol is "yamorc7010" or "loconet-serial"
                     ? Visibility.Visible
                     : Visibility.Collapsed;
 
@@ -421,7 +421,7 @@ namespace DCCExpressHub.Desktop
                 var portText =
                     TcpPortText.Text.Trim();
 
-                if (SelectedProtocol is "z21" or "yamorc7010" &&
+                if (SelectedProtocol is "z21" or "yamorc7010" or "loconet-serial" &&
                     portText == "2560")
                 {
                     TcpPortText.Text = "21105";
@@ -447,6 +447,7 @@ namespace DCCExpressHub.Desktop
             {
                 "z21" or "yamorc7010" => 21105,
                 "loconet" => 1234,
+                "loconet-serial" => 21105,
                 _ => 2560
             };
 
@@ -459,7 +460,7 @@ namespace DCCExpressHub.Desktop
                 $"{L("port")} ({GetDefaultCommandPort(protocol)})";
 
             TcpPanel.Visibility =
-                protocol is "tcp" or "z21" or "yamorc7010" or "loconet"
+                protocol is "tcp" or "z21" or "yamorc7010" or "loconet" or "loconet-serial"
                     ? Visibility.Visible
                     : Visibility.Collapsed;
 
@@ -474,15 +475,15 @@ namespace DCCExpressHub.Desktop
                     : Visibility.Collapsed;
 
             UseLocoNetCheckBox.Visibility =
-                protocol == "yamorc7010" ? Visibility.Visible : Visibility.Collapsed;
+                protocol is "yamorc7010" or "loconet-serial" ? Visibility.Visible : Visibility.Collapsed;
 
             YaMoRcOffsetsPanel.Visibility =
-                protocol == "yamorc7010"
+                protocol is "yamorc7010" or "loconet-serial"
                     ? Visibility.Visible
                     : Visibility.Collapsed;
 
             var isYaMoRc =
-                protocol == "yamorc7010";
+                protocol is "yamorc7010" or "loconet-serial";
 
             TestButton.Content =
                 isYaMoRc
@@ -491,7 +492,7 @@ namespace DCCExpressHub.Desktop
 
             TestButton.IsEnabled =
                 !_setupBusy &&
-                protocol is "tcp" or "serial" or "z21" or "yamorc7010" or "loconet";
+                protocol is "tcp" or "serial" or "z21" or "yamorc7010" or "loconet" or "loconet-serial";
 
             LocoNetTestButton.Content =
                 L("testLocoNetConnection");
@@ -623,7 +624,7 @@ namespace DCCExpressHub.Desktop
                             await TestZ21Async(
                                 testSettings),
 
-                        "yamorc7010" =>
+                        "yamorc7010" or "loconet-serial" =>
                             await TestZ21Async(
                                 testSettings),
 
@@ -657,7 +658,7 @@ namespace DCCExpressHub.Desktop
             RoutedEventArgs e)
         {
             if (_setupBusy ||
-                SelectedProtocol != "yamorc7010")
+                SelectedProtocol is not ("yamorc7010" or "loconet-serial"))
             {
                 return;
             }
@@ -1154,7 +1155,7 @@ namespace DCCExpressHub.Desktop
                 SelectedProtocol;
 
             if (protocol is not
-                ("tcp" or "serial" or "z21" or "yamorc7010" or "loconet"))
+                ("tcp" or "serial" or "z21" or "yamorc7010" or "loconet" or "loconet-serial"))
             {
                 error =
                     L("validationChooseProtocol");
@@ -1178,7 +1179,7 @@ namespace DCCExpressHub.Desktop
                     ? "server"
                     : "local";
 
-            if (protocol is "tcp" or "z21" or "yamorc7010" or "loconet")
+            if (protocol is "tcp" or "z21" or "yamorc7010" or "loconet" or "loconet-serial")
             {
                 var host =
                     TcpHostText.Text.Trim();
@@ -1222,7 +1223,7 @@ namespace DCCExpressHub.Desktop
                         rBusOffset;
                 }
 
-                if (protocol == "yamorc7010")
+                if (protocol is "yamorc7010" or "loconet-serial")
                 {
                     if (
                         !int.TryParse(
@@ -2140,7 +2141,7 @@ namespace DCCExpressHub.Desktop
                 (
                     _settings.Protocol == "z21"
                         ? _settings.RBusOffset
-                        : _settings.Protocol == "yamorc7010"
+                        : _settings.Protocol is "yamorc7010" or "loconet-serial"
                             ? _settings.YaMoRcRBusOffset
                             : 0
                 ).ToString();
@@ -2150,13 +2151,13 @@ namespace DCCExpressHub.Desktop
 
             psi.Environment["LocoNet__SensorOffset"] =
                 (
-                    _settings.Protocol == "yamorc7010"
+                    _settings.Protocol is "yamorc7010" or "loconet-serial"
                         ? _settings.YaMoRcLocoNetOffset
                         : 0
                 ).ToString();
 
             psi.Environment["LocoNet__LbServerFeedback"] =
-                (_settings.Protocol == "yamorc7010" && _settings.UseLocoNet)
+                (_settings.Protocol is "yamorc7010" or "loconet-serial" && _settings.UseLocoNet)
                     .ToString();
 
             psi.Environment["LocoNet__LbServerPort"] =
