@@ -91,17 +91,14 @@ public sealed class ConfiguredCommandCenter : ICommandCenter
             : null;
 
     public LocoNetSerialRuntimeDiagnostics? GetLocoNetSerialDiagnostics() =>
-        _inner is LocoNetSerialCommandCenter serial
-            ? serial.Diagnostics
+        _inner is LocoNetCommandCenter loconet
+            ? loconet.SerialDiagnostics
             : null;
 
     public LocoNetStandardTelemetrySnapshot? GetLocoNetStandardTelemetry() =>
-        _inner switch
-        {
-            LocoNetSerialCommandCenter serial => serial.StandardTelemetry,
-            LocoNetTcpCommandCenter tcp => tcp.StandardTelemetry,
-            _ => null
-        };
+        _inner is LocoNetCommandCenter loconet
+            ? loconet.StandardTelemetry
+            : null;
 
     public Task<LocoNetConnectionTestResult?> TestLocoNetConnectionAsync(
         string? hostOverride = null,
