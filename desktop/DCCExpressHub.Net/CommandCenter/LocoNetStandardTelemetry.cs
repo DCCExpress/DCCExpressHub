@@ -40,7 +40,16 @@ public sealed class LocoNetStandardTelemetry
 
     public void ObserveReceived(ReadOnlySpan<byte> packet)
     {
-        if (packet.Length < 2) return;
+        if (packet.Length < 2 || (packet[0] & 0x80) == 0) return;
+
+        // Verify opcode length as well as checksum. Serial already assembles
+        // frames by length, but LBServer/TCP provides tokenized text lines.
+        var format = packet[0] & 0x60;
+        var expectedLength = format == 0x60
+            ? packet[1]
+            : (format >> 4) + 2;
+        if (expectedLength < 2 || packet.Length != expectedLength) return;
+
         byte checksum = 0;
         foreach (var b in packet) checksum ^= b;
         if (checksum != 0xFF) return;
@@ -50,7 +59,7 @@ public sealed class LocoNetStandardTelemetry
             _rxFrames++;
             _lastRxTick = Environment.TickCount64;
 
-            if (packet.Length == 2 && packet[0] is 0x82 or 0x83)
+            if (packet.Length == 2 && (packet[0] is 0x82 or 0x83))
             {
                 _reportedTrackPowerOn = packet[0] == 0x83;
                 _powerReports++;
@@ -60,7 +69,7 @@ public sealed class LocoNetStandardTelemetry
             // track voltage; do not set a false OFF reading from it.
             else if (packet.Length == 4 && packet[0] == 0xB2)
                 _sensorReports++;
-            else if (packet.Length == 4 && packet[0] is 0xB0 or 0xB1)
+            else if (packet.Length == 4 && (packet[0] is 0xB0 or 0xB1))
                 _turnoutReports++;
         }
     }
