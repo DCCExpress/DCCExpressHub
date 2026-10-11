@@ -2259,6 +2259,22 @@ namespace DCCExpressHub.Desktop
             psi.Environment["LocoNet__BinaryPort"] =
                 "5560";
 
+            if (_settings.Protocol == "loconet-serial")
+            {
+                // Serial mode must not carry stale TCP/UDP endpoints into the
+                // backend process, even as unused environment configuration.
+                foreach (var key in new[]
+                {
+                    "DccEx__Host", "DccEx__Port",
+                    "Z21__Host", "Z21__Port", "Z21__RBusOffset",
+                    "LocoNet__Host", "LocoNet__LbServerPort",
+                    "LocoNet__BinaryPort"
+                })
+                    psi.Environment.Remove(key);
+                psi.Environment["LocoNet__LbServerFeedback"] = "false";
+                psi.Environment["LocoNet__BinaryFeedback"] = "false";
+            }
+
             _backendExpectedStop = false;
 
             _backend = new Process
