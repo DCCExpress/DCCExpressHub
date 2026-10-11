@@ -69,7 +69,7 @@ public sealed class CommandCenterApi
 
     public HubApiResponse SaveLocoNetSerialSettings(bool enabled, string port, int baudRate)
     {
-        if (!string.Equals(_commandCenter.Type, "loconet-serial", StringComparison.OrdinalIgnoreCase) &&
+        if (_physical.GetLocoNetSerialDiagnostics() is null &&
             _physical.GetLocoNetDiagnostics() is null)
             return HubApiResponse.Error(400, new { ok = false, message = "LocoNet USB Serial is available only for YaMoRC YD7010." });
 
@@ -110,7 +110,8 @@ public sealed class CommandCenterApi
                 serialPort = x.IsSerial ? x.SerialPort : "",
                 baudRate =
                     x.IsSerial
-                        ? CommandCenterSettings.DccExSerialBaudRate
+                        ? (_physical.GetLocoNetSerialDiagnostics()?.BaudRate
+                           ?? CommandCenterSettings.DccExSerialBaudRate)
                         : 0,
                 powerIncludesProgramming =
                     x.PowerIncludesProgramming,
