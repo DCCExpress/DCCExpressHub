@@ -256,7 +256,9 @@ export function buildMovementRouteCandidates(
       topology.version !==
         3 &&
       topology.version !==
-        4
+        4 &&
+      topology.version !==
+        5
     ) ||
     !Array.isArray(
       topology.routeTable
