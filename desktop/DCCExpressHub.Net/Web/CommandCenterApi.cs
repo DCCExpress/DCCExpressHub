@@ -594,9 +594,9 @@ public sealed class CommandCenterApi
             _store.Current;
         var isLocoNet = string.Equals(
             _commandCenter.Type, "loconet", StringComparison.OrdinalIgnoreCase);
-        var isLocoNetSerial = string.Equals(
-            _commandCenter.Type, "loconet-serial", StringComparison.OrdinalIgnoreCase);
-        var isLocoNetProtocol = isLocoNet || isLocoNetSerial;
+        var isLocoNetSerial = isLocoNet && x.IsSerial;
+        var isLocoNetTcp = isLocoNet && !x.IsSerial;
+        var isLocoNetProtocol = isLocoNet;
 
         return HubApiResponse.Ok(
             new
@@ -611,7 +611,7 @@ public sealed class CommandCenterApi
                 defaultPort =
                     x.IsZ21
                         ? RocoZ21CommandCenter.DefaultPort
-                        : isLocoNet ? 1234 : isLocoNetSerial ? 0 : 2560,
+                        : isLocoNetSerial ? 0 : isLocoNetTcp ? 1234 : 2560,
                 defaultBaudRate =
                     CommandCenterSettings.DccExSerialBaudRate,
                 connected =
