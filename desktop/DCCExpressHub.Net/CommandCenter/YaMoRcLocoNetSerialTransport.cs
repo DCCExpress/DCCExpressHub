@@ -47,10 +47,10 @@ public sealed class YaMoRcLocoNetSerialTransport : IAsyncDisposable
     /// Raw read only: packet framing is intentionally left to the protocol
     /// decoder after the actual YD7010 USB framing has been verified.
     /// </summary>
-    public async Task<int> ReadAsync(Memory<byte> buffer, CancellationToken ct)
+    public ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct)
     {
         var port = _port ?? throw new InvalidOperationException("LocoNet serial port is not open.");
-        return await port.BaseStream.ReadAsync(buffer, ct);
+        return port.BaseStream.ReadAsync(buffer, ct);
     }
 
     public async Task WriteAsync(ReadOnlyMemory<byte> bytes, CancellationToken ct)
