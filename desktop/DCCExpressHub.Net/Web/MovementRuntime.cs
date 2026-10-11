@@ -542,6 +542,25 @@ public sealed class MovementRuntime
         // Keep the fail-closed occupancy check. If a live sensor is shared
         // across blocks, report the mapping conflict rather than pretending
         // the event belongs to whichever block was checked first.
+        var liveBlocks = _layout.BlocksForPersistence();
+        var ambiguousLiveSensor = liveBlocks
+            .Where(block => block.SensorAddress > 0 &&
+                _layout.TryGetSensorState(block.SensorAddress, out var on) && on)
+            .GroupBy(block => block.SensorAddress)
+            .FirstOrDefault(group => group.Count() > 1);
+
+        if (ambiguousLiveSensor is not null)
+        {
+            var blocks = ambiguousLiveSensor.ToArray();
+            _log.LogCritical(
+                "Ambiguous live occupancy: sensor #{Sensor} belongs to blocks {Blocks}; emergency stop requested.",
+                ambiguousLiveSensor.Key,
+                string.Join(", ", blocks.Select(BlockLabel)));
+            _ = TripOccupancySafetyAsync(
+                CreateSafetyTrip("unknown_occupancy", blocks[0], executions));
+            return;
+        }
+
         var unknownOccupancy =
             FindUnknownOccupiedBlock();
 
