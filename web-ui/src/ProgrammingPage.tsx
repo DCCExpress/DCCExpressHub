@@ -1767,7 +1767,12 @@ function Z21ProgrammingPage({
                   <NumberInput
                     label={i18next.t("ui.address")}
                     value={locoAddress}
-                    onChange={setLocoAddress}
+                    onChange={value => {
+                        setLocoAddress(value);
+                        setZ21ReadStatus(current => ({ ...current, address: "idle" }));
+                      }}
+                      error={z21ReadStatus.address === "nok" ? "NOK" : undefined}
+                      placeholder={z21ReadStatus.address === "reading" ? "Reading..." : undefined}
                     min={1}
                     max={10239}
                     allowDecimal={false}
@@ -1818,7 +1823,12 @@ function Z21ProgrammingPage({
                     <NumberInput
                       label={i18next.t("ui.value")}
                       value={serviceValue}
-                      onChange={setServiceValue}
+                      onChange={value => {
+                        setServiceValue(value);
+                        setZ21ReadStatus(current => ({ ...current, service: "idle" }));
+                      }}
+                      error={z21ReadStatus.service === "nok" ? "NOK" : undefined}
+                      placeholder={z21ReadStatus.service === "reading" ? "Reading..." : undefined}
                       min={0}
                       max={255}
                       allowDecimal={false}
@@ -1920,7 +1930,12 @@ function Z21ProgrammingPage({
                     <NumberInput
                       label={i18next.t("ui.locomotiveAddress")}
                       value={locoAddress}
-                      onChange={setLocoAddress}
+                      onChange={value => {
+                        setLocoAddress(value);
+                        setZ21ReadStatus(current => ({ ...current, address: "idle" }));
+                      }}
+                      error={z21ReadStatus.address === "nok" ? "NOK" : undefined}
+                      placeholder={z21ReadStatus.address === "reading" ? "Reading..." : undefined}
                       min={1}
                       max={9999}
                       allowDecimal={false}
@@ -1938,7 +1953,12 @@ function Z21ProgrammingPage({
                     <NumberInput
                       label={i18next.t("ui.value")}
                       value={locoValue}
-                      onChange={setLocoValue}
+                      onChange={value => {
+                        setLocoValue(value);
+                        setZ21ReadStatus(current => ({ ...current, loco: "idle" }));
+                      }}
+                      error={z21ReadStatus.loco === "nok" ? "NOK" : undefined}
+                      placeholder={z21ReadStatus.loco === "reading" ? "Reading..." : undefined}
                       min={0}
                       max={255}
                       allowDecimal={false}
@@ -2054,7 +2074,12 @@ function Z21ProgrammingPage({
                     <NumberInput
                       label={i18next.t("ui.value")}
                       value={accessoryValue}
-                      onChange={setAccessoryValue}
+                      onChange={value => {
+                        setAccessoryValue(value);
+                        setZ21ReadStatus(current => ({ ...current, accessory: "idle" }));
+                      }}
+                      error={z21ReadStatus.accessory === "nok" ? "NOK" : undefined}
+                      placeholder={z21ReadStatus.accessory === "reading" ? "Reading..." : undefined}
                       min={0}
                       max={255}
                       allowDecimal={false}
