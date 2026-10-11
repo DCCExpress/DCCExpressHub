@@ -71,6 +71,8 @@ public sealed class LocoNetSerialCommandCenter : BackgroundService, ICommandCent
             SerialPort? port = null;
             try
             {
+                _log.LogInformation("Opening LocoNet USB serial {Port} at {Baud} baud (8N1, no flow control)", _portName, _baudRate);
+                RawInfo?.Invoke($"LocoNet Serial opening {_portName} @ {_baudRate}");
                 port = new SerialPort(_portName, _baudRate, Parity.None, 8, StopBits.One)
                 {
                     Handshake = Handshake.None,
@@ -88,8 +90,15 @@ public sealed class LocoNetSerialCommandCenter : BackgroundService, ICommandCent
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
             catch (Exception ex)
             {
-                _log.LogWarning(ex, "LocoNet serial {Port} connection failed", _portName);
-                RawInfo?.Invoke($"LocoNet Serial disconnected: {_portName} ({ex.Message})");
+                _log.LogWarning(ex, "LocoNet serial {Port} connection failed: {ErrorType}: {Error}", _portName, ex.GetType().Name, ex.Message);
+                var reason = ex switch
+                {
+                    UnauthorizedAccessException => "access denied / already open by another program",
+                    IOException => "USB serial I/O failure",
+                    ArgumentException => "invalid or missing COM port",
+                    _ => ex.GetType().Name
+                };
+                RawInfo?.Invoke($"LocoNet Serial FAILED {_portName}: {reason}; {ex.Message}");
             }
             finally
             {
