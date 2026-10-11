@@ -80,12 +80,16 @@ public sealed class YaMoRcLocoNetClient
         _serialBaudRate = savedSerial.BaudRate;
         _serialFeedbackEnabled = savedSerial.Enabled;
 
+        // Never activate two concurrent LocoNet feedback sources for the
+        // same physical sensors. USB Serial takes priority only when enabled.
         _lbServerEnabled =
+            !_serialFeedbackEnabled &&
             configuration.GetValue(
                 "LocoNet:LbServerFeedback",
                 true);
 
         _binaryFeedbackEnabled =
+            !_serialFeedbackEnabled &&
             configuration.GetValue(
                 "LocoNet:BinaryFeedback",
                 false);
