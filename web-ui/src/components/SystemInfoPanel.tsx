@@ -377,6 +377,9 @@ export default function SystemInfoPanel({
   const locoNet =
     telemetry?.locoNet ?? null;
 
+  const locoNetSerial =
+    telemetry?.locoNetSerial ?? null;
+
   // Prefer the live commandCenterInfo protocol; periodic dccExStatus can
   // arrive later. Do not assume every non-Z21 station is DCC-EX.
   const protocolType = (
@@ -402,7 +405,8 @@ export default function SystemInfoPanel({
   const isLocoNetSerial = protocolType === "loconet-serial";
   const isLocoNetTcp = protocolType === "loconet" || protocolType === "loconet-tcp";
   const isLocoNet = isLocoNetSerial || isLocoNetTcp;
-  const isZ21 = protocolType === "z21" || (!protocolType && z21 !== null);
+  const isZ21 = protocolType === "z21" || protocolType === "yamorc7010" ||
+    (!protocolType && z21 !== null);
 
   const isYaMoRc =
     isZ21 &&
@@ -761,6 +765,26 @@ export default function SystemInfoPanel({
                 <Text size="xs" c="dimmed">
                   {i18next.t("ui.z21TelemetryBroadcastHint")}
                 </Text>
+              </>
+            )}
+
+            {isLocoNetSerial && (
+              <>
+                <InfoRow
+                  label={i18next.t("ui.serialLinkUptime")}
+                  value={formatUptime(locoNetSerial?.linkUptimeMs)}
+                  color="teal"
+                />
+                <InfoRow
+                  label={i18next.t("ui.locoNetRxFrames")}
+                  value={locoNetSerial ? String(locoNetSerial.rxPackets) : "—"}
+                  color="cyan"
+                />
+                <InfoRow
+                  label={i18next.t("ui.locoNetTxFrames")}
+                  value={locoNetSerial ? String(locoNetSerial.txPackets) : "—"}
+                  color="cyan"
+                />
               </>
             )}
 
