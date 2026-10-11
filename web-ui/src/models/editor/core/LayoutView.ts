@@ -375,6 +375,7 @@ export class LayoutView
       this.signals,
       this.sensors,
       this.buildings,
+      this.buttons,
     ]) {
       for (const element of layer.elements) {
         if (element.selected) {
@@ -395,6 +396,7 @@ export class LayoutView
       this.signals,
       this.sensors,
       this.buildings,
+      this.buttons,
     ]) {
       for (const current of layer.elements) {
         if (current.id === element.id) {
@@ -411,6 +413,7 @@ export class LayoutView
       this.signals,
       this.sensors,
       this.buildings,
+      this.buttons,
     ]) {
       for (const element of layer.elements) {
         element.selected = false;
@@ -430,6 +433,7 @@ export class LayoutView
     if (options.showBuildings !== false) {
       this.buildings.draw(ctx, options);
     }
+    this.buttons.draw(ctx, options);
 
     this.getAllElements().forEach(
       element => {
@@ -510,6 +514,28 @@ export class LayoutView
             .map(normalizeLegacyElementType) as LayoutElementDto[]
         );
     }
+
+    // Legacy layout files often store buttons under buildings or track.
+    // Move by actual element type, preserving IDs and all button properties.
+    const buttonTypes = new Set<string>([
+      "button", "buttonscript", "audiobutton", "audiolistbutton",
+      "routebutton", "extendedroutebutton",
+    ]);
+    for (const layerData of source.layers) {
+      const layer = layout.getLayer(layerData.id as LayerId);
+      if (!layer || layer === layout.buttons) continue;
+      const retained: BaseElement[] = [];
+      for (const element of layer.elements) {
+        if (buttonTypes.has(element.type)) {
+          element.layerName = "buttons";
+          layout.buttons.elements.push(element);
+        } else {
+          retained.push(element);
+        }
+      }
+      layer.elements = retained;
+    }
+    for (const element of layout.buttons.elements) element.layerName = "buttons";
 
     // The raw migration guarantees stable unique IDs. Rebuild synchronizes the
     // allocator so every subsequently added/cloned element continues at max+1.
