@@ -741,7 +741,32 @@ namespace DCCExpressHub.Desktop
                     RtsEnable = false
                 };
 
-                port.Open();
+                try
+                {
+                    port.Open();
+                }
+                catch (UnauthorizedAccessException ex)
+                {
+                    return new TestResult(false,
+                        $"LOCONET SERIAL TEST FAILED · {settings.SerialPort}: access denied / port in use. " +
+                        $"Close YaMoRC Config, JMRI, TrainController and any running HUB backend that may hold this COM port. Details: {ex.Message}");
+                }
+                catch (IOException ex)
+                {
+                    return new TestResult(false,
+                        $"LOCONET SERIAL TEST FAILED · {settings.SerialPort}: Windows serial I/O error. " +
+                        $"Check the USB cable and port driver. Details: {ex.Message}");
+                }
+                catch (ArgumentException ex)
+                {
+                    return new TestResult(false,
+                        $"LOCONET SERIAL TEST FAILED · invalid serial port {settings.SerialPort}: {ex.Message}");
+                }
+                catch (InvalidOperationException ex)
+                {
+                    return new TestResult(false,
+                        $"LOCONET SERIAL TEST FAILED · {settings.SerialPort}: {ex.Message}");
+                }
                 var deadline = DateTime.UtcNow.AddMilliseconds(1700);
                 var packet = new byte[128];
                 int packetLength = 0;
@@ -793,8 +818,8 @@ namespace DCCExpressHub.Desktop
                 }
 
                 return new TestResult(true, rawBytes == 0
-                    ? $"LocoNet Serial {settings.SerialPort} opened. No traffic during passive test; protocol not yet verified. Toggle a sensor and retry."
-                    : $"LocoNet Serial {settings.SerialPort} opened, {rawBytes} bytes received but no valid packet. Check baud rate / framing.");
+                    ? $"COM PORT OK · {settings.SerialPort} opened at {settings.SerialBaudRate} baud. No LocoNet traffic observed; packet protocol NOT verified. Trigger a sensor and retry."
+                    : $"COM PORT OK · {settings.SerialPort} opened at {settings.SerialBaudRate} baud; {rawBytes} bytes read but no valid LocoNet checksum. Packet protocol NOT verified; check baud rate and framing.");
             });
         }
 
