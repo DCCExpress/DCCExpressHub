@@ -144,6 +144,10 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
       // busy and is unrelated to the selected scan. Address verification
       // remains available explicitly through the separate button.
       let consecutiveNoDecoder = 0;
+      // Revisit isolated decoder-ACK errors after the first pass, when the
+      // programmer has had time to recover. Never retry invalid values,
+      // disconnects, or generic transport timeouts.
+      const failedAckCvs: number[] = [];
       for (let i=0; i<cvs.length; i++) {
         if (cancel.current) break;
         // YD7010 service-track reads may need additional settling between
@@ -184,6 +188,8 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
         setResults(prev => ({ ...prev, [cv]: item }));
         setProgress({ done: i + 1, total: cvs.length });
         if (item.error && /NO DECODER|No decoder detected/i.test(item.error))
+          failedAckCvs.push(cv);
+        if (item.error && /NO DECODER|No decoder detected/i.test(item.error))
           consecutiveNoDecoder += 1;
         else
           consecutiveNoDecoder = 0;
@@ -193,6 +199,31 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
             "Check the PROG TRACK contact and try reading a single CV before starting a full scan."
           );
           break;
+        }
+      }
+      // JMRI-style per-CV recovery: after completing the first sweep,
+      // revisit only intermittent decoder-ACK failures. A successful retry
+      // replaces NOK; a failed retry remains NOK with the original cause.
+      if (!cancel.current && consecutiveNoDecoder < 2 && failedAckCvs.length) {
+        await new Promise<void>(resolve => setTimeout(resolve, 1500));
+        for (const cv of failedAckCvs) {
+          if (cancel.current) break;
+          setActiveCv(cv);
+          try {
+            const response = await wsApi.programmingRequest(
+              `cv-profile-recheck-${cv}-${Date.now()}`,
+              "readCv", { cv }, 30000
+            );
+            const valid = response.ok && typeof response.value === "number" &&
+              Number.isInteger(response.value) && response.value >= 0 &&
+              response.value <= 255;
+            if (valid) {
+              setResults(prev => ({ ...prev, [cv]: { value: response.value! } }));
+            }
+          } catch {
+            // Preserve the first-pass NOK explanation rather than inventing a value.
+          }
+          await new Promise<void>(resolve => setTimeout(resolve, 500));
         }
       }
     } finally {
