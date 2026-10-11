@@ -202,13 +202,12 @@ export class RouteGraphBuilder {
     elements: TopologyTrackElement[],
     originalNode: GraphNode
   ): void {
-    if (originalNode.blocks.length < 2) {
-      for (const elem of elements) this.partNodeByTrackId.set(elem.id, originalNode);
-      return;
-    }
-
     const byId = new Map(elements.map(elem => [elem.id, elem]));
     const adjacency = new Map<number, TopologyTrackElement[]>();
+
+    // Connect only genuine railway endpoints. This works for straight,
+    // corner and curve track pieces alike: all expose their respective
+    // getNeighborPointPairs(), including their rotations.
     for (const elem of elements) {
       const neighbors: TopologyTrackElement[] = [];
       for (const group of this.getTrackConnectionGroups(elem)) {
@@ -224,66 +223,213 @@ export class RouteGraphBuilder {
       adjacency.set(elem.id, neighbors);
     }
 
-    // Multi-source BFS: seed each block at the rails physically inside it.
-    const owners = new Map<number, number>();
-    const distances = new Map<number, number>();
-    const queue: TopologyTrackElement[] = [];
-    originalNode.blocks.forEach((block, index) => {
-      const physicalBlock = this.topology.getBlocks().find(item => item.id === block.id);
-      if (!physicalBlock) return;
+    type PartSeed = { cells: TopologyTrackElement[] };
+    let seeds: PartSeed[] = [];
+
+    // Occupancy sensors on the physical rails define part boundaries,
+    // even when the physical Sx contains zero or only one Block element.
+    // Repeated addresses form ONE part only while physically connected;
+    // unrelated track with the same address must not be joined by name.
+    const visitedSensorCells = new Set<number>();
+    for (const elem of elements) {
+      if (elem.address <= 0 || visitedSensorCells.has(elem.id)) continue;
+      const cells: TopologyTrackElement[] = [];
+      const pending = [elem];
+      visitedSensorCells.add(elem.id);
+      for (let index = 0; index < pending.length; index++) {
+        const current = pending[index]!;
+        cells.push(current);
+        for (const other of adjacency.get(current.id) ?? []) {
+          if (other.address !== elem.address ||
+              visitedSensorCells.has(other.id)) continue;
+          visitedSensorCells.add(other.id);
+          pending.push(other);
+        }
+      }
+      seeds.push({ cells });
+    }
+
+    // Existing multi-block layouts may use only block occupancy sensors
+    // (rather than addresses on the rails). Keep that supported too.
+    const blockSeeds = originalNode.blocks.map(block => {
+      const physicalBlock = this.topology.getBlocks()
+        .find(item => item.id === block.id);
+      return {
+        cells: physicalBlock
+          ? elements.filter(elem =>
+              this.isSectionElementInsideBlock(elem, physicalBlock))
+          : [],
+      };
+    });
+
+    const partition = (partSeeds: PartSeed[]): Map<number, number> | null => {
+      const owners = new Map<number, number>();
+      const queue: TopologyTrackElement[] = [];
+
+      partSeeds.forEach((seed, index) => {
+        for (const elem of seed.cells) {
+          if (owners.has(elem.id)) continue;
+          owners.set(elem.id, index);
+          queue.push(elem);
+        }
+      });
+
+      // Assign unaddressed connecting rails to the nearest physical
+      // detector region. The BFS follows curves/corners just like straights.
+      for (let head = 0; head < queue.length; head++) {
+        const current = queue[head]!;
+        for (const neighbor of adjacency.get(current.id) ?? []) {
+          if (owners.has(neighbor.id)) continue;
+          owners.set(neighbor.id, owners.get(current.id)!);
+          queue.push(neighbor);
+        }
+      }
+
+      return owners.size === elements.length &&
+        new Set(owners.values()).size === partSeeds.length
+        ? owners
+        : null;
+    };
+
+    if (seeds.length < 2) {
+      seeds = blockSeeds;
+    }
+
+    if (seeds.length < 2) {
+      for (const elem of elements) this.partNodeByTrackId.set(elem.id, originalNode);
+      return;
+    }
+
+    let owners = partition(seeds);
+    if (!owners && blockSeeds.length >= 2) {
+      seeds = blockSeeds;
+      owners = partition(seeds);
+    }
+    if (!owners) {
+      // Never publish a disconnected or ambiguous graph as a valid route.
+      for (const elem of elements) this.partNodeByTrackId.set(elem.id, originalNode);
+      return;
+    }
+
+    const blockOwners = new Map<number, number>();
+    let ambiguousBlockMapping = false;
+    for (const block of originalNode.blocks) {
+      const physicalBlock = this.topology.getBlocks()
+        .find(item => item.id === block.id);
+      if (!physicalBlock) {
+        ambiguousBlockMapping = true;
+        break;
+      }
+      const counts = new Map<number, number>();
       for (const elem of elements) {
         if (!this.isSectionElementInsideBlock(elem, physicalBlock)) continue;
-        if (owners.has(elem.id)) continue;
-        owners.set(elem.id, index);
-        distances.set(elem.id, 0);
-        queue.push(elem);
+        const owner = owners.get(elem.id);
+        if (owner === undefined) continue;
+        counts.set(owner, (counts.get(owner) ?? 0) + 1);
       }
-    });
-    for (let head = 0; head < queue.length; head++) {
-      const elem = queue[head]!;
-      const owner = owners.get(elem.id)!;
-      const distance = distances.get(elem.id)!;
-      for (const neighbor of adjacency.get(elem.id) ?? []) {
-        if (owners.has(neighbor.id)) continue;
-        owners.set(neighbor.id, owner);
-        distances.set(neighbor.id, distance + 1);
-        queue.push(neighbor);
+      const best = [...counts.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0] - b[0])[0];
+      if (!best) {
+        ambiguousBlockMapping = true;
+        break;
+      }
+      blockOwners.set(block.id, best[0]);
+    }
+
+    // If multiple blocks collapse onto one sensor part, fall back to
+    // block boundaries: a block cannot belong to an ambiguous graph node.
+    if ((!owners || ambiguousBlockMapping ||
+        new Set(blockOwners.values()).size < originalNode.blocks.length) &&
+        blockSeeds.length >= 2) {
+      const byBlock = partition(blockSeeds);
+      if (byBlock) {
+        owners = byBlock;
+        seeds = blockSeeds;
+        blockOwners.clear();
+        originalNode.blocks.forEach((block, index) =>
+          blockOwners.set(block.id, index));
+        ambiguousBlockMapping = false;
+      }
+    }
+    if (ambiguousBlockMapping ||
+        new Set(blockOwners.values()).size < originalNode.blocks.length) {
+      for (const elem of elements) this.partNodeByTrackId.set(elem.id, originalNode);
+      return;
+    }
+
+    // Number Sx.1, Sx.2, ... in the direction defined by TrackDirection,
+    // rather than by detector address or Block name.
+    const forwardNeighbors = new Map<number, Set<number>>();
+    const inDegree = new Array<number>(seeds.length).fill(0);
+    for (const elem of elements) {
+      const from = owners.get(elem.id)!;
+      for (const next of adjacency.get(elem.id) ?? []) {
+        const to = owners.get(next.id)!;
+        if (from === to) continue;
+        const side = this.getLinearConnectionSideTowards(elem, next.pos);
+        const forward =
+          (side === "next" && elem.travelDirection === "forward") ||
+          (side === "prev" && elem.travelDirection === "reverse");
+        if (!forward) continue;
+        const outgoing = forwardNeighbors.get(from) ?? new Set<number>();
+        if (!outgoing.has(to)) {
+          outgoing.add(to);
+          inDegree[to] = (inDegree[to] ?? 0) + 1;
+        }
+        forwardNeighbors.set(from, outgoing);
       }
     }
 
-    // Fail closed if a physical branch cannot be assigned to a block.
-    if (owners.size !== elements.length ||
-        new Set(owners.values()).size !== originalNode.blocks.length) return;
+    const order: number[] = [];
+    const ready = seeds.map((_, index) => index)
+      .filter(index => inDegree[index] === 0);
+    while (ready.length > 0) {
+      const owner = ready.shift()!;
+      order.push(owner);
+      for (const next of forwardNeighbors.get(owner) ?? []) {
+        inDegree[next]!--;
+        if (inDegree[next] === 0) ready.push(next);
+      }
+    }
+    // Loops or missing TrackDirection can lack a unique forward order.
+    // Keep deterministic labels but do not fabricate an edge direction.
+    for (let index = 0; index < seeds.length; index++) {
+      if (!order.includes(index)) order.push(index);
+    }
 
-    const parts = originalNode.blocks.map((block, index) => {
-      const cells = elements.filter(elem => owners.get(elem.id) === index);
+    const parts = order.map((owner, index) => {
+      const cells = elements.filter(elem => owners.get(elem.id) === owner);
       const node = this.createSectionGraphNode(section, cells);
       node.name = `S${section}.${index + 1}`;
-      node.blocks = [block];
-      return node;
+      node.blocks = originalNode.blocks.filter(block =>
+        blockOwners.get(block.id) === owner);
+      return { owner, node };
     });
 
-    // Replace the coarse node; each block now has one unambiguous graph node.
+    const partByOwner = new Map(
+      parts.map(item => [item.owner, item.node])
+    );
     const nodeIndex = this.graph.nodes.indexOf(originalNode);
-    this.graph.nodes.splice(nodeIndex, 1, ...parts);
+    this.graph.nodes.splice(nodeIndex, 1, ...parts.map(item => item.node));
     for (const elem of elements) {
-      this.partNodeByTrackId.set(elem.id, parts[owners.get(elem.id)!]!);
+      this.partNodeByTrackId.set(elem.id, partByOwner.get(owners.get(elem.id)!)!);
     }
 
-    // Every adjacency between different parts represents an actual traversable
-    // piece of rail. Add directed edges, deriving direction from rail geometry.
+    // Adjacent parts get directed edges in BOTH traversable directions.
+    // Their locoDirection follows the physical TrackDirection metadata.
     for (const elem of elements) {
       for (const next of adjacency.get(elem.id) ?? []) {
-        const from = this.partNodeByTrackId.get(elem.id)!;
-        const to = this.partNodeByTrackId.get(next.id)!;
-        if (from === to) continue;
+        const fromNode = this.partNodeByTrackId.get(elem.id)!;
+        const toNode = this.partNodeByTrackId.get(next.id)!;
+        if (fromNode === toNode) continue;
         const side = this.getLinearConnectionSideTowards(elem, next.pos);
         let direction: TravelDirection = "unknown";
         if (side === "next") direction = elem.travelDirection;
-        else if (side === "prev")
+        else if (side === "prev") {
           direction = elem.travelDirection === "forward" ? "reverse" :
             elem.travelDirection === "reverse" ? "forward" : "unknown";
-        this.addRouteEdgeIfMissing(from, to, [], [], direction);
+        }
+        this.addRouteEdgeIfMissing(fromNode, toNode, [], [], direction);
       }
     }
   }
