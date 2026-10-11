@@ -2157,7 +2157,7 @@ namespace DCCExpressHub.Desktop
                 ).ToString();
 
             psi.Environment["LocoNet__LbServerFeedback"] =
-                (_settings.Protocol is "yamorc7010" or "loconet-serial" && _settings.UseLocoNet)
+                ((_settings.Protocol is "yamorc7010" or "loconet-serial") && _settings.UseLocoNet)
                     .ToString();
 
             psi.Environment["LocoNet__LbServerPort"] =
