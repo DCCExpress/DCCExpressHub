@@ -486,13 +486,7 @@ export default function SystemInfoPanel({
       : null;
 
   return (
-    <ScrollArea
-      h="100%"
-      type="always"
-      scrollbarSize={9}
-      className="lite-info-scroll"
-    >
-      <Stack gap="sm">
+    <Stack gap="sm">
         <Card withBorder p="sm">
           <Stack gap="xs">
             <Group justify="space-between">
@@ -1219,7 +1213,6 @@ export default function SystemInfoPanel({
             />
           </Stack>
         </Card>
-      </Stack>
-    </ScrollArea>
+    </Stack>
   );
 }
