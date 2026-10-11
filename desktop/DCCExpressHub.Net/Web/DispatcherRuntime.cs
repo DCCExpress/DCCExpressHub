@@ -100,6 +100,8 @@ public sealed record DispatcherRouteAcquireResult(
 public sealed class DispatcherRuntime
 {
     readonly object _gate = new();
+    readonly SemaphoreSlim _turnoutCommandGate = new(1, 1);
+    long _lastTurnoutCommandAtMs = -1;
     readonly LayoutRuntime _runtime;
     readonly ICommandCenter _commandCenter;
     readonly SwitchManManager _switchMan;
@@ -661,6 +663,25 @@ public sealed class DispatcherRuntime
         return ok;
     }
 
+    async Task<bool> SetTurnoutWithIntervalAsync(
+        DispatcherTurnoutRequirement requirement, string ownerId, CancellationToken ct)
+    {
+        await _turnoutCommandGate.WaitAsync(ct);
+        try
+        {
+            var interval = _runtime.TurnoutCommandIntervalMs;
+            if (_lastTurnoutCommandAtMs >= 0)
+            {
+                var remaining = interval - (Environment.TickCount64 - _lastTurnoutCommandAtMs);
+                if (remaining > 0) await Task.Delay((int)remaining, ct);
+            }
+            var sent = await SetTurnoutAsync(requirement, ownerId, ct);
+            if (sent) _lastTurnoutCommandAtMs = Environment.TickCount64;
+            return sent;
+        }
+        finally { _turnoutCommandGate.Release(); }
+    }
+
     public async Task<DispatcherAcquireResult> AcquireLegAsync(
         DispatcherLegRequest request,
         CancellationToken ct = default)
@@ -840,6 +861,7 @@ public sealed class DispatcherRuntime
                     null,
                     BlockingSensor: safety.BlockingSensor);
 
+            long lastTurnoutReadyAtMs = 0;
             for (
                 var index = 0;
                 index < turnouts.Length;
@@ -886,15 +908,12 @@ public sealed class DispatcherRuntime
                  * settling interval before issuing the next turnout command.
                  */
                 if (needsChange)
-                {
-                    // A successful command write is not physical turnout-position
-                    // feedback. Allow the output/drive to settle before granting
-                    // route authority, including after the LAST turnout.
-                    await Task.Delay(
-                        Math.Clamp(request.TurnoutSetDelayMs, 250, 600000),
-                        ct);
-                }
+                    lastTurnoutReadyAtMs = Math.Max(lastTurnoutReadyAtMs,
+                        Environment.TickCount64 + _runtime.TurnoutSettlingTimeMs);
             }
+
+            if (lastTurnoutReadyAtMs > Environment.TickCount64)
+                await Task.Delay((int)(lastTurnoutReadyAtMs - Environment.TickCount64), ct);
 
             // Final safety check after physical turnout commands.
             destinationError =
@@ -1130,6 +1149,9 @@ public sealed class DispatcherRuntime
                     true;
             }
 
+            if (lastTurnoutReadyAtMs > Environment.TickCount64)
+                await Task.Delay((int)(lastTurnoutReadyAtMs - Environment.TickCount64), ct);
+
             sourceError =
                 ValidateSourceBlock(
                     request.SourceBlockId,
@@ -1159,6 +1181,7 @@ public sealed class DispatcherRuntime
                     BlockingBlock:
                         blockingBlock);
 
+            long lastTurnoutReadyAtMs = 0;
             for (
                 var index = 0;
                 index < turnouts.Length;
@@ -1200,14 +1223,8 @@ public sealed class DispatcherRuntime
                         null);
 
                 if (needsChange)
-                {
-                    // A successful command write is not physical turnout-position
-                    // feedback. Allow the output/drive to settle before granting
-                    // route authority, including after the LAST turnout.
-                    await Task.Delay(
-                        Math.Clamp(request.TurnoutSetDelayMs, 250, 600000),
-                        ct);
-                }
+                    lastTurnoutReadyAtMs = Math.Max(lastTurnoutReadyAtMs,
+                        Environment.TickCount64 + _runtime.TurnoutSettlingTimeMs);
             }
 
             sourceError =
