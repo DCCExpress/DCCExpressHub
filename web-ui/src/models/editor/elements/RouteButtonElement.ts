@@ -20,7 +20,7 @@ export class RouteButtonElement extends ClickableBaseElement implements IRouteBu
     super(x, y);
     this.type = ELEMENT_TYPES.BUTTON_ROUTE;
     this.rotationStep = 45;
-    this.layerName = "buildings";
+    this.layerName = "buttons";
   }
   clearGeneratedRoute(): void {
     delete this.generatedRouteRef;
