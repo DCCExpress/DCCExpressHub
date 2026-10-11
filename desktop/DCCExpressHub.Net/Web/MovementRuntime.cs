@@ -314,6 +314,25 @@ public sealed class MovementRuntime
         block.SensorAddress +
         ".";
 
+    // A sensor address shared by multiple blocks makes its physical occupancy
+    // ambiguous. Never infer a locomotive owner from such a reading.
+    static string? DuplicateBlockSensorError(
+        IReadOnlyList<RuntimeBlock> blocks)
+    {
+        var duplicate = blocks
+            .Where(block => block.SensorAddress > 0)
+            .GroupBy(block => block.SensorAddress)
+            .FirstOrDefault(group => group.Count() > 1);
+
+        if (duplicate is null)
+            return null;
+
+        return "Occupancy sensor #" + duplicate.Key +
+               " is assigned to multiple blocks: " +
+               string.Join(", ", duplicate.Select(BlockLabel)) +
+               ". Assign a unique block occupancy sensor address before running Movements.";
+    }
+
     RuntimeBlock? FindUnknownOccupiedBlock()
     {
         foreach (var block in
@@ -520,11 +539,23 @@ public sealed class MovementRuntime
         if (executions.Length == 0)
             return;
 
+        // Keep the fail-closed occupancy check. If a live sensor is shared
+        // across blocks, report the mapping conflict rather than pretending
+        // the event belongs to whichever block was checked first.
         var unknownOccupancy =
             FindUnknownOccupiedBlock();
 
         if (unknownOccupancy is not null)
         {
+            var sensorBlocks = _layout.BlocksForPersistence()
+                .Where(block => block.SensorAddress == unknownOccupancy.SensorAddress)
+                .ToArray();
+            if (sensorBlocks.Length > 1)
+                _log.LogCritical(
+                    "Ambiguous block occupancy: sensor #{Sensor} is assigned to {Blocks}",
+                    unknownOccupancy.SensorAddress,
+                    string.Join(", ", sensorBlocks.Select(BlockLabel)));
+
             _ =
                 TripOccupancySafetyAsync(
                     CreateSafetyTrip(
@@ -3716,6 +3747,15 @@ public sealed class MovementRuntime
                 " but occupancy sensor #" +
                 source.SensorAddress.Value +
                 " is not ON.");
+
+        var duplicateSensorError =
+            DuplicateBlockSensorError(_layout.BlocksForPersistence());
+
+        if (duplicateSensorError is not null)
+        {
+            _log.LogCritical("Movement start blocked: {Error}", duplicateSensorError);
+            return (false, duplicateSensorError);
+        }
 
         var unknownOccupancy =
             FindUnknownOccupiedBlock();
