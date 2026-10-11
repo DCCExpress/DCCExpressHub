@@ -216,17 +216,9 @@ Log out and back in for the group change to take effect.
 - [DCC-EX](https://dcc-ex.com/)
 - [DCCExpress S88 Adapter](https://github.com/DCCExpress/DCCExpress-S88Adapter)
 
-## Trademarks and third-party protocols
+## Trademarks
 
-DCCExpressHub is an independent, community-developed project. References to third-party products, companies, and protocols are made solely to describe compatibility and interoperability. Unless explicitly stated otherwise, DCCExpressHub is not affiliated with, endorsed by, sponsored by, or officially supported by the respective trademark owners.
-
-- **LocoNet®** is a registered trademark of **Digitrax, Inc.** Digitrax publishes its [LocoNet Personal Use Edition](https://www.digitrax.com/support/loconet/home/) subject to specific terms, including restrictions on commercial use of the published information. The availability of that specification does **not** by itself grant commercial implementation or distribution rights. Anyone planning commercial use should review the applicable terms and obtain any permissions required from the rights holder.
-- **Z21**, **z21**, **ROCO**, and **FLEISCHMANN** are names and marks associated with the respective products and rights holders, including Modelleisenbahn GmbH.
-- **DCC-EX** and **EX-CommandStation** identify the [DCC-EX project](https://dcc-ex.com/) and its products/software.
-- **YaMoRC** and **YD7010** identify products of YaMoRC.
-- **ESU** and **ECoS** are product/brand names of ESU electronic solutions ulm GmbH & Co. KG; **Märklin**, **Trix**, and **PIKO** are names/marks of their respective owners.
-
-All other trademarks, registered trademarks, logos, and product names are the property of their respective owners. No trademark ownership, certification, licensing, or official hardware support is implied by a compatibility reference. Hardware and protocol support should be verified with the specific device and firmware.
+**LocoNet®** is a registered trademark of Digitrax, Inc. **Z21**, **z21**, **ROCO**, **FLEISCHMANN**, **DCC-EX**, and **YaMoRC** are trademarks or names of their respective owners. DCCExpressHub is an independent project and is not affiliated with or endorsed by these owners.
 
 ## License
 
