@@ -439,6 +439,11 @@ namespace DCCExpressHub.Desktop
             }
 
             UpdateProtocolPanels();
+            if (SelectedProtocol == "loconet-serial" &&
+                (string.IsNullOrWhiteSpace(SerialPortCombo.Text) ||
+                 SerialPortCombo.Text == "COM1") &&
+                SerialPort.GetPortNames().Contains("COM6", StringComparer.OrdinalIgnoreCase))
+                SerialPortCombo.Text = "COM6";
             HideTestResult();
         }
 
@@ -468,6 +473,10 @@ namespace DCCExpressHub.Desktop
                 protocol is "serial" or "loconet-serial"
                     ? Visibility.Visible
                     : Visibility.Collapsed;
+
+            SerialPortLabelText.Text = protocol == "loconet-serial"
+                ? "LocoNet USB COM port"
+                : L("serialPort");
 
             RBusOffsetPanel.Visibility =
                 protocol == "z21"
@@ -631,6 +640,9 @@ namespace DCCExpressHub.Desktop
                         "loconet" =>
                             await TestLocoNetTcpAsync(testSettings),
 
+                        "loconet-serial" =>
+                            await TestLocoNetSerialAsync(testSettings),
+
                         _ =>
                             await TestSerialAsync(
                                 testSettings)
@@ -710,6 +722,80 @@ namespace DCCExpressHub.Desktop
             await client.ConnectAsync(settings.TcpHost, settings.TcpPort, timeout.Token);
             return new TestResult(true,
                 $"LocoNet TCP reachable at {settings.TcpHost}:{settings.TcpPort} (connection only).");
+        }
+
+        private static Task<TestResult> TestLocoNetSerialAsync(DesktopSettings settings)
+        {
+            // Passive protocol test: never send DCC-EX text to a LocoNet port,
+            // and do not issue track-power or turnout commands during testing.
+            return Task.Run(() =>
+            {
+                using var port = new SerialPort(
+                    settings.SerialPort, settings.SerialBaudRate,
+                    Parity.None, 8, StopBits.One)
+                {
+                    Handshake = Handshake.None,
+                    ReadTimeout = 250,
+                    WriteTimeout = 1000,
+                    DtrEnable = false,
+                    RtsEnable = false
+                };
+
+                port.Open();
+                var deadline = DateTime.UtcNow.AddMilliseconds(1700);
+                var packet = new byte[128];
+                int packetLength = 0;
+                int expected = 0;
+                int rawBytes = 0;
+
+                while (DateTime.UtcNow < deadline)
+                {
+                    int value;
+                    try { value = port.ReadByte(); }
+                    catch (TimeoutException) { continue; }
+                    if (value < 0) continue;
+                    rawBytes++;
+
+                    if ((value & 0x80) != 0)
+                    {
+                        packet[0] = (byte)value;
+                        packetLength = 1;
+                        expected = (value & 0x60) == 0x60
+                            ? 0 : ((value & 0x60) >> 4) + 2;
+                    }
+                    else if (packetLength != 0 && packetLength < packet.Length)
+                        packet[packetLength++] = (byte)value;
+                    else
+                    {
+                        packetLength = 0;
+                        expected = 0;
+                        continue;
+                    }
+
+                    if (packetLength == 2 && expected == 0) expected = packet[1];
+                    if (expected > packet.Length || (packetLength > 1 && expected < 2))
+                    {
+                        packetLength = 0;
+                        expected = 0;
+                        continue;
+                    }
+
+                    if (expected > 0 && packetLength == expected)
+                    {
+                        byte checksum = 0;
+                        for (int i = 0; i < packetLength; i++) checksum ^= packet[i];
+                        if (checksum == 0xFF)
+                            return new TestResult(true,
+                                $"LocoNet Serial {settings.SerialPort}: opened and valid LocoNet frame received (0x{packet[0]:X2}).");
+                        packetLength = 0;
+                        expected = 0;
+                    }
+                }
+
+                return new TestResult(true, rawBytes == 0
+                    ? $"LocoNet Serial {settings.SerialPort} opened. No traffic during passive test; protocol not yet verified. Toggle a sensor and retry."
+                    : $"LocoNet Serial {settings.SerialPort} opened, {rawBytes} bytes received but no valid packet. Check baud rate / framing.");
+            });
         }
 
         private async Task<TestResult> TestTcpAsync(
