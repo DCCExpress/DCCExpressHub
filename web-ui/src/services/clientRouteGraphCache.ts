@@ -20,6 +20,7 @@ import type {
 } from "@/models/editor/core/LayoutView";
 
 import {
+  applyPartSegmentLabels,
   buildClientRouteGraph,
   type ClientRouteGraphBuildResult,
 } from "@/services/clientRouteGraphBuilder";
@@ -1020,14 +1021,20 @@ function resultFromPersisted(
       persisted.graph
     );
 
+  const trackRuntime =
+    persisted.graph.trackRuntime.map(
+      item => ({
+        ...item,
+      })
+    );
+
+  // Older saved v4 graphs already contain Sx.y nodes, but their
+  // trackRuntime may predate the visual-only partSegment metadata.
+  applyPartSegmentLabels(graph, trackRuntime);
+
   return {
     graph,
-    trackRuntime:
-      persisted.graph.trackRuntime.map(
-        item => ({
-          ...item,
-        })
-      ),
+    trackRuntime,
     routes:
       graph.getRunnableBlockRoutes(),
   };
