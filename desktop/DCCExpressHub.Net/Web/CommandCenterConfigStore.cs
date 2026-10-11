@@ -118,10 +118,11 @@ public sealed class CommandCenterConfigStore
                     protocol,
                     "z21",
                     StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(
+                (string.Equals(
                     protocol,
                     "yamorc7010",
-                    StringComparison.OrdinalIgnoreCase);
+                    StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(protocol, "loconet-serial", StringComparison.OrdinalIgnoreCase));
         }
     }
 
@@ -141,10 +142,11 @@ public sealed class CommandCenterConfigStore
                     protocol,
                     "z21",
                     StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(
+                (string.Equals(
                     protocol,
                     "yamorc7010",
-                    StringComparison.OrdinalIgnoreCase)
+                    StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(protocol, "loconet-serial", StringComparison.OrdinalIgnoreCase))
             )
             {
                 return "z21";
