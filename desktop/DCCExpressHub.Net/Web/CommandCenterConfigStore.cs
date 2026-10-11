@@ -18,10 +18,8 @@ public sealed class CommandCenterSettings
 
     [JsonIgnore]
     public bool IsSerial =>
-        string.Equals(
-            Transport,
-            "serial",
-            StringComparison.OrdinalIgnoreCase);
+        string.Equals(Transport, "serial", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(Transport, "loconet-serial", StringComparison.OrdinalIgnoreCase);
 
     [JsonIgnore]
     public bool IsZ21 =>
@@ -118,10 +116,11 @@ public sealed class CommandCenterConfigStore
                     protocol,
                     "z21",
                     StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(
+                (string.Equals(
                     protocol,
                     "yamorc7010",
-                    StringComparison.OrdinalIgnoreCase);
+                    StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(protocol, "loconet-serial", StringComparison.OrdinalIgnoreCase));
         }
     }
 
@@ -132,6 +131,9 @@ public sealed class CommandCenterConfigStore
             var protocol =
                 (_configuration["CommandCenter:Protocol"] ?? "")
                     .Trim();
+
+            if (string.Equals(protocol, "loconet-serial", StringComparison.OrdinalIgnoreCase))
+                return "loconet-serial";
 
             if (string.Equals(protocol, "loconet", StringComparison.OrdinalIgnoreCase))
                 return "loconet";
@@ -432,8 +434,9 @@ public sealed class CommandCenterConfigStore
                             2560),
 
                 SerialPort =
-                    _configuration["DccEx:SerialPort"] ??
-                    SerialPortName.PlatformDefault,
+                    string.Equals(transport, "loconet-serial", StringComparison.OrdinalIgnoreCase)
+                        ? _configuration["LocoNet:SerialPort"] ?? SerialPortName.PlatformDefault
+                        : _configuration["DccEx:SerialPort"] ?? SerialPortName.PlatformDefault,
 
                 PowerIncludesProgramming =
                     !isZ21,
@@ -510,10 +513,8 @@ public sealed class CommandCenterConfigStore
             return null;
 
         var isSerial =
-            string.Equals(
-                value.Transport,
-                "serial",
-                StringComparison.OrdinalIgnoreCase);
+            string.Equals(value.Transport, "serial", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(value.Transport, "loconet-serial", StringComparison.OrdinalIgnoreCase);
 
         var isZ21 =
             string.Equals(
@@ -559,7 +560,7 @@ public sealed class CommandCenterConfigStore
         {
             Transport =
                 isSerial
-                    ? "serial"
+                    ? (string.Equals(value.Transport, "loconet-serial", StringComparison.OrdinalIgnoreCase) ? "loconet-serial" : "serial")
                     : isZ21
                         ? "z21"
                         : "tcp",

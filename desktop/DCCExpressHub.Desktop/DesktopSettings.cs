@@ -123,7 +123,7 @@ public static class DesktopSettingsStore
             if (settings.RunMode is not ("local" or "server"))
                 settings.RunMode = "local";
 
-            if (settings.Protocol is not ("tcp" or "serial" or "z21" or "yamorc7010" or "loconet"))
+            if (settings.Protocol is not ("tcp" or "serial" or "z21" or "yamorc7010" or "loconet" or "loconet-serial"))
                 settings.Protocol = "";
 
             return settings;

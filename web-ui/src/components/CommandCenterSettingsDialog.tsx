@@ -148,8 +148,10 @@ function normalizeTransport(
   type: CommandCenterType | null | undefined,
 ): CommandCenterTransport {
   if (
-    value?.toLowerCase() === "serial" ||
-    type === "dcc-ex-serial"
+    (value?.toLowerCase() === "serial" ||
+     value?.toLowerCase() === "loconet-serial") ||
+    type === "dcc-ex-serial" ||
+    type === "loconet-serial"
   ) {
     return "serial";
   }
@@ -238,6 +240,50 @@ export default function CommandCenterSettingsDialog(
     useState<LocoNetTestDto | null>(
       null,
     );
+
+  const [lnSerialEnabled, setLnSerialEnabled] = useState(false);
+  const [lnSerialPort, setLnSerialPort] = useState("COM16");
+  const [lnSerialBaud, setLnSerialBaud] = useState<number | string>(115200);
+  const [lnSerialBusy, setLnSerialBusy] = useState(false);
+
+  useEffect(() => {
+    if (!opened) return;
+    void fetch("/api/loconet-serial-config", { cache: "no-store" })
+      .then(response => response.json())
+      .then((data: { enabled?: boolean; port?: string; baudRate?: number }) => {
+        setLnSerialEnabled(data.enabled === true);
+        setLnSerialPort(data.port || "COM16");
+        setLnSerialBaud(data.baudRate || 115200);
+      })
+      .catch(() => {});
+  }, [opened]);
+
+  const serialForm = () => new URLSearchParams({
+    enabled: String(lnSerialEnabled),
+    port: lnSerialPort.trim(),
+    baudRate: String(lnSerialBaud),
+  });
+  async function serialAction(action: "config" | "test") {
+    setLnSerialBusy(true);
+    try {
+      const response = await fetch(
+        action === "config" ? "/api/loconet-serial-config" : "/api/loconet-serial-test",
+        { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" }, body: serialForm() }
+      );
+      const result = await response.json() as { ok?: boolean; message?: string };
+      if (!response.ok || !result.ok) throw new Error(result.message || "LocoNet Serial failed");
+      showNotification({
+        color: "green",
+        message: action === "config"
+          ? "LocoNet Serial settings saved. Restart the backend to apply."
+          : result.message || "LocoNet Serial COM port opened",
+      });
+    } catch (err) {
+      showNotification({ color: "red", message: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setLnSerialBusy(false);
+    }
+  }
 
   const [error, setError] =
     useState("");
@@ -1117,8 +1163,8 @@ export default function CommandCenterSettingsDialog(
           height:
             "calc(100% - 60px)",
 
-          overflow:
-            "hidden",
+          overflowY:
+            "auto",
         },
       }}
     >
@@ -1321,6 +1367,43 @@ export default function CommandCenterSettingsDialog(
             />
           )
         }
+
+        {hasLocoNet && (
+          <Stack gap="xs">
+            <Text size="sm" fw={700}>LocoNet Serial</Text>
+            <Switch
+              label="Enable LocoNet Serial feedback"
+              description="Dedicated YD7010 USB LocoNet COM port. Restart backend after saving."
+              checked={lnSerialEnabled}
+              onChange={event => setLnSerialEnabled(event.currentTarget.checked)}
+              disabled={lnSerialBusy}
+            />
+            <TextInput
+              label="LocoNet COM port"
+              value={lnSerialPort}
+              onChange={event => setLnSerialPort(event.currentTarget.value)}
+              placeholder="COM16"
+              disabled={lnSerialBusy}
+            />
+            <NumberInput
+              label="Baud rate (experimental)"
+              description="115200 is a test value; verify against YD7010 hardware."
+              value={lnSerialBaud}
+              onChange={setLnSerialBaud}
+              min={1200}
+              max={1000000}
+              allowDecimal={false}
+              disabled={lnSerialBusy}
+            />
+            <Group gap="xs">
+              <Button size="xs" variant="light" loading={lnSerialBusy}
+                onClick={() => void serialAction("test")}>SERIAL TEST</Button>
+              <Button size="xs" loading={lnSerialBusy}
+                onClick={() => void serialAction("config")}
+                leftSection={<IconDeviceFloppy size={15} />}>Save Serial</Button>
+            </Group>
+          </Stack>
+        )}
 
         <Alert
           color={

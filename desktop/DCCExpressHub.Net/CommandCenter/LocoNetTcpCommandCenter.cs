@@ -18,6 +18,7 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
     private readonly SemaphoreSlim _txGate = new(1, 1);
     private readonly SemaphoreSlim _accessoryPulseGate = new(1, 1);
     private readonly object _connectionGate = new();
+    private readonly LocoNetStandardTelemetry _standardTelemetry = new();
     private StreamWriter? _writer;
     private volatile bool _connected;
     private volatile bool _emergencyPaused;
@@ -55,6 +56,7 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
     public string Endpoint => $"{_host}:{_port}";
     public bool EmergencyPauseStateKnown => true;
     public bool EmergencyPaused => _emergencyPaused;
+    public LocoNetStandardTelemetrySnapshot StandardTelemetry => _standardTelemetry.Snapshot();
 
     public event Action<string>? RawInfo;
     public event Action<StationInfo>? StationInfoChanged;
@@ -81,10 +83,11 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
                 { AutoFlush = true, NewLine = "\n" };
 
                 lock (_connectionGate) _writer = writer;
+                _standardTelemetry.Reset();
                 _connected = true;
                 ConnectionChanged?.Invoke(true);
                 RawInfo?.Invoke($"LocoNet TCP connected: {Endpoint}");
-                StationInfoChanged?.Invoke(new StationInfo(Processor: "LocoNet TCP", Hardware: "YD7010 (experimental)"));
+                StationInfoChanged?.Invoke(new StationInfo(Processor: "LocoNet", Hardware: "TCP interface"));
 
                 while (!stoppingToken.IsCancellationRequested)
                 {
@@ -101,6 +104,7 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
             finally
             {
                 _connected = false;
+                _standardTelemetry.Reset();
                 lock (_slotSync)
                 {
                     _slots.Clear();
@@ -164,6 +168,8 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
         byte checksum = 0;
         foreach (var item in packet) checksum ^= item;
         if (checksum != 0xFF) return;
+
+        _standardTelemetry.ObserveReceived(packet.ToArray());
 
         if (packet.Count == 2 && packet[0] == 0x85)
         {
@@ -503,6 +509,7 @@ public sealed class LocoNetTcpCommandCenter : BackgroundService, ICommandCenter
             lock (_connectionGate) writer = _writer;
             if (writer is null) return false;
             await writer.WriteLineAsync(line.AsMemory(), ct);
+            _standardTelemetry.ObserveTransmitted();
             RawInfo?.Invoke("LocoNet TX: " + line);
             return true;
         }

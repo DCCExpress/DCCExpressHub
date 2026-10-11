@@ -439,6 +439,11 @@ namespace DCCExpressHub.Desktop
             }
 
             UpdateProtocolPanels();
+            if (!_initializingSetup &&
+                SelectedProtocol == "loconet-serial" &&
+                _settings.Protocol != "loconet-serial" &&
+                SerialPort.GetPortNames().Contains("COM16", StringComparer.OrdinalIgnoreCase))
+                SerialPortCombo.Text = "COM16";
             HideTestResult();
         }
 
@@ -447,6 +452,7 @@ namespace DCCExpressHub.Desktop
             {
                 "z21" or "yamorc7010" => 21105,
                 "loconet" => 1234,
+                "loconet-serial" => 0,
                 _ => 2560
             };
 
@@ -464,9 +470,13 @@ namespace DCCExpressHub.Desktop
                     : Visibility.Collapsed;
 
             SerialPanel.Visibility =
-                protocol == "serial"
+                protocol is "serial" or "loconet-serial"
                     ? Visibility.Visible
                     : Visibility.Collapsed;
+
+            SerialPortLabelText.Text = protocol == "loconet-serial"
+                ? "LocoNet USB COM port"
+                : L("serialPort");
 
             RBusOffsetPanel.Visibility =
                 protocol == "z21"
@@ -477,7 +487,7 @@ namespace DCCExpressHub.Desktop
                 protocol == "yamorc7010" ? Visibility.Visible : Visibility.Collapsed;
 
             YaMoRcOffsetsPanel.Visibility =
-                protocol == "yamorc7010"
+                protocol is "yamorc7010" or "loconet-serial"
                     ? Visibility.Visible
                     : Visibility.Collapsed;
 
@@ -491,7 +501,7 @@ namespace DCCExpressHub.Desktop
 
             TestButton.IsEnabled =
                 !_setupBusy &&
-                protocol is "tcp" or "serial" or "z21" or "yamorc7010" or "loconet";
+                protocol is "tcp" or "serial" or "z21" or "yamorc7010" or "loconet" or "loconet-serial";
 
             LocoNetTestButton.Content =
                 L("testLocoNetConnection");
@@ -630,6 +640,9 @@ namespace DCCExpressHub.Desktop
                         "loconet" =>
                             await TestLocoNetTcpAsync(testSettings),
 
+                        "loconet-serial" =>
+                            await TestLocoNetSerialAsync(testSettings),
+
                         _ =>
                             await TestSerialAsync(
                                 testSettings)
@@ -709,6 +722,105 @@ namespace DCCExpressHub.Desktop
             await client.ConnectAsync(settings.TcpHost, settings.TcpPort, timeout.Token);
             return new TestResult(true,
                 $"LocoNet TCP reachable at {settings.TcpHost}:{settings.TcpPort} (connection only).");
+        }
+
+        private static Task<TestResult> TestLocoNetSerialAsync(DesktopSettings settings)
+        {
+            // Passive protocol test: never send DCC-EX text to a LocoNet port,
+            // and do not issue track-power or turnout commands during testing.
+            return Task.Run(() =>
+            {
+                using var port = new SerialPort(
+                    settings.SerialPort, settings.SerialBaudRate,
+                    Parity.None, 8, StopBits.One)
+                {
+                    Handshake = Handshake.None,
+                    ReadTimeout = 250,
+                    WriteTimeout = 1000,
+                    DtrEnable = false,
+                    RtsEnable = false
+                };
+
+                try
+                {
+                    port.Open();
+                }
+                catch (UnauthorizedAccessException ex)
+                {
+                    return new TestResult(false,
+                        $"LOCONET SERIAL TEST FAILED · {settings.SerialPort}: access denied / port in use. " +
+                        $"Close YaMoRC Config, JMRI, TrainController and any running HUB backend that may hold this COM port. Details: {ex.Message}");
+                }
+                catch (IOException ex)
+                {
+                    return new TestResult(false,
+                        $"LOCONET SERIAL TEST FAILED · {settings.SerialPort}: Windows serial I/O error. " +
+                        $"Check the USB cable and port driver. Details: {ex.Message}");
+                }
+                catch (ArgumentException ex)
+                {
+                    return new TestResult(false,
+                        $"LOCONET SERIAL TEST FAILED · invalid serial port {settings.SerialPort}: {ex.Message}");
+                }
+                catch (InvalidOperationException ex)
+                {
+                    return new TestResult(false,
+                        $"LOCONET SERIAL TEST FAILED · {settings.SerialPort}: {ex.Message}");
+                }
+                var deadline = DateTime.UtcNow.AddMilliseconds(1700);
+                var packet = new byte[128];
+                int packetLength = 0;
+                int expected = 0;
+                int rawBytes = 0;
+
+                while (DateTime.UtcNow < deadline)
+                {
+                    int value;
+                    try { value = port.ReadByte(); }
+                    catch (TimeoutException) { continue; }
+                    if (value < 0) continue;
+                    rawBytes++;
+
+                    if ((value & 0x80) != 0)
+                    {
+                        packet[0] = (byte)value;
+                        packetLength = 1;
+                        expected = (value & 0x60) == 0x60
+                            ? 0 : ((value & 0x60) >> 4) + 2;
+                    }
+                    else if (packetLength != 0 && packetLength < packet.Length)
+                        packet[packetLength++] = (byte)value;
+                    else
+                    {
+                        packetLength = 0;
+                        expected = 0;
+                        continue;
+                    }
+
+                    if (packetLength == 2 && expected == 0) expected = packet[1];
+                    if (expected > packet.Length || (packetLength > 1 && expected < 2))
+                    {
+                        packetLength = 0;
+                        expected = 0;
+                        continue;
+                    }
+
+                    if (expected > 0 && packetLength == expected)
+                    {
+                        byte checksum = 0;
+                        for (int i = 0; i < packetLength; i++) checksum ^= packet[i];
+                        if (checksum == 0xFF)
+                            return new TestResult(true,
+                                $"LocoNet Serial {settings.SerialPort}: opened and valid LocoNet frame received (0x{packet[0]:X2}).");
+                        packetLength = 0;
+                        expected = 0;
+                    }
+                }
+
+                return new TestResult(true, rawBytes == 0
+                    ? $"COM PORT OK · {settings.SerialPort} opened at {settings.SerialBaudRate} baud. No LocoNet traffic observed; packet protocol NOT verified. Trigger a sensor and retry."
+                    : $"COM PORT OK · {settings.SerialPort} opened at {settings.SerialBaudRate} baud; {rawBytes} bytes read but no valid LocoNet checksum. Packet protocol NOT verified; check baud rate and framing.");
+            });
         }
 
         private async Task<TestResult> TestTcpAsync(
@@ -1154,7 +1266,7 @@ namespace DCCExpressHub.Desktop
                 SelectedProtocol;
 
             if (protocol is not
-                ("tcp" or "serial" or "z21" or "yamorc7010" or "loconet"))
+                ("tcp" or "serial" or "z21" or "yamorc7010" or "loconet" or "loconet-serial"))
             {
                 error =
                     L("validationChooseProtocol");
@@ -1222,7 +1334,7 @@ namespace DCCExpressHub.Desktop
                         rBusOffset;
                 }
 
-                if (protocol == "yamorc7010")
+                if (protocol is "yamorc7010" or "loconet-serial")
                 {
                     if (
                         !int.TryParse(
@@ -2140,7 +2252,7 @@ namespace DCCExpressHub.Desktop
                 (
                     _settings.Protocol == "z21"
                         ? _settings.RBusOffset
-                        : _settings.Protocol == "yamorc7010"
+                        : _settings.Protocol is "yamorc7010" or "loconet-serial"
                             ? _settings.YaMoRcRBusOffset
                             : 0
                 ).ToString();
@@ -2150,7 +2262,7 @@ namespace DCCExpressHub.Desktop
 
             psi.Environment["LocoNet__SensorOffset"] =
                 (
-                    _settings.Protocol == "yamorc7010"
+                    _settings.Protocol is "yamorc7010" or "loconet-serial"
                         ? _settings.YaMoRcLocoNetOffset
                         : 0
                 ).ToString();
@@ -2162,11 +2274,31 @@ namespace DCCExpressHub.Desktop
             psi.Environment["LocoNet__LbServerPort"] =
                 (_settings.Protocol == "loconet" ? _settings.TcpPort : 1234).ToString();
 
+            psi.Environment["LocoNet__SerialPort"] = _settings.SerialPort;
+            psi.Environment["LocoNet__SerialBaudRate"] = _settings.SerialBaudRate.ToString();
+            psi.Environment["LocoNet__SerialFeedback"] = (_settings.Protocol == "loconet-serial").ToString();
+
             psi.Environment["LocoNet__BinaryFeedback"] =
                 "false";
 
             psi.Environment["LocoNet__BinaryPort"] =
                 "5560";
+
+            if (_settings.Protocol == "loconet-serial")
+            {
+                // Serial mode must not carry stale TCP/UDP endpoints into the
+                // backend process, even as unused environment configuration.
+                foreach (var key in new[]
+                {
+                    "DccEx__Host", "DccEx__Port",
+                    "Z21__Host", "Z21__Port", "Z21__RBusOffset",
+                    "LocoNet__Host", "LocoNet__LbServerPort",
+                    "LocoNet__BinaryPort"
+                })
+                    psi.Environment.Remove(key);
+                psi.Environment["LocoNet__LbServerFeedback"] = "false";
+                psi.Environment["LocoNet__BinaryFeedback"] = "false";
+            }
 
             _backendExpectedStop = false;
 

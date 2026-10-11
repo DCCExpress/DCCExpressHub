@@ -380,6 +380,7 @@
                    <ComboBoxItem Content="Z21 + R-BUS" Tag="z21"/>
                    <ComboBoxItem x:Name="LegacyCombinedProtocolItem" Content="Z21 + R-BUS + LocoNet feedback (legacy)" Tag="yamorc7010" Visibility="Collapsed"/>
                    <ComboBoxItem Content="LocoNet TCP" Tag="loconet"/>
+                   <ComboBoxItem Content="LocoNet Serial" Tag="loconet-serial"/>
                  </ComboBox>
 
                  <Grid x:Name="TcpPanel" Margin="0,12,0,0" Visibility="Collapsed">

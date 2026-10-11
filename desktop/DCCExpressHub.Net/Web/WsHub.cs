@@ -907,8 +907,32 @@ public sealed class WsHub
                         break;
                     }
                 case "getLoco":
-                    ok = await CommandCenter.RequestLocoAsync(I(data, "locoAddress"), ct);
-                    break;
+                    {
+                        int address = I(data, "locoAddress");
+                        if (address is < 1 or > 10239) return;
+
+                        // Switching the throttle must always restore the last
+                        // authoritative Hub state for THIS locomotive, even
+                        // when the physical command station responds later or
+                        // cannot immediately return its function mask.
+                        // A later hardware feedback message can correct it.
+                        if (HubState.Locos.TryGetValue(address, out var cached))
+                        {
+                            await Send(ws, "locoState", new
+                            {
+                                loco = new
+                                {
+                                    address = cached.Address,
+                                    speed = cached.Speed,
+                                    direction = cached.Forward ? "forward" : "reverse",
+                                    functionsMask = cached.FunctionsMask
+                                }
+                            });
+                        }
+
+                        ok = await CommandCenter.RequestLocoAsync(address, ct);
+                        break;
+                    }
                 case "setLocoFunction":
                     {
                         int a = I(data, "locoAddress"), fn = I(data, "functionNumber");
@@ -3002,6 +3026,10 @@ public sealed class WsHub
     private object CommandCenterInfo()
     {
         var x = CommandCenterConfigStore.Current;
+        var serialBaud = CommandCenter.Type == "loconet-serial"
+            ? (CommandCenter as ConfiguredCommandCenter)?.GetLocoNetSerialDiagnostics()?.BaudRate
+                ?? CommandCenterSettings.DccExSerialBaudRate
+            : CommandCenterSettings.DccExSerialBaudRate;
 
         return new
         {
@@ -3013,9 +3041,9 @@ public sealed class WsHub
             ip = x.IsSerial ? "" : x.TcpHost,
             port = x.IsSerial ? 0 : x.TcpPort,
             serialPort = x.IsSerial ? x.SerialPort : "",
-            baudRate = x.IsSerial ? CommandCenterSettings.DccExSerialBaudRate : 0,
+            baudRate = x.IsSerial ? serialBaud : 0,
             connectionString = x.IsSerial
-                ? $"{x.SerialPort} @ {CommandCenterSettings.DccExSerialBaudRate} baud"
+                ? $"{x.SerialPort} @ {serialBaud} baud"
                 : $"{x.TcpHost}:{x.TcpPort}"
         };
     }
@@ -3070,6 +3098,14 @@ public sealed class WsHub
             configured?
                 .GetLocoNetDiagnostics();
 
+        var locoNetSerial =
+            configured?
+                .GetLocoNetSerialDiagnostics();
+
+        var locoNetStandard =
+            configured?
+                .GetLocoNetStandardTelemetry();
+
         return new
         {
             commandCenterType =
@@ -3087,7 +3123,7 @@ public sealed class WsHub
             port = x.IsSerial ? 0 : x.TcpPort,
             serialPort = x.IsSerial ? x.SerialPort : "",
             baudRate = x.IsSerial
-                ? CommandCenterSettings.DccExSerialBaudRate
+                ? (locoNetSerial?.BaudRate ?? CommandCenterSettings.DccExSerialBaudRate)
                 : 0,
             alive = CommandCenter.Connected,
             maxLocos = HubState.Station.MaxLocos,
@@ -3132,6 +3168,34 @@ public sealed class WsHub
                             z21.Capabilities,
                         lastSystemStateAgeMs =
                             z21.LastSystemStateAgeMs
+                    },
+            locoNetStandard =
+                locoNetStandard is null
+                    ? null
+                    : new
+                    {
+                        rxFrames = locoNetStandard.RxFrames,
+                        txFrames = locoNetStandard.TxFrames,
+                        sensorReports = locoNetStandard.SensorReports,
+                        turnoutReports = locoNetStandard.TurnoutReports,
+                        powerReports = locoNetStandard.PowerReports,
+                        reportedTrackPowerOn = locoNetStandard.ReportedTrackPowerOn,
+                        lastRxAgeMs = locoNetStandard.LastRxAgeMs,
+                        lastPowerReportAgeMs = locoNetStandard.LastPowerReportAgeMs,
+                        trackCurrentMa = locoNetStandard.TrackCurrentMa,
+                        trackVoltageV = locoNetStandard.TrackVoltageV,
+                        temperatureC = locoNetStandard.TemperatureC
+                    },
+            locoNetSerial =
+                locoNetSerial is null
+                    ? null
+                    : new
+                    {
+                        port = locoNetSerial.Port,
+                        baudRate = locoNetSerial.BaudRate,
+                        linkUptimeMs = locoNetSerial.LinkUptimeMs,
+                        rxPackets = locoNetSerial.RxPackets,
+                        txPackets = locoNetSerial.TxPackets
                     },
             locoNet =
                 locoNet is null
