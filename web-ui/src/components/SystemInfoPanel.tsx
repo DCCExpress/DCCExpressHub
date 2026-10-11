@@ -380,6 +380,9 @@ export default function SystemInfoPanel({
   const locoNetSerial =
     telemetry?.locoNetSerial ?? null;
 
+  const locoNetStandard =
+    telemetry?.locoNetStandard ?? null;
+
   // Prefer the live commandCenterInfo protocol; periodic dccExStatus can
   // arrive later. Do not assume every non-Z21 station is DCC-EX.
   const protocolType = (
@@ -768,23 +771,76 @@ export default function SystemInfoPanel({
               </>
             )}
 
-            {isLocoNetSerial && (
+            {isLocoNet && (
               <>
                 <InfoRow
-                  label={i18next.t("ui.serialLinkUptime")}
-                  value={formatUptime(locoNetSerial?.linkUptimeMs)}
-                  color="teal"
+                  label={i18next.t("ui.locoNetTrackCurrent")}
+                  value={locoNetStandard?.trackCurrentMa != null
+                    ? `${locoNetStandard.trackCurrentMa} mA`
+                    : "NA"}
+                  color="orange"
                 />
                 <InfoRow
+                  label={i18next.t("ui.locoNetTrackVoltage")}
+                  value={locoNetStandard?.trackVoltageV != null
+                    ? `${locoNetStandard.trackVoltageV.toFixed(2)} V`
+                    : "NA"}
+                  color="cyan"
+                />
+                <InfoRow
+                  label={i18next.t("ui.locoNetTemperature")}
+                  value={locoNetStandard?.temperatureC != null
+                    ? `${locoNetStandard.temperatureC.toFixed(1)} °C`
+                    : "NA"}
+                  color="orange"
+                />
+                <InfoRow
+                  label={i18next.t("ui.locoNetReportedPower")}
+                  value={locoNetStandard?.reportedTrackPowerOn === true
+                    ? "ON"
+                    : locoNetStandard?.reportedTrackPowerOn === false
+                      ? "OFF" : "NA"}
+                  color="teal"
+                />
+                {isLocoNetSerial && (
+                  <InfoRow
+                    label={i18next.t("ui.serialLinkUptime")}
+                    value={locoNetSerial && locoNetSerial.linkUptimeMs >= 0
+                      ? formatUptime(locoNetSerial.linkUptimeMs)
+                      : "NA"}
+                    color="teal"
+                  />
+                )}
+                <InfoRow
                   label={i18next.t("ui.locoNetRxFrames")}
-                  value={locoNetSerial ? String(locoNetSerial.rxPackets) : "—"}
+                  value={locoNetStandard ? String(locoNetStandard.rxFrames) : "NA"}
                   color="cyan"
                 />
                 <InfoRow
                   label={i18next.t("ui.locoNetTxFrames")}
-                  value={locoNetSerial ? String(locoNetSerial.txPackets) : "—"}
+                  value={locoNetStandard ? String(locoNetStandard.txFrames) : "NA"}
                   color="cyan"
                 />
+                <InfoRow
+                  label={i18next.t("ui.locoNetSensorReports")}
+                  value={locoNetStandard ? String(locoNetStandard.sensorReports) : "NA"}
+                  color="cyan"
+                />
+                <InfoRow
+                  label={i18next.t("ui.locoNetTurnoutReports")}
+                  value={locoNetStandard ? String(locoNetStandard.turnoutReports) : "NA"}
+                  color="cyan"
+                />
+                <InfoRow
+                  label={i18next.t("ui.locoNetLastRx")}
+                  value={locoNetStandard && locoNetStandard.lastRxAgeMs >= 0
+                    ? formatAge(locoNetStandard.lastRxAgeMs)
+                    : "NA"}
+                  color="teal"
+                />
+                <Text size="xs" c="dimmed">
+                  {i18next.t("ui.locoNetDiagnosticHint")}
+                </Text>
               </>
             )}
 
