@@ -387,7 +387,7 @@ export class RouteGraphBuilder {
       const owner = ready.shift()!;
       order.push(owner);
       for (const next of forwardNeighbors.get(owner) ?? []) {
-        inDegree[next]!--;
+        inDegree[next] = (inDegree[next] ?? 0) - 1;
         if (inDegree[next] === 0) ready.push(next);
       }
     }
