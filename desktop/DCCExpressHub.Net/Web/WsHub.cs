@@ -1026,6 +1026,21 @@ public sealed class WsHub
                         }
                         break;
                     }
+                case "sensorSettings":
+                    {
+                        var action = S(data, "action");
+                        if (action == "save")
+                        {
+                            var ms = I(data, "sensorOffDelayMs");
+                            if (!LayoutRuntime.SaveSensorOffDelayMs(ms))
+                            {
+                                await Send(ws, "error", new { message = "sensor_off_delay_save_failed_or_out_of_range" });
+                                return;
+                            }
+                        }
+                        await Send(ws, "sensorSettings", new { sensorOffDelayMs = LayoutRuntime.SensorOffDelayMs, saved = action == "save" });
+                        return;
+                    }
                 case "setSensor":
                     {
                         var a = (ushort)I(data, "address");
