@@ -401,11 +401,11 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
                         (((value >> bit.bit) & 1) ? bit.on ?? "ON" : bit.off ?? "OFF")}
                     </Text>)}
                   </Stack> : null}
-                  {result.error && <Text size="xs" c="red">{result.error}</Text>}
+                  {result.error && <Text size="xs" c="red"><strong>NOK</strong> — {result.error}</Text>}
                 </Table.Td>
                 <Table.Td>{format?.decimal ?? (result.error ? "NOK" : "—")}</Table.Td>
-                <Table.Td ff="monospace">{format?.hex ?? "—"}</Table.Td>
-                <Table.Td ff="monospace">{format?.binary ?? "—"}</Table.Td>
+                <Table.Td ff="monospace">{format?.hex ?? (result.error ? "NOK" : "—")}</Table.Td>
+                <Table.Td ff="monospace">{format?.binary ?? (result.error ? "NOK" : "—")}</Table.Td>
               </Table.Tr>;
             })}
           </Table.Tbody>
