@@ -111,6 +111,14 @@ export type DccExStatusPayload = {
     lastSystemStateAgeMs: number;
   } | null;
 
+  locoNetSerial?: {
+    port: string;
+    baudRate: number;
+    linkUptimeMs: number;
+    rxPackets: number;
+    txPackets: number;
+  } | null;
+
   locoNet?: {
     lbServerEnabled: boolean;
     lbServerConnected: boolean;
