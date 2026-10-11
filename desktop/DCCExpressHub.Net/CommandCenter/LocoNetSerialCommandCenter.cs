@@ -128,6 +128,7 @@ public sealed class LocoNetSerialCommandCenter : BackgroundService, ICommandCent
             finally
             {
                 _connected = false;
+                _standardTelemetry.Reset();
                 Interlocked.Exchange(ref _connectedAtTick, -1);
                 lock (_connectionGate) _serialPort = null;
                 port?.Dispose();
