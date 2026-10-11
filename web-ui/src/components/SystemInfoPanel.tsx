@@ -405,8 +405,12 @@ export default function SystemInfoPanel({
   const isDccEx =
     protocolType === "dcc-ex" ||
     protocolType.startsWith("dcc-ex-");
-  const isLocoNetSerial = protocolType === "loconet-serial";
-  const isLocoNetTcp = protocolType === "loconet" || protocolType === "loconet-tcp";
+  const isLocoNetSerial =
+    protocolType === "loconet-serial" ||
+    (protocolType === "loconet" && (transport === "serial" || transport === "loconet-serial"));
+  const isLocoNetTcp =
+    protocolType === "loconet-tcp" ||
+    (protocolType === "loconet" && !isLocoNetSerial);
   const isLocoNet = isLocoNetSerial || isLocoNetTcp;
   const isZ21 = protocolType === "z21" || protocolType === "yamorc7010" ||
     (!protocolType && z21 !== null);
