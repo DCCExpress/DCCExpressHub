@@ -165,7 +165,10 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
               Number.isInteger(response.value) && response.value >= 0 &&
               response.value <= 255
               ? { value: response.value }
-              : { error: response.message ?? "No valid decoder acknowledgement" };
+              : { error: [
+                  response.message ?? "No valid decoder acknowledgement",
+                  response.raw ? `LocoNet RX: ${response.raw}` : "",
+                ].filter(Boolean).join(" · ") };
           } catch (e) {
             item = { error: e instanceof Error ? e.message : String(e) };
           }
