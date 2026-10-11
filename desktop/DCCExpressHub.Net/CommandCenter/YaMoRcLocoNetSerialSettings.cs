@@ -4,7 +4,7 @@ namespace DCCExpressHub.Net.CommandCenter;
 
 public sealed record YaMoRcLocoNetSerialSettings(
     bool Enabled = false,
-    string Port = "COM6",
+    string Port = "COM16",
     int BaudRate = 115200)
 {
     // A dedicated file keeps the serial feedback port independent of the
