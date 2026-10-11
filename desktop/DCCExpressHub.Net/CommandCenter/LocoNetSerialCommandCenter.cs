@@ -22,6 +22,7 @@ public sealed class LocoNetSerialCommandCenter : BackgroundService, ICommandCent
     private readonly SemaphoreSlim _txGate = new(1, 1);
     private readonly SemaphoreSlim _accessoryPulseGate = new(1, 1);
     private readonly object _connectionGate = new();
+    private readonly LocoNetStandardTelemetry _standardTelemetry = new();
     private SerialPort? _serialPort;
     private volatile bool _connected;
     private volatile bool _emergencyPaused;
@@ -62,6 +63,7 @@ public sealed class LocoNetSerialCommandCenter : BackgroundService, ICommandCent
     public string Endpoint => _portName;
     public bool EmergencyPauseStateKnown => true;
     public bool EmergencyPaused => _emergencyPaused;
+    public LocoNetStandardTelemetrySnapshot StandardTelemetry => _standardTelemetry.Snapshot();
 
     public LocoNetSerialRuntimeDiagnostics Diagnostics => new(
         _portName,
@@ -101,6 +103,7 @@ public sealed class LocoNetSerialCommandCenter : BackgroundService, ICommandCent
                 port.Open();
                 lock (_connectionGate) _serialPort = port;
                 Interlocked.Exchange(ref _connectedAtTick, Environment.TickCount64);
+                _standardTelemetry.Reset();
                 Interlocked.Exchange(ref _rxPackets, 0);
                 Interlocked.Exchange(ref _txPackets, 0);
                 _connected = true;
@@ -232,6 +235,7 @@ public sealed class LocoNetSerialCommandCenter : BackgroundService, ICommandCent
         }
 
         Interlocked.Increment(ref _rxPackets);
+        _standardTelemetry.ObserveReceived(rawPacket);
         var packet = rawPacket.ToArray();
         var line = Convert.ToHexString(packet);
         RawInfo?.Invoke("LocoNet RX: " + line);
@@ -577,6 +581,7 @@ public sealed class LocoNetSerialCommandCenter : BackgroundService, ICommandCent
             await port.BaseStream.WriteAsync(frame, ct);
             await port.BaseStream.FlushAsync(ct);
             Interlocked.Increment(ref _txPackets);
+            _standardTelemetry.ObserveTransmitted();
             RawInfo?.Invoke("LocoNet Serial TX: " + Convert.ToHexString(frame));
             return true;
         }
