@@ -60,6 +60,7 @@ import {
 import AppModal from "@/components/common/AppModal";
 
 import RoutePreviewDialog from "@/components/routes/RoutePreviewDialog";
+import StationRoutesTab from "@/components/routes/StationRoutesTab";
 
 import {
   testRouteTurnoutStates,
@@ -1050,7 +1051,7 @@ export default function RoutesDialog({
 
         {!error && result && (
           <Tabs
-            defaultValue="selectRoute"
+            defaultValue="stationRoutes"
             keepMounted={false}
             style={{
               flex: 1,
@@ -1060,6 +1061,7 @@ export default function RoutesDialog({
             }}
           >
             <Tabs.List>
+              <Tabs.Tab value="stationRoutes">Station Routes</Tabs.Tab>
               <Tabs.Tab value="selectRoute">
                 {t("ui.movementSelectRouteTitle")}
               </Tabs.Tab>
@@ -1076,6 +1078,17 @@ export default function RoutesDialog({
                 {t("ui.segments")}
               </Tabs.Tab>
             </Tabs.List>
+
+            <Tabs.Panel value="stationRoutes" pt="sm" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+              <StationRoutesTab
+                layout={layout}
+                onSave={async () => {
+                  if (!onPersistRouteTopology) throw new Error("Layout saving is unavailable.");
+                  await onPersistRouteTopology();
+                }}
+                onChanged={() => onGenerated?.()}
+              />
+            </Tabs.Panel>
 
             <Tabs.Panel
               value="selectRoute"
