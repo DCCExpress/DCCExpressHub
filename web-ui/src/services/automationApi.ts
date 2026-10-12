@@ -35,11 +35,16 @@ export type TimetableActionDefinition = {
   targetId: string;
 };
 
+export type StationTimetableVia = { type: "station" | "block"; id: string };
+export type StationTimetablePlan = { fromStationId: string; toStationId: string; via: StationTimetableVia[] };
+
 export type TimetableEntryDefinition = {
   id: string;
   enabled: boolean;
   actions:
     TimetableActionDefinition[];
+  /** Editor-only station routing plan. Not an executable timetable action. */
+  stationPlan?: StationTimetablePlan;
   /** Two-field railway cron: MINUTE HOUR. Example: */
   cron: string;
 };
@@ -271,7 +276,24 @@ export function normalizeTimetableEntries(
       }
     }
 
+    const rawPlan = candidate.stationPlan && typeof candidate.stationPlan === "object"
+      ? candidate.stationPlan as Record<string, unknown>
+      : null;
+    const stationPlan: StationTimetablePlan | undefined = rawPlan &&
+      typeof rawPlan.fromStationId === "string" && typeof rawPlan.toStationId === "string"
+      ? {
+          fromStationId: rawPlan.fromStationId,
+          toStationId: rawPlan.toStationId,
+          via: Array.isArray(rawPlan.via)
+            ? rawPlan.via.filter((v): v is Record<string, unknown> => !!v && typeof v === "object")
+                .filter(v => (v.type === "station" || v.type === "block") && typeof v.id === "string")
+                .map(v => ({ type: v.type as "station" | "block", id: v.id as string }))
+            : [],
+        }
+      : undefined;
+
     result.push({
+      ...(stationPlan ? { stationPlan } : {}),
       id,
       enabled:
         candidate.enabled !== false,
