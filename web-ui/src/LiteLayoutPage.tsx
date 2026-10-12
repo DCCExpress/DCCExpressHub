@@ -2270,6 +2270,12 @@ export default function LiteLayoutPage({
                           }}
                           movements={movementDocument}
                           onMovementsChange={setMovementDocument}
+                          stationRoutes={layout.stationRoutes}
+                          stationNames={layout.stations}
+                          onOpenStationRoutes={() => {
+                            setRoutesMovementPageId(null);
+                            setRoutesOpened(true);
+                          }}
                           onSelectMovementRoute={pageId => {
                             setRoutesMovementPageId(pageId);
                             setRoutesOpened(true);
