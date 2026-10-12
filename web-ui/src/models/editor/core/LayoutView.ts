@@ -323,6 +323,7 @@ export type CheckRoutesResult = {
 /** Kliensoldali layout-view. */
 export class LayoutView
   extends CommonLayout<BaseElement, LayerView> {
+  stations: Array<{ id: string; name: string }> = [];
   constructor() {
     super(
       (id, name, options) =>
