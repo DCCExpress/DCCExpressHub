@@ -1,4 +1,6 @@
 
+import { ELEMENT_TYPES } from "@domain/layout/elementTypes";
+import { showErrorMessage } from "../../helpers";
 import type {
   Dispatch,
   SetStateAction,
@@ -162,6 +164,10 @@ export function handleTrackCanvasKeyDown(
       if (!cursor) {
         return;
       }
+      if (cursor.type === ELEMENT_TYPES.TRACK_BRIDGE) {
+        showErrorMessage("Bridge", "Bridge rotation is not allowed.");
+        return;
+      }
 
       cursor.rotation =
         (cursor.rotation + cursor.rotationStep) % 360;
@@ -176,6 +182,10 @@ export function handleTrackCanvasKeyDown(
 
     if (currentTool.mode === "cursor") {
       if (!selected) {
+        return;
+      }
+      if (selected.type === ELEMENT_TYPES.TRACK_BRIDGE) {
+        showErrorMessage("Bridge", "Bridge rotation is not allowed.");
         return;
       }
 
