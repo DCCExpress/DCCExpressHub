@@ -1,3 +1,4 @@
+import type { StationRouteDefinition } from "./stationRoutes";
 import type {
   BlockType,
   ElementType,
@@ -155,6 +156,7 @@ export type SerializedLayoutDto = {
   _activeLayerId?: string;
   layers?: SerializedLayoutLayerDto[];
   stations?: Array<{ id: string; name: string }>;
+  stationRoutes?: StationRouteDefinition[];
   [key: string]: unknown;
 };
 
