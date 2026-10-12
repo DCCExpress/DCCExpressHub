@@ -11,6 +11,8 @@ public sealed partial class WatsonWebServerService
     private readonly SemaphoreSlim _s88Gate = new(1, 1);
     private SerialPort? _s88Port;
     private string _s88PortName = "";
+    private readonly StringBuilder _s88LineBuffer = new();
+    private string _s88LastSnapshot = "";
 
     private void RegisterS88AdapterRoutes(Webserver server)
     {
@@ -23,6 +25,10 @@ public sealed partial class WatsonWebServerService
             await _s88Gate.WaitAsync(ctx.Token);
             try { await SendAsync(ctx, HubApiResponse.Ok(new { ok = true, connected = _s88Port?.IsOpen == true, port = _s88PortName })); }
             finally { _s88Gate.Release(); }
+        });
+        Add(server, WatsonHttpMethod.GET, "/api/s88-adapter/snapshot", async ctx =>
+        {
+            await SendAsync(ctx, HubApiResponse.Ok(new { ok = true, port = _s88PortName, raw = _s88LastSnapshot }));
         });
         Add(server, WatsonHttpMethod.POST, "/api/s88-adapter/connect", S88AdapterConnectAsync);
         Add(server, WatsonHttpMethod.POST, "/api/s88-adapter/disconnect", S88AdapterDisconnectAsync);
@@ -62,6 +68,9 @@ public sealed partial class WatsonWebServerService
             catch { serial.Dispose(); throw; }
             _s88Port = serial;
             _s88PortName = portName;
+            _s88LastSnapshot = "";
+            _s88LineBuffer.Clear();
+            _ = S88AdapterReceiveLoopAsync(serial, portName);
             // Opening an Uno's serial port may reset its processor.
             await Task.Delay(2200, ctx.Token);
             await SendAsync(ctx, HubApiResponse.Ok(new { ok = true, connected = true, port = portName }));
@@ -82,6 +91,8 @@ public sealed partial class WatsonWebServerService
             _s88Port?.Dispose();
             _s88Port = null;
             _s88PortName = "";
+            _s88LastSnapshot = "";
+            _s88LineBuffer.Clear();
             await SendAsync(ctx, HubApiResponse.Ok(new { ok = true, connected = false }));
         }
         finally { _s88Gate.Release(); }
@@ -129,7 +140,7 @@ public sealed partial class WatsonWebServerService
                 return;
             }
             // Drain periodic S88 logging so it cannot be mistaken for a command reply.
-            _s88Port.DiscardInBuffer();
+            // Preserve unsolicited S88 lines arriving during the command.
             _s88Port.Write(command + "\n");
             var output = new StringBuilder();
             var deadline = DateTime.UtcNow.AddMilliseconds(command == "REBOOT" ? 700 : 1100);
@@ -149,6 +160,8 @@ public sealed partial class WatsonWebServerService
                 await Task.Delay(35, ctx.Token);
             }
             var raw = output.ToString();
+            foreach (var line in raw.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                PublishS88Line(line, portName);
             var error = raw.Contains("ERR:", StringComparison.OrdinalIgnoreCase) ||
                 (string.IsNullOrWhiteSpace(raw) && command != "REBOOT") ||
                 (command == "READ" && !raw.Contains("S88:", StringComparison.Ordinal));
@@ -164,4 +177,61 @@ public sealed partial class WatsonWebServerService
         }
         finally { _s88Gate.Release(); }
     }
+    // The Uno publishes S88 snapshots unsolicited; do not poll with READ.
+    private async Task S88AdapterReceiveLoopAsync(SerialPort serial, string portName)
+    {
+        while (ReferenceEquals(_s88Port, serial) && serial.IsOpen)
+        {
+            try
+            {
+                if (await _s88Gate.WaitAsync(0))
+                {
+                    try
+                    {
+                        if (ReferenceEquals(_s88Port, serial) && serial.IsOpen)
+                        {
+                            var incoming = serial.ReadExisting();
+                            foreach (var character in incoming)
+                            {
+                                if (character == '\n')
+                                {
+                                    var line = _s88LineBuffer.ToString().Trim();
+                                    _s88LineBuffer.Clear();
+                                    PublishS88Line(line, portName);
+                                }
+                                else if (character != '\r')
+                                {
+                                    if (_s88LineBuffer.Length < 2048)
+                                        _s88LineBuffer.Append(character);
+                                    else
+                                        _s88LineBuffer.Clear();
+                                }
+                            }
+                        }
+                    }
+                    finally { _s88Gate.Release(); }
+                }
+                await Task.Delay(25);
+            }
+            catch (Exception ex) when (ex is IOException or InvalidOperationException or ObjectDisposedException)
+            {
+                break;
+            }
+        }
+    }
+
+    private void PublishS88Line(string line, string portName)
+    {
+        if (!line.StartsWith("S88:", StringComparison.OrdinalIgnoreCase))
+            return;
+        var bytes = System.Text.RegularExpressions.Regex.Matches(line, @"_[01]{8}");
+        if (bytes.Count == 0 || bytes.Count > 32)
+            return;
+        var snapshot = "S88: " + string.Join(" ", bytes.Select(match => match.Value));
+        if (snapshot == _s88LastSnapshot)
+            return;
+        _s88LastSnapshot = snapshot;
+        _ = Service<WsHub>().Broadcast("s88AdapterSnapshot", new { port = portName, raw = snapshot });
+    }
+
 }
