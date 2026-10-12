@@ -2065,7 +2065,7 @@ public sealed class WsHub
                         return;
                     }
 
-                    var result = Movement.StartTransient(page);
+                    var result = Movement.StartTransient(page, calibrationBypass: false);
                     await Reply(result.Ok, result.Error, new
                     {
                         state = Movement.GetState(page.Id)
