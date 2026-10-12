@@ -201,7 +201,7 @@ export function handleTrackCanvasMouseMove(
 
       if (element.type === ELEMENT_TYPES.TRACK_BRIDGE) {
         const placement = getBridgePlacement(currentLayout, nextX, nextY, element.rotation, element.id);
-        if (!placement.valid || placement.rotation !== element.rotation) {
+        if (!placement.valid) {
           setHoverGrid({ x: grid.x, y: grid.y });
           canvas.style.cursor = "not-allowed";
           return;
