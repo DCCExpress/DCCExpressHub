@@ -81,6 +81,7 @@ type RoutesDialogProps = {
   movements: MovementDocument;
   editingMovementId:
     string | null;
+  editingStationRouteId?: string | null;
   onMovementsChange: (
     document:
       MovementDocument
@@ -205,6 +206,7 @@ export default function RoutesDialog({
   layout,
   movements,
   editingMovementId,
+  editingStationRouteId,
   onMovementsChange,
   onPersistRouteTopology,
   onGenerated,
@@ -1082,6 +1084,7 @@ export default function RoutesDialog({
             <Tabs.Panel value="stationRoutes" pt="sm" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
               <StationRoutesTab
                 layout={layout}
+                editingRouteId={editingStationRouteId ?? null}
                 graph={result.graph}
                 onSave={async () => {
                   if (!onPersistRouteTopology) throw new Error("Layout saving is unavailable.");
