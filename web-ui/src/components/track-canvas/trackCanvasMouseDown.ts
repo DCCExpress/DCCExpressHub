@@ -364,7 +364,19 @@ export function handleTrackCanvasMouseDown(
       grid
     );
 
-    const exists = currentLayout.getLayeredElement(
+    if (cursor.type === ELEMENT_TYPES.TRACK_BRIDGE) {
+      const tracks = currentLayout.track.elements.filter(item =>
+        item.x === cursorAnchor.x && item.y === cursorAnchor.y
+      );
+      const ground = tracks.find(item => item instanceof TrackStraightElement);
+      if (!ground || tracks.length !== 1 || ground.type !== ELEMENT_TYPES.TRACK_STRAIGHT) {
+        showErrorMessage("Bridge", "Bridge can only be placed on a straight track element.");
+        return;
+      }
+      cursor.rotation = (ground.rotation + 90) % 360;
+    }
+
+    const exists = cursor.type === ELEMENT_TYPES.TRACK_BRIDGE ? null : currentLayout.getLayeredElement(
       cursor,
       cursorAnchor.x,
       cursorAnchor.y
