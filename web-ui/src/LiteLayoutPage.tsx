@@ -66,6 +66,7 @@ import { useCommandCenter } from "@/context/CommandCenterContext";
 import { useLayoutPageShortcuts } from "@/hooks/layout/useLayoutPageShortcuts";
 import BasicPropertyEditor from "@/layout/property-panel/BasicPropertyEditor";
 import BlockTypeSelectPropertyEditor from "@/layout/property-panel/BlockTypeSelectPropertyEditor";
+import StationSelectPropertyEditor from "@/layout/property-panel/StationSelectPropertyEditor";
 import BlockEventConfigPropertyEditor from "@/layout/property-panel/BlockEventConfigPropertyEditor";
 import SignalAspectPropertyEditor from "@/layout/property-panel/SignalAspectPropertyEditor";
 import TurnoutBitPropertyEditor from "@/layout/property-panel/TurnoutBitPropertyEditor";
@@ -861,6 +862,12 @@ function LitePropertyPanel({
                 prop={property}
                 selectedElement={selectedElement}
                 onUpdateSelectedElement={invalidate}
+              />
+            ) : property.type === "stationSelect" && selectedElement instanceof BlockElement ? (
+              <StationSelectPropertyEditor
+                block={selectedElement}
+                layout={layout}
+                onChange={invalidate}
               />
             ) : property.type === "blockTypeSelect" ? (
               <BlockTypeSelectPropertyEditor
