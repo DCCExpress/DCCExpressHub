@@ -1082,6 +1082,7 @@ export default function RoutesDialog({
             <Tabs.Panel value="stationRoutes" pt="sm" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
               <StationRoutesTab
                 layout={layout}
+                graph={result.graph}
                 onSave={async () => {
                   if (!onPersistRouteTopology) throw new Error("Layout saving is unavailable.");
                   await onPersistRouteTopology();
