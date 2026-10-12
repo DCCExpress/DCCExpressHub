@@ -16,7 +16,7 @@ public sealed partial class WatsonWebServerService
     {
         Add(server, WatsonHttpMethod.GET, "/api/s88-adapter/ports", async ctx =>
         {
-            await SendAsync(ctx, new { ok = true, ports = SerialPort.GetPortNames().OrderBy(x => x).ToArray() });
+            await SendAsync(ctx, HubApiResponse.Ok(new { ok = true, ports = SerialPort.GetPortNames().OrderBy(x => x).ToArray() }));
         });
         Add(server, WatsonHttpMethod.POST, "/api/s88-adapter/command", S88AdapterCommandAsync);
     }
@@ -94,7 +94,9 @@ public sealed partial class WatsonWebServerService
                 (string.IsNullOrWhiteSpace(raw) && command != "REBOOT") ||
                 (command == "READ" && !raw.Contains("S88:", StringComparison.Ordinal));
             if (command == "REBOOT") { _s88Port.Dispose(); _s88Port = null; _s88PortName = ""; }
-            await SendAsync(ctx, new { ok = !error, port = portName, command, raw, message = error ? "No valid adapter reply, or adapter rejected command." : "Command completed." });
+            await SendAsync(ctx, error
+                ? HubApiResponse.Error(502, new { ok = false, port = portName, command, raw, message = "No valid adapter reply, or adapter rejected command." })
+                : HubApiResponse.Ok(new { ok = true, port = portName, command, raw, message = "Command completed." }));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or TimeoutException)
         {
