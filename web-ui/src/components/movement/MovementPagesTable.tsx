@@ -89,7 +89,7 @@ type Props = {
   ) => void;
   stationRoutes: StationRouteDefinition[];
   stationNames: Array<{ id: string; name: string }>;
-  onOpenStationRoutes: () => void;
+  onOpenStationRoutes: (routeId: string) => void;
 };
 
 function routeLabel(
@@ -1026,7 +1026,7 @@ export default function MovementPagesTable({
                 {route.via.length > 0 && <Text size="xs" c="dimmed">Via: {viaLabel}</Text>}
                 <Group justify="space-between">
                   <Badge variant="outline">{route.allowReverse ? "Both directions" : "One-way"}</Badge>
-                  <Button size="xs" variant="light" leftSection={<IconEdit size={14}/>} onClick={onOpenStationRoutes}>Edit Station Route</Button>
+                  <Button size="xs" variant="light" leftSection={<IconEdit size={14}/>} onClick={() => onOpenStationRoutes(route.id)}>Edit Station Route</Button>
                 </Group>
                 <Text size="xs" c="dimmed">Route template · not executable until dispatcher integration.</Text>
               </Stack>
