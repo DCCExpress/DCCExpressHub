@@ -761,9 +761,11 @@ export class LayoutView
       // Connectivity uses anchor cells, not visual hit boxes. A three-cell
       // block overlay must never hide a neighboring standalone sensor/rail.
       const candidate =
-        this.getTrackElements().find(element =>
+        this.track.elements.find(element =>
           element instanceof TrackElement &&
-          element.x === exit.x && element.y === exit.y
+          element.x === exit.x &&
+          element.y === exit.y &&
+          acceptsConnectionFrom(element, obj.pos, routeStates)
         );
 
       if (
