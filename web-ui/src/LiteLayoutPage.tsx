@@ -52,6 +52,7 @@ import { showNotification } from "@mantine/notifications";
 
 import type { DccExStatusPayload, Loco } from "@domain/types";
 import { ELEMENT_TYPES, type ElementType } from "@domain/layout/elementTypes";
+import { getElementTypeName } from "@domain/layout/elementTypeNames";
 import TrackCanvas from "@/components/TrackCanvas";
 import FullscreenLoader from "@/components/FullscreenLoader";
 import AppModal from "@/components/common/AppModal";
@@ -800,7 +801,7 @@ function LitePropertyPanel({
             fw={800}
             truncate
           >
-            {selectedElement.type}
+            {getElementTypeName(selectedElement.type)}
           </Text>
 
           {selectedElement instanceof
