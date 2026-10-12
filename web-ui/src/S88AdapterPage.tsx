@@ -107,9 +107,9 @@ export default function S88AdapterPage({ onBack }: { onBack: () => void }) {
     </Group>
     <Card withBorder radius="md" p="md">
       <Stack gap="sm">
-        <Group align="end"><Select label="Serial port" data={ports} value={port} onChange={setPort} disabled={!!connectedPort || busy} placeholder="Select adapter port" searchable style={{ flex: 1 }} /><Button variant="light" onClick={() => void refreshPorts()}>Refresh ports</Button><Badge color={connectedPort ? "green" : "gray"}>{connectedPort ? "Connected: " + connectedPort : "Disconnected"}</Badge>{connectedPort ? <Button color="red" variant="light" disabled={busy} onClick={() => void connectionAction("disconnect")}>Disconnect</Button> : <Button disabled={!port || busy} onClick={() => void connectionAction("connect")}>Connect</Button>}</Group>
+        <Group align="end"><Select label="Serial port" data={ports} value={port} onChange={setPort} disabled={!!connectedPort || busy} placeholder="Select adapter port" searchable style={{ flex: 1 }} /><Button variant="light" onClick={() => void refreshPorts()}>Refresh ports</Button><Badge color={connectedPort ? "green" : "gray"}>{connectedPort ? "Connected: " + connectedPort : "Disconnected"}</Badge></Group>
         <Text size="xs" c="dimmed">Connect to the adapter USB port, not the command-station port. Opening an Uno serial connection may reboot the adapter.</Text>
-        <Group><Button disabled={!port || connectedPort !== port || busy} onClick={() => void command("STATUS")}>STATUS</Button><Button variant="light" disabled={!port || connectedPort !== port || busy} onClick={() => void command("INFO")}>INFO</Button><Button variant="light" disabled={!port || connectedPort !== port || busy} onClick={() => void command("HELP")}>HELP</Button></Group>
+        <Group>{connectedPort ? <Button color="red" variant="light" disabled={busy} onClick={() => void connectionAction("disconnect")}>Disconnect</Button> : <Button disabled={!port || busy} onClick={() => void connectionAction("connect")}>Connect</Button>}<Button disabled={!port || connectedPort !== port || busy} onClick={() => void command("STATUS")}>STATUS</Button><Button variant="light" disabled={!port || connectedPort !== port || busy} onClick={() => void command("INFO")}>INFO</Button></Group>
       </Stack>
     </Card>
     <SimpleGrid cols={{ base: 1, md: 2 }}>
