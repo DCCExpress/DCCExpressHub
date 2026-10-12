@@ -18,7 +18,73 @@ public sealed partial class WatsonWebServerService
         {
             await SendAsync(ctx, HubApiResponse.Ok(new { ok = true, ports = SerialPort.GetPortNames().OrderBy(x => x).ToArray() }));
         });
+        Add(server, WatsonHttpMethod.GET, "/api/s88-adapter/connection", async ctx =>
+        {
+            await _s88Gate.WaitAsync(ctx.Token);
+            try { await SendAsync(ctx, HubApiResponse.Ok(new { ok = true, connected = _s88Port?.IsOpen == true, port = _s88PortName })); }
+            finally { _s88Gate.Release(); }
+        });
+        Add(server, WatsonHttpMethod.POST, "/api/s88-adapter/connect", S88AdapterConnectAsync);
+        Add(server, WatsonHttpMethod.POST, "/api/s88-adapter/disconnect", S88AdapterDisconnectAsync);
         Add(server, WatsonHttpMethod.POST, "/api/s88-adapter/command", S88AdapterCommandAsync);
+    }
+
+    private async Task S88AdapterConnectAsync(HttpContextBase ctx)
+    {
+        if (!IsUrlEncodedForm(ctx))
+        {
+            await SendAsync(ctx, HubApiResponse.Error(400, new { ok = false, message = "Form data required." }));
+            return;
+        }
+        var form = await ReadUrlEncodedFormAsync(ctx);
+        var portName = Get(form, "port").Trim();
+        if (!SerialPort.GetPortNames().Contains(portName, StringComparer.OrdinalIgnoreCase))
+        {
+            await SendAsync(ctx, HubApiResponse.Error(400, new { ok = false, message = "Select an available serial port." }));
+            return;
+        }
+        await _s88Gate.WaitAsync(ctx.Token);
+        try
+        {
+            if (_s88Port?.IsOpen == true && string.Equals(_s88PortName, portName, StringComparison.OrdinalIgnoreCase))
+            {
+                await SendAsync(ctx, HubApiResponse.Ok(new { ok = true, connected = true, port = _s88PortName }));
+                return;
+            }
+            _s88Port?.Dispose();
+            _s88Port = null;
+            _s88PortName = "";
+            var serial = new SerialPort(portName, 115200, Parity.None, 8, StopBits.One)
+            {
+                ReadTimeout = 100, WriteTimeout = 1000, NewLine = "\n"
+            };
+            try { serial.Open(); }
+            catch { serial.Dispose(); throw; }
+            _s88Port = serial;
+            _s88PortName = portName;
+            // Opening an Uno's serial port may reset its processor.
+            await Task.Delay(2200, ctx.Token);
+            await SendAsync(ctx, HubApiResponse.Ok(new { ok = true, connected = true, port = portName }));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or TimeoutException)
+        {
+            _s88Port?.Dispose(); _s88Port = null; _s88PortName = "";
+            await SendAsync(ctx, HubApiResponse.Error(503, new { ok = false, connected = false, message = ex.Message }));
+        }
+        finally { _s88Gate.Release(); }
+    }
+
+    private async Task S88AdapterDisconnectAsync(HttpContextBase ctx)
+    {
+        await _s88Gate.WaitAsync(ctx.Token);
+        try
+        {
+            _s88Port?.Dispose();
+            _s88Port = null;
+            _s88PortName = "";
+            await SendAsync(ctx, HubApiResponse.Ok(new { ok = true, connected = false }));
+        }
+        finally { _s88Gate.Release(); }
     }
 
     private async Task S88AdapterCommandAsync(HttpContextBase ctx)
@@ -57,17 +123,10 @@ public sealed partial class WatsonWebServerService
         await _s88Gate.WaitAsync(ctx.Token);
         try
         {
-            if (_s88Port is null || !_s88Port.IsOpen || !string.Equals(_s88PortName, portName, StringComparison.OrdinalIgnoreCase))
+            if (_s88Port?.IsOpen != true || !string.Equals(_s88PortName, portName, StringComparison.OrdinalIgnoreCase))
             {
-                _s88Port?.Dispose();
-                _s88Port = new SerialPort(portName, 115200, Parity.None, 8, StopBits.One)
-                {
-                    ReadTimeout = 100, WriteTimeout = 1000, NewLine = "\n"
-                };
-                _s88Port.Open();
-                _s88PortName = portName;
-                // Opening an Arduino Uno serial port can reset the MCU.
-                await Task.Delay(2200, ctx.Token);
+                await SendAsync(ctx, HubApiResponse.Error(409, new { ok = false, message = "Connect to this S88Adapter serial port first." }));
+                return;
             }
             // Drain periodic S88 logging so it cannot be mistaken for a command reply.
             _s88Port.DiscardInBuffer();
