@@ -42,6 +42,7 @@ import {
 
 import AppModal from "@/components/common/AppModal";
 import TimetableTimeline from "@/components/TimetableTimeline";
+import StationTimetablePlanEditor from "@/components/StationTimetablePlanEditor";
 
 import type {
   MovementPage,
@@ -602,11 +603,8 @@ export default function TimetableDialog({
             enabled:
               row.enabled,
             actions:
-              row.actions.map(
-                action => ({
-                  ...action,
-                })
-              ),
+              row.stationPlan ? [] : row.actions.map(action => ({ ...action })),
+            ...(row.stationPlan ? { stationPlan: row.stationPlan } : {}),
             cron:
               cronFromEditor(
                 row.editor
@@ -644,7 +642,7 @@ export default function TimetableDialog({
       const emptyEntry =
         normalized.find(
           entry =>
-            entry.actions.length ===
+            !entry.stationPlan && entry.actions.length ===
             0
         );
 
@@ -664,6 +662,15 @@ export default function TimetableDialog({
             ),
         });
 
+        return;
+      }
+
+      const invalidStationPlan = normalized.find(entry => entry.stationPlan && (
+        !entry.stationPlan.fromStationId || !entry.stationPlan.toStationId ||
+        entry.stationPlan.via.some(via => !via.id)
+      ));
+      if (invalidStationPlan) {
+        showNotification({ color: "red", title: "Incomplete station plan", message: "Choose From, To and each Via point before saving." });
         return;
       }
 
@@ -1220,6 +1227,27 @@ export default function TimetableDialog({
                                   <Stack
                                     gap="xs"
                                   >
+                                    <Select
+                                      size="xs"
+                                      mb="xs"
+                                      data={[
+                                        { value: "actions", label: "Movement / Script" },
+                                        { value: "station", label: "Station to Station (plan only)" },
+                                      ]}
+                                      value={row.stationPlan ? "station" : "actions"}
+                                      allowDeselect={false}
+                                      onChange={mode => updateRow(row.id, current => mode === "station"
+                                        ? { ...current, stationPlan: current.stationPlan ?? { fromStationId: "", toStationId: "", via: [] }, actions: [] }
+                                        : { ...current, stationPlan: undefined, actions: current.actions.length ? current.actions : [createDefaultAction(scripts, movements)] }
+                                      )}
+                                    />
+                                    {row.stationPlan && (
+                                      <StationTimetablePlanEditor
+                                        value={row.stationPlan}
+                                        onChange={stationPlan => updateRow(row.id, current => ({ ...current, stationPlan }))}
+                                      />
+                                    )}
+                                    {!row.stationPlan && (
                                     {
                                       row.actions.map(
                                         (
@@ -1425,6 +1453,7 @@ export default function TimetableDialog({
                                         )
                                       }
                                     </Button>
+                                    )}
                                   </Stack>
                                 </Table.Td>
 
