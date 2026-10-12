@@ -268,6 +268,7 @@ export type TopologyTurnoutElement =
 
 export type TopologyTrackElement =
   | TrackStraightElement
+  | TrackBridgeElement
   | TrackLevelCrossingElement
   | TrackDirectionElement
   | TrackEndElement
