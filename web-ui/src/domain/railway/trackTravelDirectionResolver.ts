@@ -225,7 +225,8 @@ export class TrackTravelDirectionResolver {
     for (const connection of this.getConnectionPoints(element)) {
       const candidate =
         this.topology.getPhysicalTrackAt(
-          connection.point as any
+          connection.point as any,
+          element.pos
         );
 
       if (!candidate || candidate.id === element.id) {
