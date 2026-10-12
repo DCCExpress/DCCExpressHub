@@ -1155,6 +1155,7 @@ export default function LiteLayoutPage({
   const [embeddedCommandCenter, setEmbeddedCommandCenter] = useState(false);
   const [timetableOpened, setTimetableOpened] = useState(false);
   const [routesOpened, setRoutesOpened] = useState(false);
+  const [stationRouteEditId, setStationRouteEditId] = useState<string | null>(null);
   const [routesMovementPageId, setRoutesMovementPageId] =
     useState<string | null>(
       null
@@ -2282,7 +2283,8 @@ export default function LiteLayoutPage({
                           onMovementsChange={setMovementDocument}
                           stationRoutes={layout.stationRoutes}
                           stationNames={layout.stations}
-                          onOpenStationRoutes={() => {
+                          onOpenStationRoutes={routeId => {
+                            setStationRouteEditId(routeId);
                             setRoutesMovementPageId(null);
                             setRoutesOpened(true);
                           }}
@@ -2647,9 +2649,11 @@ export default function LiteLayoutPage({
         onClose={() => {
           setRoutesOpened(false);
           setRoutesMovementPageId(null);
+          setStationRouteEditId(null);
         }}
         layout={layout}
         movements={movementDocument}
+        editingStationRouteId={stationRouteEditId}
         editingMovementId={routesMovementPageId}
         onMovementsChange={setMovementDocument}
         onPersistRouteTopology={persistRouteTopology}
