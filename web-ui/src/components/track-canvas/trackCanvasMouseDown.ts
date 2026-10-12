@@ -1,5 +1,5 @@
 import i18next from "i18next";
-import { TrackStraightElement } from "../../models/editor/elements/TrackStraightElement";
+import { getBridgePlacement } from "./bridgePlacement";
 import type {
   Dispatch,
   SetStateAction,
@@ -365,15 +365,14 @@ export function handleTrackCanvasMouseDown(
     );
 
     if (cursor.type === ELEMENT_TYPES.TRACK_BRIDGE) {
-      const tracks = currentLayout.track.elements.filter(item =>
-        item.x === cursorAnchor.x && item.y === cursorAnchor.y
+      const placement = getBridgePlacement(
+        currentLayout, cursorAnchor.x, cursorAnchor.y, cursor.rotation
       );
-      const ground = tracks.find(item => item instanceof TrackStraightElement);
-      if (!ground || tracks.length !== 1 || ground.type !== ELEMENT_TYPES.TRACK_STRAIGHT) {
-        showErrorMessage("Bridge", "Bridge can only be placed on a straight track element.");
+      if (!placement.valid) {
+        showErrorMessage("Bridge", "Bridge can only overlap a straight track element.");
         return;
       }
-      cursor.rotation = (ground.rotation + 90) % 360;
+      cursor.rotation = placement.rotation;
     }
 
     const exists = cursor.type === ELEMENT_TYPES.TRACK_BRIDGE ? null : currentLayout.getLayeredElement(
