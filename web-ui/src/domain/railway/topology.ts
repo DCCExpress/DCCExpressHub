@@ -29,6 +29,7 @@ import {
   type TravelDirection,
 } from "../../models/editor/core/TrackElement";
 
+import { TrackBridgeElement } from "../../models/editor/elements/TrackBridgeElement";
 import { TrackStraightElement } from "../../models/editor/elements/TrackStraightElement";
 import { TrackLevelCrossingElement } from "../../models/editor/elements/TrackLevelCrossingElement";
 import { TrackDirectionElement } from "../../models/editor/elements/TrackDirectionElement";
