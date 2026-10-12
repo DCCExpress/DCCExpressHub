@@ -1228,18 +1228,35 @@ export default function TimetableDialog({
                                     gap="xs"
                                   >
                                     <Select
+                                      label="Action Type"
                                       size="xs"
-                                      mb="xs"
                                       data={[
-                                        { value: "actions", label: "Movement / Script" },
-                                        { value: "station", label: "Station to Station (plan only)" },
+                                        { value: "script", label: "Script" },
+                                        { value: "movement", label: "Movement" },
+                                        { value: "station", label: "Station to Station" },
                                       ]}
-                                      value={row.stationPlan ? "station" : "actions"}
+                                      value={row.stationPlan ? "station" : row.actions[0]?.targetType ?? "script"}
                                       allowDeselect={false}
-                                      onChange={mode => updateRow(row.id, current => mode === "station"
-                                        ? { ...current, stationPlan: current.stationPlan ?? { fromStationId: "", toStationId: "", via: [] }, actions: [] }
-                                        : (() => { const { stationPlan: _stationPlan, ...rest } = current; return { ...rest, actions: current.actions.length ? current.actions : [createDefaultAction(scripts, movements)] }; })()
-                                      )}
+                                      onChange={mode => updateRow(row.id, current => {
+                                        if (mode === "station") {
+                                          return {
+                                            ...current,
+                                            stationPlan: current.stationPlan ?? { fromStationId: "", toStationId: "", via: [] },
+                                            actions: [],
+                                          };
+                                        }
+                                        const { stationPlan: _stationPlan, ...rest } = current;
+                                        const targetType: TimetableTargetType = mode === "movement" ? "movement" : "script";
+                                        const first = current.actions[0];
+                                        const action = {
+                                          id: first?.id ?? createTimetableActionId(),
+                                          targetType,
+                                          targetId: first?.targetType === targetType
+                                            ? first.targetId
+                                            : targetType === "movement" ? movements[0]?.id ?? "" : scripts[0]?.id ?? "",
+                                        };
+                                        return { ...rest, actions: [action, ...current.actions.slice(1)] };
+                                      })}
                                     />
                                     {row.stationPlan && (
                                       <StationTimetablePlanEditor
@@ -1283,6 +1300,7 @@ export default function TimetableDialog({
                                                 }
                                               </Text>
 
+                                              {actionIndex > 0 && (
                                               <Select
                                                 size="xs"
                                                 clearable={
@@ -1345,6 +1363,7 @@ export default function TimetableDialog({
                                                 }}
                                               />
 
+                                              )}
                                               <Select
                                                 size="xs"
                                                 searchable
