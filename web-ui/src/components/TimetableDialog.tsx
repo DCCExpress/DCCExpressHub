@@ -13,6 +13,7 @@ import {
   Stack,
   Switch,
   Table,
+  SegmentedControl,
   Text,
   TextInput,
   Tooltip,
@@ -40,6 +41,7 @@ import {
 } from "react-i18next";
 
 import AppModal from "@/components/common/AppModal";
+import TimetableTimeline from "@/components/TimetableTimeline";
 
 import type {
   MovementPage,
@@ -318,6 +320,8 @@ export default function TimetableDialog({
     t,
   } =
     useTranslation();
+
+  const [viewMode, setViewMode] = useState<"editor" | "timeline">("editor");
 
   const [
     rows,
@@ -861,7 +865,28 @@ export default function TimetableDialog({
           )
         }
 
-        {
+        <SegmentedControl
+          fullWidth
+          value={viewMode}
+          onChange={value => setViewMode(value as "editor" | "timeline")}
+          data={[
+            { value: "editor", label: "Timetable editor" },
+            { value: "timeline", label: "Graphical timeline" },
+          ]}
+        />
+
+        {viewMode === "timeline" && !loading && (
+          <TimetableTimeline
+            entries={rows.map(row => ({
+              ...row,
+              cron: cronFromEditor(row.editor),
+            }))}
+            movements={movements}
+            scripts={scripts}
+          />
+        )}
+
+        {viewMode === "editor" && (
           loading
             ? (
               <Group
@@ -1441,7 +1466,7 @@ export default function TimetableDialog({
                 </Table>
               </ScrollArea>
             )
-        }
+        )}
 
         <Group
           justify="space-between"
