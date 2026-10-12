@@ -3,6 +3,7 @@ export const ELEMENT_TYPES = {
   ADDRESSED_ELEMENT: "addressedelement",
 
   TRACK_STRAIGHT: "trackstraight",
+  TRACK_BRIDGE: "trackbridge",
   TRACK_DIRECTION: "trackdirection",
   TRACK_END: "trackend",
   TRACK_CORNER: "trackcorner",
