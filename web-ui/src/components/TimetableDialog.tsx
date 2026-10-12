@@ -42,7 +42,6 @@ import {
 
 import AppModal from "@/components/common/AppModal";
 import TimetableTimeline from "@/components/TimetableTimeline";
-import StationTimetablePlanEditor from "@/components/StationTimetablePlanEditor";
 
 import type {
   MovementPage,
@@ -603,8 +602,11 @@ export default function TimetableDialog({
             enabled:
               row.enabled,
             actions:
-              row.stationPlan ? [] : row.actions.map(action => ({ ...action })),
-            ...(row.stationPlan ? { stationPlan: row.stationPlan } : {}),
+              row.actions.map(
+                action => ({
+                  ...action,
+                })
+              ),
             cron:
               cronFromEditor(
                 row.editor
@@ -642,7 +644,7 @@ export default function TimetableDialog({
       const emptyEntry =
         normalized.find(
           entry =>
-            !entry.stationPlan && entry.actions.length ===
+            entry.actions.length ===
             0
         );
 
@@ -662,15 +664,6 @@ export default function TimetableDialog({
             ),
         });
 
-        return;
-      }
-
-      const invalidStationPlan = normalized.find(entry => entry.stationPlan && (
-        !entry.stationPlan.fromStationId || !entry.stationPlan.toStationId ||
-        entry.stationPlan.via.some(via => !via.id)
-      ));
-      if (invalidStationPlan) {
-        showNotification({ color: "red", title: "Incomplete station plan", message: "Choose From, To and each Via point before saving." });
         return;
       }
 
@@ -1227,46 +1220,8 @@ export default function TimetableDialog({
                                   <Stack
                                     gap="xs"
                                   >
-                                    <Select
-                                      label="Action Type"
-                                      size="xs"
-                                      data={[
-                                        { value: "script", label: "Script" },
-                                        { value: "movement", label: "Movement" },
-                                        { value: "station", label: "Station to Station" },
-                                      ]}
-                                      value={row.stationPlan ? "station" : row.actions[0]?.targetType ?? "script"}
-                                      allowDeselect={false}
-                                      onChange={mode => updateRow(row.id, current => {
-                                        if (mode === "station") {
-                                          return {
-                                            ...current,
-                                            stationPlan: current.stationPlan ?? { fromStationId: "", toStationId: "", via: [] },
-                                            actions: [],
-                                          };
-                                        }
-                                        const { stationPlan: _stationPlan, ...rest } = current;
-                                        const targetType: TimetableTargetType = mode === "movement" ? "movement" : "script";
-                                        const first = current.actions[0];
-                                        const action = {
-                                          id: first?.id ?? createTimetableActionId(),
-                                          targetType,
-                                          targetId: first?.targetType === targetType
-                                            ? first.targetId
-                                            : targetType === "movement" ? movements[0]?.id ?? "" : scripts[0]?.id ?? "",
-                                        };
-                                        return { ...rest, actions: [action, ...current.actions.slice(1)] };
-                                      })}
-                                    />
-                                    {row.stationPlan && (
-                                      <StationTimetablePlanEditor
-                                        value={row.stationPlan}
-                                        onChange={stationPlan => updateRow(row.id, current => ({ ...current, stationPlan }))}
-                                      />
-                                    )}
-                                    {!row.stationPlan && (
-                                      <>
-                                      {row.actions.map(
+                                    {
+                                      row.actions.map(
                                         (
                                           action,
                                           actionIndex
@@ -1300,7 +1255,6 @@ export default function TimetableDialog({
                                                 }
                                               </Text>
 
-                                              {actionIndex > 0 && (
                                               <Select
                                                 size="xs"
                                                 clearable={
@@ -1363,7 +1317,6 @@ export default function TimetableDialog({
                                                 }}
                                               />
 
-                                              )}
                                               <Select
                                                 size="xs"
                                                 searchable
@@ -1472,8 +1425,6 @@ export default function TimetableDialog({
                                         )
                                       }
                                     </Button>
-                                      </>
-                                    )}
                                   </Stack>
                                 </Table.Td>
 
@@ -1528,7 +1479,16 @@ export default function TimetableDialog({
                 size={16}
               />
             }
-            disabled={loading || saving}
+            disabled={
+              loading ||
+              saving ||
+              (
+                scripts.length ===
+                  0 &&
+                movements.length ===
+                  0
+              )
+            }
             onClick={
               () =>
                 setRows(
