@@ -1,4 +1,5 @@
 import { BaseElement } from "./BaseElement";
+import { TrackBridgeElement } from "../elements/TrackBridgeElement";
 import { TrackStraightElement } from "../elements/TrackStraightElement";
 import { EditorElementData } from "../types/EditorTypes";
 import { TrackCornerElement } from "../elements/TrackCornerElement";
@@ -38,6 +39,8 @@ export class ElementFactory {
     switch (data.type) {
       case ELEMENT_TYPES.TRACK_STRAIGHT:
         return TrackStraightElement.fromJSON(data);
+      case ELEMENT_TYPES.TRACK_BRIDGE:
+        return TrackBridgeElement.fromJSON(data);
 
       case ELEMENT_TYPES.TRACK_LEVEL_CROSSING:
         return TrackLevelCrossingElement.fromLevelCrossingJSON(data);
