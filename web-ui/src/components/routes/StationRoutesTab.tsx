@@ -2,21 +2,43 @@ import { ActionIcon, Button, Group, Select, Stack, Table, Text, TextInput, Badge
 import { IconArrowDown, IconArrowUp, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
 import type { LayoutView } from "@/models/editor/core/LayoutView";
+import type { Graph } from "@/domain/railway/graph";
+import { BlockElement } from "@/models/editor/elements/BlockElement";
 import type { StationRouteDefinition, StationRouteVia } from "@/domain/layout/stationRoutes";
 
-type Props = { layout: LayoutView; onSave: () => Promise<void>; onChanged: () => void };
+type Props = { layout: LayoutView; graph: Graph; onSave: () => Promise<void>; onChanged: () => void };
 const blank = (): StationRouteDefinition => ({
   id: `station-route-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   name: "", fromStationId: "", toStationId: "", via: [], enabled: true,
 });
 
-export default function StationRoutesTab({ layout, onSave, onChanged }: Props) {
+export default function StationRoutesTab({ layout, graph, onSave, onChanged }: Props) {
   const [draft, setDraft] = useState<StationRouteDefinition | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const stations = layout.stations.map(s => ({ value: s.id, label: s.name }));
-  const blocks = layout.blocks.elements.filter(e => e.type === "trackblock")
-    .map(e => ({ value: String(e.id), label: e.name || `Block #${e.id}` }));
+  const layoutBlocks = layout.blocks.elements.filter((e): e is BlockElement => e instanceof BlockElement);
+  const blocks = layoutBlocks.map(e => ({ value: String(e.id), label: e.name || `Block #${e.id}` }));
+  const stationBlockIds = (id: string) => layoutBlocks.filter(b => b.stationId === id).map(b => b.id);
+  const reachable = (from: number[], to: number[]) =>
+    from.some(a => to.some(b => a !== b && graph.findRouteBetweenBlocks(a, b) !== null));
+  // Only offer Via points that fit in the directed graph between their neighbors.
+  // Existing selected Via points constrain the search in their specified order.
+  const pointBlocks = (type: "station" | "block", id: string): number[] =>
+    type === "station" ? stationBlockIds(id) : id ? [Number(id)] : [];
+  const viaOptions = (index: number, type: "station" | "block") => {
+    if (!draft?.fromStationId || !draft.toStationId) return [];
+    const previous = draft.via.slice(0, index).reverse().find(v => v.targetId);
+    const next = draft.via.slice(index + 1).find(v => v.targetId);
+    const start = previous ? pointBlocks(previous.type, previous.targetId) : stationBlockIds(draft.fromStationId);
+    const end = next ? pointBlocks(next.type, next.targetId) : stationBlockIds(draft.toStationId);
+    const options = type === "station" ? stations : blocks;
+    return options.filter(option => {
+      if (type === "station" && (option.value === draft.fromStationId || option.value === draft.toStationId)) return false;
+      const candidate = pointBlocks(type, option.value);
+      return candidate.length > 0 && reachable(start, candidate) && reachable(candidate, end);
+    });
+  };
   const nameFor = (id: string) => stations.find(s => s.value === id)?.label ?? id;
   const viaName = (via: StationRouteVia) => (via.type === "station" ? stations : blocks)
     .find(option => option.value === via.targetId)?.label ?? via.targetId;
@@ -28,7 +50,7 @@ export default function StationRoutesTab({ layout, onSave, onChanged }: Props) {
     draft.fromStationId !== draft.toStationId && draft.via.every(v => !!v.targetId) &&
     stations.some(s => s.value === draft.fromStationId) &&
     stations.some(s => s.value === draft.toStationId) &&
-    draft.via.every(v => (v.type === "station" ? stations : blocks).some(option => option.value === v.targetId));
+    draft.via.every((v, i) => viaOptions(i, v.type).some(option => option.value === v.targetId));
   const persist = async (next: StationRouteDefinition[]) => {
     setSaving(true);
     setError(null);
@@ -82,12 +104,13 @@ export default function StationRoutesTab({ layout, onSave, onChanged }: Props) {
             <Button size="compact-xs" variant="light" leftSection={<IconPlus size={14}/>}
               onClick={() => update({ via: [...draft.via, { type: "station", targetId: "", behavior: "pass" }] })}>Add Via</Button>
           </Group>
+          {draft.via.length > 0 && (!draft.fromStationId || !draft.toStationId) && <Text size="xs" c="dimmed">Select From and To stations to see available Via points.</Text>}
           {draft.via.map((via, i) => <Group key={i} gap={5} wrap="nowrap">
             <Text size="xs" w={20}>{i + 1}.</Text>
             <Select size="xs" w={110} allowDeselect={false} data={[{value:"station",label:"Station"},{value:"block",label:"Block"}]}
               value={via.type} onChange={type => changeVia(i, { type: type === "block" ? "block" : "station", targetId: "" })}/>
-            <Select size="xs" searchable style={{ flex: 1 }} data={via.type === "station" ? stations : blocks}
-              value={via.targetId || null} onChange={targetId => changeVia(i, { targetId: targetId ?? "" })}/>
+            <Select size="xs" searchable style={{ flex: 1 }} data={viaOptions(i, via.type)}
+              value={via.targetId || null} onChange={targetId => changeVia(i, { targetId: targetId ?? "" })} placeholder="Available on route"/>
             <Select size="xs" w={92} allowDeselect={false} data={[{value:"pass",label:"Pass"},{value:"stop",label:"Stop"}]}
               value={via.behavior} onChange={behavior => changeVia(i, { behavior: behavior === "stop" ? "stop" : "pass" })}/>
             <ActionIcon variant="subtle" disabled={i === 0} onClick={() => { const viaList=[...draft.via]; [viaList[i-1],viaList[i]]=[viaList[i]!,viaList[i-1]!];update({via:viaList}); }}><IconArrowUp size={15}/></ActionIcon>
