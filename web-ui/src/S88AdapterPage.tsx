@@ -5,7 +5,12 @@ type CommandReply = { ok: boolean; message?: string; raw?: string };
 const parseBits = (raw: string): number[] => {
   const lines = raw.match(/S88:\s*((?:_[01]{8}\s*){1,32})/g);
   if (!lines?.length) return [];
-  const bytes = [...lines[lines.length - 1].matchAll(/_([01]{8})/g)].map(m => parseInt(m[1], 2));
+  const snapshot = lines.at(-1);
+  if (!snapshot) return [];
+  const bytes = [...snapshot.matchAll(/_([01]{8})/g)]
+    .map(match => match[1])
+    .filter((value): value is string => value !== undefined)
+    .map(value => parseInt(value, 2));
   return bytes.flatMap(byte => Array.from({ length: 8 }, (_, bit) => (byte >> bit) & 1));
 };
 
@@ -89,7 +94,7 @@ export default function S88AdapterPage({ onBack }: { onBack: () => void }) {
           <Group><Button variant="light" disabled={!port || busy || monitor} onClick={() => void command("READ")}>READ snapshot</Button><Switch checked={monitor} onChange={event => setMonitor(event.currentTarget.checked)} label="Monitor (2.5 s)" /></Group>
           <Group><Badge color={bits.length ? "green" : "gray"}>{bits.length} inputs</Badge><Text size="xs" c="dimmed">{updated ? "Last snapshot: " + updated : "No snapshot yet"}</Text></Group>
           <SimpleGrid cols={{ base: 4, sm: 8 }} spacing="xs">
-            {bits.map((value, index) => <Card key={index} withBorder p={6} bg={value ? "teal.8" : undefined} ta="center"><Text size="xs" fw={700}>{index + 1}</Text><Text size="xs">{value ? "ON" : "OFF"}</Text></Card>)}
+            {bits.map((value, index) => <Card key={index} withBorder p={6} {...(value ? { bg: "teal.8" } : {})} ta="center"><Text size="xs" fw={700}>{index + 1}</Text><Text size="xs">{value ? "ON" : "OFF"}</Text></Card>)}
           </SimpleGrid>
           <Group><Button variant="subtle" disabled={!port || busy} onClick={() => void command("LOG ON")}>LOG ON</Button><Button variant="subtle" disabled={!port || busy} onClick={() => void command("LOG OFF")}>LOG OFF</Button></Group>
         </Stack>
