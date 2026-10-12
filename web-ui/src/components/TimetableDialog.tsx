@@ -1248,8 +1248,8 @@ export default function TimetableDialog({
                                       />
                                     )}
                                     {!row.stationPlan && (
-                                    {
-                                      row.actions.map(
+                                      <>
+                                      {row.actions.map(
                                         (
                                           action,
                                           actionIndex
@@ -1453,6 +1453,7 @@ export default function TimetableDialog({
                                         )
                                       }
                                     </Button>
+                                      </>
                                     )}
                                   </Stack>
                                 </Table.Td>
