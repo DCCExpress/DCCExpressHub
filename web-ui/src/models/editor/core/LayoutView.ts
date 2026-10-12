@@ -330,6 +330,14 @@ export class LayoutView
     );
   }
 
+  override getElement(x: number, y: number): BaseElement | null {
+    // Raised bridge is the topmost selectable rail at a shared anchor.
+    const bridge = this.track.elements.find(element =>
+      element.type === ELEMENT_TYPES.TRACK_BRIDGE && element.hitTest(x, y)
+    );
+    return bridge ?? super.getElement(x, y);
+  }
+
   override removeElement(
     element: BaseElement
   ): void {
