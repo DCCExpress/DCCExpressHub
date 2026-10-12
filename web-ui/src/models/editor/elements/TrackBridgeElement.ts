@@ -25,6 +25,28 @@ export class TrackBridgeElement extends TrackElement {
     if (!this.enabled) {
       ctx.globalAlpha = this.alpha;
     }
+    // Grey bridge deck beneath the rails, in the same orientation as the track.
+    // Leave the full cell length so consecutive bridge pieces form one span.
+    ctx.save();
+    ctx.translate(this.centerX, this.centerY);
+    ctx.rotate((this.rotation * Math.PI) / 180);
+    ctx.fillStyle = "#9aa0a6";
+    ctx.strokeStyle = "#626870";
+    ctx.lineWidth = 1;
+    ctx.fillRect(
+      -this.GridSizeX / 2,
+      -this.GridSizeY * 0.24,
+      this.GridSizeX,
+      this.GridSizeY * 0.48
+    );
+    ctx.strokeRect(
+      -this.GridSizeX / 2,
+      -this.GridSizeY * 0.24,
+      this.GridSizeX,
+      this.GridSizeY * 0.48
+    );
+    ctx.restore();
+
     ctx.lineWidth = 7;
     ctx.strokeStyle = "black";
     if (this.rotation == 0 || this.rotation == 180) {
