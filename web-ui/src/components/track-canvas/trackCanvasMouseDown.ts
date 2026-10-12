@@ -372,7 +372,6 @@ export function handleTrackCanvasMouseDown(
         showErrorMessage("Bridge", "Bridge can only overlap a straight track element.");
         return;
       }
-      cursor.rotation = placement.rotation;
     }
 
     const exists = cursor.type === ELEMENT_TYPES.TRACK_BRIDGE ? null : currentLayout.getLayeredElement(
