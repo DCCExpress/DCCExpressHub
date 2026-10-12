@@ -1509,10 +1509,7 @@ export default function TimetableDialog({
                 size={16}
               />
             }
-            disabled={
-              loading ||
-              saving ||
-            }
+            disabled={loading || saving}
             onClick={
               () =>
                 setRows(
