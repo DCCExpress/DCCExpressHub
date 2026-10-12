@@ -1,5 +1,6 @@
 import { Alert, Badge, Group, ScrollArea, Stack, Text } from "@mantine/core";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { loadAutomationBlockCatalog } from "@/services/automationBlockCatalog";
 import type { MovementPage } from "@/domain/movement";
 import type { TimetableEntryDefinition } from "@/services/automationApi";
 
@@ -8,7 +9,6 @@ type Props = {
   entries: TimetableEntryDefinition[];
   movements: MovementPage[];
   scripts: Target[];
-  blockNames?: Record<number, string>;
 };
 type Journey = { id: string; name: string; start: number; duration: number; blocks: number[]; color: string };
 type Marker = { id: string; minute: number; name: string; kind: string };
@@ -29,7 +29,15 @@ const timeLabel = (minute: number): string => {
  * equally over its routeRef block-to-block legs, not treated as measured
  * intermediate arrival times. No arrival times are fabricated when missing.
  */
-export default function TimetableTimeline({ entries, movements, scripts, blockNames = {} }: Props) {
+export default function TimetableTimeline({ entries, movements, scripts }: Props) {
+  const [blockNames, setBlockNames] = useState<Record<number, string>>({});
+  useEffect(() => {
+    let cancelled = false;
+    void loadAutomationBlockCatalog().then(blocks => {
+      if (!cancelled) setBlockNames(Object.fromEntries(blocks.map(block => [block.id, block.name])));
+    }).catch(() => { /* Fall back to block IDs when no layout is loaded. */ });
+    return () => { cancelled = true; };
+  }, []);
   const { journeys, markers, blockOrder, missingDuration, unsupported } = useMemo(() => {
     const byMovement = new Map(movements.map(item => [item.id, item]));
     const byScript = new Map(scripts.map(item => [item.id, item]));
@@ -82,7 +90,6 @@ export default function TimetableTimeline({ entries, movements, scripts, blockNa
   const xAt = (minute: number) => LEFT + minute / DAY * (WIDTH - LEFT - RIGHT);
   const yAt = (block: number) => TOP + blockOrder.indexOf(block) * ROW;
   const label = (block: number) => blockNames[block] || `Block #${block}`;
-  const maxEnd = journeys.reduce((m, j) => Math.max(m, j.start + j.duration), 0);
   const beyondMidnight = journeys.filter(j => j.start + j.duration > DAY).length;
 
   return (
@@ -105,7 +112,7 @@ export default function TimetableTimeline({ entries, movements, scripts, blockNa
           {Array.from({ length: 13 }, (_, index) => index * 120).map(minute => (
             <g key={minute}>
               <line x1={xAt(minute)} y1={TOP - 17} x2={xAt(minute)} y2={height - 25} stroke="currentColor" opacity={0.15} strokeDasharray="3 5"/>
-              <text x={xAt(minute)} y={22} textAnchor="middle" fill="currentColor" fontSize={13} opacity={0.75}>{timeLabel(minute)}</text>
+              <text x={xAt(minute)} y={22} textAnchor="middle" fill="currentColor" fontSize={13} opacity={0.75}>{minute === DAY ? "24:00" : timeLabel(minute)}</text>
             </g>
           ))}
           {blockOrder.map((block, index) => {
