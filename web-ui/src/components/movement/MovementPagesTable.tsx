@@ -10,6 +10,7 @@ import {
   Button,
   Paper,
   Group,
+  NumberInput,
   ScrollArea,
   Stack,
   Switch,
@@ -135,6 +136,7 @@ function MovementCard({
   page,
   catalog,
   onEnabledChange,
+  onPlannedDurationChange,
   onSelectRoute,
   onDelete,
 }: {
@@ -146,6 +148,7 @@ function MovementCard({
     enabled:
       boolean
   ) => void;
+  onPlannedDurationChange: (seconds: number | null) => void;
   onSelectRoute: () => void;
   onDelete: () => void;
 }) {
@@ -343,6 +346,35 @@ function MovementCard({
           justify="space-between"
           wrap="wrap"
         >
+          <Group gap="xs" align="center">
+            <Text size="xs" c="dimmed">Planned (min)</Text>
+            <NumberInput
+              size="xs"
+              w={86}
+              min={0}
+              max={1440}
+              allowDecimal
+              decimalScale={2}
+              placeholder="—"
+              aria-label="Planned movement duration in minutes"
+              value={page.plannedDurationSeconds == null ? "" : page.plannedDurationSeconds / 60}
+              onBlur={event => {
+                const value = event.currentTarget.value.trim().replace(",", ".");
+                const minutes = Number(value);
+                if (value === "") {
+                  if (page.plannedDurationSeconds != null) onPlannedDurationChange(null);
+                } else if (Number.isFinite(minutes) && minutes > 0) {
+                  const seconds = Math.round(minutes * 60);
+                  if (seconds !== page.plannedDurationSeconds) onPlannedDurationChange(seconds);
+                }
+              }}
+            />
+            <Text size="xs" c="dimmed">Measured: {state.startedAt != null && state.stoppedAt != null && state.stoppedAt > state.startedAt
+              ? `${Math.round((state.stoppedAt - state.startedAt) / 1000)} s`
+              : page.startedAt != null && page.stoppedAt != null && page.stoppedAt > page.startedAt
+                ? `${Math.round((page.stoppedAt - page.startedAt) / 1000)} s`
+                : "—"}</Text>
+          </Group>
           <Switch
             size="sm"
             color="green"
@@ -989,6 +1021,16 @@ export default function MovementPagesTable({
                         page.id
                       )
                   }
+                  onPlannedDurationChange={seconds => {
+                    void persist({
+                      ...document,
+                      pages: document.pages.map(current =>
+                        current.id === page.id
+                          ? { ...current, plannedDurationSeconds: seconds }
+                          : current
+                      ),
+                    });
+                  }}
                   onEnabledChange={
                     enabled => {
                       void persist({
