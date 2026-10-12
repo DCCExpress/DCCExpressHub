@@ -800,8 +800,7 @@ function LitePropertyPanel({
             fw={800}
             truncate
           >
-            {selectedElement.name ||
-              selectedElement.type}
+            {selectedElement.type}
           </Text>
 
           {selectedElement instanceof
