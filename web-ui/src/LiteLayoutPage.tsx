@@ -1843,6 +1843,28 @@ export default function LiteLayoutPage({
 
       await saveAutomationScripts(automationScripts);
 
+      // A bridge may cross a straight ground rail only at right angles.
+      // Keep saving the layout; notify the operator about any mismatch.
+      const groundRails = layout.track.elements.filter(
+        element => element.type === ELEMENT_TYPES.TRACK_STRAIGHT
+      );
+      const mismatchedBridges = layout.track.elements.filter(bridge => {
+        if (bridge.type !== ELEMENT_TYPES.TRACK_BRIDGE) return false;
+        const ground = groundRails.find(
+          rail => rail.x === bridge.x && rail.y === bridge.y
+        );
+        if (!ground) return false;
+        const delta = ((bridge.rotation - ground.rotation) % 180 + 180) % 180;
+        return Math.abs(delta - 90) > 0.001;
+      });
+      if (mismatchedBridges.length > 0) {
+        showNotification({
+          color: "yellow",
+          title: "Bridge orientation warning",
+          message: `${mismatchedBridges.length} bridge element(s) are not at 90° to the track underneath. Layout was saved.`,
+        });
+      }
+
       showNotification({
         color: "teal",
         title: i18next.t("ui.projectSaved"),
