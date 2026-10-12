@@ -358,7 +358,6 @@ async function readHttpErrorMessage(
 
 const RAILWAY_PICKER_ITEMS: PickerItem[] = [
   { type: ELEMENT_TYPES.TRACK_DIRECTION, get label() { return i18next.t("ui.direction"); }, preview: new TrackDirectionElement(0, 0) },
-  { type: ELEMENT_TYPES.TRACK_BRIDGE, label: "Bridge", preview: new TrackBridgeElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_STRAIGHT, get label() { return i18next.t("ui.straight"); }, preview: new TrackStraightElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_END, get label() { return i18next.t("ui.trackEnd"); }, preview: new TrackEndElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_CORNER, get label() { return i18next.t("ui.corner"); }, preview: new TrackCornerElement(0, 0) },
@@ -369,6 +368,7 @@ const RAILWAY_PICKER_ITEMS: PickerItem[] = [
   { type: ELEMENT_TYPES.TRACK_TURNOUT_RIGHT, get label() { return i18next.t("ui.rightTurnout"); }, preview: new TrackTurnoutRightElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_TURNOUT_TWO_WAY, get label() { return i18next.t("ui.yTurnout"); }, preview: new TrackTurnoutTwoWayElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_TURNOUT_THREE_WAY, get label() { return i18next.t("ui.wThreeWayTurnout"); }, preview: new TrackTurnoutThreeWayElement(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_BRIDGE, label: "Bridge", preview: new TrackBridgeElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_TURNOUT_DOUBLE, get label() { return i18next.t("ui.doubleTurnout2"); }, preview: new TrackTurnoutDoubleElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_SENSOR, get label() { return i18next.t("ui.sensor2"); }, preview: new TrackSensorElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_BLOCK, get label() { return i18next.t("ui.block2"); }, preview: new BlockElement(0, 0) },
