@@ -9,6 +9,7 @@ export type StationRouteDefinition = {
   id: string;
   name: string;
   enabled: boolean;
+  allowReverse: boolean;
   fromStationId: string;
   toStationId: string;
   via: StationRouteVia[];
@@ -30,7 +31,7 @@ export function normalizeStationRoutes(value: unknown): StationRouteDefinition[]
       if ((item.type !== "station" && item.type !== "block") || typeof item.targetId !== "string") return [];
       return [{ type: item.type, targetId: item.targetId, behavior: item.behavior === "stop" ? "stop" : "pass" }];
     }) : [];
-    return [{ id: r.id, name: r.name, enabled: r.enabled !== false,
+    return [{ id: r.id, name: r.name, enabled: r.enabled !== false, allowReverse: r.allowReverse === true,
       fromStationId: r.fromStationId, toStationId: r.toStationId, via }];
   });
 }
