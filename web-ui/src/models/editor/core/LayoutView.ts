@@ -489,6 +489,10 @@ export class LayoutView
 
     layout.gridSize =
       source.gridSize ?? 40;
+    layout.stations = Array.isArray(source.stations)
+      ? source.stations.filter(item => item && typeof item.id === "string" && typeof item.name === "string")
+          .map(item => ({ id: item.id, name: item.name }))
+      : [];
 
     if (source._activeLayerId) {
       layout.activeLayerId =
