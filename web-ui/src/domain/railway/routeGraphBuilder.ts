@@ -614,7 +614,7 @@ export class RouteGraphBuilder {
     sectionElements: TopologyTrackElement[]
   ): SectionSignal[] {
     const positions = new Set(
-      sectionElements.map(
+      sectionElements.filter(elem => this.isGroundOrUnstackedRail(elem)).map(
         elem => `${elem.x}:${elem.y}`
       )
     );
