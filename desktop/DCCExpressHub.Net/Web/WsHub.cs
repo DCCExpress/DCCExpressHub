@@ -2037,6 +2037,42 @@ public sealed class WsHub
                     return;
                 }
 
+            case "startTransient":
+                {
+                    if (!data.TryGetProperty("page", out var pageJson) ||
+                        pageJson.ValueKind != JsonValueKind.Object)
+                    {
+                        await Reply(false, "invalid_transient_movement");
+                        return;
+                    }
+
+                    MovementPageModel? page;
+                    try
+                    {
+                        page = System.Text.Json.JsonSerializer.Deserialize<MovementPageModel>(
+                            pageJson.GetRawText(),
+                            new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+                    }
+                    catch (System.Text.Json.JsonException)
+                    {
+                        await Reply(false, "invalid_transient_movement");
+                        return;
+                    }
+
+                    if (page is null || !page.Id.StartsWith("quick-route-loco-", StringComparison.Ordinal))
+                    {
+                        await Reply(false, "invalid_transient_movement");
+                        return;
+                    }
+
+                    var result = Movement.StartTransient(page);
+                    await Reply(result.Ok, result.Error, new
+                    {
+                        state = Movement.GetState(page.Id)
+                    });
+                    return;
+                }
+
             case "stop":
                 {
                     var pageId = S(data, "pageId");
