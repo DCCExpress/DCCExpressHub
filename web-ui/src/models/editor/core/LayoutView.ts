@@ -425,7 +425,9 @@ export class LayoutView
     ctx: CanvasRenderingContext2D,
     options: DrawOptions
   ): void {
-    this.track.draw(ctx, options);
+    // Render elevated bridge rails above the ordinary track.
+    for (const element of this.track.elements) if (element.type !== ELEMENT_TYPES.TRACK_BRIDGE) element.draw(ctx, options);
+    for (const element of this.track.elements) if (element.type === ELEMENT_TYPES.TRACK_BRIDGE) element.draw(ctx, options);
     this.sensors.draw(ctx, options);
     this.signals.draw(ctx, options);
     this.blocks.draw(ctx, options);
