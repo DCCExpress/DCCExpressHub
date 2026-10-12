@@ -1,4 +1,5 @@
 
+import { ELEMENT_TYPES } from "@domain/layout/elementTypes";
 import type {
   Dispatch,
   SetStateAction,
@@ -121,11 +122,17 @@ export function handleTrackCanvasMouseMove(
       grid
     );
 
-    const occupied = currentLayout.getLayeredElement(
-      currentCursorRef.current,
-      cursorAnchor.x,
-      cursorAnchor.y
+    const cursor = currentCursorRef.current;
+    const groundTracks = currentLayout.track.elements.filter(item =>
+      item.x === cursorAnchor.x && item.y === cursorAnchor.y
     );
+    const ground = groundTracks.find(item => item.type === ELEMENT_TYPES.TRACK_STRAIGHT);
+    if (cursor.type === ELEMENT_TYPES.TRACK_BRIDGE && ground && groundTracks.length === 1) {
+      cursor.rotation = (ground.rotation + 90) % 360;
+    }
+    const occupied = cursor.type === ELEMENT_TYPES.TRACK_BRIDGE
+      ? (!ground || groundTracks.length !== 1 ? groundTracks[0] ?? cursor : null)
+      : currentLayout.getLayeredElement(cursor, cursorAnchor.x, cursorAnchor.y);
 
     if (occupied != null) {
       setHoverGrid(cursorAnchor);
