@@ -97,7 +97,7 @@ type AutomationPanelProps = {
   ) => void;
   stationRoutes: StationRouteDefinition[];
   stationNames: Array<{ id: string; name: string }>;
-  onOpenStationRoutes: () => void;
+  onOpenStationRoutes: (routeId: string) => void;
 };
 
 export default function AutomationPanel({
