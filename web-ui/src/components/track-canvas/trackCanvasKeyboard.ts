@@ -1,6 +1,4 @@
 
-import { ELEMENT_TYPES } from "@domain/layout/elementTypes";
-import { showErrorMessage } from "../../helpers";
 import type {
   Dispatch,
   SetStateAction,
