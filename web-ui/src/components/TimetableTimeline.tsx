@@ -1,4 +1,4 @@
-import { Alert, Badge, Group, ScrollArea, Stack, Text } from "@mantine/core";
+import { Alert, Badge, Button, Group, ScrollArea, SegmentedControl, Stack, Text } from "@mantine/core";
 import { useEffect, useMemo, useState } from "react";
 import { loadAutomationBlockCatalog } from "@/services/automationBlockCatalog";
 import type { MovementPage } from "@/domain/movement";
@@ -31,6 +31,8 @@ const timeLabel = (minute: number): string => {
  */
 export default function TimetableTimeline({ entries, movements, scripts }: Props) {
   const [blockNames, setBlockNames] = useState<Record<number, string>>({});
+  const [windowMinutes, setWindowMinutes] = useState<30 | 60 | 1440>(60);
+  const [windowStart, setWindowStart] = useState(0);
   useEffect(() => {
     let cancelled = false;
     void loadAutomationBlockCatalog().then(blocks => {
@@ -87,7 +89,21 @@ export default function TimetableTimeline({ entries, movements, scripts }: Props
   }, [entries, movements, scripts]);
 
   const height = TOP + Math.max(blockOrder.length, 1) * ROW + 44;
-  const xAt = (minute: number) => LEFT + minute / DAY * (WIDTH - LEFT - RIGHT);
+  const start = Math.min(windowStart, DAY - windowMinutes);
+  const end = start + windowMinutes;
+  const xAt = (minute: number) => LEFT + (minute - start) / windowMinutes * (WIDTH - LEFT - RIGHT);
+  const ticks = Array.from(
+    { length: Math.floor(windowMinutes / (windowMinutes === 1440 ? 120 : windowMinutes === 60 ? 10 : 5)) + 1 },
+    (_, index) => start + index * (windowMinutes === 1440 ? 120 : windowMinutes === 60 ? 10 : 5)
+  );
+  const moveWindow = (delta: number) => {
+    setWindowStart(current => Math.max(0, Math.min(DAY - windowMinutes, current + delta)));
+  };
+  const setZoom = (value: string) => {
+    const next = Number(value) as 30 | 60 | 1440;
+    setWindowMinutes(next);
+    setWindowStart(current => Math.max(0, Math.min(DAY - next, current)));
+  };
   const yAt = (block: number) => TOP + blockOrder.indexOf(block) * ROW;
   const label = (block: number) => blockNames[block] || `Block #${block}`;
   const beyondMidnight = journeys.filter(j => j.start + j.duration > DAY).length;
@@ -99,6 +115,23 @@ export default function TimetableTimeline({ entries, movements, scripts }: Props
         <Badge variant="light" color="gray">{journeys.length} planned journeys</Badge>
         <Badge variant="light" color="gray">{blockOrder.length} blocks</Badge>
       </Group>
+      <Group justify="space-between" gap="xs" wrap="wrap">
+        <SegmentedControl
+          size="xs"
+          value={String(windowMinutes)}
+          onChange={setZoom}
+          data={[
+            { value: "30", label: "30 min" },
+            { value: "60", label: "1 hour" },
+            { value: "1440", label: "24 hours" },
+          ]}
+        />
+        <Group gap="xs">
+          <Button size="xs" variant="light" disabled={start <= 0} onClick={() => moveWindow(-windowMinutes / 2)}>◀ Earlier</Button>
+          <Text size="xs" fw={600} miw={110} ta="center">{timeLabel(start)} – {end === DAY ? "24:00" : timeLabel(end)}</Text>
+          <Button size="xs" variant="light" disabled={end >= DAY} onClick={() => moveWindow(windowMinutes / 2)}>Later ▶</Button>
+        </Group>
+      </Group>
       <Text size="xs" c="dimmed">Horizontal: scheduled time · Vertical: Movement route blocks. Leg times are evenly estimated from Planned total. Block order follows the encountered Movement routes, not physical geography.</Text>
       {(missingDuration > 0 || unsupported > 0 || beyondMidnight > 0) && (
         <Alert color="yellow" variant="light" p="xs">
@@ -109,7 +142,7 @@ export default function TimetableTimeline({ entries, movements, scripts }: Props
       )}
       <ScrollArea style={{ flex: 1, minHeight: 0 }} type="auto" offsetScrollbars>
         <svg width="100%" viewBox={`0 0 ${WIDTH} ${height}`} role="img" aria-label="Planned train journeys across route blocks and timetable time" style={{ minWidth: 840, display: "block" }}>
-          {Array.from({ length: 13 }, (_, index) => index * 120).map(minute => (
+          {ticks.map(minute => (
             <g key={minute}>
               <line x1={xAt(minute)} y1={TOP - 17} x2={xAt(minute)} y2={height - 25} stroke="currentColor" opacity={0.15} strokeDasharray="3 5"/>
               <text x={xAt(minute)} y={22} textAnchor="middle" fill="currentColor" fontSize={13} opacity={0.75}>{minute === DAY ? "24:00" : timeLabel(minute)}</text>
@@ -123,8 +156,8 @@ export default function TimetableTimeline({ entries, movements, scripts }: Props
               <line x1={LEFT} x2={WIDTH - RIGHT} y1={y} y2={y} stroke="currentColor" opacity={0.18}/>
             </g>;
           })}
-          <defs><clipPath id="movement-planned-day"><rect x={LEFT} y={TOP - ROW / 2} width={WIDTH - LEFT - RIGHT} height={Math.max(blockOrder.length, 1) * ROW}/></clipPath></defs>
-          <g clipPath="url(#movement-planned-day)">
+          <defs><clipPath id="movement-planned-window"><rect x={LEFT} y={TOP - ROW / 2} width={WIDTH - LEFT - RIGHT} height={Math.max(blockOrder.length, 1) * ROW}/></clipPath></defs>
+          <g clipPath="url(#movement-planned-window)">
             {journeys.map(journey => {
               const points = journey.blocks.map((block, i) => {
                 const minute = journey.start + journey.duration * i / (journey.blocks.length - 1);
