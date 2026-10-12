@@ -96,6 +96,7 @@ import { ButtonElement } from "./models/editor/elements/ButtonElement";
 import { TrackSensorElement } from "./models/editor/elements/TrackSensorElement";
 import { TrackSignalElement } from "./models/editor/elements/TrackSignalElement";
 import type { IEditableProperty } from "@/models/editor/elements/PropertyDescriptor";
+import { TrackBridgeElement } from "./models/editor/elements/TrackBridgeElement";
 import { TrackStraightElement } from "./models/editor/elements/TrackStraightElement";
 import { TrackDirectionElement } from "./models/editor/elements/TrackDirectionElement";
 import TrackTurnoutDoubleElement from "./models/editor/elements/TrackTurnoutDoubleElement";
@@ -356,6 +357,7 @@ async function readHttpErrorMessage(
 
 const RAILWAY_PICKER_ITEMS: PickerItem[] = [
   { type: ELEMENT_TYPES.TRACK_DIRECTION, get label() { return i18next.t("ui.direction"); }, preview: new TrackDirectionElement(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_BRIDGE, label: "Bridge", preview: new TrackBridgeElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_STRAIGHT, get label() { return i18next.t("ui.straight"); }, preview: new TrackStraightElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_END, get label() { return i18next.t("ui.trackEnd"); }, preview: new TrackEndElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_CORNER, get label() { return i18next.t("ui.corner"); }, preview: new TrackCornerElement(0, 0) },
