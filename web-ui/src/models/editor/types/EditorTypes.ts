@@ -26,6 +26,7 @@ import type {
   TrackSensorElementDto,
   TrackSignalElementDto,
   TrackStraightElementDto,
+  TrackBridgeElementDto,
   TrackTurnoutDoubleElementDto,
   TrackTurnoutLeftElementDto,
   TrackTurnoutRightElementDto,
@@ -78,6 +79,7 @@ export type IBaseElement = BaseElementDto;
 export type ITrackElement = TrackElementDto;
 
 export type ITrackStraightElement = TrackStraightElementDto;
+export type ITrackBridgeElement = TrackBridgeElementDto;
 export type ITrackLevelCrossingElement = TrackLevelCrossingElementDto;
 export type ITrackDirectionElement = TrackDirectionElementDto;
 export type ITrackEndElement = TrackEndElementDto;
