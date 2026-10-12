@@ -677,7 +677,7 @@ export class RouteGraphBuilder {
 
       for (const [side, point] of Object.entries(connections)) {
         const connectedElem =
-          this.topology.getPhysicalTrackAt(point, elem.pos);
+          this.topology.getPhysicalTrackAt(point, turnout.pos);
 
         if (
           !connectedElem ||
