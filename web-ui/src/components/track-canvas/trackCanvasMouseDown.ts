@@ -1,4 +1,5 @@
 import i18next from "i18next";
+import { TrackStraightElement } from "../../models/editor/elements/TrackStraightElement";
 import type {
   Dispatch,
   SetStateAction,
