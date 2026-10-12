@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Loco } from "@domain/types";
 import { createMovementPage } from "../../domain/movement";
 import { loadAutomationMovement } from "../../services/automationApi";
-import { startMovement } from "../../services/movementEngine";
+import { startTransientMovement } from "../../services/movementEngine";
 import { getTrainTrackingState, subscribeTrainTrackingState } from "../../services/trainTrackingRuntime";
 import { loadMovementRouteCandidates, applyMovementRouteCandidate, type MovementRouteCandidate } from "../../services/movementRouteCatalog";
 
@@ -88,12 +88,12 @@ export default function LocoTargetBlockDialog({ loco, opened, onClose }: Props) 
       }
       const page = applyMovementRouteCandidate(createMovementPage(), selected);
       if (!page.routeRef) throw new Error("Selected route has no valid direction.");
-      // Reuse one persisted quick-movement slot per locomotive rather than accumulating entries.
+      // One-off execution: never persist Drive to block under Saved Movements.
       page.id = `quick-route-loco-${loco.address}`;
       page.name = `Quick route · #${loco.address} · ${routeLabel(selected)}`;
       page.speed = speed;
       page.expectedLocoAddress = loco.address;
-      await startMovement(page);
+      await startTransientMovement(page);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
