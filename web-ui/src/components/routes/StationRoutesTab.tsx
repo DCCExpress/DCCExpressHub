@@ -1,6 +1,7 @@
 import { ActionIcon, Button, Group, Select, Stack, Table, Text, TextInput, Badge, ScrollArea, Switch } from "@mantine/core";
 import { IconArrowDown, IconArrowUp, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
+import AppModal from "@/components/common/AppModal";
 import type { LayoutView } from "@/models/editor/core/LayoutView";
 import type { Graph } from "@/domain/railway/graph";
 import { BlockElement } from "@/models/editor/elements/BlockElement";
@@ -9,7 +10,7 @@ import type { StationRouteDefinition, StationRouteVia } from "@/domain/layout/st
 type Props = { layout: LayoutView; graph: Graph; onSave: () => Promise<void>; onChanged: () => void };
 const blank = (): StationRouteDefinition => ({
   id: `station-route-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-  name: "", fromStationId: "", toStationId: "", via: [], enabled: true,
+  name: "", fromStationId: "", toStationId: "", via: [], enabled: true, allowReverse: false,
 });
 
 export default function StationRoutesTab({ layout, graph, onSave, onChanged }: Props) {
@@ -74,12 +75,13 @@ export default function StationRoutesTab({ layout, graph, onSave, onChanged }: P
       {error && <Text c="red" size="sm">{error}</Text>}
       <ScrollArea style={{ flex: 1, minHeight: 0 }}>
         <Table withTableBorder striped highlightOnHover>
-          <Table.Thead><Table.Tr><Table.Th>Name</Table.Th><Table.Th>From → To</Table.Th><Table.Th>Via (ordered)</Table.Th><Table.Th>Enabled</Table.Th><Table.Th w={150}>Actions</Table.Th></Table.Tr></Table.Thead>
+          <Table.Thead><Table.Tr><Table.Th>Name</Table.Th><Table.Th>From → To</Table.Th><Table.Th>Via (ordered)</Table.Th><Table.Th>Reverse</Table.Th><Table.Th>Enabled</Table.Th><Table.Th w={150}>Actions</Table.Th></Table.Tr></Table.Thead>
           <Table.Tbody>
             {layout.stationRoutes.map(route => <Table.Tr key={route.id}>
               <Table.Td>{route.name}</Table.Td>
               <Table.Td>{nameFor(route.fromStationId)} → {nameFor(route.toStationId)}</Table.Td>
               <Table.Td>{route.via.length ? route.via.map(v => viaName(v)).join(" → ") : "Direct"}</Table.Td>
+              <Table.Td><Badge color={route.allowReverse ? "teal" : "gray"}>{route.allowReverse ? "Allowed" : "One-way"}</Badge></Table.Td>
               <Table.Td><Badge color={route.enabled ? "teal" : "gray"}>{route.enabled ? "Yes" : "No"}</Badge></Table.Td>
               <Table.Td><Group gap={4} wrap="nowrap">
                 <Button size="compact-xs" variant="light" onClick={() => setDraft({ ...route, via: route.via.map(v => ({...v})) })}>Edit</Button>
@@ -87,10 +89,13 @@ export default function StationRoutesTab({ layout, graph, onSave, onChanged }: P
                   onClick={() => { if (window.confirm(`Delete station route "${route.name}"?`)) void persist(layout.stationRoutes.filter(r => r.id !== route.id)); }}><IconTrash size={15}/></ActionIcon>
               </Group></Table.Td>
             </Table.Tr>)}
-            {!layout.stationRoutes.length && <Table.Tr><Table.Td colSpan={5}><Text ta="center" c="dimmed">No station routes defined yet.</Text></Table.Td></Table.Tr>}
+            {!layout.stationRoutes.length && <Table.Tr><Table.Td colSpan={6}><Text ta="center" c="dimmed">No station routes defined yet.</Text></Table.Td></Table.Tr>}
           </Table.Tbody>
         </Table>
-        {draft && <Stack gap="sm" mt="md" p="sm" style={{ border: "1px solid var(--mantine-color-default-border)", borderRadius: 8 }}>
+
+      </ScrollArea>
+      <AppModal opened={draft !== null} onClose={() => { if (!saving) setDraft(null); }} title="Station Route Editor" size="min(750px, 92vw)" centered draggable>
+        {draft && <Stack gap="sm">
           <Text fw={700}>Station route editor</Text>
           <TextInput label="Name" value={draft.name} onChange={e => update({ name: e.currentTarget.value })}/>
           <Group grow align="start">
@@ -117,13 +122,14 @@ export default function StationRoutesTab({ layout, graph, onSave, onChanged }: P
             <ActionIcon variant="subtle" disabled={i === draft.via.length-1} onClick={() => {const viaList=[...draft.via]; [viaList[i+1],viaList[i]]=[viaList[i]!,viaList[i+1]!];update({via:viaList});}}><IconArrowDown size={15}/></ActionIcon>
             <ActionIcon variant="subtle" color="red" onClick={() => update({via:draft.via.filter((_,j)=>i!==j)})}><IconTrash size={15}/></ActionIcon>
           </Group>)}
+          <Switch label="Allow reverse travel" description="Allow using this station route from To to From, with Via points in reverse order." checked={draft.allowReverse} onChange={e => update({allowReverse:e.currentTarget.checked})}/>
           <Switch label="Enabled" checked={draft.enabled} onChange={e => update({enabled:e.currentTarget.checked})}/>
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setDraft(null)}>Cancel</Button>
             <Button loading={saving} disabled={!valid} onClick={() => void persist([...layout.stationRoutes.filter(r => r.id !== draft.id), draft])}>Save route</Button>
           </Group>
         </Stack>}
-      </ScrollArea>
+      </AppModal>
     </Stack>
   );
 }
