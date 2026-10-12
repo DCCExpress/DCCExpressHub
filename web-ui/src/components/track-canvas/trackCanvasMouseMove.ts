@@ -201,11 +201,21 @@ export function handleTrackCanvasMouseMove(
       const nextX = item.startX + dx;
       const nextY = item.startY + dy;
 
-      const occupied = currentLayout.getLayeredElement(
-        element,
-        nextX,
-        nextY
-      );
+      if (element.type === ELEMENT_TYPES.TRACK_BRIDGE) {
+        const tracks = currentLayout.track.elements.filter(other =>
+          other.id !== element.id && other.x === nextX && other.y === nextY
+        );
+        const ground = tracks.find(other => other.type === ELEMENT_TYPES.TRACK_STRAIGHT);
+        if (!ground || tracks.length !== 1 ||
+            element.rotation !== (ground.rotation + 90) % 360) {
+          setHoverGrid({ x: grid.x, y: grid.y });
+          canvas.style.cursor = "not-allowed";
+          return;
+        }
+      }
+      const occupied = element.type === ELEMENT_TYPES.TRACK_BRIDGE
+        ? null
+        : currentLayout.getLayeredElement(element, nextX, nextY);
 
       if (occupied && !selectedIds.has(occupied.id)) {
         setHoverGrid({
