@@ -321,8 +321,11 @@ export class RailwayTopologyLayout {
   getSignals(): TrackSignalElement[] { return this.elements.filter((element): element is TrackSignalElement => element instanceof TrackSignalElement); }
   getDirectionElements(): TrackDirectionElement[] { return this.elements.filter((element): element is TrackDirectionElement => element instanceof TrackDirectionElement); }
 
-  getPhysicalTrackAt(point: Point): TopologyTrackElement | undefined {
-    return this.getPhysicalTrackElements().find(element => element.x === point.x && element.y === point.y);
+  getPhysicalTrackAt(point: Point, from?: Point): TopologyTrackElement | undefined {
+    return this.getPhysicalTrackElements().find(element =>
+      element.x === point.x && element.y === point.y &&
+      (!from || element.getNeighborPointPairs().some(pair => pair.some(endpoint => endpoint.x === from.x && endpoint.y === from.y)))
+    );
   }
 
   getElementById(id: LayoutElementId): RailwayTopologyElement | undefined {
