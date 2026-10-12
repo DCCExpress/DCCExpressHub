@@ -1,5 +1,6 @@
 
 import { ELEMENT_TYPES } from "@domain/layout/elementTypes";
+import { getBridgePlacement } from "./bridgePlacement";
 import type {
   Dispatch,
   SetStateAction,
@@ -123,15 +124,12 @@ export function handleTrackCanvasMouseMove(
     );
 
     const cursor = currentCursorRef.current;
-    const groundTracks = currentLayout.track.elements.filter(item =>
-      item.x === cursorAnchor.x && item.y === cursorAnchor.y
-    );
-    const ground = groundTracks.find(item => item.type === ELEMENT_TYPES.TRACK_STRAIGHT);
-    if (cursor.type === ELEMENT_TYPES.TRACK_BRIDGE && ground && groundTracks.length === 1) {
-      cursor.rotation = (ground.rotation + 90) % 360;
-    }
-    const occupied = cursor.type === ELEMENT_TYPES.TRACK_BRIDGE
-      ? (!ground || groundTracks.length !== 1 ? groundTracks[0] ?? cursor : null)
+    const bridgePlacement = cursor.type === ELEMENT_TYPES.TRACK_BRIDGE
+      ? getBridgePlacement(currentLayout, cursorAnchor.x, cursorAnchor.y, cursor.rotation)
+      : null;
+    if (bridgePlacement?.valid) cursor.rotation = bridgePlacement.rotation;
+    const occupied = bridgePlacement
+      ? (bridgePlacement.valid ? null : cursor)
       : currentLayout.getLayeredElement(cursor, cursorAnchor.x, cursorAnchor.y);
 
     if (occupied != null) {
@@ -202,12 +200,8 @@ export function handleTrackCanvasMouseMove(
       const nextY = item.startY + dy;
 
       if (element.type === ELEMENT_TYPES.TRACK_BRIDGE) {
-        const tracks = currentLayout.track.elements.filter(other =>
-          other.id !== element.id && other.x === nextX && other.y === nextY
-        );
-        const ground = tracks.find(other => other.type === ELEMENT_TYPES.TRACK_STRAIGHT);
-        if (!ground || tracks.length !== 1 ||
-            element.rotation !== (ground.rotation + 90) % 360) {
+        const placement = getBridgePlacement(currentLayout, nextX, nextY, element.rotation, element.id);
+        if (!placement.valid || placement.rotation !== element.rotation) {
           setHoverGrid({ x: grid.x, y: grid.y });
           canvas.style.cursor = "not-allowed";
           return;
