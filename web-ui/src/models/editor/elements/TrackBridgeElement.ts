@@ -35,15 +35,15 @@ export class TrackBridgeElement extends TrackElement {
     ctx.lineWidth = 1;
     ctx.fillRect(
       -this.GridSizeX / 2,
-      -this.GridSizeY * 0.24,
+      -this.GridSizeY * 0.24 + 1,
       this.GridSizeX,
-      this.GridSizeY * 0.48
+      this.GridSizeY * 0.48 - 2
     );
     ctx.strokeRect(
       -this.GridSizeX / 2,
-      -this.GridSizeY * 0.24,
+      -this.GridSizeY * 0.24 + 1,
       this.GridSizeX,
-      this.GridSizeY * 0.48
+      this.GridSizeY * 0.48 - 2
     );
     ctx.restore();
 
@@ -112,7 +112,7 @@ export class TrackBridgeElement extends TrackElement {
     ctx.lineWidth = 5;
     ctx.lineCap = "butt";
     for (const side of [-1, 1]) {
-      const y = side * this.GridSizeY * 0.29;
+      const y = side * (this.GridSizeY * 0.29 - 1);
       ctx.beginPath();
       ctx.moveTo(-this.GridSizeX / 2, y);
       ctx.lineTo(this.GridSizeX / 2, y);
@@ -121,7 +121,7 @@ export class TrackBridgeElement extends TrackElement {
     ctx.strokeStyle = "#e5e7eb";
     ctx.lineWidth = 1.5;
     for (const side of [-1, 1]) {
-      const y = side * this.GridSizeY * 0.29;
+      const y = side * (this.GridSizeY * 0.29 - 1);
       ctx.beginPath();
       ctx.moveTo(-this.GridSizeX / 2, y);
       ctx.lineTo(this.GridSizeX / 2, y);
