@@ -90,9 +90,11 @@ public sealed partial class WatsonWebServerService
                 await Task.Delay(35, ctx.Token);
             }
             var raw = output.ToString();
-            var error = raw.Contains("ERR:", StringComparison.OrdinalIgnoreCase);
+            var error = raw.Contains("ERR:", StringComparison.OrdinalIgnoreCase) ||
+                (string.IsNullOrWhiteSpace(raw) && command != "REBOOT") ||
+                (command == "READ" && !raw.Contains("S88:", StringComparison.Ordinal));
             if (command == "REBOOT") { _s88Port.Dispose(); _s88Port = null; _s88PortName = ""; }
-            await SendAsync(ctx, new { ok = !error, port = portName, command, raw, message = error ? "Adapter rejected command." : "Command completed." });
+            await SendAsync(ctx, new { ok = !error, port = portName, command, raw, message = error ? "No valid adapter reply, or adapter rejected command." : "Command completed." });
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or TimeoutException)
         {
