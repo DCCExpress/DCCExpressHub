@@ -15,7 +15,7 @@ export class TrackBridgeElement extends TrackElement {
   constructor(x: number, y: number) {
     super(x, y);
     this.type = ELEMENT_TYPES.TRACK_BRIDGE;
-    this.rotationStep = 0;
+    this.rotationStep = 45;
     this.name = "Bridge";
     this.length = 200;
   }
@@ -136,7 +136,7 @@ export class TrackBridgeElement extends TrackElement {
     track.name = data.name;
     track.layerName = data.layerName;
     track.rotation = data.rotation;
-    track.rotationStep = 0;
+    track.rotationStep = 45;
     track.address = data.address;
     track.length = data.length;
     track.bg = data.bg;
@@ -147,7 +147,7 @@ export class TrackBridgeElement extends TrackElement {
     const copy = new TrackBridgeElement(this.x, this.y);
     copy.id = generateId();
     copy.rotation = this.rotation;
-    copy.rotationStep = 0;
+    copy.rotationStep = 45;
     copy.selected = this.selected;
     copy.address = this.address;
     copy.length = this.length;
@@ -158,7 +158,7 @@ export class TrackBridgeElement extends TrackElement {
     <h3 style="margin-top:0;">Track element</h3>
     <p>Bridge: place on empty cells to extend a bridge, or cross a straight track at right angles.</p>
     <ul>
-      <li>Rotation is locked to the underlying track</li>
+      <li>You can rotate this element with R</li>
       <li>You can move it by drag and drop</li>
     </ul>
   `;
