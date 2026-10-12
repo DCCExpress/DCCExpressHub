@@ -82,16 +82,28 @@ export class TrackBridgeElement extends TrackElement {
     }
     this.drawSectionInfo(ctx, options);
     this.endDraw(ctx);
-    // Two bridge piers, perpendicular to the raised rails.
+    // Cartographic bridge symbol: continuous parapets on both sides of the rail.
     ctx.save();
     ctx.translate(this.centerX, this.centerY);
     ctx.rotate(this.rotation * Math.PI / 180);
-    ctx.fillStyle = "#90969c";
-    ctx.strokeStyle = "#343a40";
+    ctx.strokeStyle = "#858c94";
+    ctx.lineWidth = 5;
+    ctx.lineCap = "butt";
+    for (const side of [-1, 1]) {
+      const y = side * this.GridSizeY * 0.29;
+      ctx.beginPath();
+      ctx.moveTo(-this.GridSizeX / 2, y);
+      ctx.lineTo(this.GridSizeX / 2, y);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = "#e5e7eb";
     ctx.lineWidth = 1.5;
-    for (const offset of [-this.GridSizeX * 0.3, this.GridSizeX * 0.3]) {
-      ctx.fillRect(offset - 4, -this.GridSizeY * 0.42, 8, this.GridSizeY * 0.84);
-      ctx.strokeRect(offset - 4, -this.GridSizeY * 0.42, 8, this.GridSizeY * 0.84);
+    for (const side of [-1, 1]) {
+      const y = side * this.GridSizeY * 0.29;
+      ctx.beginPath();
+      ctx.moveTo(-this.GridSizeX / 2, y);
+      ctx.lineTo(this.GridSizeX / 2, y);
+      ctx.stroke();
     }
     ctx.restore();
     this.drawSelection(ctx);
@@ -122,7 +134,7 @@ export class TrackBridgeElement extends TrackElement {
   override getHelp(): string {
     return `
     <h3 style="margin-top:0;">Track element</h3>
-    <p>Bridge: only on an existing straight track, at right angles.</p>
+    <p>Bridge: place on empty cells to extend a bridge, or cross a straight track at right angles.</p>
     <ul>
       <li>Rotation is locked to the underlying track</li>
       <li>You can move it by drag and drop</li>
