@@ -17,6 +17,7 @@ import { TrackEndElement } from "../../models/editor/elements/TrackEndElement";
 import { TrackLevelCrossingElement } from "../../models/editor/elements/TrackLevelCrossingElement";
 import { TrackSensorElement } from "../../models/editor/elements/TrackSensorElement";
 import { TrackSignalElement } from "../../models/editor/elements/TrackSignalElement";
+import { TrackBridgeElement } from "../../models/editor/elements/TrackBridgeElement";
 import { TrackStraightElement } from "../../models/editor/elements/TrackStraightElement";
 import TrackTurnoutDoubleElement from "../../models/editor/elements/TrackTurnoutDoubleElement";
 import { TrackTurnoutLeftElement } from "../../models/editor/elements/TrackTurnoutLeftElement";
@@ -31,6 +32,7 @@ import { SwitchmanHutElement } from "../../models/editor/elements/SwitchmanHutEl
 import { GardenHouseElement } from "../../models/editor/elements/GardenHouseElement";
 import type { EditorTool } from "../../models/editor/types/EditorTypes";
 
+const cursorBridgeElement = new TrackBridgeElement(0, 0);
 const cursorTrackElement = new TrackStraightElement(0, 0);
 const cursorTrackLevelCrossingElement = new TrackLevelCrossingElement(0, 0);
 const cursorTrackDirectionElement = new TrackDirectionElement(0, 0);
@@ -64,6 +66,7 @@ const cursorLabelElement = new LabelElement(0, 0);
 export function createCursorElement(tool: EditorTool): BaseElement | null {
   switch (tool.elementType) {
     case ELEMENT_TYPES.TRACK_STRAIGHT: return cursorTrackElement;
+    case ELEMENT_TYPES.TRACK_BRIDGE: return cursorBridgeElement;
     case ELEMENT_TYPES.TRACK_LEVEL_CROSSING: return cursorTrackLevelCrossingElement;
     case ELEMENT_TYPES.TRACK_DIRECTION: return cursorTrackDirectionElement;
     case ELEMENT_TYPES.TRACK_END: return cursorTrackEndElement;
