@@ -1,3 +1,4 @@
+import type { MovementPage } from "./movement";
 
 import type {
   Direction,
@@ -336,6 +337,7 @@ export type DispatcherCommandPayload = {
 export type MovementCommandAction =
   | "snapshot"
   | "start"
+  | "startTransient"
   | "stop"
   | "abort"
   | "stopAll"
@@ -345,6 +347,7 @@ export type MovementCommandPayload = {
   requestId: string;
   action: MovementCommandAction;
   pageId?: string;
+  page?: MovementPage;
   emergencyStop?: boolean;
 };
 
