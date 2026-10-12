@@ -112,6 +112,7 @@ export type SerializedLayoutElementDto = {
   locoAddress?: number;
   sensorAddress?: number;
   blockType?: BlockType | string;
+  stationId?: string | null;
   eventConfig?: BlockEventConfigDto;
 
   text?: string;
@@ -153,6 +154,7 @@ export type SerializedLayoutDto = {
   gridSize?: number;
   _activeLayerId?: string;
   layers?: SerializedLayoutLayerDto[];
+  stations?: Array<{ id: string; name: string }>;
   [key: string]: unknown;
 };
 
@@ -365,6 +367,7 @@ export interface BlockElementDto extends TrackElementDto {
   locoAddress: number;
   sensorAddress: number;
   blockType: BlockType;
+  stationId?: string | null;
   eventConfig?: BlockEventConfigDto;
 }
 
