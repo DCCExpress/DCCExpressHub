@@ -127,7 +127,6 @@ export function handleTrackCanvasMouseMove(
     const bridgePlacement = cursor.type === ELEMENT_TYPES.TRACK_BRIDGE
       ? getBridgePlacement(currentLayout, cursorAnchor.x, cursorAnchor.y, cursor.rotation)
       : null;
-    if (bridgePlacement?.valid) cursor.rotation = bridgePlacement.rotation;
     const occupied = bridgePlacement
       ? (bridgePlacement.valid ? null : cursor)
       : currentLayout.getLayeredElement(cursor, cursorAnchor.x, cursorAnchor.y);
