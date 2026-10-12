@@ -304,6 +304,7 @@ export class RailwayTopologyLayout {
     return this.elements.filter(
       (element): element is TopologyTrackElement =>
         element instanceof TrackStraightElement ||
+        element instanceof TrackBridgeElement ||
         element instanceof TrackLevelCrossingElement ||
         element instanceof TrackDirectionElement ||
         element instanceof TrackEndElement ||
