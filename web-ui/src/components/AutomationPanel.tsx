@@ -13,6 +13,8 @@ import type {
   AutomationFlowDocument,
 } from "../domain/automationFlow";
 
+import type { StationRouteDefinition } from "@/domain/layout/stationRoutes";
+
 import type {
   MovementDocument,
 } from "../domain/movement";
@@ -93,6 +95,9 @@ type AutomationPanelProps = {
     pageId:
       string | null
   ) => void;
+  stationRoutes: StationRouteDefinition[];
+  stationNames: Array<{ id: string; name: string }>;
+  onOpenStationRoutes: () => void;
 };
 
 export default function AutomationPanel({
@@ -105,6 +110,9 @@ export default function AutomationPanel({
   movements,
   onMovementsChange,
   onSelectMovementRoute,
+  stationRoutes,
+  stationNames,
+  onOpenStationRoutes,
 }: AutomationPanelProps) {
   const [
     activeTab,
@@ -271,6 +279,9 @@ export default function AutomationPanel({
             document={movements}
             onDocumentChange={onMovementsChange}
             onSelectRoute={onSelectMovementRoute}
+            stationRoutes={stationRoutes}
+            stationNames={stationNames}
+            onOpenStationRoutes={onOpenStationRoutes}
           />
         </Tabs.Panel>
 
