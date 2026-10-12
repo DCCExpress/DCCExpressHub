@@ -1016,7 +1016,7 @@ export default function MovementPagesTable({
               if (v.type === "station") return stationName(v.targetId);
               return catalog.find(b => String(b.id) === v.targetId)?.name ?? `Block #${v.targetId}`;
             }).join(" → ");
-            return <Paper key={route.id} withBorder radius="sm" p="sm" opacity={route.enabled ? 1 : 0.6}>
+            return <Paper key={route.id} withBorder radius="sm" p="sm" style={{ opacity: route.enabled ? 1 : 0.6 }}>
               <Stack gap="xs">
                 <Group justify="space-between" align="center">
                   <Group gap="xs"><IconRoute size={17}/><Text fw={600}>{route.name}</Text><Badge variant="light" color="blue">Station Route</Badge></Group>
