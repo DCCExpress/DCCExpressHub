@@ -468,6 +468,26 @@ export async function startMovement(
   }
 }
 
+/** Start a one-off Drive to block movement without writing to Saved Movements. */
+export async function startTransientMovement(page: MovementPage): Promise<void> {
+  installTracking();
+  if (getMovementEngineState(page.id).status === "running") {
+    throw new Error(`Movement "${page.name}" is already running.`);
+  }
+  if (!page.enabled) throw new Error("Quick route is disabled.");
+  if (!isTrackPowerOn()) throw new Error("Track power is OFF. Turn it on before starting Movement.");
+  const id = requestId("startTransient");
+  const response = await wsApi.request(
+    "movementCommand",
+    { requestId: id, action: "startTransient", page },
+    "movementResponse",
+    data => data.requestId === id,
+    10000
+  );
+  if (!response.ok) throw new Error(response.message || "Quick route could not be started.");
+  if (response.extra?.state) applyBackendState(response.extra.state as BackendMovementState);
+}
+
 export function stopMovement(
   pageId: string
 ): boolean {
