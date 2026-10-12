@@ -353,6 +353,7 @@ export function buildRailwayTopologyFromLayout(
 function createTopologyElement(data: SerializedLayoutElementDto): RailwayTopologyElement | null {
   switch (data.type) {
     case ELEMENT_TYPES.TRACK_STRAIGHT: return createStraightElement(data);
+    case ELEMENT_TYPES.TRACK_BRIDGE: return applyTrackData(new TrackBridgeElement(numberValue(data.x, 0), numberValue(data.y, 0)), data);
     case ELEMENT_TYPES.TRACK_LEVEL_CROSSING: return createLevelCrossingElement(data);
     case ELEMENT_TYPES.TRACK_DIRECTION: return createDirectionElement(data);
     case ELEMENT_TYPES.TRACK_END: return createEndElement(data);
