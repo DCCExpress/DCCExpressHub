@@ -814,7 +814,7 @@ export class LayoutView
     const nextPosition = obj.getNextItemXy();
     const prevPosition = obj.getPrevItemXy();
 
-    const next = this.getObjectXy(nextPosition) as TrackElement;
+    const next = this.track.elements.find(element => element instanceof TrackElement && element.x === nextPosition.x && element.y === nextPosition.y && (obj.pos.isEqual(element.getNextItemXy()) || obj.pos.isEqual(element.getPrevItemXy()))) as TrackElement;
 
     if (
       next &&
@@ -829,7 +829,7 @@ export class LayoutView
       this.walkTrack(next, section);
     }
 
-    const prev = this.getObjectXy(prevPosition) as TrackElement;
+    const prev = this.track.elements.find(element => element instanceof TrackElement && element.x === prevPosition.x && element.y === prevPosition.y && (obj.pos.isEqual(element.getNextItemXy()) || obj.pos.isEqual(element.getPrevItemXy()))) as TrackElement;
 
     if (
       prev &&
