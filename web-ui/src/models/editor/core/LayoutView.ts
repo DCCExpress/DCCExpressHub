@@ -1,3 +1,4 @@
+import { normalizeStationRoutes, type StationRouteDefinition } from "@/domain/layout/stationRoutes";
 import type {
   Loco,
 } from "@domain/types";
@@ -324,6 +325,7 @@ export type CheckRoutesResult = {
 export class LayoutView
   extends CommonLayout<BaseElement, LayerView> {
   stations: Array<{ id: string; name: string }> = [];
+  stationRoutes: StationRouteDefinition[] = [];
   constructor() {
     super(
       (id, name, options) =>
@@ -490,6 +492,7 @@ export class LayoutView
 
     layout.gridSize =
       source.gridSize ?? 40;
+    layout.stationRoutes = normalizeStationRoutes(source.stationRoutes);
     layout.stations = Array.isArray(source.stations)
       ? source.stations.filter(item => item && typeof item.id === "string" && typeof item.name === "string")
           .map(item => ({ id: item.id, name: item.name }))
