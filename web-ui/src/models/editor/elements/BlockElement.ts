@@ -204,6 +204,7 @@ export class BlockElement extends TrackElement {
   override length: number = 1;
   sensorAddress: number = 0;
   blockType: BlockType = BLOCK_TYPES.NORMAL;
+  stationId: string | null = null;
   eventConfig:
     BlockEventConfigDto =
       emptyBlockEventConfig();
@@ -688,6 +689,7 @@ export class BlockElement extends TrackElement {
     copy.length = this.length;
     copy.sensorAddress = this.sensorAddress;
     copy.blockType = this.blockType;
+    copy.stationId = this.stationId;
     copy.eventConfig =
       normalizeBlockEventConfig(
         this.eventConfig
@@ -714,6 +716,7 @@ export class BlockElement extends TrackElement {
     element.blockType =
       data.blockType ??
       BLOCK_TYPES.NORMAL;
+    element.stationId = typeof data.stationId === "string" ? data.stationId : null;
     element.eventConfig =
       normalizeBlockEventConfig(
         data.eventConfig
@@ -731,6 +734,7 @@ export class BlockElement extends TrackElement {
       sensorAddress: this.sensorAddress,
       blockType:
         this.blockType as BlockType,
+      stationId: this.stationId,
       eventConfig:
         normalizeBlockEventConfig(
           this.eventConfig
@@ -745,6 +749,11 @@ export class BlockElement extends TrackElement {
         key: "blockType",
         type: "blockTypeSelect",
         readonly: false,
+      },
+      {
+        label: "Station",
+        key: "stationId",
+        type: "stationSelect",
       },
       {
         label: i18next.t("ui.length"),
