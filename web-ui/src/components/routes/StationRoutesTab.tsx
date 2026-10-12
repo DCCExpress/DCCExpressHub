@@ -1,22 +1,28 @@
 import { ActionIcon, Button, Group, Select, Stack, Table, Text, TextInput, Badge, ScrollArea, Switch } from "@mantine/core";
 import { IconArrowDown, IconArrowUp, IconPlus, IconTrash } from "@tabler/icons-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import AppModal from "@/components/common/AppModal";
 import type { LayoutView } from "@/models/editor/core/LayoutView";
 import type { Graph } from "@/domain/railway/graph";
 import { BlockElement } from "@/models/editor/elements/BlockElement";
 import type { StationRouteDefinition, StationRouteVia } from "@/domain/layout/stationRoutes";
 
-type Props = { layout: LayoutView; graph: Graph; onSave: () => Promise<void>; onChanged: () => void };
+type Props = { layout: LayoutView; graph: Graph; editingRouteId: string | null; onSave: () => Promise<void>; onChanged: () => void };
 const blank = (): StationRouteDefinition => ({
   id: `station-route-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   name: "", fromStationId: "", toStationId: "", via: [], enabled: true, allowReverse: false,
 });
 
-export default function StationRoutesTab({ layout, graph, onSave, onChanged }: Props) {
+export default function StationRoutesTab({ layout, graph, editingRouteId, onSave, onChanged }: Props) {
   const [draft, setDraft] = useState<StationRouteDefinition | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!editingRouteId) return;
+    const route = layout.stationRoutes.find(item => item.id === editingRouteId);
+    if (route) setDraft({ ...route, via: route.via.map(point => ({ ...point })) });
+  }, [editingRouteId, layout]);
+
   const stations = layout.stations.map(s => ({ value: s.id, label: s.name }));
   const layoutBlocks = layout.blocks.elements.filter((e): e is BlockElement => e instanceof BlockElement);
   const blocks = layoutBlocks.map(e => ({ value: String(e.id), label: e.name || `Block #${e.id}` }));
