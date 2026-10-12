@@ -142,6 +142,7 @@ import {
   createAutomationId,
   loadAutomationMovement,
   loadAutomationScripts,
+  saveAutomationMovement,
   normalizeAutomationScripts,
   saveAutomationScripts,
   type AutomationScriptDefinition,
@@ -1469,9 +1470,18 @@ export default function LiteLayoutPage({
           ? storedAutomations
           : prepared.legacyAutomationScripts
       );
-      setMovementDocument(
-        storedMovements
-      );
+      const regularMovements = {
+        ...storedMovements,
+        pages: storedMovements.pages.filter(page => !page.id.startsWith("quick-route-loco-")),
+      };
+      setMovementDocument(regularMovements);
+      // Migrate away the old Drive-to-block slots once. Future quick routes
+      // use the backend transient start and never enter automation storage.
+      if (regularMovements.pages.length !== storedMovements.pages.length) {
+        void saveAutomationMovement(regularMovements).catch(error =>
+          console.warn("Could not remove legacy Quick Route definitions:", error)
+        );
+      }
 
       setSelectedElement(null);
     } catch (loadError) {
