@@ -32,6 +32,8 @@ import {
   IconX,
 } from "@tabler/icons-react";
 
+import type { StationRouteDefinition } from "@/domain/layout/stationRoutes";
+
 import type {
   MovementDocument,
   MovementPage,
@@ -85,6 +87,9 @@ type Props = {
     pageId:
       string | null
   ) => void;
+  stationRoutes: StationRouteDefinition[];
+  stationNames: Array<{ id: string; name: string }>;
+  onOpenStationRoutes: () => void;
 };
 
 function routeLabel(
@@ -470,6 +475,9 @@ export default function MovementPagesTable({
   document,
   onDocumentChange,
   onSelectRoute,
+  stationRoutes,
+  stationNames,
+  onOpenStationRoutes,
 }: Props) {
   const mt =
     useMovementTranslation();
@@ -1002,8 +1010,30 @@ export default function MovementPagesTable({
         <Stack
           gap="sm"
         >
+          {stationRoutes.map(route => {
+            const stationName = (id: string) => stationNames.find(s => s.id === id)?.name ?? id;
+            const viaLabel = route.via.map(v => {
+              if (v.type === "station") return stationName(v.targetId);
+              return catalog.find(b => String(b.id) === v.targetId)?.name ?? `Block #${v.targetId}`;
+            }).join(" → ");
+            return <Paper key={route.id} withBorder radius="sm" p="sm" opacity={route.enabled ? 1 : 0.6}>
+              <Stack gap="xs">
+                <Group justify="space-between" align="center">
+                  <Group gap="xs"><IconRoute size={17}/><Text fw={600}>{route.name}</Text><Badge variant="light" color="blue">Station Route</Badge></Group>
+                  <Badge color={route.enabled ? "teal" : "gray"}>{route.enabled ? "Enabled" : "Disabled"}</Badge>
+                </Group>
+                <Text size="sm">{stationName(route.fromStationId)} → {stationName(route.toStationId)}</Text>
+                {route.via.length > 0 && <Text size="xs" c="dimmed">Via: {viaLabel}</Text>}
+                <Group justify="space-between">
+                  <Badge variant="outline">{route.allowReverse ? "Both directions" : "One-way"}</Badge>
+                  <Button size="xs" variant="light" leftSection={<IconEdit size={14}/>} onClick={onOpenStationRoutes}>Edit Station Route</Button>
+                </Group>
+                <Text size="xs" c="dimmed">Route template · not executable until dispatcher integration.</Text>
+              </Stack>
+            </Paper>;
+          })}
           {
-            document.pages.map(
+            document.pages.filter(page => !page.id.startsWith("quick-route-loco-")).map(
               page => (
                 <MovementCard
                   key={
