@@ -115,7 +115,7 @@ export class RouteGraphBuilder {
 
       for (const pos of Object.values(connections)) {
         const firstElem =
-          this.topology.getPhysicalTrackAt(pos);
+          this.topology.getPhysicalTrackAt(pos, turnout.pos);
 
         if (
           !firstElem ||
@@ -212,7 +212,7 @@ export class RouteGraphBuilder {
       const neighbors: TopologyTrackElement[] = [];
       for (const group of this.getTrackConnectionGroups(elem)) {
         for (const point of group.endpoints) {
-          const other = this.topology.getPhysicalTrackAt(point);
+          const other = this.topology.getPhysicalTrackAt(point, elem.pos);
           if (other && byId.has(other.id) &&
               this.hasTrackConnectionAt(other, elem.pos) &&
               !neighbors.some(item => item.id === other.id)) {
@@ -491,7 +491,7 @@ export class RouteGraphBuilder {
     sectionElements: TopologyTrackElement[]
   ): void {
     const next =
-      this.topology.getPhysicalTrackAt(targetPos);
+      this.topology.getPhysicalTrackAt(targetPos, current.pos);
 
     if (
       !next ||
@@ -677,7 +677,7 @@ export class RouteGraphBuilder {
 
       for (const [side, point] of Object.entries(connections)) {
         const connectedElem =
-          this.topology.getPhysicalTrackAt(point);
+          this.topology.getPhysicalTrackAt(point, elem.pos);
 
         if (
           !connectedElem ||
@@ -795,7 +795,7 @@ export class RouteGraphBuilder {
       }
 
       const nextElem =
-        this.topology.getPhysicalTrackAt(exitPos);
+        this.topology.getPhysicalTrackAt(exitPos, turnout.pos);
 
       if (!nextElem) {
         continue;
