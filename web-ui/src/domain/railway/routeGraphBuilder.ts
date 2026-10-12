@@ -575,11 +575,24 @@ export class RouteGraphBuilder {
     );
   }
 
+  // A bridge crossing is two independent tracks occupying one canvas cell.
+  // Spatial overlays at the crossing belong to the ground-level track by
+  // default; they must never be duplicated onto the elevated route.
+  private isGroundOrUnstackedRail(element: TopologyTrackElement): boolean {
+    if (element.type !== "trackbridge") return true;
+    return !this.topology.getPhysicalTrackElements().some(other =>
+      other.id !== element.id &&
+      other.type === "trackstraight" &&
+      other.x === element.x &&
+      other.y === element.y
+    );
+  }
+
   private collectSectionDetectors(
     sectionElements: TopologyTrackElement[]
   ): SectionDetector[] {
     const positions = new Set(
-      sectionElements.map(
+      sectionElements.filter(elem => this.isGroundOrUnstackedRail(elem)).map(
         elem => `${elem.x}:${elem.y}`
       )
     );
@@ -660,6 +673,7 @@ export class RouteGraphBuilder {
     sectionElem: TopologyTrackElement,
     block: TopologyBlockElement
   ): boolean {
+    if (!this.isGroundOrUnstackedRail(sectionElem)) return false;
     const bounds = block.getBounds();
 
     return (
