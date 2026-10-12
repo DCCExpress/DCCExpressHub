@@ -1,5 +1,5 @@
 import { Alert, Badge, Button, Card, Group, NumberInput, Select, SimpleGrid, Stack, Switch, Text, Title } from "@mantine/core";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { S88SensorIndicator } from "./components/S88SensorIndicator";
 
 type CommandReply = { ok: boolean; message?: string; raw?: string };
@@ -34,6 +34,7 @@ export default function S88AdapterPage({ onBack }: { onBack: () => void }) {
   const [bits, setBits] = useState<number[]>([]);
   const [activeByteCount, setActiveByteCount] = useState<number | null>(null);
   const [updated, setUpdated] = useState<string | null>(null);
+  const pendingCommandRef = useRef<Promise<void> | null>(null);
 
   const refreshPorts = useCallback(async () => {
     try {
@@ -69,41 +70,60 @@ export default function S88AdapterPage({ onBack }: { onBack: () => void }) {
     finally { setBusy(false); }
   };
 
-  const command = useCallback(async (value: string) => {
-    if (!port || connectedPort !== port) { setMessage("Connect to the selected S88Adapter first."); return; }
-    setBusy(true);
-    try {
-      const form = new URLSearchParams({ port, command: value });
-      const response = await fetch("/api/s88-adapter/command", {
-        method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: form,
-      });
-      const data = await response.json() as CommandReply;
-      if (!response.ok || !data.ok) throw new Error(data.raw ?? data.message ?? "Adapter error");
-      if (value === "REBOOT") { setConnectedPort(null); setMonitor(false); }
-      if (value === "READ") {
-        const snapshot = parseBits(data.raw ?? "");
-        if (!snapshot.length) throw new Error("No valid S88 snapshot returned.");
-        setBits(snapshot);
-        setActiveByteCount(snapshot.length / 8);
-        setUpdated(new Date().toLocaleTimeString());
-      } else {
-        if (value === "STATUS") {
-          const actualBytes = activeBytesFromStatus(data.raw ?? "");
-          if (actualBytes !== null) { setActiveByteCount(actualBytes); setBytes(actualBytes); }
-        }
-        if (value.startsWith("SET BYTES ")) {
-          const updatedBytes = Number(value.slice("SET BYTES ".length));
-          if (Number.isInteger(updatedBytes) && updatedBytes >= 1 && updatedBytes <= 32) {
-            setActiveByteCount(updatedBytes);
-            setBits([]);
-            setUpdated(null);
+  const command = useCallback(async (value: string, background = false) => {
+    if (!port || connectedPort !== port) {
+      if (!background) setMessage("Connect to the selected S88Adapter first.");
+      return;
+    }
+    // Monitor ticks never queue up. A user command waits for the current
+    // serial read to finish, but the monitor itself does not disable controls.
+    if (background && pendingCommandRef.current) return;
+    const previous = pendingCommandRef.current;
+    const operation = (async () => {
+      if (previous) await previous;
+      if (!background) setBusy(true);
+      try {
+        const form = new URLSearchParams({ port, command: value });
+        const response = await fetch("/api/s88-adapter/command", {
+          method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: form,
+        });
+        const data = await response.json() as CommandReply;
+        if (!response.ok || !data.ok) throw new Error(data.raw ?? data.message ?? "Adapter error");
+        if (value === "REBOOT") { setConnectedPort(null); setMonitor(false); }
+        if (value === "READ") {
+          const snapshot = parseBits(data.raw ?? "");
+          if (!snapshot.length) throw new Error("No valid S88 snapshot returned.");
+          setBits(snapshot);
+          setActiveByteCount(snapshot.length / 8);
+          setUpdated(new Date().toLocaleTimeString());
+        } else {
+          if (value === "STATUS") {
+            const actualBytes = activeBytesFromStatus(data.raw ?? "");
+            if (actualBytes !== null) { setActiveByteCount(actualBytes); setBytes(actualBytes); }
           }
+          if (value.startsWith("SET BYTES ")) {
+            const updatedBytes = Number(value.slice("SET BYTES ".length));
+            if (Number.isInteger(updatedBytes) && updatedBytes >= 1 && updatedBytes <= 32) {
+              setActiveByteCount(updatedBytes);
+              setBits([]);
+              setUpdated(null);
+            }
+          }
+          setStatus(data.raw ?? "");
+          setMessage(value + " OK");
         }
-        setStatus(data.raw ?? "");
-        setMessage(value + " OK");
+      } catch (e) {
+        if (!background) setMessage("NOK: " + String(e));
+      } finally {
+        if (!background) setBusy(false);
       }
-    } catch (e) { setMessage("NOK: " + String(e)); }
-    finally { setBusy(false); }
+    })();
+    pendingCommandRef.current = operation;
+    try {
+      await operation;
+    } finally {
+      if (pendingCommandRef.current === operation) pendingCommandRef.current = null;
+    }
   }, [port, connectedPort]);
 
   useEffect(() => {
@@ -117,8 +137,8 @@ export default function S88AdapterPage({ onBack }: { onBack: () => void }) {
   }, [refreshPorts]);
   useEffect(() => {
     if (!monitor || !port || connectedPort !== port) return;
-    void command("READ");
-    const id = window.setInterval(() => { void command("READ"); }, 2500);
+    void command("READ", true);
+    const id = window.setInterval(() => { void command("READ", true); }, 1000);
     return () => window.clearInterval(id);
   // The chosen port/monitor toggle starts a new polling session.
   }, [monitor, port, connectedPort]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -149,7 +169,7 @@ export default function S88AdapterPage({ onBack }: { onBack: () => void }) {
       </Card>
       <Card withBorder radius="md" p="md">
         <Stack gap="sm"><Title order={4}>Live S88 inputs</Title>
-          <Group><Button variant="light" disabled={!port || connectedPort !== port || busy || monitor} onClick={() => void command("READ")}>READ snapshot</Button><Switch checked={monitor} onChange={event => setMonitor(event.currentTarget.checked)} disabled={!connectedPort || connectedPort !== port} label="Monitor (2.5 s)" /></Group>
+          <Group><Button variant="light" disabled={!port || connectedPort !== port || busy} onClick={() => void command("READ")}>READ snapshot</Button><Switch checked={monitor} onChange={event => setMonitor(event.currentTarget.checked)} disabled={!connectedPort || connectedPort !== port} label="Monitor (1 s)" /></Group>
           <Group><Badge color={bits.length ? "green" : "gray"}>{activeByteCount === null ? "Unknown inputs" : `${activeByteCount * 8} inputs · ${activeByteCount} groups`}</Badge><Text size="xs" c="dimmed">{updated ? "Last snapshot: " + updated : "No snapshot yet"}</Text></Group>
           <Stack gap="sm">
             {Array.from({ length: activeByteCount ?? 0 }, (_, groupIndex) => (
