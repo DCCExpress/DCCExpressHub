@@ -148,7 +148,14 @@ export class RouteGraphBuilder {
   }
 
   private discoverRemainingTrackConnectionSections(): void {
-    for (const elem of this.topology.getPhysicalTrackElements()) {
+    const rails = this.topology.getPhysicalTrackElements();
+    // Discover ordinary ground sections first so adding a disconnected bridge
+    // does not renumber existing ground sections simply due to layout order.
+    const ordered = [
+      ...rails.filter(elem => elem.type !== "trackbridge"),
+      ...rails.filter(elem => elem.type === "trackbridge"),
+    ];
+    for (const elem of ordered) {
       if (
         isTopologyTurnoutElement(elem) ||
         this.areAllTrackConnectionsVisited(elem)
