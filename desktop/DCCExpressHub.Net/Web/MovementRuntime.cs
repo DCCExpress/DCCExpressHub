@@ -3657,10 +3657,11 @@ public sealed class MovementRuntime
     }
 
     public (bool Ok, string? Error) StartTransient(
-        MovementPageModel page) =>
+        MovementPageModel page,
+        bool calibrationBypass = true) =>
         StartSavedPage(
             page,
-            true);
+            calibrationBypass);
 
     (bool Ok, string? Error) StartSavedPage(
         MovementPageModel page,
