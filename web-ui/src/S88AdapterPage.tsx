@@ -184,7 +184,7 @@ export default function S88AdapterPage({ onBack }: { onBack: () => void }) {
       </Card>
       <Card withBorder radius="md" p="md">
         <Stack gap="sm"><Title order={4}>Live S88 inputs</Title>
-          <Group><Button variant="light" disabled={!port || connectedPort !== port || busy} onClick={() => void command("READ")}>READ snapshot</Button><Badge variant="light" color={connectedPort ? "green" : "gray"}>{connectedPort ? "Live serial monitoring" : "Connect to monitor"}</Badge></Group>
+          <Group><Badge variant="light" color={connectedPort ? "green" : "gray"}>{connectedPort ? "Live serial monitoring" : "Connect to monitor"}</Badge></Group>
           <Group><Badge color={bits.length ? "green" : "gray"}>{activeByteCount === null ? "Unknown inputs" : `${activeByteCount * 8} inputs · ${activeByteCount} groups`}</Badge><Text size="xs" c="dimmed">{updated ? "Last snapshot: " + updated : "No snapshot yet"}</Text></Group>
           <Stack gap="sm">
             {Array.from({ length: activeByteCount ?? 0 }, (_, groupIndex) => (
@@ -203,9 +203,8 @@ export default function S88AdapterPage({ onBack }: { onBack: () => void }) {
                 </Stack>
               </Card>
             ))}
-            {activeByteCount === null && <Text size="xs" c="dimmed">Connect and press STATUS or READ to detect the configured S88 groups.</Text>}
+            {activeByteCount === null && <Text size="xs" c="dimmed">Connect the USB adapter to see incoming S88 groups automatically.</Text>}
           </Stack>
-          <Group><Button variant="subtle" disabled={!port || connectedPort !== port || busy} onClick={() => void command("LOG ON")}>LOG ON</Button><Button variant="subtle" disabled={!port || connectedPort !== port || busy} onClick={() => void command("LOG OFF")}>LOG OFF</Button></Group>
         </Stack>
       </Card>
     </SimpleGrid>
