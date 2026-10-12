@@ -183,6 +183,9 @@ export interface TrackElementDto extends BaseElementDto {
 export interface TrackStraightElementDto extends TrackElementDto {
   type: "trackstraight";
 }
+export interface TrackBridgeElementDto extends TrackElementDto {
+  type: "trackbridge";
+}
 
 export interface TrackLevelCrossingElementDto extends TrackElementDto {
   type: "tracklevelcrossing";
@@ -445,6 +448,7 @@ export interface TrackSignalElementDto extends TrackElementDto {
 
 export type LayoutElementDto =
   | TrackStraightElementDto
+  | TrackBridgeElementDto
   | TrackLevelCrossingElementDto
   | TrackDirectionElementDto
   | TrackEndElementDto
