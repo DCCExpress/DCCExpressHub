@@ -1512,12 +1512,6 @@ export default function TimetableDialog({
             disabled={
               loading ||
               saving ||
-              (
-                scripts.length ===
-                  0 &&
-                movements.length ===
-                  0
-              )
             }
             onClick={
               () =>
