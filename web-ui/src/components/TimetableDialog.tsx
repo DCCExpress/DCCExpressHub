@@ -1238,7 +1238,7 @@ export default function TimetableDialog({
                                       allowDeselect={false}
                                       onChange={mode => updateRow(row.id, current => mode === "station"
                                         ? { ...current, stationPlan: current.stationPlan ?? { fromStationId: "", toStationId: "", via: [] }, actions: [] }
-                                        : { ...current, stationPlan: undefined, actions: current.actions.length ? current.actions : [createDefaultAction(scripts, movements)] }
+                                        : (() => { const { stationPlan: _stationPlan, ...rest } = current; return { ...rest, actions: current.actions.length ? current.actions : [createDefaultAction(scripts, movements)] }; })()
                                       )}
                                     />
                                     {row.stationPlan && (
