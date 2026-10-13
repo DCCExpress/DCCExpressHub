@@ -58,6 +58,7 @@ public sealed class CommandCenterSessionManager
             ["LocoNet:LbServerPort"] = settings.Vendor == "loconet" && !settings.IsSerial
                 ? settings.TcpPort.ToString() : "1234",
             ["LocoNet:LbServerFeedback"] = settings.UseLocoNet.ToString(),
+            ["LocoNet:FeedbackEnabled"] = settings.UseLocoNet.ToString(),
             ["LocoNet:SerialFeedback"] = "false",
             ["LocoNet:BinaryFeedback"] = "false",
             ["LocoNet:SerialPort"] = settings.SerialPort,
