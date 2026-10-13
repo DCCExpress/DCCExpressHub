@@ -35,9 +35,9 @@ If you run Vite inside a container, `127.0.0.1` means the container, not the hos
 
 ## Hub-style locomotive throttle
 
-Choose **Loco throttle** in the sidebar, click **Connect WS**, choose a locomotive from the JMRI Roster (or enter its DCC address), and click **Mozdony csatlakoztatása**.
+Choose **Loco throttle** in the sidebar, click **Connect WS**, choose a locomotive from the JMRI Roster. Selecting another locomotive automatically releases the old JMRI throttle handle and acquires the new one; no separate Connect/Release buttons are needed.
 The panel uses the same socket as the JSON debugger and shows live speed, direction, functions F0–F28 and JMRI client count.
-Use **STOP** or **EMERGENCY STOP** as appropriate. **Release** only relinquishes the session; it does not stop a moving locomotive.
+Use **STOP** or **EMERGENCY STOP** as appropriate. Switching the selected locomotive only relinquishes the previous session; it does not stop a moving locomotive.
 Direction changes are disabled while nonzero speed is reported. The percentage speed is a normalized JMRI throttle setting, not the Hub's calibrated km/h.
 The UI is an experimental test of the JMRI throttle protocol; it is not integrated with the Hub dispatcher, tracking, reservation, or safety logic.
 
