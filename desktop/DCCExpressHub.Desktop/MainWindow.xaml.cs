@@ -122,60 +122,55 @@ namespace DCCExpressHub.Desktop
             }
         }
 
-        private void OnLoaded(
-            object sender,
-            RoutedEventArgs e)
+        // The Desktop no longer chooses/starts a command center. It owns only
+        // the .NET process and the WebView; the web app always starts on the
+        // Command Center Configuration page and awaits explicit user OK.
+        private async void OnLoaded(object sender, RoutedEventArgs e)
         {
             try
             {
-                _singleInstanceMutex =
-                    new Mutex(
-                        true,
-                        @"Local\DCCExpressHub.Desktop",
-                        out bool createdNew);
-
+                _singleInstanceMutex = new Mutex(true,
+                    @"Local\DCCExpressHub.Desktop", out bool createdNew);
                 if (!createdNew)
-                {
-                    throw new InvalidOperationException(
-                        L("alreadyRunning"));
-                }
+                    throw new InvalidOperationException(L("alreadyRunning"));
 
-                _firstLauncherRun =
-                    !DesktopSettingsStore.Exists;
-
-                Browser.Visibility =
-                    Visibility.Collapsed;
-
-                StartupOverlay.Visibility =
-                    Visibility.Visible;
-
-                StartupText.Text =
-                    L("checkingBackend");
-
+                _firstLauncherRun = !DesktopSettingsStore.Exists;
+                Browser.Visibility = Visibility.Collapsed;
+                SetupPanel.Visibility = Visibility.Collapsed;
+                StartupOverlay.Visibility = Visibility.Visible;
+                StartupText.Text = L("checkingBackend");
                 KillStaleBackend();
+                if (!IsWebView2RuntimeAvailable())
+                    throw new InvalidOperationException(L("webView2RuntimeMissing"));
 
-                InitializeSetupPanel();
+                StartupText.Text = L("preparingWorkspace");
+                PrepareWorkspace(_firstLauncherRun);
+                _firstLauncherRun = false;
 
-                StartupOverlay.Visibility =
-                    Visibility.Collapsed;
+                StartupText.Text = L("startingBackend");
+                StartBackend();
+                await WaitForBackendAsync(TimeSpan.FromSeconds(20));
 
-                SetupPanel.Visibility =
-                    Visibility.Visible;
+                StartupText.Text = L("loadingWebUi");
+                await Browser.EnsureCoreWebView2Async();
+                if (Browser.CoreWebView2 is null)
+                    throw new InvalidOperationException(L("webView2InitializationFailed"));
+                Browser.CoreWebView2.Settings.AreDevToolsEnabled = true;
+                Browser.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
+                Browser.Source = new Uri(HubUrl + "/#command-center");
+
+                RestartBackendButton.Visibility = Visibility.Collapsed;
+                StartupOverlay.Visibility = Visibility.Collapsed;
+                Browser.Visibility = Visibility.Visible;
             }
             catch (Exception ex)
             {
-                SetupPanel.Visibility =
-                    Visibility.Collapsed;
-
-                Browser.Visibility =
-                    Visibility.Collapsed;
-
-                StartupText.Text =
-                    L("startupError") +
-                    ex.Message;
-
-                StartupOverlay.Visibility =
-                    Visibility.Visible;
+                StopBackend();
+                Browser.Visibility = Visibility.Collapsed;
+                SetupPanel.Visibility = Visibility.Collapsed;
+                StartupText.Text = L("startupError") + ex.Message;
+                StartupOverlay.Visibility = Visibility.Visible;
+                RestartBackendButton.Visibility = Visibility.Visible;
             }
         }
 
@@ -1827,8 +1822,7 @@ namespace DCCExpressHub.Desktop
 
             // The workspace contains persistent user data only.
             // Built/static WebUI files stay with the application under backend/wwwroot.
-            if (_settings.Protocol == "tcp")
-                PersistTcpCommandCenterInstance(dataRoot);
+            // Never overwrite the Web UI-owned command-center.json on startup.
         }
 
         private void TryMigrateLegacyData(string targetDataRoot)
