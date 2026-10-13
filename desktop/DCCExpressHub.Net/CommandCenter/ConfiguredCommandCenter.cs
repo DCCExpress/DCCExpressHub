@@ -9,7 +9,7 @@ namespace DCCExpressHub.Net.CommandCenter;
 /// </summary>
 public sealed class ConfiguredCommandCenter : ICommandCenter
 {
-    private readonly ICommandCenter _inner;
+    private ICommandCenter _inner;
     private readonly ILogger<ConfiguredCommandCenter> _log;
     private readonly object _gate=new();
     private HashSet<int> _inverted=[];
@@ -20,33 +20,49 @@ public sealed class ConfiguredCommandCenter : ICommandCenter
         _inner=inner;_log=log;
         _locosPath=Path.Combine(env.ContentRootPath,"data","config","locos.json");
 
-        _inner.RawInfo+=x=>RawInfo?.Invoke(x);
-        _inner.StationInfoChanged+=x=>StationInfoChanged?.Invoke(x);
-        _inner.TrackConfigurationChanged+=x=>TrackConfigurationChanged?.Invoke(x);
-        _inner.CurrentTelemetryChanged+=x=>CurrentTelemetryChanged?.Invoke(x);
-        _inner.TripTelemetryChanged+=x=>TripTelemetryChanged?.Invoke(x);
-        _inner.PowerFeedbackChanged+=x=>PowerFeedbackChanged?.Invoke(x);
-        _inner.ConnectionChanged+=x=>ConnectionChanged?.Invoke(x);
-        _inner.SensorFeedbackChanged+=(address,on)=>SensorFeedbackChanged?.Invoke(address,on);
-        _inner.AccessoryFeedbackChanged+=(address,active)=>AccessoryFeedbackChanged?.Invoke(address,active);
-        _inner.LocoFeedbackChanged += x =>
+        ForwardEvents(inner);
+    }
+
+    // Stable ICommandCenter reference shared by every Hub runtime. Drivers
+    // can be replaced without rebuilding the WebSocket/dispatcher services.
+    public void ReplaceInner(ICommandCenter next)
+    {
+        ArgumentNullException.ThrowIfNull(next);
+        var previous = Interlocked.Exchange(ref _inner, next);
+        if (ReferenceEquals(previous, next)) return;
+
+        // Release command-center-owned occupancy before switching buses.
+        ConnectionChanged?.Invoke(false);
+        ForwardEvents(next);
+        _log.LogInformation("Command center switched: {From} -> {To}", previous.Name, next.Name);
+    }
+
+    private void ForwardEvents(ICommandCenter source)
+    {
+        bool Active() => ReferenceEquals(source, Volatile.Read(ref _inner));
+        source.RawInfo += x => { if (Active()) RawInfo?.Invoke(x); };
+        source.StationInfoChanged += x => { if (Active()) StationInfoChanged?.Invoke(x); };
+        source.TrackConfigurationChanged += x => { if (Active()) TrackConfigurationChanged?.Invoke(x); };
+        source.CurrentTelemetryChanged += x => { if (Active()) CurrentTelemetryChanged?.Invoke(x); };
+        source.TripTelemetryChanged += x => { if (Active()) TripTelemetryChanged?.Invoke(x); };
+        source.PowerFeedbackChanged += x => { if (Active()) PowerFeedbackChanged?.Invoke(x); };
+        source.ConnectionChanged += x => { if (Active()) ConnectionChanged?.Invoke(x); };
+        source.SensorFeedbackChanged += (address,on) => {
+            if (Active()) SensorFeedbackChanged?.Invoke(address,on);
+        };
+        source.AccessoryFeedbackChanged += (address,on) => {
+            if (Active()) AccessoryFeedbackChanged?.Invoke(address,on);
+        };
+        source.LocoFeedbackChanged += x =>
         {
+            if (!Active()) return;
             var inverted = LocomotiveDirectionInverted(x.Address);
             var logicalForward = MapDirection(x.Address, x.Forward);
-
             _log.LogInformation(
                 "Loco direction RX #{Address}: physical={PhysicalDirection} invert={Invert} logical={LogicalDirection} speed={Speed}",
-                x.Address,
-                x.Forward ? "forward" : "reverse",
-                inverted,
-                logicalForward ? "forward" : "reverse",
-                x.Speed);
-
-            LocoFeedbackChanged?.Invoke(
-                x with
-                {
-                    Forward = logicalForward
-                });
+                x.Address, x.Forward ? "forward" : "reverse",
+                inverted, logicalForward ? "forward" : "reverse", x.Speed);
+            LocoFeedbackChanged?.Invoke(x with { Forward = logicalForward });
         };
     }
 
