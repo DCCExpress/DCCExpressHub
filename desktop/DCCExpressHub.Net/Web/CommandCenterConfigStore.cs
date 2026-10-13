@@ -468,7 +468,7 @@ public sealed class CommandCenterConfigStore
         }
     }
 
-    private static CommandCenterSettings? Normalize(
+    private CommandCenterSettings? Normalize(
         CommandCenterSettings? value)
     {
         if (value is null)
@@ -524,7 +524,9 @@ public sealed class CommandCenterConfigStore
             "yamorc-yd7010" => "yamorc-yd7010",
             "loconet" => "loconet",
             "dcc-ex" => "dcc-ex",
-            _ => isZ21 ? "roco-z21" :
+            _ => isZ21
+                ? (_configuration["CommandCenter:Protocol"] == "yamorc7010"
+                    ? "yamorc-yd7010" : "roco-z21") :
                  value.Transport.StartsWith("loconet", StringComparison.OrdinalIgnoreCase)
                      ? "loconet" : "dcc-ex"
         };
@@ -540,10 +542,7 @@ public sealed class CommandCenterConfigStore
             Vendor = vendor,
             LocoNetOffset = Math.Clamp(value.LocoNetOffset, 0, YaMoRcLocoNetClient.MaxSensorOffset),
             UseLocoNet = value.UseLocoNet,
-            Transport =
-                isSerial
-                    ? (transport == "loconet-serial" ? "loconet-serial" : "serial")
-                    : transport,
+            Transport = transport,
 
             TcpHost = tcpHost,
             TcpPort = tcpPort,
