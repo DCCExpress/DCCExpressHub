@@ -2521,6 +2521,18 @@ namespace DCCExpressHub.Desktop
 
             try
             {
+                // The backend/Web UI are intentionally up before the user
+                // selects any command center. Nothing physical needs stopping
+                // when closing directly from that initial config screen.
+                if (!await IsCommandCenterSessionStartedAsync())
+                {
+                    await ShowShutdownOverlayAsync();
+                    await Task.Run(StopBackend);
+                    _closeApproved = true;
+                    Close();
+                    return;
+                }
+
                 var choice =
                     await ShowCloseConfirmAsync();
 
@@ -2561,6 +2573,25 @@ namespace DCCExpressHub.Desktop
                     _isClosing = false;
                     _closeDialogActive = false;
                 }
+            }
+        }
+
+        private async Task<bool> IsCommandCenterSessionStartedAsync()
+        {
+            try
+            {
+                using var response = await _http.GetAsync(
+                    HubUrl + "/api/command-center/startup");
+                if (!response.IsSuccessStatusCode) return true;
+                using var document = JsonDocument.Parse(
+                    await response.Content.ReadAsStringAsync());
+                return !document.RootElement.TryGetProperty("started", out var value) ||
+                    value.ValueKind != JsonValueKind.False;
+            }
+            catch
+            {
+                // Unknown state: retain existing conservative power-off prompt.
+                return true;
             }
         }
 
