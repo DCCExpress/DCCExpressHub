@@ -140,7 +140,7 @@ function formatStatus(status: WsConnectionStatus): string {
 
 function pageFromHash(): Page {
   const page = window.location.hash.replace("#", "");
-  return page === "drive" || page === "layout" || page === "flows" || page === "programming" || page === "s88-adapter" || page === "external-devices" || page === "settings" || page === "device-config" || page === "gamepad" || page === "console" || page === "files" || page === "backup" || page === "command-center" ? page : "command-center";
+  return page === "drive" || page === "layout" || page === "flows" || page === "programming" || page === "s88-adapter" || page === "external-devices" || page === "settings" || page === "device-config" || page === "gamepad" || page === "console" || page === "files" || page === "backup" || page === "command-center" ? page : "home";
 }
 
 function AppHeader({
@@ -1137,11 +1137,10 @@ export default function App() {
       setStatus(nextStatus);
     });
 
-    const onHashChange = () => {
-      const requested = pageFromHash();
-      setPage(current => sessionStarted === false && requested !== "command-center"
-        ? "command-center" : requested);
-    };
+    // Hash navigation only chooses a page. Access to the application is
+    // gated below by the live sessionStarted state, never by a stale closure.
+    // In particular, the first OK must not be undone by the hashchange event.
+    const onHashChange = () => setPage(pageFromHash());
     window.addEventListener("hashchange", onHashChange);
     window.addEventListener("pagehide", closeSocketForPageExit);
 
@@ -1215,7 +1214,7 @@ export default function App() {
     );
 
   const navigate = (nextPage: Page) => {
-    if (sessionStarted === false && nextPage !== "command-center") return;
+    if (sessionStarted !== true && nextPage !== "command-center") return;
     if (nextPage !== "drive") setDriveLayoutOpen(false);
     window.location.hash = nextPage === "home" ? "" : nextPage;
     setPage(nextPage);
@@ -1251,7 +1250,10 @@ export default function App() {
 
   const renderPage = () => {
     if (sessionStarted === null) return <Group justify="center" p="xl"><Loader /></Group>;
-    if (!sessionStarted || page === "command-center")
+    // Configuration is available only before OK or after an explicit
+    // /startup/stop. A hand-edited #command-center hash must not bypass the
+    // physical emergency-stop/track-power-off return path.
+    if (!sessionStarted)
       return <CommandCenterStartupPage onStarted={startSession} />;
     if (page === "settings") return <SettingsPage onBack={() => navigate("home")} status={status} />;
 
