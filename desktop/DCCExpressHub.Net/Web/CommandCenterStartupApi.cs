@@ -125,7 +125,8 @@ public sealed class CommandCenterStartupApi
             {
                 ok = true,
                 started = true,
-                connected = _store.Current.Vendor == "dcc-ex" ? false : false,
+                // The physical connection may take a few moments; the Home
+                // page displays live connection status from the driver.
                 vendor = profile.Vendor
             });
         }
