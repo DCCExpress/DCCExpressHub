@@ -79,6 +79,40 @@ The HUB supports locomotive control and functions, turnouts, basic accessories, 
 **YaMoRC YD7010:** Choose **Z21 + R-BUS**, **native LocoNet TCP**, or **LocoNet Serial** according to the available interface and feedback bus. The LocoNet Serial implementation still requires end-to-end hardware verification. Their connection settings and sensor offsets are independent; do not enable both profiles for one connection unless you intentionally configured a supported arrangement.
 
 
+## Command Center Configuration — startup workflow
+
+**Every backend process startup is configuration-first.** The HTTP server and
+Web UI start without opening any command-center transport, even when the
+previous profile is saved. This is the same on the Windows WebView2 Desktop
+and Linux/browser installations.
+
+1. The first page is **Command Center Configuration**, prefilled from the last
+   saved profile. No command-center connection is initiated automatically.
+2. Select **DCC-EX**, **Roco Z21**, **YaMoRC YD7010**, or **LocoNet**, and edit
+   the connection settings. DCC-EX supports TCP/serial, Z21 profiles use UDP,
+   and standalone LocoNet supports TCP/serial.
+3. Use **Test connection**; YaMoRC also has a **Test LocoNet** button. A serial
+   port that opens successfully has not necessarily passed a protocol-level
+   test: the result says exactly what was verified.
+4. Click **OK · Save & Connect**. The Hub saves the selected profile and starts
+   its physical command-center driver without restarting the HTTP/WebSocket
+   server. The main Home page is shown, with live connection status. An offline
+   physical command station does not prevent you from accessing the Hub.
+5. To correct a mistaken selection, use **Command Center** on the Home page.
+   The Hub stops timetable, scripts, flows and movements, requests emergency
+   stop/track power-off as appropriate, closes the previous physical driver,
+   and returns to the **same** configuration page.
+
+This selection/activation is per **backend process lifetime**. Restarting the
+Desktop app or Linux backend always returns to the configuration-first state.
+If a browser merely reloads while the already-started backend is running, its
+currently active session is preserved.
+
+The **External Devices** page is independent of the selected main command
+station. It can configure USB DCCExpressS88Adapter feedback for DCC-EX, Roco
+Z21 or YaMoRC, including COM/tty, group count and sensor offsets; external
+sensor states become UNKNOWN when the adapter disconnects.
+
 ## Installation
 
 ### Windows
@@ -89,7 +123,7 @@ The HUB supports locomotive control and functions, turnouts, basic accessories, 
 2. Download the Windows package: `DCCExpressHub-<version>-win-x64.zip`.
 3. Extract the ZIP into a writable folder.
 4. Start `DCCExpressHub.Desktop.exe`.
-5. Follow the initial setup to choose your command station and connection settings.
+5. The built-in Web UI opens on **Command Center Configuration**. Review the previously saved profile or choose a different manufacturer/connection, test it, and click **OK · Save & Connect**.
 
 The Windows package includes the required .NET runtime. You do **not** need to install the .NET SDK.
 
