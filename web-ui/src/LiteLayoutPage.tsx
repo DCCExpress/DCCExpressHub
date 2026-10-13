@@ -2282,6 +2282,7 @@ export default function LiteLayoutPage({
                           movements={movementDocument}
                           onMovementsChange={setMovementDocument}
                           stationRoutes={layout.stationRoutes}
+                          layout={layout}
                           stationNames={layout.stations}
                           onOpenStationRoutes={routeId => {
                             setStationRouteEditId(routeId);
