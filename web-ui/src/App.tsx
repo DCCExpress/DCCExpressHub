@@ -52,7 +52,7 @@ import type { Loco } from "@domain/types";
 
 import { getLocos } from "@/api/domainApi";
 import LocoDialog from "@/components/LocoDialog";
-import CommandCenterSettingsDialog from "@/components/CommandCenterSettingsDialog";
+// Startup and runtime configuration now share the Web UI; WPF has no command-center setup.
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import LocoPanel from "@/layout/LocoPanel";
 import { getDefaultWsUrl } from "@/services/defaultWsUrl";
@@ -91,11 +91,12 @@ const RuntimeLayoutOverlay = lazy(() => import("./RuntimeLayoutOverlay"));
 const ProgrammingPage = lazy(() => import("./ProgrammingPage"));
 const S88AdapterPage = lazy(() => import("./S88AdapterPage"));
 const ExternalDevicesPage = lazy(() => import("./ExternalDevicesPage"));
+const CommandCenterStartupPage = lazy(() => import("./CommandCenterStartupPage"));
 const GamepadPage = lazy(() => import("./GamepadPage"));
 const ConsolePage = lazy(() => import("./ConsolePage"));
 
 type LoadState = "idle" | "loading" | "ready" | "error";
-type Page = "home" | "drive" | "layout" | "flows" | "programming" | "s88-adapter" | "external-devices" | "settings" | "device-config" | "gamepad" | "console" | "files" | "backup";
+type Page = "command-center" | "home" | "drive" | "layout" | "flows" | "programming" | "s88-adapter" | "external-devices" | "settings" | "device-config" | "gamepad" | "console" | "files" | "backup";
 
 type NetworkSettingsDto = {
   configured: boolean;
@@ -139,21 +140,21 @@ function formatStatus(status: WsConnectionStatus): string {
 
 function pageFromHash(): Page {
   const page = window.location.hash.replace("#", "");
-  return page === "drive" || page === "layout" || page === "flows" || page === "programming" || page === "s88-adapter" || page === "external-devices" || page === "settings" || page === "device-config" || page === "gamepad" || page === "console" || page === "files" || page === "backup" ? page : "home";
+  return page === "drive" || page === "layout" || page === "flows" || page === "programming" || page === "s88-adapter" || page === "external-devices" || page === "settings" || page === "device-config" || page === "gamepad" || page === "console" || page === "files" || page === "backup" || page === "command-center" ? page : "command-center";
 }
 
 function AppHeader({
   status,
   version,
+  onConfigure,
 }: {
   status: WsConnectionStatus;
   version: string;
+  onConfigure: () => void;
 }) {
   const { t } = useTranslation();
   const commandCenter = useCommandCenter();
-  const [commandCenterSettingsOpened, setCommandCenterSettingsOpened] =
-    useState(false);
-
+ 
   const translatedStatusKey =
     status === "connected" ||
     status === "connecting" ||
@@ -235,21 +236,15 @@ function AppHeader({
       > {i18next.t("ui.power")} {commandCenter.powerInfo?.trackVoltageOn ? i18next.t("ui.on") : i18next.t("ui.off")}
       </Button>
 
-      {/* <Button
+      <Button
         size="xs"
         variant="light"
         color="blue"
         leftSection={<IconSettings size={16} />}
-        onClick={() => setCommandCenterSettingsOpened(true)}
-        title={t("homeHub.configureCsb1")}
+        onClick={onConfigure}
       >
-        CSB1
-      </Button> */}
-
-      <CommandCenterSettingsDialog
-        opened={commandCenterSettingsOpened}
-        onClose={() => setCommandCenterSettingsOpened(false)}
-      />
+        Command Center
+      </Button>
     </Group>
   );
 }
@@ -274,12 +269,14 @@ function HomePage({
   locoCount,
   onNavigate,
   onOpenLocoEditor,
+  onConfigureCommandCenter,
 }: {
   status: WsConnectionStatus;
   version: string;
   locoCount: number;
   onNavigate: (page: Page) => void;
   onOpenLocoEditor: () => void;
+  onConfigureCommandCenter: () => void;
 }) {
   const { t } = useTranslation();
 
@@ -290,6 +287,7 @@ function HomePage({
           <AppHeader
             status={status}
             version={version}
+            onConfigure={onConfigureCommandCenter}
           />
           <Group justify="flex-end" align="center" gap="sm" wrap="wrap">
             <LanguageSwitcher />
@@ -1052,6 +1050,8 @@ function SettingsPage({ onBack, status }: { onBack: () => void; status: WsConnec
 export default function App() {
   useTranslation();
   const [page, setPage] = useState<Page>(pageFromHash);
+  const [sessionStarted, setSessionStarted] = useState<boolean | null>(null);
+  const [sessionTransitioning, setSessionTransitioning] = useState(false);
   const [status, setStatus] = useState<WsConnectionStatus>(wsClient.getStatus());
   const [locos, setLocos] = useState<Loco[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("idle");
@@ -1137,11 +1137,34 @@ export default function App() {
       setStatus(nextStatus);
     });
 
-    const onHashChange = () => setPage(pageFromHash());
+    const onHashChange = () => {
+      const requested = pageFromHash();
+      setPage(current => sessionStarted === false && requested !== "command-center"
+        ? "command-center" : requested);
+    };
     window.addEventListener("hashchange", onHashChange);
     window.addEventListener("pagehide", closeSocketForPageExit);
 
     const prepareApplication = async () => {
+      try {
+        const response = await fetch("/api/command-center/startup", { cache: "no-store" });
+        if (!response.ok) throw new Error("Command-center startup state unavailable");
+        const startup = await response.json() as { started?: boolean };
+        if (cancelled) return;
+        setSessionStarted(startup.started === true);
+        if (startup.started !== true) {
+          window.location.hash = "command-center";
+          setPage("command-center");
+        } else if (pageFromHash() === "command-center") {
+          window.location.hash = "";
+          setPage("home");
+        }
+      } catch {
+        if (!cancelled) {
+          setSessionStarted(false);
+          setPage("command-center");
+        }
+      }
       await Promise.allSettled([
         loadLocos(),
         loadAutomationFlowState(),
@@ -1192,13 +1215,44 @@ export default function App() {
     );
 
   const navigate = (nextPage: Page) => {
+    if (sessionStarted === false && nextPage !== "command-center") return;
     if (nextPage !== "drive") setDriveLayoutOpen(false);
     window.location.hash = nextPage === "home" ? "" : nextPage;
     setPage(nextPage);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  const startSession = () => {
+    setSessionStarted(true);
+    navigateAfterStart();
+  };
+
+  const navigateAfterStart = () => {
+    window.location.hash = "";
+    setPage("home");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const returnToCommandCenter = async () => {
+    if (sessionTransitioning) return;
+    if (!window.confirm("Stop the current command center and return to configuration? Active trains will receive an emergency stop.")) return;
+    setSessionTransitioning(true);
+    try {
+      const response = await fetch("/api/command-center/startup/stop", { method: "POST" });
+      const data = await response.json() as { ok?: boolean; message?: string };
+      if (!response.ok || !data.ok) throw new Error(data.message ?? "Could not stop command center.");
+      setSessionStarted(false);
+      window.location.hash = "command-center";
+      setPage("command-center");
+    } catch (error) {
+      window.alert("Command center stop failed: " + String(error));
+    } finally { setSessionTransitioning(false); }
+  };
+
   const renderPage = () => {
+    if (sessionStarted === null) return <Group justify="center" p="xl"><Loader /></Group>;
+    if (!sessionStarted || page === "command-center")
+      return <CommandCenterStartupPage onStarted={startSession} />;
     if (page === "settings") return <SettingsPage onBack={() => navigate("home")} status={status} />;
 
     if (page === "files") return <FilesPage onBack={() => navigate("home")} />;
@@ -1305,6 +1359,7 @@ export default function App() {
         onOpenLocoEditor={() =>
           setLocoEditorOpened(true)
         }
+        onConfigureCommandCenter={() => void returnToCommandCenter()}
       />
     );
   };
