@@ -101,9 +101,10 @@ public sealed class TrainDriverRuntime
         DriverState state;
         lock (_gate)
         {
-            if (!_tasks.TryGetValue(taskId, out state!) ||
-                !_activeByLoco.TryGetValue(state.LocoAddress, out var current) || current != taskId)
+            if (!_tasks.TryGetValue(taskId, out var found) ||
+                !_activeByLoco.TryGetValue(found.LocoAddress, out var current) || current != taskId)
                 return false;
+            state = found;
         }
         return abort ? _movement.Abort(state.MovementId, true) : _movement.Stop(state.MovementId);
     }
