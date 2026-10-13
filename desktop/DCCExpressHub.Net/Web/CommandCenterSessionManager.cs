@@ -127,15 +127,30 @@ public sealed class CommandCenterSessionManager
         var active = _active;
         if (active is null) return;
 
+        // No automation may keep driving after its underlying physical driver
+        // changes. Cancel planners before sending physical stop / power off.
+        _services.GetRequiredService<TimetableRuntime>().StopScheduler();
+        _services.GetRequiredService<FlowRuntime>().AbortAll("Command center configuration reopened.");
+        _services.GetRequiredService<ScriptRuntime>().AbortAll("Command center configuration reopened.");
+        _services.GetRequiredService<CalibrationRuntime>().Stop();
+        try { await _services.GetRequiredService<PrecisionBrakingRuntime>().StopAsync(); }
+        catch (Exception ex) { _log.LogWarning(ex, "Precision braking stop during command-center switch failed"); }
+        _services.GetRequiredService<MovementRuntime>().StopAll(emergencyStop: false);
+
         // Do not abandon control of a running train unless at least one safe
         // physical intervention (E-STOP or track power off) was acknowledged.
         if (_hub.Connected)
         {
-            bool stopped = false;
+            // DCC-EX emergency stop is a toggle: never send it if the
+            // command station is already emergency-paused (would RESUME!).
+            bool stopped = _hub.EmergencyPauseStateKnown && _hub.EmergencyPaused;
             bool poweredOff = false;
-            using var stopCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-            try { stopped = await _hub.EmergencyStopAsync(stopCts.Token); }
-            catch (Exception ex) { _log.LogWarning(ex, "Emergency stop before command-center switch failed"); }
+            if (!stopped)
+            {
+                using var stopCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                try { stopped = await _hub.EmergencyStopAsync(stopCts.Token); }
+                catch (Exception ex) { _log.LogWarning(ex, "Emergency stop before command-center switch failed"); }
+            }
             using var powerCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
             try { poweredOff = await _hub.SetTrackPowerAsync(false, ct: powerCts.Token); }
             catch (Exception ex) { _log.LogWarning(ex, "Track power off before command-center switch failed"); }
