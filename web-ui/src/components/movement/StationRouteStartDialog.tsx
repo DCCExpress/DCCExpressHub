@@ -69,7 +69,18 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
     (!source || candidate.fromBlockId === Number(source)) &&
     (destination === "auto" || !destination || candidate.toBlockId === Number(destination)));
   const destinations = [...new Set(eligible.filter(c => !source || c.fromBlockId === Number(source)).map(c => c.toBlockId))]
-    .map(id => ({ value: String(id), label: blocks.find(b => b.id === id)?.name ?? `Block #${id}` }));
+    .map(id => {
+      const tracked = tracking.locos.filter(l => l.currentBlockId === id);
+      const blockName = blocks.find(b => b.id === id)?.name ?? `Block #${id}`;
+      const identities = tracked.map(l => {
+        const loco = locomotives.find(item => item.address === l.locoAddress);
+        return loco?.name ? `${loco.name} (#${l.locoAddress})` : `Loco #${l.locoAddress}`;
+      });
+      return {
+        value: String(id),
+        label: tracked.length ? `${blockName} · ${identities.join(", ")}` : `${blockName} · No tracked locomotive`,
+      };
+    });
   const selectedLoco = locos.find(l => String(l.currentBlockId) === source);
   const selectedCandidate = available[0];
   const canStart = !loading && !starting && !!route?.enabled && !!selectedLoco && !!selectedCandidate &&
@@ -121,7 +132,31 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
         }}
         value={source} onChange={v => {setSource(v);setDestination("auto");}}/>
       <Select label="Destination block" placeholder="Automatic" searchable
-        data={[{value:"auto",label:"Automatic — select available destination"},...destinations]}
+        data={[{value:"auto",label:"Automatic — dispatcher-checked destination"},...destinations]}
+        renderOption={({option}) => {
+          if (option.value === "auto") return <Text size="sm">{option.label}</Text>;
+          const tracked = tracking.locos.filter(l => String(l.currentBlockId) === option.value);
+          const blockName = blocks.find(b => String(b.id) === option.value)?.name ?? `Block #${option.value}`;
+          return <Group gap="sm" wrap="nowrap">
+            {tracked.length ? tracked.map(l => {
+              const loco = locomotives.find(item => item.address === l.locoAddress);
+              return <LocoImage key={l.locoAddress} locoId={loco?.id ?? ""} image={loco?.image}
+                name={loco?.name} width={88} height={38}/>;
+            }) : <LocoImage width={88} height={38}/>}
+            <Stack gap={0}>
+              <Text size="sm" fw={500}>{blockName}</Text>
+              {tracked.length
+                ? tracked.map(l => {
+                    const loco = locomotives.find(item => item.address === l.locoAddress);
+                    return <Text key={l.locoAddress} size="xs" c="orange">
+                      {loco?.name || `Locomotive #${l.locoAddress}`} · DCC #{l.locoAddress}
+                      {l.confidence !== "certain" ? " · Position uncertain" : ""}
+                    </Text>;
+                  })
+                : <Text size="xs" c="dimmed">No tracked locomotive · occupancy not verified</Text>}
+            </Stack>
+          </Group>;
+        }}
         value={destination} onChange={setDestination}/>
       <NumberInput label="Speed" min={1} max={126} allowDecimal={false} value={speed} onChange={setSpeed}/>
       {loading && <Text size="sm" c="dimmed">Loading route topology…</Text>}
