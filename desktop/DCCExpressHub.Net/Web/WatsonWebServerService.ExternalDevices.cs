@@ -52,6 +52,40 @@ public sealed partial class WatsonWebServerService
                 SensorOffset = offset,
                 SensorCount = count
             };
+            // Reject known main command-station/feedback collisions before persisting.
+            if (proposed.Enabled)
+            {
+                var cc = Service<CommandCenterConfigStore>().Current;
+                var locoNetSerial = DCCExpressHub.Net.CommandCenter.YaMoRcLocoNetSerialSettings.Load();
+                if ((cc.IsSerial && string.Equals(cc.SerialPort, proposed.SerialPort, StringComparison.OrdinalIgnoreCase)) ||
+                    (locoNetSerial.Enabled && string.Equals(locoNetSerial.Port, proposed.SerialPort, StringComparison.OrdinalIgnoreCase)))
+                {
+                    await SendAsync(ctx, HubApiResponse.Error(409, new { ok = false, message = "Serial port already belongs to a command center or LocoNet transport." }));
+                    return;
+                }
+                var first = proposed.SensorOffset + 1;
+                var last = proposed.SensorOffset + proposed.SensorCount;
+                var protocol = (_configuration["CommandCenter:Protocol"] ?? "").Trim().ToLowerInvariant();
+                bool Overlaps(int from, int to) => first <= to && last >= from;
+                if (proposed.SensorCount is >= 8 and <= 256 && proposed.SensorOffset >= 0)
+                {
+                    if ((protocol is "z21" or "yamorc7010") &&
+                        Overlaps(cc.RBusOffset + 1, cc.RBusOffset + 160))
+                    {
+                        await SendAsync(ctx, HubApiResponse.Error(409, new { ok = false, message = "External sensors overlap the command center R-BUS range." }));
+                        return;
+                    }
+                    if (protocol is "yamorc7010" or "loconet" or "loconet-serial")
+                    {
+                        var locoOffset = Math.Clamp(_configuration.GetValue<int>("LocoNet:SensorOffset"), 0, 65535 - 4096);
+                        if (Overlaps(locoOffset + 1, locoOffset + 4096))
+                        {
+                            await SendAsync(ctx, HubApiResponse.Error(409, new { ok = false, message = "External sensors overlap the LocoNet range." }));
+                            return;
+                        }
+                    }
+                }
+            }
             try
             {
                 var id = await Service<ExternalDeviceStore>().UpsertAsync(proposed, ctx.Token);
