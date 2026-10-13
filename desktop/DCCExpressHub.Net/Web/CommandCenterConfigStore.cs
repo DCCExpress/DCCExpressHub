@@ -540,8 +540,15 @@ public sealed class CommandCenterConfigStore
         return new CommandCenterSettings
         {
             Vendor = vendor,
-            LocoNetOffset = Math.Clamp(value.LocoNetOffset, 0, YaMoRcLocoNetClient.MaxSensorOffset),
-            UseLocoNet = value.UseLocoNet,
+            // Older Desktop/YD7010 profiles stored these in process settings
+            // rather than command-center.json. Preserve the migrated offsets.
+            LocoNetOffset = Math.Clamp(
+                string.IsNullOrWhiteSpace(value.Vendor)
+                    ? _configuration.GetValue("LocoNet:SensorOffset", value.LocoNetOffset)
+                    : value.LocoNetOffset, 0, YaMoRcLocoNetClient.MaxSensorOffset),
+            UseLocoNet = string.IsNullOrWhiteSpace(value.Vendor)
+                ? _configuration.GetValue("LocoNet:LbServerFeedback", value.UseLocoNet)
+                : value.UseLocoNet,
             Transport = transport,
 
             TcpHost = tcpHost,
