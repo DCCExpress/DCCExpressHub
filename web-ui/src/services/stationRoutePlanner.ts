@@ -1,6 +1,6 @@
 import type { LayoutView } from "@/models/editor/core/LayoutView";
 import { BlockElement } from "@/models/editor/elements/BlockElement";
-import { createCurrentClientLayoutSnapshot } from "@/services/clientRouteGraphCache";
+import { createCurrentClientLayoutSnapshot, type PersistedClientRouteTopology } from "@/services/clientRouteGraphCache";
 import type { StationRouteDefinition } from "@/domain/layout/stationRoutes";
 
 export type StationRoutePlan = {
@@ -20,7 +20,7 @@ export function previewStationRoute(
   route: StationRouteDefinition,
   limit = 24
 ): StationRoutePlan[] {
-  const topology = createCurrentClientLayoutSnapshot(layout).routeTopology;
+  const topology = createCurrentClientLayoutSnapshot(layout).routeTopology as PersistedClientRouteTopology | undefined;
   if (!topology || !Array.isArray(topology.routeTable)) return [];
 
   const blocks = layout.blocks.elements.filter((b): b is BlockElement => b instanceof BlockElement);
