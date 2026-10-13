@@ -80,7 +80,15 @@ export default function CommandCenterStartupPage({ onStarted }: { onStarted: () 
       vendor === "loconet" ? "loconet" : "z21";
     const tcpPort = vendor === "dcc-ex" ? 2560 :
       vendor === "loconet" ? 1234 : 21105;
-    update({ vendor, transport, tcpPort });
+    update({
+      vendor, transport, tcpPort,
+      // Avoid colliding with R-BUS 1–160 on a newly selected YaMoRC.
+      // Previously saved offsets are preserved when loading this page.
+      ...(vendor === "yamorc-yd7010" && settings.vendor !== vendor &&
+          settings.locoNetOffset === 0
+        ? { locoNetOffset: Math.min(settings.rBusOffset + 160, 61439) }
+        : {})
+    });
     setResult(null);
   };
 
@@ -196,7 +204,7 @@ export default function CommandCenterStartupPage({ onStarted }: { onStarted: () 
           />}
 
           {yamorc && <>
-            <Switch label="Enable YaMoRC LocoNet LBServer sensor feedback"
+            <Switch label="Enable YaMoRC LocoNet sensor feedback"
               checked={settings.useLocoNet}
               onChange={event => update({ useLocoNet: event.currentTarget.checked })}
             />
