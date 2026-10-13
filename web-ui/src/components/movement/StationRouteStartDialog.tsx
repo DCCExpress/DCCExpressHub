@@ -97,7 +97,8 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
         throw new Error("Locomotive location changed. Select the source again.");
       const page = applyMovementRouteCandidate(createMovementPage(), selectedCandidate);
       if (!page.routeRef) throw new Error("The selected path has no valid travel direction.");
-      page.id = `quick-route-loco-${selectedLoco.locoAddress}`;
+      // Unique per launch: independent TaskMan entries, even for the same station route.
+      page.id = `quick-route-loco-${selectedLoco.locoAddress}-station-${route.id}-${Date.now()}`;
       page.name = `Station Route · ${route.name} · #${selectedLoco.locoAddress}`;
       page.speed = Number(speed);
       page.expectedLocoAddress = selectedLoco.locoAddress;
