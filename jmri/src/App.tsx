@@ -89,18 +89,33 @@ export default function App() {
       if (socket.current !== ws) return;
       setStatus("connected");
       log("SYSTEM", "info", "WebSocket connected");
+      // A list request is not a substitute for per-object listeners.
+      ws.send(JSON.stringify({list: "sensors"}));
       // Start conservatively, then adapt to the interval announced by JMRI hello.
       heartbeat.current = setInterval(() => {
         if (socket.current === ws && ws.readyState === WebSocket.OPEN) ws.send('{"type":"ping"}');
       }, 8000);
     };
+    const subscribedSensors = new Set<string>();
     ws.onmessage = event => {
       if (typeof event.data === "string") {
         try {
-          const message = JSON.parse(event.data) as {type?: string; data?: {heartbeat?: number}};
-          if (message.type === "hello" && Number.isFinite(message.data?.heartbeat) && (message.data?.heartbeat ?? 0) > 1000) {
+          const message = JSON.parse(event.data) as unknown;
+          if (Array.isArray(message) && message.every(item => item?.type === "sensor")) {
+            for (const item of message) {
+              const name = item?.data?.name;
+              if (typeof name !== "string" || subscribedSensors.has(name)) continue;
+              subscribedSensors.add(name);
+              if (socket.current === ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({type: "sensor", method: "get", data: {name}}));
+              }
+            }
+            log("SYSTEM", "info", "Monitoring " + subscribedSensors.size + " JMRI sensors on this WebSocket");
+          }
+          const hello = message && !Array.isArray(message) && typeof message === "object" ? message as {type?: string; data?: {heartbeat?: number}} : null;
+          if (hello?.type === "hello" && Number.isFinite(hello.data?.heartbeat) && (hello.data?.heartbeat ?? 0) > 1000) {
             stopHeartbeat();
-            const interval = Math.max(1000, Math.floor(message.data!.heartbeat! * 0.6));
+            const interval = Math.max(1000, Math.floor(hello.data!.heartbeat! * 0.6));
             heartbeat.current = setInterval(() => {
               if (socket.current === ws && ws.readyState === WebSocket.OPEN) ws.send('{"type":"ping"}');
             }, interval);
