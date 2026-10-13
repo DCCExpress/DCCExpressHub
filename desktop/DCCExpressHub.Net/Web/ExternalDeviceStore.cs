@@ -11,7 +11,7 @@ public sealed record ExternalDeviceConfig
     public bool Enabled { get; init; } = true;
     public string SerialPort { get; init; } = "";
     // S88 input 1 maps to SensorOffset + 1.
-    public int SensorOffset { get; init; } = 2000;
+    public int SensorOffset { get; init; } = 50000;
     public int SensorCount { get; init; } = 32;
 }
 
