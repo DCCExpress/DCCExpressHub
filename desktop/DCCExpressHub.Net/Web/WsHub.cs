@@ -17,6 +17,7 @@ public sealed class WsHub
     readonly SwitchManManager SwitchMan;
     readonly DispatcherRuntime Dispatcher;
     readonly MovementRuntime Movement;
+    readonly TrainDriverRuntime TrainDriver;
     readonly TrainTrackingRuntime TrainTracking;
     readonly ScriptRuntime Scripts;
     readonly FlowRuntime Flows;
@@ -65,7 +66,7 @@ public sealed class WsHub
     private static readonly TimeSpan WebSocketSendTimeout = TimeSpan.FromSeconds(2);
     public int ClientCount => Clients.Count;
 
-    public WsHub(ICommandCenter cc, HubState state, LayoutRuntime runtime, RuntimeStateStore stateStore, CommandCenterConfigStore ccConfig, LocoCounterRuntime locoCounters, FastClockRuntime fastClock, SwitchManManager switchMan, DispatcherRuntime dispatcher, MovementRuntime movement, TrainTrackingRuntime trainTracking, ScriptRuntime scripts, FlowRuntime flows, TimetableRuntime timetable, ILogger<WsHub> log, IHostApplicationLifetime lifetime)
+    public WsHub(ICommandCenter cc, HubState state, LayoutRuntime runtime, RuntimeStateStore stateStore, CommandCenterConfigStore ccConfig, LocoCounterRuntime locoCounters, FastClockRuntime fastClock, SwitchManManager switchMan, DispatcherRuntime dispatcher, MovementRuntime movement, TrainDriverRuntime trainDriver, TrainTrackingRuntime trainTracking, ScriptRuntime scripts, FlowRuntime flows, TimetableRuntime timetable, ILogger<WsHub> log, IHostApplicationLifetime lifetime)
     {
         CommandCenter = cc;
         HubState = state;
@@ -76,6 +77,7 @@ public sealed class WsHub
         SwitchMan = switchMan;
         Dispatcher = dispatcher;
         Movement = movement;
+        TrainDriver = trainDriver;
         TrainTracking = trainTracking;
         Scripts = scripts;
         Flows = flows;
@@ -108,6 +110,7 @@ public sealed class WsHub
                         routes =
                             Dispatcher.RouteSnapshot()
                     });
+        TrainDriver.Changed += state => QueueStateBroadcast("trainDriverStateChanged", state);
         Movement.Changed +=
             state =>
                 QueueStateBroadcast(
@@ -816,6 +819,9 @@ public sealed class WsHub
                     return;
                 case "trainTrackingCommand":
                     await HandleTrainTrackingCommand(ws, data, ct);
+                    return;
+                case "trainDriverCommand":
+                    await HandleTrainDriverCommand(ws, data);
                     return;
                 case "movementCommand":
                     await HandleMovementCommand(connectionId, ws, data, ct);
@@ -1968,6 +1974,69 @@ public sealed class WsHub
                     "unknown_train_tracking_action");
                 return;
         }
+    }
+
+    private async Task HandleTrainDriverCommand(IHubWebSocketClient ws, JsonElement data)
+    {
+        var requestId = S(data, "requestId");
+        var action = S(data, "action");
+        bool ok = false;
+        string? error = null;
+        TrainDriverRuntime.DriverState? state = null;
+
+        switch (action)
+        {
+            case "snapshot":
+                await Send(ws, "trainDriverResponse", new {
+                    requestId, action, ok = true, states = TrainDriver.Snapshot()
+                });
+                return;
+            case "start":
+                {
+                    var taskId = S(data, "taskId");
+                    if (!data.TryGetProperty("page", out var pageJson) ||
+                        pageJson.ValueKind != JsonValueKind.Object)
+                    {
+                        error = "invalid_train_driver_request";
+                        break;
+                    }
+                    MovementPageModel? page;
+                    try
+                    {
+                        page = JsonSerializer.Deserialize<MovementPageModel>(
+                            pageJson.GetRawText(), Json);
+                    }
+                    catch (JsonException)
+                    {
+                        page = null;
+                    }
+                    if (page is null)
+                    {
+                        error = "invalid_train_driver_request";
+                        break;
+                    }
+                    var result = TrainDriver.Start(taskId, page);
+                    ok = result.Ok;
+                    error = result.Error;
+                    state = result.State;
+                    await Send(ws, "trainDriverResponse", new { requestId, action, ok, error, state });
+                    return;
+                }
+            case "stop":
+                ok = TrainDriver.Stop(S(data, "taskId"));
+                break;
+            case "abort":
+                ok = TrainDriver.Abort(S(data, "taskId"));
+                break;
+            default:
+                error = "unknown_train_driver_action";
+                break;
+        }
+        await Send(ws, "trainDriverResponse", new {
+            requestId, action, ok = error is null && ok,
+            error = error ?? (action is "stop" or "abort" && !ok ? "train_driver_not_running" : null),
+            state
+        });
     }
 
     private async Task HandleMovementCommand(
