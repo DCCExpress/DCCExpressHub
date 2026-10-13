@@ -216,7 +216,11 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
       <NumberInput label="Speed" min={1} max={126} allowDecimal={false} value={speed} onChange={setSpeed}/>
       {loading && <Text size="sm" c="dimmed">Loading route topology…</Text>}
       {selectedCandidate && <Text size="sm">Planned: {selectedCandidate.blockPath.map(b => b.name).join(" → ")}</Text>}
-      {!loading && source && !selectedCandidate && <Alert color="orange">No confirmed-free destination is available. Check occupancy sensors, dispatcher reservations and route topology.</Alert>}
+      {!loading && source && !selectedCandidate && <Alert color="orange">
+        {available.length === 0
+          ? `No route exists in the generated route table from the selected source to ${destination === "auto" ? "any block at the destination station" : "the selected destination block"}${route?.via.length ? " through the configured Via points" : ""}. Check the route graph and direction; sensor occupancy is not the reason for this message.`
+          : `${available.length} route candidate(s) exist (${[...new Set(available.map(item => item.toBlockName))].join(", ")}), but no destination is confirmed free. ${!reserved.loaded ? "Dispatcher snapshot missing. " : ""}Check target sensor OFF/FREE, current locomotive assignments and reservations.`}
+      </Alert>}
       {error && <Alert color="red">{error}</Alert>}
       <Group justify="flex-end"><Button variant="default" onClick={onClose} disabled={starting}>Cancel</Button><Button onClick={() => void start()} loading={starting} disabled={!canStart}>Start Task</Button></Group>
     </Stack>
