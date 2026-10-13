@@ -101,16 +101,17 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
     }
     return true;
   });
-  const available = eligible.filter(candidate =>
-    (!source || candidate.fromBlockId === Number(source)) &&
-    (destination === "auto" || !destination || candidate.toBlockId === Number(destination)));
+  const selectedLoco = source === null ? undefined : locos.find(l => String(l.currentBlockId) === source);
+  const available = selectedLoco ? eligible.filter(candidate =>
+    candidate.fromBlockId === selectedLoco.currentBlockId &&
+    (destination === "auto" || !destination || candidate.toBlockId === Number(destination))) : [];
   const confirmedFree = (id:number) => {
     const block = blocks.find(b=>b.id===id);
     return !!block && block.sensorAddress>0 && sensorStates.get(block.sensorAddress)===false &&
       reserved.loaded && !reserved.blocks.has(id) && tracking.ready && tracking.active && tracking.enabled &&
       !tracking.locos.some(l=>l.currentBlockId===id);
   };
-  const destinations = [...new Set(eligible.filter(c => !source || c.fromBlockId === Number(source)).map(c => c.toBlockId))]
+  const destinations = [...new Set(available.filter(c => c.fromBlockId === selectedLoco?.currentBlockId).map(c => c.toBlockId))]
     .map(id => {
       const tracked = tracking.locos.filter(l => l.currentBlockId === id);
       const blockName = blocks.find(b => b.id === id)?.name ?? `Block #${id}`;
@@ -123,8 +124,7 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
         label: tracked.length ? `${blockName} · ${identities.join(", ")}` : `${blockName} · ${confirmedFree(id) ? "Confirmed free" : "Not confirmed free / reserved"}`,
       };
     });
-  const selectedLoco = locos.find(l => String(l.currentBlockId) === source);
-  const selectedCandidate = available.find(candidate => confirmedFree(candidate.toBlockId));
+  const selectedCandidate = selectedLoco ? available.find(candidate => confirmedFree(candidate.toBlockId)) : undefined;
   const canStart = !loading && !starting && !!route?.enabled && !!selectedLoco && !!selectedCandidate &&
     Number.isInteger(Number(speed)) && Number(speed) >= 1 && Number(speed) <= 126;
   const start = async () => {
@@ -222,7 +222,7 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
         value={destination} onChange={setDestination}/>
       <NumberInput label="Speed" min={1} max={126} allowDecimal={false} value={speed} onChange={setSpeed}/>
       {loading && <Text size="sm" c="dimmed">Loading route topology…</Text>}
-      {selectedCandidate && <Text size="sm">Planned: {selectedCandidate.blockPath.map(b => b.name).join(" → ")}</Text>}
+      {selectedLoco && selectedCandidate && <Text size="sm">Planned: {selectedCandidate.blockPath.map(b => b.name).join(" → ")}</Text>}
       {!loading && source && !selectedCandidate && <Alert color="orange">
         {available.length === 0
           ? `No route exists in the generated route table from the selected source to ${destination === "auto" ? "any block at the destination station" : "the selected destination block"}${route?.via.length ? " through the configured Via points" : ""}. Check the route graph and direction; sensor occupancy is not the reason for this message.`
