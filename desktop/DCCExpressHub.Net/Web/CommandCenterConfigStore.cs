@@ -9,10 +9,6 @@ public sealed class CommandCenterSettings
     public const int DccExSerialBaudRate = 115200;
 
     public string Transport { get; init; } = "tcp";
-    // Hardware profile is independent of the transport (Roco vs YaMoRC both use Z21 UDP).
-    public string Vendor { get; init; } = "";
-    public int LocoNetOffset { get; init; } = 0;
-    public bool UseLocoNet { get; init; } = true;
     public string TcpHost { get; init; } = "127.0.0.1";
     public int TcpPort { get; init; } = 2560;
     public string SerialPort { get; init; } = SerialPortName.PlatformDefault;
@@ -168,8 +164,52 @@ public sealed class CommandCenterConfigStore
 
     private CommandCenterSettings Load()
     {
-        // Never override a saved Web UI choice with stale Desktop environment
-        // variables. The process starts disconnected until explicit OK.
+        // The Windows Desktop launcher explicitly supplies the selected
+        // command-center protocol and endpoint on every start. In that case
+        // the launcher selection is authoritative; a stale persisted
+        // command-center.json must never switch protocol/COM/host behind it.
+        if (!string.IsNullOrWhiteSpace(
+                Environment.GetEnvironmentVariable(
+                    "CommandCenter__Protocol")) ||
+            !string.IsNullOrWhiteSpace(
+                Environment.GetEnvironmentVariable(
+                    "DccEx__Transport")))
+        {
+            var configured =
+                FromConfiguration();
+
+            var persistedPower =
+                ReadPersistedPowerPreference();
+
+            var persistedInterval =
+                ReadPersistedCommandIntervalPreference();
+
+            var persistedRBusOffset =
+                ReadPersistedRBusOffsetPreference();
+
+            return new CommandCenterSettings
+            {
+                Transport = configured.Transport,
+                TcpHost = configured.TcpHost,
+                TcpPort = configured.TcpPort,
+                SerialPort = configured.SerialPort,
+                PowerIncludesProgramming =
+                    configured.IsZ21
+                        ? false
+                        : persistedPower ??
+                          configured.PowerIncludesProgramming,
+                CommandIntervalMs =
+                    persistedInterval ??
+                    configured.CommandIntervalMs,
+
+                RBusOffset =
+                    IsRocoZ21Runtime
+                        ? persistedRBusOffset ??
+                          configured.RBusOffset
+                        : 0
+            };
+        }
+
         try
         {
             if (File.Exists(_path))
@@ -342,11 +382,13 @@ public sealed class CommandCenterConfigStore
         }
     }
 
-    // Hardware selection is now owned by the persisted Web UI profile, not
-    // by the transport chosen when the .NET process was constructed.
-    private static bool IsCompatibleWithRuntime(CommandCenterSettings? settings) =>
+    private bool IsCompatibleWithRuntime(
+        CommandCenterSettings? settings) =>
         settings is not null &&
-        settings.Vendor is "dcc-ex" or "roco-z21" or "yamorc-yd7010" or "loconet";
+        string.Equals(
+            settings.Transport,
+            RuntimeTransport,
+            StringComparison.OrdinalIgnoreCase);
 
     private CommandCenterSettings FromConfiguration()
     {
@@ -365,11 +407,8 @@ public sealed class CommandCenterConfigStore
         var settings =
             new CommandCenterSettings
             {
-                Transport = transport,
-                Vendor = transport == "z21"
-                    ? (_configuration["CommandCenter:Protocol"] == "yamorc7010" ? "yamorc-yd7010" : "roco-z21")
-                    : transport.StartsWith("loconet", StringComparison.OrdinalIgnoreCase)
-                        ? "loconet" : "dcc-ex",
+                Transport =
+                    transport,
 
                 TcpHost =
                     isLocoNet
@@ -399,9 +438,8 @@ public sealed class CommandCenterConfigStore
                         ? _configuration["LocoNet:SerialPort"] ?? SerialPortName.PlatformDefault
                         : _configuration["DccEx:SerialPort"] ?? SerialPortName.PlatformDefault,
 
-                PowerIncludesProgramming = !isZ21,
-            LocoNetOffset = _configuration.GetValue("LocoNet:SensorOffset", 0),
-            UseLocoNet = _configuration.GetValue("LocoNet:LbServerFeedback", true),
+                PowerIncludesProgramming =
+                    !isZ21,
 
                 CommandIntervalMs =
                     _configuration.GetValue(
@@ -468,7 +506,7 @@ public sealed class CommandCenterConfigStore
         }
     }
 
-    private CommandCenterSettings? Normalize(
+    private static CommandCenterSettings? Normalize(
         CommandCenterSettings? value)
     {
         if (value is null)
@@ -518,38 +556,14 @@ public sealed class CommandCenterConfigStore
             return null;
         }
 
-        var vendor = value.Vendor switch
-        {
-            "roco-z21" => "roco-z21",
-            "yamorc-yd7010" => "yamorc-yd7010",
-            "loconet" => "loconet",
-            "dcc-ex" => "dcc-ex",
-            _ => isZ21
-                ? (_configuration["CommandCenter:Protocol"] == "yamorc7010"
-                    ? "yamorc-yd7010" : "roco-z21") :
-                 value.Transport.StartsWith("loconet", StringComparison.OrdinalIgnoreCase)
-                     ? "loconet" : "dcc-ex"
-        };
-
-        var transport = vendor switch
-        {
-            "roco-z21" or "yamorc-yd7010" => "z21",
-            "loconet" => value.Transport == "loconet-serial" ? "loconet-serial" : "loconet",
-            _ => isSerial ? "serial" : "tcp"
-        };
         return new CommandCenterSettings
         {
-            Vendor = vendor,
-            // Older Desktop/YD7010 profiles stored these in process settings
-            // rather than command-center.json. Preserve the migrated offsets.
-            LocoNetOffset = Math.Clamp(
-                string.IsNullOrWhiteSpace(value.Vendor)
-                    ? _configuration.GetValue("LocoNet:SensorOffset", value.LocoNetOffset)
-                    : value.LocoNetOffset, 0, YaMoRcLocoNetClient.MaxSensorOffset),
-            UseLocoNet = string.IsNullOrWhiteSpace(value.Vendor)
-                ? _configuration.GetValue("LocoNet:LbServerFeedback", value.UseLocoNet)
-                : value.UseLocoNet,
-            Transport = transport,
+            Transport =
+                isSerial
+                    ? (string.Equals(value.Transport, "loconet-serial", StringComparison.OrdinalIgnoreCase) ? "loconet-serial" : "serial")
+                    : isZ21
+                        ? "z21"
+                        : "tcp",
 
             TcpHost = tcpHost,
             TcpPort = tcpPort,
