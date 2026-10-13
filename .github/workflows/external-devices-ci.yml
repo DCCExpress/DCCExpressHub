@@ -37,8 +37,8 @@ jobs:
         run: npm ci --prefix web-ui
       - name: Typecheck web UI
         run: npm run typecheck --prefix web-ui
-      - name: External Devices regressions
-        run: node --test web-ui/tests/external-devices.test.mjs
+      - name: External Devices and Command Center navigation regressions
+        run: node --test web-ui/tests/external-devices.test.mjs web-ui/tests/command-center-startup-navigation.test.mjs
 
   windows-desktop:
     runs-on: windows-latest
