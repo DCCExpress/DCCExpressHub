@@ -9,7 +9,6 @@ public sealed partial class WatsonWebServerService
     void RegisterCommandCenterRoutes(
         Webserver server)
     {
-        RegisterCommandCenterStartupRoutes(server);
         Add(
             server,
             WatsonHttpMethod.GET,
