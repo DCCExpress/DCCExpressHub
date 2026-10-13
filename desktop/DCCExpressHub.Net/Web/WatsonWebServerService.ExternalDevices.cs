@@ -80,19 +80,19 @@ public sealed partial class WatsonWebServerService
                 }
                 var first = proposed.SensorOffset + 1;
                 var last = proposed.SensorOffset + proposed.SensorCount;
-                var protocol = (_configuration["CommandCenter:Protocol"] ?? "").Trim().ToLowerInvariant();
+                var protocol = cc.Vendor;
                 bool Overlaps(int from, int to) => first <= to && last >= from;
                 if (proposed.SensorCount is >= 8 and <= 256 && proposed.SensorOffset >= 0)
                 {
-                    if ((protocol is "z21" or "yamorc7010") &&
+                    if ((protocol is "roco-z21" or "yamorc-yd7010") &&
                         Overlaps(cc.RBusOffset + 1, cc.RBusOffset + 160))
                     {
                         await SendAsync(ctx, HubApiResponse.Error(409, new { ok = false, message = "External sensors overlap the command center R-BUS range." }));
                         return;
                     }
-                    if (protocol is "yamorc7010" or "loconet" or "loconet-serial")
+                    if ((protocol == "yamorc-yd7010" && cc.UseLocoNet) || protocol == "loconet")
                     {
-                        var locoOffset = Math.Clamp(_configuration.GetValue<int>("LocoNet:SensorOffset"), 0, 65535 - 4096);
+                        var locoOffset = cc.LocoNetOffset;
                         if (Overlaps(locoOffset + 1, locoOffset + 4096))
                         {
                             await SendAsync(ctx, HubApiResponse.Error(409, new { ok = false, message = "External sensors overlap the LocoNet range." }));
