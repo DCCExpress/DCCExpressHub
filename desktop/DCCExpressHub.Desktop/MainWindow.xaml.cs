@@ -122,55 +122,60 @@ namespace DCCExpressHub.Desktop
             }
         }
 
-        // The Desktop no longer chooses/starts a command center. It owns only
-        // the .NET process and the WebView; the web app always starts on the
-        // Command Center Configuration page and awaits explicit user OK.
-        private async void OnLoaded(object sender, RoutedEventArgs e)
+        private void OnLoaded(
+            object sender,
+            RoutedEventArgs e)
         {
             try
             {
-                _singleInstanceMutex = new Mutex(true,
-                    @"Local\DCCExpressHub.Desktop", out bool createdNew);
+                _singleInstanceMutex =
+                    new Mutex(
+                        true,
+                        @"Local\DCCExpressHub.Desktop",
+                        out bool createdNew);
+
                 if (!createdNew)
-                    throw new InvalidOperationException(L("alreadyRunning"));
+                {
+                    throw new InvalidOperationException(
+                        L("alreadyRunning"));
+                }
 
-                _firstLauncherRun = !DesktopSettingsStore.Exists;
-                Browser.Visibility = Visibility.Collapsed;
-                SetupPanel.Visibility = Visibility.Collapsed;
-                StartupOverlay.Visibility = Visibility.Visible;
-                StartupText.Text = L("checkingBackend");
+                _firstLauncherRun =
+                    !DesktopSettingsStore.Exists;
+
+                Browser.Visibility =
+                    Visibility.Collapsed;
+
+                StartupOverlay.Visibility =
+                    Visibility.Visible;
+
+                StartupText.Text =
+                    L("checkingBackend");
+
                 KillStaleBackend();
-                if (!IsWebView2RuntimeAvailable())
-                    throw new InvalidOperationException(L("webView2RuntimeMissing"));
 
-                StartupText.Text = L("preparingWorkspace");
-                PrepareWorkspace(_firstLauncherRun);
-                _firstLauncherRun = false;
+                InitializeSetupPanel();
 
-                StartupText.Text = L("startingBackend");
-                StartBackend();
-                await WaitForBackendAsync(TimeSpan.FromSeconds(20));
+                StartupOverlay.Visibility =
+                    Visibility.Collapsed;
 
-                StartupText.Text = L("loadingWebUi");
-                await Browser.EnsureCoreWebView2Async();
-                if (Browser.CoreWebView2 is null)
-                    throw new InvalidOperationException(L("webView2InitializationFailed"));
-                Browser.CoreWebView2.Settings.AreDevToolsEnabled = true;
-                Browser.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
-                Browser.Source = new Uri(HubUrl + "/#command-center");
-
-                RestartBackendButton.Visibility = Visibility.Collapsed;
-                StartupOverlay.Visibility = Visibility.Collapsed;
-                Browser.Visibility = Visibility.Visible;
+                SetupPanel.Visibility =
+                    Visibility.Visible;
             }
             catch (Exception ex)
             {
-                StopBackend();
-                Browser.Visibility = Visibility.Collapsed;
-                SetupPanel.Visibility = Visibility.Collapsed;
-                StartupText.Text = L("startupError") + ex.Message;
-                StartupOverlay.Visibility = Visibility.Visible;
-                RestartBackendButton.Visibility = Visibility.Visible;
+                SetupPanel.Visibility =
+                    Visibility.Collapsed;
+
+                Browser.Visibility =
+                    Visibility.Collapsed;
+
+                StartupText.Text =
+                    L("startupError") +
+                    ex.Message;
+
+                StartupOverlay.Visibility =
+                    Visibility.Visible;
             }
         }
 
@@ -1822,7 +1827,8 @@ namespace DCCExpressHub.Desktop
 
             // The workspace contains persistent user data only.
             // Built/static WebUI files stay with the application under backend/wwwroot.
-            // Never overwrite the Web UI-owned command-center.json on startup.
+            if (_settings.Protocol == "tcp")
+                PersistTcpCommandCenterInstance(dataRoot);
         }
 
         private void TryMigrateLegacyData(string targetDataRoot)
@@ -2521,18 +2527,6 @@ namespace DCCExpressHub.Desktop
 
             try
             {
-                // The backend/Web UI are intentionally up before the user
-                // selects any command center. Nothing physical needs stopping
-                // when closing directly from that initial config screen.
-                if (!await IsCommandCenterSessionStartedAsync())
-                {
-                    await ShowShutdownOverlayAsync();
-                    await Task.Run(StopBackend);
-                    _closeApproved = true;
-                    Close();
-                    return;
-                }
-
                 var choice =
                     await ShowCloseConfirmAsync();
 
@@ -2573,25 +2567,6 @@ namespace DCCExpressHub.Desktop
                     _isClosing = false;
                     _closeDialogActive = false;
                 }
-            }
-        }
-
-        private async Task<bool> IsCommandCenterSessionStartedAsync()
-        {
-            try
-            {
-                using var response = await _http.GetAsync(
-                    HubUrl + "/api/command-center/startup");
-                if (!response.IsSuccessStatusCode) return true;
-                using var document = JsonDocument.Parse(
-                    await response.Content.ReadAsStringAsync());
-                return !document.RootElement.TryGetProperty("started", out var value) ||
-                    value.ValueKind != JsonValueKind.False;
-            }
-            catch
-            {
-                // Unknown state: retain existing conservative power-off prompt.
-                return true;
             }
         }
 
