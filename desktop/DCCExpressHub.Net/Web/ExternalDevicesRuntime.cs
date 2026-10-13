@@ -109,6 +109,7 @@ public sealed class ExternalDevicesRuntime : BackgroundService
                 port.Write("LOG ON\n");
                 var line = new StringBuilder(256);
                 var lastSnapshot = DateTimeOffset.MinValue;
+                var connectedAt = DateTimeOffset.UtcNow;
                 var nextPoll = DateTimeOffset.MinValue;
                 int activeInputs = 0;
                 while (!ct.IsCancellationRequested)
@@ -151,7 +152,7 @@ public sealed class ExternalDevicesRuntime : BackgroundService
                         DateTimeOffset.UtcNow - lastSnapshot > TimeSpan.FromSeconds(5))
                         throw new IOException("S88 snapshot timeout.");
                     if (lastSnapshot == DateTimeOffset.MinValue &&
-                        now > nextPoll.AddSeconds(6))
+                        now - connectedAt > TimeSpan.FromSeconds(6))
                         throw new IOException("No valid S88 snapshot.");
                     await Task.Delay(40, ct);
                 }
