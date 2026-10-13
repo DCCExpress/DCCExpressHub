@@ -197,19 +197,22 @@ public sealed class ExternalDevicesRuntime : BackgroundService
     static async Task ConfigureAdapterAsync(
         SerialPort port, ExternalDeviceConfig config, CancellationToken ct)
     {
-        await ExchangeAsync(port, "LOG OFF",
-            output => output.Contains("OK: periodic S88 log OFF", StringComparison.Ordinal), ct);
-
+        // Verify that this COM/tty endpoint really speaks the S88Adapter
+        // protocol before sending any commands that change device state.
         async Task<(int Active, int Staged, int Saved)> StatusAsync()
         {
             var response = await ExchangeAsync(port, "STATUS",
-                output => TryParseByteStatus(output, out _, out _, out _), ct);
+                output => output.Contains("--- S88Adapter STATUS ---", StringComparison.Ordinal) &&
+                          TryParseByteStatus(output, out _, out _, out _), ct);
             if (!TryParseByteStatus(response, out var active, out var staged, out var saved))
                 throw new IOException("Invalid S88 adapter STATUS response.");
             return (active, staged, saved);
         }
 
         var status = await StatusAsync();
+        await ExchangeAsync(port, "LOG OFF",
+            output => output.Contains("OK: periodic S88 log OFF", StringComparison.Ordinal), ct);
+
         if (status.Active != config.S88Bytes ||
             status.Staged != config.S88Bytes ||
             status.Saved != config.S88Bytes)
