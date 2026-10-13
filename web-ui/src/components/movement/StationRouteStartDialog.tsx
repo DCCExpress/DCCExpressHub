@@ -122,9 +122,11 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
         renderOption={({ option }) => {
           const tracked = locos.find(l => String(l.currentBlockId) === option.value);
           const loco = locomotives.find(item => item.address === tracked?.locoAddress);
-          return <Group gap="sm" wrap="nowrap">
-            <LocoImage locoId={loco?.id ?? ""} image={loco?.image} name={loco?.name} width={88} height={38}/>
-            <Stack gap={0}>
+          return <Group gap="sm" wrap="nowrap" style={{ width: "100%" }}>
+            <div style={{ flex: "0 0 96px", width: 96, height: 40, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <LocoImage locoId={loco?.id ?? ""} image={loco?.image} name={loco?.name} width={88} height={38}/>
+            </div>
+            <Stack gap={0} style={{ flex: "1 1 0", minWidth: 0 }}>
               <Text size="sm" fw={500}>{option.label}</Text>
               {tracked && <Text size="xs" c="dimmed">DCC #{tracked.locoAddress}</Text>}
             </Stack>
@@ -137,13 +139,16 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
           if (option.value === "auto") return <Text size="sm">{option.label}</Text>;
           const tracked = tracking.locos.filter(l => String(l.currentBlockId) === option.value);
           const blockName = blocks.find(b => String(b.id) === option.value)?.name ?? `Block #${option.value}`;
-          return <Group gap="sm" wrap="nowrap">
-            {tracked.length ? tracked.map(l => {
-              const loco = locomotives.find(item => item.address === l.locoAddress);
-              return <LocoImage key={l.locoAddress} locoId={loco?.id ?? ""} image={loco?.image}
-                name={loco?.name} width={88} height={38}/>;
-            }) : <LocoImage width={88} height={38}/>}
-            <Stack gap={0}>
+          return <Group gap="sm" wrap="nowrap" style={{ width: "100%" }}>
+            <div style={{ flex: "0 0 96px", width: 96, height: 40, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+              {tracked.length ? (() => {
+                const first = tracked[0]!;
+                const loco = locomotives.find(item => item.address === first.locoAddress);
+                return <LocoImage locoId={loco?.id ?? ""} image={loco?.image}
+                  name={loco?.name} width={88} height={38}/>;
+              })() : <LocoImage width={88} height={38}/>}
+            </div>
+            <Stack gap={0} style={{ flex: "1 1 0", minWidth: 0 }}>
               <Text size="sm" fw={500}>{blockName}</Text>
               {tracked.length
                 ? tracked.map(l => {
