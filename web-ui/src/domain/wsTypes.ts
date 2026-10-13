@@ -375,6 +375,25 @@ export type MovementRuntimeStatePayload = {
   error: string | null;
 };
 
+export type TrainDriverStatePayload = {
+  taskId: string;
+  movementId: string;
+  locoAddress: number;
+  name: string;
+  status: "created" | "running" | "waiting" | "stopping" | "stopped" | "completed" | "aborted" | "error";
+  info: string | null;
+  error: string | null;
+  createdAt: number;
+};
+export type TrainDriverResponsePayload = {
+  requestId: string;
+  action: string;
+  ok: boolean;
+  error?: string | null;
+  state?: TrainDriverStatePayload | null;
+  states?: TrainDriverStatePayload[];
+};
+
 export type MovementResponsePayload = WsCommandResponseMeta & {
   extra?: {
     state?: MovementRuntimeStatePayload;
@@ -608,6 +627,8 @@ export type ServerWsPayloadMap = {
   movementStateChanged: MovementRuntimeStatePayload;
   movementSnapshot: { states: MovementRuntimeStatePayload[] };
   movementResponse: MovementResponsePayload;
+  trainDriverStateChanged: TrainDriverStatePayload;
+  trainDriverResponse: TrainDriverResponsePayload;
   safetyEmergencyStop: SafetyEmergencyStopPayload;
 
   automationScriptStateChanged: AutomationScriptRuntimeStatePayload;
