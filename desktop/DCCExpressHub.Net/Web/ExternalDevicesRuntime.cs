@@ -41,6 +41,23 @@ public sealed class ExternalDevicesRuntime : BackgroundService
         _store.List().Any(x =>
             x.Enabled && string.Equals(x.SerialPort, serialPort, StringComparison.OrdinalIgnoreCase));
 
+    // A command-station disconnect invalidates the shared sensor cache.
+    // External adapters are independent and remain connected, so replay
+    // their latest verified snapshot exactly once after that invalidation.
+    public void ReplayLiveSensorStates()
+    {
+        var configs = _store.List().ToDictionary(x => x.Id);
+        foreach (var status in Status())
+        {
+            if (!status.Connected || !configs.TryGetValue(status.Id, out var config) ||
+                !config.Enabled || !string.Equals(config.SerialPort, status.Port,
+                    StringComparison.OrdinalIgnoreCase))
+                continue;
+            for (var i = 0; i < status.Snapshot.Length; i++)
+                SensorFeedbackChanged?.Invoke(config.SensorOffset + i + 1, status.Snapshot[i]);
+        }
+    }
+
     void UpdateStatus(
         ExternalDeviceConfig config, bool connected, int inputs, DateTimeOffset? at,
         string message, bool[]? snapshot = null, int? adapterBytes = null)
@@ -242,6 +259,7 @@ public sealed class ExternalDevicesRuntime : BackgroundService
 
                 var line = new StringBuilder(256);
                 var lastSnapshot = DateTimeOffset.MinValue;
+                bool[]? previous = null;
                 var connectedAt = DateTimeOffset.UtcNow;
                 var nextPoll = DateTimeOffset.MinValue;
                 while (!ct.IsCancellationRequested)
@@ -269,8 +287,14 @@ public sealed class ExternalDevicesRuntime : BackgroundService
                                 throw new IOException(
                                     "S88 snapshot length differs from the configured byte count.");
 
+                            // First snapshot initializes all sensors, then only
+                            // physical transitions produce runtime events.
                             for (var i = 0; i < values.Length; i++)
-                                SensorFeedbackChanged?.Invoke(config.SensorOffset + i + 1, values[i]);
+                            {
+                                if (previous is null || previous[i] != values[i])
+                                    SensorFeedbackChanged?.Invoke(config.SensorOffset + i + 1, values[i]);
+                            }
+                            previous = values;
 
                             lastSnapshot = DateTimeOffset.UtcNow;
                             UpdateStatus(config, true, values.Length, lastSnapshot,
