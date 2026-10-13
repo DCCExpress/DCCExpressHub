@@ -21,6 +21,8 @@ jobs:
         run: dotnet build desktop/DCCExpressHub.Net/DCCExpressHub.Net.csproj -c Release
       - name: Exercise S88 HEX/CRC16 decoder
         run: dotnet run --project tests/S88HexSmoke/S88HexSmoke.csproj -c Release
+      - name: Exercise config-first HTTP connection lifecycle
+        run: bash tests/command-center-startup-smoke.sh
 
   web-ui:
     runs-on: ubuntu-latest
