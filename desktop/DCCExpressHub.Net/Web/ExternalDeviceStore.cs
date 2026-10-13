@@ -13,6 +13,9 @@ public sealed record ExternalDeviceConfig
     // S88 input 1 maps to SensorOffset + 1.
     public int SensorOffset { get; init; } = 50000;
     public int SensorCount { get; init; } = 32;
+    // 1 S88 byte/group = 8 inputs. Zero is the legacy JSON format,
+    // which stored only SensorCount.
+    public int S88Bytes { get; init; } = 0;
 }
 
 public sealed class ExternalDeviceStore
@@ -54,8 +57,9 @@ public sealed class ExternalDeviceStore
                 File.ReadAllText(_file), Json) ?? [];
             // A malformed persisted file cannot open overlapping serial ports/ranges.
             var accepted = new List<ExternalDeviceConfig>();
-            foreach (var device in devices)
+            foreach (var original in devices)
             {
+                var device = Normalize(original);
                 if (accepted.Count >= 16)
                     break;
                 if (Validate(device, accepted, device.Id) is null &&
@@ -87,6 +91,7 @@ public sealed class ExternalDeviceStore
                 Name = (proposed.Name ?? "").Trim(),
                 SerialPort = (proposed.SerialPort ?? "").Trim()
             };
+            normalized = Normalize(normalized);
             var current = List().ToList();
             var error = Validate(normalized, current, id);
             if (error is not null)
@@ -136,6 +141,20 @@ public sealed class ExternalDeviceStore
         }
     }
 
+    // Normalize configurations saved before S88Bytes existed, and keep one
+    // authoritative number of inputs derived from the explicit byte count.
+    static ExternalDeviceConfig Normalize(ExternalDeviceConfig device)
+    {
+        var bytes = device.S88Bytes == 0
+            ? (device.SensorCount % 8 == 0 ? device.SensorCount / 8 : 0)
+            : device.S88Bytes;
+        return device with
+        {
+            S88Bytes = bytes,
+            SensorCount = bytes is >= 1 and <= 32 ? bytes * 8 : device.SensorCount
+        };
+    }
+
     static string? Validate(ExternalDeviceConfig d, List<ExternalDeviceConfig> current, string self)
     {
         if (string.IsNullOrWhiteSpace(d.Id) || d.Id.Length > 80)
@@ -147,8 +166,8 @@ public sealed class ExternalDeviceStore
         if (string.IsNullOrWhiteSpace(d.SerialPort) ||
             !SerialPortName.IsValidForCurrentPlatform(d.SerialPort))
             return "Invalid serial port for this operating system.";
-        if (d.SensorCount is < 8 or > 256 || d.SensorCount % 8 != 0)
-            return "Sensor count must be 8–256, in multiples of 8.";
+        if (d.S88Bytes is < 1 or > 32 || d.SensorCount != d.S88Bytes * 8)
+            return "S88 bytes/groups must be 1–32 (8 inputs per byte).";
         if (d.SensorOffset < 0 || d.SensorOffset + d.SensorCount > ushort.MaxValue)
             return "Sensor address range exceeds 1–65535.";
         if (!d.Enabled)
