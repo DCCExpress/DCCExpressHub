@@ -1,3 +1,4 @@
+using System.Text;
 using System.IO.Ports;
 using System.Net.Sockets;
 using DCCExpressHub.Net.CommandCenter;
@@ -144,6 +145,54 @@ public sealed class CommandCenterStartupApi
         return HubApiResponse.Ok(new { ok = true, started = false });
     }
 
+    private static async Task<HubApiResponse> TestDccExSerialAsync(
+        string name, CancellationToken ct)
+    {
+        // Real DCC-EX response test, like the former Windows startup probe.
+        // SerialDccExTransport stabilizes Arduino USB devices after opening.
+        await using var transport = new SerialDccExTransport(name);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(5));
+        await transport.ConnectAsync(timeout.Token);
+        await transport.WriteAsync(Encoding.ASCII.GetBytes("<#>"), timeout.Token);
+        var frame = new StringBuilder(128);
+        var buffer = new byte[256];
+        var inFrame = false;
+        while (!timeout.IsCancellationRequested)
+        {
+            var count = await transport.ReadAsync(buffer, timeout.Token);
+            for (var i = 0; i < count; i++)
+            {
+                var value = (char)buffer[i];
+                if (value == '<')
+                {
+                    frame.Clear();
+                    frame.Append(value);
+                    inFrame = true;
+                    continue;
+                }
+                if (!inFrame) continue;
+                frame.Append(value);
+                if (value == '>')
+                {
+                    var reply = frame.ToString();
+                    if (reply.StartsWith("<#", StringComparison.Ordinal))
+                        return HubApiResponse.Ok(new { ok = true,
+                            message = "DCC-EX Serial heartbeat OK: " + reply });
+                    frame.Clear();
+                    inFrame = false;
+                }
+                if (frame.Length > 128)
+                {
+                    frame.Clear();
+                    inFrame = false;
+                }
+            }
+        }
+        return HubApiResponse.Error(502, new { ok = false,
+            message = "Serial port opened, but no DCC-EX heartbeat reply was received." });
+    }
+
     public async Task<HubApiResponse> TestAsync(CommandCenterStartupRequest profile, bool locoNet, CancellationToken ct)
     {
         var error = Validate(profile) ?? CheckExternalConflicts(profile);
@@ -162,13 +211,16 @@ public sealed class CommandCenterStartupApi
                 return HubApiResponse.Ok(new { ok = true, message = "LocoNet LBServer TCP port 1234 reachable (bus feedback not yet verified)." });
             }
 
-            if (profile.Transport is "serial" or "loconet-serial")
+            if (profile.Transport == "serial" && profile.Vendor == "dcc-ex")
+                return await TestDccExSerialAsync(profile.SerialPort, ct);
+            if (profile.Transport == "loconet-serial")
             {
-                // Only the serial port can be probed generically: don't claim
-                // that a matching DCC-EX/LocoNet protocol response was read.
+                // A generic LocoNet serial interface needs actual bus traffic
+                // to verify protocol framing; opening the COM port alone is
+                // explicitly reported as a port test.
                 using var serial = new SerialPort(profile.SerialPort, 115200);
                 serial.Open();
-                return HubApiResponse.Ok(new { ok = true, message = "Serial port opened; command-center protocol not verified." });
+                return HubApiResponse.Ok(new { ok = true, message = "LocoNet serial port opened; protocol and feedback not yet verified." });
             }
 
             var result = profile.Transport == "z21"
