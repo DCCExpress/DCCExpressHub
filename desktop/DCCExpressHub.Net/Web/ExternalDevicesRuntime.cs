@@ -223,8 +223,12 @@ public sealed class ExternalDevicesRuntime : BackgroundService
         }
 
         var status = await StatusAsync();
-        await ExchangeAsync(port, "LOG OFF",
-            output => output.Contains("OK: periodic S88 log OFF", StringComparison.Ordinal), ct);
+        // v0.6 streams full ASCII HEX snapshots automatically.
+        // Ensure that a previous terminal session has not left logging off.
+        await ExchangeAsync(port, "VIEW HEX",
+            output => output.Contains("OK: serial view HEX", StringComparison.Ordinal), ct);
+        await ExchangeAsync(port, "LOG ON",
+            output => output.Contains("OK: periodic S88 log ON", StringComparison.Ordinal), ct);
 
         var needsByteChange = status.Active != config.S88Bytes ||
                               status.Staged != config.S88Bytes ||
@@ -289,31 +293,26 @@ public sealed class ExternalDevicesRuntime : BackgroundService
                 var lastSnapshot = DateTimeOffset.MinValue;
                 bool[]? previous = null;
                 var connectedAt = DateTimeOffset.UtcNow;
-                var nextPoll = DateTimeOffset.MinValue;
                 while (!ct.IsCancellationRequested)
                 {
                     var now = DateTimeOffset.UtcNow;
-                    if (now >= nextPoll)
-                    {
-                        port.Write("READ\n");
-                        nextPoll = now.AddMilliseconds(250);
-                    }
-
+                    // Push-only v0.6: no READ commands and no repeated parsing
+                    // of legacy ASCII bit strings.
                     foreach (var ch in port.ReadExisting())
                     {
                         if (ch == '\n')
                         {
                             var value = line.ToString().Trim();
                             line.Clear();
-                            if (!S88SnapshotDecoder.TryParse(value, out var values))
+                            // Fail closed on malformed length/HEX/CRC. A rejected
+                            // frame must never update any sensor or watchdog.
+                            if (!S88HexProtocol.TryParse(value, out var bytes))
                                 continue;
                             ct.ThrowIfCancellationRequested();
-
-                            // Never mark a partial/mismatched S88 frame as valid:
-                            // missing sensors must stay UNKNOWN, not FREE.
-                            if (values.Length != config.SensorCount)
+                            if (bytes.Length != config.S88Bytes)
                                 throw new IOException(
                                     "S88 snapshot length differs from the configured byte count.");
+                            var values = S88HexProtocol.UnpackSensors(bytes);
 
                             // First snapshot initializes all sensors, then only
                             // physical transitions produce runtime events.
