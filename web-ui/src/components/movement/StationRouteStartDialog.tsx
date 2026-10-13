@@ -1,5 +1,7 @@
 import { Alert, Button, Group, Modal, NumberInput, Select, Stack, Text } from "@mantine/core";
 import { useEffect, useMemo, useState } from "react";
+import type { Loco } from "@/domain/domainTypes";
+import LocoImage from "@/components/loco/LocoImage";
 import type { LayoutView } from "@/models/editor/core/LayoutView";
 import { BlockElement } from "@/models/editor/elements/BlockElement";
 import type { StationRouteDefinition } from "@/domain/layout/stationRoutes";
@@ -12,10 +14,11 @@ type Props = {
   opened: boolean;
   onClose: () => void;
   layout: LayoutView;
+  locomotives: Loco[];
   route: StationRouteDefinition | null;
 };
 
-export default function StationRouteStartDialog({ opened, onClose, layout, route }: Props) {
+export default function StationRouteStartDialog({ opened, onClose, layout, locomotives, route }: Props) {
   const [tracking, setTracking] = useState(getTrainTrackingState);
   const [candidates, setCandidates] = useState<MovementRouteCandidate[]>([]);
   const [source, setSource] = useState<string | null>(null);
@@ -100,7 +103,22 @@ export default function StationRouteStartDialog({ opened, onClose, layout, route
         value={reverse ? "reverse" : "forward"} onChange={value => { setReverse(value === "reverse"); setSource(null); setDestination("auto"); }}/>}
       {!tracking.ready && <Alert color="orange">Train Tracking is not ready. Automatic train identification is required.</Alert>}
       <Select label="From block / Locomotive" placeholder="Select confirmed locomotive" searchable
-        data={locos.map(l => ({value: String(l.currentBlockId),label: `${blocks.find(b => b.id === l.currentBlockId)?.name ?? l.currentBlockName} · Loco #${l.locoAddress}`}))}
+        data={locos.map(l => {
+          const loco = locomotives.find(item => item.address === l.locoAddress);
+          const blockName = blocks.find(b => b.id === l.currentBlockId)?.name ?? l.currentBlockName ?? "Unknown";
+          return { value: String(l.currentBlockId), label: `${blockName} · ${loco?.name || `Loco #${l.locoAddress}`}` };
+        })}
+        renderOption={({ option }) => {
+          const tracked = locos.find(l => String(l.currentBlockId) === option.value);
+          const loco = locomotives.find(item => item.address === tracked?.locoAddress);
+          return <Group gap="sm" wrap="nowrap">
+            <LocoImage locoId={loco?.id ?? ""} image={loco?.image} name={loco?.name} width={88} height={38}/>
+            <Stack gap={0}>
+              <Text size="sm" fw={500}>{option.label}</Text>
+              {tracked && <Text size="xs" c="dimmed">DCC #{tracked.locoAddress}</Text>}
+            </Stack>
+          </Group>;
+        }}
         value={source} onChange={v => {setSource(v);setDestination("auto");}}/>
       <Select label="Destination block" placeholder="Automatic" searchable
         data={[{value:"auto",label:"Automatic — select available destination"},...destinations]}
