@@ -34,7 +34,7 @@ const emptyDevice = (): ExternalDevice => ({
   name: "DCCExpressS88Adapter",
   enabled: true,
   serialPort: "",
-  sensorOffset: 2000,
+  sensorOffset: 50000,
   sensorCount: 32,
 });
 
