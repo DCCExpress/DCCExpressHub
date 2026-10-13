@@ -90,11 +90,12 @@ const AutomationFlowPage = lazy(() => import("./AutomationFlowPage"));
 const RuntimeLayoutOverlay = lazy(() => import("./RuntimeLayoutOverlay"));
 const ProgrammingPage = lazy(() => import("./ProgrammingPage"));
 const S88AdapterPage = lazy(() => import("./S88AdapterPage"));
+const ExternalDevicesPage = lazy(() => import("./ExternalDevicesPage"));
 const GamepadPage = lazy(() => import("./GamepadPage"));
 const ConsolePage = lazy(() => import("./ConsolePage"));
 
 type LoadState = "idle" | "loading" | "ready" | "error";
-type Page = "home" | "drive" | "layout" | "flows" | "programming" | "s88-adapter" | "settings" | "device-config" | "gamepad" | "console" | "files" | "backup";
+type Page = "home" | "drive" | "layout" | "flows" | "programming" | "s88-adapter" | "external-devices" | "settings" | "device-config" | "gamepad" | "console" | "files" | "backup";
 
 type NetworkSettingsDto = {
   configured: boolean;
@@ -138,7 +139,7 @@ function formatStatus(status: WsConnectionStatus): string {
 
 function pageFromHash(): Page {
   const page = window.location.hash.replace("#", "");
-  return page === "drive" || page === "layout" || page === "flows" || page === "programming" || page === "s88-adapter" || page === "settings" || page === "device-config" || page === "gamepad" || page === "console" || page === "files" || page === "backup" ? page : "home";
+  return page === "drive" || page === "layout" || page === "flows" || page === "programming" || page === "s88-adapter" || page === "external-devices" || page === "settings" || page === "device-config" || page === "gamepad" || page === "console" || page === "files" || page === "backup" ? page : "home";
 }
 
 function AppHeader({
@@ -336,6 +337,16 @@ function HomePage({
           <Title order={4} mt="md">{t("homeHub.cards.programming.title")}</Title>
           <Text size="sm" c="dimmed" mt={4}>
             {t("homeHub.cards.programming.description")}
+          </Text>
+        </Card>
+
+        <Card className="action-card" withBorder radius={5} p="lg" onClick={() => onNavigate("external-devices")}>
+          <ThemeIcon size={48} radius="lg" color="blue" variant="light">
+            <IconCpu size={27} />
+          </ThemeIcon>
+          <Title order={4} mt="md">External Devices</Title>
+          <Text size="sm" c="dimmed" mt={4}>
+            Add device · DCCExpressS88Adapter · USB serial sensor feedback for any command center.
           </Text>
         </Card>
 
@@ -1207,6 +1218,8 @@ export default function App() {
     if (page === "programming") return <ProgrammingPage onBack={() => navigate("home")} status={status} />;
 
     if (page === "s88-adapter") return <S88AdapterPage onBack={() => navigate("home")} />;
+
+    if (page === "external-devices") return <ExternalDevicesPage onBack={() => navigate("home")} />;
 
     if (page === "device-config") return <DeviceConfigurationPage onBack={() => navigate("home")} />;
 
