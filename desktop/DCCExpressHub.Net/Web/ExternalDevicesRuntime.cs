@@ -10,7 +10,7 @@ public sealed class ExternalDevicesRuntime : BackgroundService
     sealed record Worker(ExternalDeviceConfig Config, CancellationTokenSource Cancellation, Task Running);
     public sealed record DeviceStatus(
         string Id, string Port, bool Connected, int ActiveInputs,
-        DateTimeOffset? LastSnapshotUtc, string Message);
+        DateTimeOffset? LastSnapshotUtc, string Message, bool[] Snapshot);
 
     readonly ExternalDeviceStore _store;
     readonly ILogger<ExternalDevicesRuntime> _log;
@@ -36,11 +36,11 @@ public sealed class ExternalDevicesRuntime : BackgroundService
         _store.List().Any(x =>
             x.Enabled && string.Equals(x.SerialPort, serialPort, StringComparison.OrdinalIgnoreCase));
 
-    void UpdateStatus(ExternalDeviceConfig config, bool connected, int inputs, DateTimeOffset? at, string message)
+    void UpdateStatus(ExternalDeviceConfig config, bool connected, int inputs, DateTimeOffset? at, string message, bool[]? snapshot = null)
     {
         lock (_statusGate)
             _status[config.Id] = new DeviceStatus(
-                config.Id, config.SerialPort, connected, inputs, at, message);
+                config.Id, config.SerialPort, connected, inputs, at, message, snapshot ?? []);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -106,7 +106,7 @@ public sealed class ExternalDevicesRuntime : BackgroundService
                 port.Open();
                 // Most Uno boards reset when their USB serial port is opened.
                 await Task.Delay(2000, ct);
-                port.Write("LOG ON\n");
+                port.Write("LOG OFF\n");
                 var line = new StringBuilder(256);
                 var lastSnapshot = DateTimeOffset.MinValue;
                 var connectedAt = DateTimeOffset.UtcNow;
@@ -118,7 +118,7 @@ public sealed class ExternalDevicesRuntime : BackgroundService
                     if (now >= nextPoll)
                     {
                         port.Write("READ\n");
-                        nextPoll = now.AddSeconds(1);
+                        nextPoll = now.AddMilliseconds(250);
                     }
                     var incoming = port.ReadExisting();
                     foreach (var ch in incoming)
@@ -139,7 +139,7 @@ public sealed class ExternalDevicesRuntime : BackgroundService
                                 for (int i = 0; i < values.Length; i++)
                                     SensorFeedbackChanged?.Invoke(config.SensorOffset + i + 1, values[i]);
                                 lastSnapshot = DateTimeOffset.UtcNow;
-                                UpdateStatus(config, true, values.Length, lastSnapshot, "Online");
+                                UpdateStatus(config, true, values.Length, lastSnapshot, "Online", values);
                             }
                         }
                         else if (ch != '\r')
