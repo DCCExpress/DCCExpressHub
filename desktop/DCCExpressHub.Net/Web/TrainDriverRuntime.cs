@@ -63,7 +63,15 @@ public sealed class TrainDriverRuntime
         Changed?.Invoke(pending);
         // Existing MovementRuntime validates physical source, track power,
         // safety sensors, Dispatcher and calibration exclusivity.
-        var result = _movement.StartTransient(page, calibrationBypass: false);
+        (bool Ok, string? Error) result;
+        try
+        {
+            result = _movement.StartTransient(page, calibrationBypass: false);
+        }
+        catch (Exception ex)
+        {
+            result = (false, ex.Message);
+        }
         if (!result.Ok)
         {
             DriverState failed;
