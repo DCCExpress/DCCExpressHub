@@ -102,6 +102,14 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
     return true;
   });
   const selectedLoco = source === null ? undefined : locos.find(l => String(l.currentBlockId) === source);
+  const fromSource = selectedLoco ? candidates.filter(candidate =>
+    candidate.fromBlockId === selectedLoco.currentBlockId) : [];
+  const fromSourceToStation = fromSource.filter(candidate =>
+    toIds.has(candidate.toBlockId));
+  const usableToStation = fromSourceToStation.filter(candidate =>
+    candidate.locoDirection !== "unknown");
+  const directionUnknownToStation = fromSourceToStation.length - usableToStation.length;
+  const destinationsInTable = [...new Set(fromSource.map(candidate => candidate.toBlockName))];
   const available = selectedLoco ? eligible.filter(candidate =>
     candidate.fromBlockId === selectedLoco.currentBlockId &&
     (destination === "auto" || !destination || candidate.toBlockId === Number(destination))) : [];
@@ -225,7 +233,7 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
       {selectedLoco && selectedCandidate && <Text size="sm">Planned: {selectedCandidate.blockPath.map(b => b.name).join(" → ")}</Text>}
       {!loading && source && !selectedCandidate && <Alert color="orange">
         {available.length === 0
-          ? `No route exists in the generated route table from the selected source to ${destination === "auto" ? "any block at the destination station" : "the selected destination block"}${route?.via.length ? " through the configured Via points" : ""}. Check the route graph and direction; sensor occupancy is not the reason for this message.`
+          ? `No executable route found from the selected source to ${destination === "auto" ? "the destination station" : "the selected destination block"}. Route table: ${fromSource.length} outgoing route(s), ${fromSourceToStation.length} reaching destination station, ${directionUnknownToStation} with unknown direction, ${usableToStation.length} direction-known. Reachable targets: ${destinationsInTable.slice(0,12).join(", ") || "none"}. ${route?.via.length ? "Via checkpoints may exclude some alternatives. " : ""}Check graph direction and topology; a FREE sensor does not establish physical reachability.`
           : `${available.length} route candidate(s) exist (${[...new Set(available.map(item => item.toBlockName))].join(", ")}), but no destination is confirmed free. ${!reserved.loaded ? "Dispatcher snapshot missing. " : ""}Check target sensor OFF/FREE, current locomotive assignments and reservations.`}
       </Alert>}
       {error && <Alert color="red">{error}</Alert>}
