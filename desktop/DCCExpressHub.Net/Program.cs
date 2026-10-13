@@ -82,6 +82,8 @@ builder.Services.AddSingleton<LocoStorageCoordinator>();
 builder.Services.AddSingleton<AutomationExclusiveGate>();
 builder.Services.AddSingleton<CommandCenterConfigStore>();
 builder.Services.AddSingleton<CommandCenterApi>();
+builder.Services.AddSingleton<ExternalDeviceStore>();
+builder.Services.AddSingleton<ExternalDevicesRuntime>();
 builder.Services.AddSingleton<LocomotiveConfigApi>();
 builder.Services.AddSingleton<LayoutConfigApi>();
 builder.Services.AddSingleton<AutomationConfigApi>();
@@ -211,6 +213,8 @@ builder.Services.AddSingleton<PrecisionBrakingRuntime>();
 builder.Services.AddSingleton<WsHub>();
 
 builder.Services.AddHostedService<WsRuntimeCoordinator>();
+// Subscribe to external sensor feedback before starting serial readers.
+builder.Services.AddHostedService(sp => sp.GetRequiredService<ExternalDevicesRuntime>());
 
 // Register the HTTP/WebSocket host last so command-center and automation
 // hosted services start before clients can connect.
