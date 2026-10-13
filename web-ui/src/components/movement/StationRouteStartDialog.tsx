@@ -101,6 +101,12 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
   const available = eligible.filter(candidate =>
     (!source || candidate.fromBlockId === Number(source)) &&
     (destination === "auto" || !destination || candidate.toBlockId === Number(destination)));
+  const confirmedFree = (id:number) => {
+    const block = blocks.find(b=>b.id===id);
+    return !!block && block.sensorAddress>0 && sensorStates.get(block.sensorAddress)===false &&
+      reserved.loaded && !reserved.blocks.has(id) && tracking.ready && tracking.active && tracking.enabled &&
+      !tracking.locos.some(l=>l.currentBlockId===id);
+  };
   const destinations = [...new Set(eligible.filter(c => !source || c.fromBlockId === Number(source)).map(c => c.toBlockId))]
     .map(id => {
       const tracked = tracking.locos.filter(l => l.currentBlockId === id);
@@ -115,12 +121,6 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
       };
     });
   const selectedLoco = locos.find(l => String(l.currentBlockId) === source);
-  const confirmedFree = (id:number) => {
-    const block = blocks.find(b=>b.id===id);
-    return !!block && block.sensorAddress>0 && sensorStates.get(block.sensorAddress)===false &&
-      reserved.loaded && !reserved.blocks.has(id) && tracking.ready && tracking.active && tracking.enabled &&
-      !tracking.locos.some(l=>l.currentBlockId===id);
-  };
   const selectedCandidate = available.find(candidate => confirmedFree(candidate.toBlockId));
   const canStart = !loading && !starting && !!route?.enabled && !!selectedLoco && !!selectedCandidate &&
     Number.isInteger(Number(speed)) && Number(speed) >= 1 && Number(speed) <= 126;
