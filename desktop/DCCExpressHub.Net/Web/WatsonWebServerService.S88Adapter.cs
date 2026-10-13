@@ -129,7 +129,7 @@ public sealed partial class WatsonWebServerService
             await SendAsync(ctx, HubApiResponse.Error(400, new { ok = false, message = "Select an available serial port." }));
             return;
         }
-        var simple = new[] { "STATUS", "INFO", "READ", "SAVE", "DEFAULTS", "LOG ON", "LOG OFF", "REBOOT", "HELP" };
+        var simple = new[] { "STATUS", "INFO", "READ", "SAVE", "DEFAULTS", "LOG ON", "LOG OFF", "REBOOT", "HELP", "VIEW", "VIEW HEX", "VIEW BIN" };
         var valid = simple.Contains(command);
         if (command.StartsWith("SET BYTES ", StringComparison.Ordinal) &&
             int.TryParse(command["SET BYTES ".Length..], out var bytes) && bytes is >= 1 and <= 32)
@@ -240,10 +240,22 @@ public sealed partial class WatsonWebServerService
     {
         if (!line.StartsWith("S88:", StringComparison.OrdinalIgnoreCase))
             return;
-        var bytes = System.Text.RegularExpressions.Regex.Matches(line, @"_[01]{8}");
-        if (bytes.Count == 0 || bytes.Count > 32)
-            return;
-        var snapshot = "S88: " + string.Join(" ", bytes.Select(match => match.Value));
+
+        string snapshot;
+        if (S88HexProtocol.TryParse(line, out _))
+        {
+            snapshot = line;
+        }
+        else if (S88SnapshotDecoder.TryParse(line, out _))
+        {
+            // v0.5 compatibility and VIEW BIN (human-readable ASCII).
+            snapshot = line;
+        }
+        else
+        {
+            return; // Invalid CRC, incomplete frame or unsupported content.
+        }
+
         if (snapshot == _s88LastSnapshot)
             return;
         _s88LastSnapshot = snapshot;
