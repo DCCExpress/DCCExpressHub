@@ -33,6 +33,9 @@ import {
 } from "@tabler/icons-react";
 
 import type { StationRouteDefinition } from "@/domain/layout/stationRoutes";
+import type { LayoutView } from "@/models/editor/core/LayoutView";
+import { previewStationRoute, type StationRoutePlan } from "@/services/stationRoutePlanner";
+import AppModal from "@/components/common/AppModal";
 
 import type {
   MovementDocument,
@@ -88,6 +91,7 @@ type Props = {
       string | null
   ) => void;
   stationRoutes: StationRouteDefinition[];
+  layout: LayoutView;
   stationNames: Array<{ id: string; name: string }>;
   onOpenStationRoutes: (routeId: string) => void;
 };
@@ -476,9 +480,18 @@ export default function MovementPagesTable({
   onDocumentChange,
   onSelectRoute,
   stationRoutes,
+  layout,
   stationNames,
   onOpenStationRoutes,
 }: Props) {
+  const [stationPreview, setStationPreview] = useState<{ route: StationRouteDefinition; plans: StationRoutePlan[]; error: string | null } | null>(null);
+  const showStationPreview = (route: StationRouteDefinition) => {
+    try {
+      setStationPreview({route, plans: previewStationRoute(layout,route), error:null});
+    } catch(error) {
+      setStationPreview({route,plans:[],error:error instanceof Error ? error.message : String(error)});
+    }
+  };
   const mt =
     useMovementTranslation();
 
@@ -1026,7 +1039,7 @@ export default function MovementPagesTable({
                 {route.via.length > 0 && <Text size="xs" c="dimmed">Via: {viaLabel}</Text>}
                 <Group justify="space-between">
                   <Badge variant="outline">{route.allowReverse ? "Both directions" : "One-way"}</Badge>
-                  <Button size="xs" variant="light" leftSection={<IconEdit size={14}/>} onClick={() => onOpenStationRoutes(route.id)}>Edit Station Route</Button>
+                  <Group gap="xs"><Button size="xs" variant="light" leftSection={<IconRoute size={14}/>} onClick={() => showStationPreview(route)}>Preview</Button><ActionIcon variant="light" aria-label="Edit Station Route" onClick={() => onOpenStationRoutes(route.id)}><IconEdit size={16}/></ActionIcon></Group>
                 </Group>
                 <Text size="xs" c="dimmed">Route template · not executable until dispatcher integration.</Text>
               </Stack>
@@ -1091,6 +1104,25 @@ export default function MovementPagesTable({
           }
         </Stack>
       </ScrollArea>
+      <AppModal opened={stationPreview !== null} onClose={() => setStationPreview(null)}
+        title={stationPreview ? `Station Route Preview · ${stationPreview.route.name}` : "Station Route Preview"}
+        size="min(750px, 90vw)" draggable centered>
+        <Stack gap="sm">
+          <Text size="xs" c="dimmed">Graph-based candidate paths only. Does not start a train or reserve track.</Text>
+          {stationPreview?.error && <Text c="red" size="sm">{stationPreview.error}</Text>}
+          {stationPreview && !stationPreview.error && stationPreview.plans.length === 0 &&
+            <Text c="orange" size="sm">No valid graph path matches the selected station and Via constraints.</Text>}
+          <ScrollArea.Autosize mah={420}>
+            <Stack gap="xs">
+              {stationPreview?.plans.map((plan,i) => <Paper withBorder p="xs" key={i}>
+                <Group gap="xs"><Badge variant="light">{plan.direction === "reverse" ? "Reverse" : "Forward"}</Badge>
+                  <Text size="sm">{plan.blockNames.join(" → ")}</Text></Group>
+              </Paper>)}
+            </Stack>
+          </ScrollArea.Autosize>
+          <Group justify="flex-end"><Button variant="default" onClick={() => setStationPreview(null)}>Close</Button></Group>
+        </Stack>
+      </AppModal>
     </Stack>
   );
 }
