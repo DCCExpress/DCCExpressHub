@@ -9,7 +9,7 @@ namespace DCCExpressHub.Net.Web;
 /// A user explicitly activates the saved/edited profile with OK on the
 /// Command Center Configuration page.
 /// </summary>
-public sealed class CommandCenterSessionManager
+public sealed class CommandCenterSessionManager : IHostedService
 {
     private readonly ConfiguredCommandCenter _hub;
     private readonly IServiceProvider _services;
@@ -29,6 +29,20 @@ public sealed class CommandCenterSessionManager
         _services = services;
         _configuration = configuration;
         _log = log;
+    }
+
+    // Hosted lifetime only manages shutdown. This START NEVER connects:
+    // activation always requires an explicit Web UI OK.
+    public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public async Task StopAsync(CancellationToken cancellationToken)
+    {
+        try { await DeactivateAsync(); }
+        catch (Exception ex)
+        {
+            _log.LogCritical(ex,
+                "Command-center shutdown could not confirm physical stop/power off.");
+        }
     }
 
     private ILogger<T> Log<T>() => _services.GetRequiredService<ILogger<T>>();
