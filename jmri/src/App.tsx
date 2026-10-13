@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Activity, ArrowDownToLine, ArrowUpFromLine, Cable, CircleHelp, Code2, Database, Eye, ListTree, PlugZap, RefreshCcw, Send, ShieldAlert, Terminal, Wifi, WifiOff } from "lucide-react";
+import { AppShell, Alert, Badge, Box, Button, Card, Code, Container, Group, NavLink, ScrollArea, Select, SimpleGrid, Stack, Table, Tabs, Text, Textarea, TextInput, Title, ActionIcon, Divider } from "@mantine/core";
+import { IconActivity, IconAlertTriangle, IconArrowDown, IconCopy, IconDatabase, IconEye, IconList, IconPlugConnected, IconRefresh, IconSend, IconTerminal2, IconWifi, IconWifiOff } from "@tabler/icons-react";
 import { BASE, DEFAULT_TYPES, format, jsonPath, needsWriteConfirmation, parseIncoming, wsUrl, type LogRecord } from "./protocol";
-
 type Status = "disconnected" | "connecting" | "connected";
 type Tab = "explorer" | "socket" | "log";
 const presets = [
@@ -13,7 +13,6 @@ const presets = [
   { label: "Memories", value: '{"list":"memories"}' },
   { label: "Throttle #18 (acquires handle)", value: '{"type":"throttle","data":{"name":"HubDebug18","address":18}}' },
 ];
-
 export default function App() {
   const [tab, setTab] = useState<Tab>("explorer");
   const [status, setStatus] = useState<Status>("disconnected");
@@ -133,26 +132,56 @@ export default function App() {
   };
   const filteredLogs = logs.filter(item => !filter || (item.channel + item.message).toLowerCase().includes(filter.toLowerCase()));
 
-  return <div className="shell">
-    <aside className="sidebar">
-      <div className="brand"><span className="brandicon"><Activity size={22}/></span><div><strong>DCCExpressHub</strong><small>JMRI LAB · alpha6</small></div></div>
-      <div className="nav-caption">WORKSPACE</div>
-      <button className={tab === "explorer" ? "nav active" : "nav"} onClick={() => setTab("explorer")}><Database size={17}/> Object explorer</button>
-      <button className={tab === "socket" ? "nav active" : "nav"} onClick={() => setTab("socket")}><Terminal size={17}/> WebSocket console</button>
-      <button className={tab === "log" ? "nav active" : "nav"} onClick={() => setTab("log")}><ListTree size={17}/> Event log <span className="count">{logs.length}</span></button>
-      <div className="side-bottom"><div className="side-heading"><ShieldAlert size={15}/> Debug environment</div><p>Not connected to the Hub runtime. Writes require confirmation, but can operate real hardware.</p></div>
-    </aside>
-    <main className="main">
-      <header className="topbar"><div><div className="eyebrow">JMRI CONNECTIVITY / EXPERIMENTAL</div><h1>{tab === "explorer" ? "JSON Object Explorer" : tab === "socket" ? "WebSocket Console" : "Event Log"}</h1><p>Explore the live JMRI API before designing a full UI integration.</p></div><span className={"status " + status}>{status === "connected" ? <Wifi size={16}/> : <WifiOff size={16}/>} {status}</span></header>
-      <section className="endpoint"><div><small>JMRI WEB SERVER · DEVELOPMENT PROXY</small><div className="endpoint-url"><Cable size={17}/> /jmri → <code>JMRI_TARGET</code> <span className="muted">(default 127.0.0.1:12080)</span></div></div><div className="actions"><button className="button secondary" onClick={() => void discover()} disabled={busy}><RefreshCcw size={16}/> Discover types</button><button className="button primary" onClick={status === "disconnected" ? connect : disconnect} disabled={status === "connecting"}><PlugZap size={16}/>{status === "disconnected" ? "Connect WS" : status === "connecting" ? "Connecting…" : "Disconnect"}</button></div></section>
-      {httpError && <div className="error"><ShieldAlert size={17}/><span>{httpError}</span></div>}
-      {tab === "explorer" && <div className="workgrid">
-        <section className="panel catalog"><div className="panel-title"><div><Database size={17}/><strong>Objects</strong></div><span className="tag">HTTP GET</span></div><div className="panel-body"><label>Object type</label><div className="stackrow"><select value={type} onChange={e => { setType(e.target.value); setEntries(null); setSelected(null); }}>{types.map(x => <option key={x} value={x}>{x}</option>)}</select><button className="button primary" disabled={busy} onClick={() => void loadList()}><RefreshCcw size={15}/> List</button></div><label>Inspect by system/user name</label><div className="stackrow"><input placeholder="e.g. IS1001, LT20, IM..." value={name} onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && name.trim()) void inspect(name.trim()); }}/><button className="button secondary" disabled={busy || !name.trim()} onClick={() => void inspect(name.trim())}><Eye size={16}/></button></div><div className="divider"/><div className="list-header">RESPONSE ITEMS <span>{rows.length}</span></div><div className="items">{rows.length ? rows.slice(0, 250).map((item, idx) => <button key={idx} className="item" onClick={() => { setSelected(item); const entryName = labelOf(item, idx); if (!entryName.startsWith("#")) setName(entryName); }}><span><Database size={14}/>{labelOf(item,idx)}</span><span className="muted">›</span></button>) : <div className="empty"><Database size={25}/><span>Choose a type and click List.<br/>No hardware needed for protocol exploration.</span></div>}</div>{rows.length > 250 && <p className="muted">Showing first 250 entries. Raw JSON contains all results.</p>}</div></section>
-        <section className="panel output"><div className="panel-title"><div><Code2 size={17}/><strong>JSON response</strong></div><span className="tag">READ ONLY</span></div><div className="panel-body"><div className="jsonmeta"><span>{selected !== null ? "Selected object" : "List response"}</span><button className="textbutton" onClick={() => navigator.clipboard?.writeText(format(selected ?? entries))}><ArrowDownToLine size={14}/> Copy JSON</button></div><pre className="json">{selected !== null || entries !== null ? format(selected ?? entries) : '// Select an object type to inspect JMRI response payloads.\n// State codes, addresses and supported fields are shown raw.'}</pre></div></section>
-      </div>}
-      {tab === "socket" && <div className="workgrid"><section className="panel catalog"><div className="panel-title"><div><Terminal size={17}/><strong>Send JSON message</strong></div><span className="tag">WS /json</span></div><div className="panel-body"><label>Example commands</label><div className="presets">{presets.map(item=><button key={item.label} className="chip" onClick={() => setInput(item.value)}>{item.label}</button>)}</div><label>Raw JSON payload</label><textarea spellCheck={false} value={input} onChange={e => setInput(e.target.value)} rows={12}/><button className="button primary wide" disabled={status!=="connected"} onClick={send}><Send size={16}/> Send message</button><p className="muted note"><ShieldAlert size={15}/> Read commands may register live listeners. Mutation commands require confirmation. A throttle request may acquire control of a locomotive.</p></div></section><section className="panel output"><div className="panel-title"><div><Activity size={17}/><strong>Socket events</strong></div><span className="tag">{logs.filter(x=>x.channel==="WS").length} MESSAGES</span></div><div className="panel-body eventarea">{logs.filter(x=>x.channel==="WS").length ? logs.filter(x=>x.channel==="WS").slice(-60).reverse().map(item=><div key={item.id} className="event"><div className="eventhead">{item.direction==="in"?<ArrowDownToLine size={14}/>:<ArrowUpFromLine size={14}/>} {item.direction.toUpperCase()} · {item.at}</div><pre>{item.message}</pre></div>) : <div className="empty"><Wifi size={28}/>Connect WebSocket and send a ping, or subscribe to sensors.</div>}</div></section></div>}
-      {tab === "log" && <section className="panel"><div className="panel-title"><div><ListTree size={17}/><strong>Session diagnostics</strong></div><div className="actions"><button className="textbutton" onClick={() => navigator.clipboard?.writeText(format(filteredLogs))}><ArrowDownToLine size={14}/> Export JSON</button><button className="textbutton" onClick={()=>setLogs([])}>Clear</button></div></div><div className="panel-body"><input placeholder="Filter HTTP, WS, errors, payloads…" value={filter} onChange={e=>setFilter(e.target.value)}/><div className="eventarea logarea">{filteredLogs.slice().reverse().map(item=><div className="event" key={item.id}><div className="eventhead">{item.at} · {item.channel} · <span className={item.direction}>{item.direction.toUpperCase()}</span></div><pre>{item.message}</pre></div>)}{filteredLogs.length===0&&<div className="empty">No events yet.</div>}</div></div></section>}
-      <footer><CircleHelp size={15}/> Protocol reference: <a href="https://www.jmri.org/help/en/html/web/JsonServlet.shtml" target="_blank" rel="noreferrer">JMRI JSON Servlet</a> · <a href="https://www.jmri.org/JavaDoc/doc/jmri/server/json/package-summary.html" target="_blank" rel="noreferrer">Versioned JSON API</a> <span>Standalone experiment — no Hub changes</span></footer>
-    </main>
-  </div>;
+  const eventList = (items: LogRecord[]) => <ScrollArea h={470} type="auto"><Stack gap="xs">{items.length ? items.slice().reverse().map(event =>
+    <Card key={event.id} withBorder padding="sm" radius="md">
+      <Group gap="xs" mb={5}><Text size="xs" c="dimmed">{event.at}</Text><Badge size="xs" color={event.direction==="error"?"red":event.direction==="in"?"teal":"blue"}>{event.channel} · {event.direction}</Badge></Group>
+      <Code block className="json-output">{event.message}</Code>
+    </Card>) : <Text ta="center" c="dimmed" py="xl">No events yet.</Text>}</Stack></ScrollArea>;
+  return <AppShell navbar={{width:245,breakpoint:"sm",collapsed:{mobile:true}}} header={{height:64}} padding="md">
+    <AppShell.Header>
+      <Group h="100%" px="lg" justify="space-between">
+        <Group gap="sm"><IconActivity size={26} color="var(--mantine-color-teal-5)"/><Box><Text fw={750} size="sm">DCCExpressHub</Text><Text size="xs" c="dimmed">JMRI JSON Explorer · alpha6</Text></Box></Group>
+        <Badge size="lg" variant="light" color={status==="connected"?"teal":status==="connecting"?"yellow":"gray"} leftSection={status==="connected"?<IconWifi size={13}/>:<IconWifiOff size={13}/>}>{status}</Badge>
+      </Group>
+    </AppShell.Header>
+    <AppShell.Navbar p="md">
+      <Stack gap="xs"><Text size="xs" c="dimmed" fw={700} mb="xs">WORKSPACE</Text>
+        <NavLink active={tab==="explorer"} onClick={()=>setTab("explorer")} label="Object explorer" leftSection={<IconDatabase size={18}/>} />
+        <NavLink active={tab==="socket"} onClick={()=>setTab("socket")} label="WebSocket console" leftSection={<IconTerminal2 size={18}/>} />
+        <NavLink active={tab==="log"} onClick={()=>setTab("log")} label="Event log" leftSection={<IconList size={18}/>} rightSection={<Badge size="sm" variant="light">{logs.length}</Badge>} />
+        <Alert mt="xl" variant="light" color="yellow" title="Debug environment" icon={<IconAlertTriangle size={17}/>}>Standalone tool. Raw commands can operate real railway hardware.</Alert>
+      </Stack>
+    </AppShell.Navbar>
+    <AppShell.Main><Container fluid maw={1500} py="md">
+      <Stack gap="lg">
+        <Box><Text size="xs" fw={700} c="teal">JMRI CONNECTIVITY / EXPERIMENTAL</Text><Title order={2} mt={5}>{tab==="explorer"?"JSON Object Explorer":tab==="socket"?"WebSocket Console":"Event Log"}</Title><Text size="sm" c="dimmed">Explore live JMRI data before designing the full integration.</Text></Box>
+        <Card withBorder radius="lg" padding="lg"><Group justify="space-between" align="center" wrap="wrap" gap="md"><Box><Text size="xs" c="dimmed" fw={700}>JMRI WEB SERVER · DEVELOPMENT PROXY</Text><Group gap="xs" mt={6}><Code>/jmri</Code><Text size="sm">→</Text><Code>JMRI_TARGET</Code><Text size="xs" c="dimmed">(default 127.0.0.1:12080)</Text></Group></Box><Group gap="xs">
+          <Button variant="light" leftSection={<IconRefresh size={16}/>} loading={busy} onClick={()=>void discover()}>Discover types</Button>
+          <Button color={status==="connected"?"gray":"teal"} leftSection={<IconPlugConnected size={16}/>} loading={status==="connecting"} onClick={status==="connected"?disconnect:connect}>{status==="connected"?"Disconnect":"Connect WS"}</Button>
+        </Group></Group></Card>
+        {httpError && <Alert color="red" icon={<IconAlertTriangle size={18}/>} title="JMRI request failed">{httpError}</Alert>}
+        {tab==="explorer" && <SimpleGrid cols={{base:1,md:2}} spacing="md">
+          <Card withBorder radius="lg" padding="lg"><Stack gap="md">
+            <Group justify="space-between"><Title order={4}>Objects</Title><Badge variant="outline">HTTP GET</Badge></Group><Divider/>
+            <Group align="end" gap="xs" wrap="nowrap"><Select label="Object type" searchable data={types} value={type} onChange={v=>{if(v){setType(v);setEntries(null);setSelected(null);}}} style={{flex:1}}/><Button loading={busy} onClick={()=>void loadList()} leftSection={<IconRefresh size={16}/>}>List</Button></Group>
+            <Group align="end" gap="xs" wrap="nowrap"><TextInput label="Inspect by system or user name" placeholder="IS1001, LT20, IM..." value={name} onChange={e=>setName(e.currentTarget.value)} onKeyDown={e=>{if(e.key==="Enter"&&name.trim())void inspect(name.trim());}} style={{flex:1}}/><ActionIcon size={36} variant="light" disabled={busy||!name.trim()} onClick={()=>void inspect(name.trim())} aria-label="Inspect object"><IconEye size={18}/></ActionIcon></Group>
+            <Divider label={`Response items · ${rows.length}`}/>
+            <ScrollArea h={360} type="auto"><Table striped highlightOnHover withRowBorders><Table.Tbody>{rows.slice(0,250).map((item,idx)=><Table.Tr key={idx} onClick={()=>{setSelected(item);const n=labelOf(item,idx);if(!n.startsWith("#"))setName(n);}} className="selectable-row"><Table.Td><Group gap="xs"><IconDatabase size={15}/><Text size="sm">{labelOf(item,idx)}</Text></Group></Table.Td></Table.Tr>)}</Table.Tbody></Table>{!rows.length&&<Text ta="center" c="dimmed" py="xl" size="sm">Choose a type and click List.</Text>}</ScrollArea>
+            {rows.length>250&&<Text size="xs" c="dimmed">First 250 shown; all in raw response.</Text>}
+          </Stack></Card>
+          <Card withBorder radius="lg" padding="lg"><Stack gap="md">
+            <Group justify="space-between"><Title order={4}>JSON response</Title><Badge variant="outline">READ ONLY</Badge></Group><Divider/>
+            <Group justify="space-between"><Text c="dimmed" size="xs">{selected!==null?"Selected object":"List response"}</Text><Button variant="subtle" size="xs" leftSection={<IconCopy size={15}/>} onClick={()=>void navigator.clipboard?.writeText(format(selected??entries))}>Copy JSON</Button></Group>
+            <ScrollArea h={520} type="auto"><Code block className="json-output">{selected!==null||entries!==null?format(selected??entries):"// Select an object type to inspect JMRI response payloads."}</Code></ScrollArea>
+          </Stack></Card>
+        </SimpleGrid>}
+        {tab==="socket"&&<SimpleGrid cols={{base:1,md:2}} spacing="md">
+          <Card withBorder radius="lg" padding="lg"><Stack gap="md"><Group justify="space-between"><Title order={4}>Send JSON message</Title><Badge variant="outline">WS /json</Badge></Group><Divider/><Text size="xs" c="dimmed" fw={700}>EXAMPLE COMMANDS</Text><Group gap="xs">{presets.map(p=><Button key={p.label} size="compact-sm" variant="light" color="gray" onClick={()=>setInput(p.value)}>{p.label}</Button>)}</Group><Textarea label="Raw JSON payload" autosize minRows={11} maxRows={20} value={input} onChange={e=>setInput(e.currentTarget.value)} styles={{input:{fontFamily:"monospace"}}}/><Button fullWidth disabled={status!=="connected"} leftSection={<IconSend size={16}/>} onClick={send}>Send message</Button><Alert color="yellow" variant="light" icon={<IconAlertTriangle size={16}/>}>Writes require confirmation. Throttle requests may acquire control even without an explicit write method.</Alert></Stack></Card>
+          <Card withBorder radius="lg" padding="lg"><Stack gap="md"><Group justify="space-between"><Title order={4}>Socket events</Title><Badge variant="outline">{logs.filter(x=>x.channel==="WS").length} messages</Badge></Group><Divider/>{eventList(logs.filter(x=>x.channel==="WS").slice(-60))}</Stack></Card>
+        </SimpleGrid>}
+        {tab==="log"&&<Card withBorder radius="lg" padding="lg"><Stack gap="md"><Group justify="space-between"><Title order={4}>Session diagnostics</Title><Group gap="xs"><Button variant="subtle" size="xs" leftSection={<IconCopy size={15}/>} onClick={()=>void navigator.clipboard?.writeText(format(filteredLogs))}>Export JSON</Button><Button variant="subtle" color="gray" size="xs" onClick={()=>setLogs([])}>Clear</Button></Group></Group><Divider/><TextInput placeholder="Filter HTTP, WS, errors, payloads…" value={filter} onChange={e=>setFilter(e.currentTarget.value)}/>{eventList(filteredLogs)}</Stack></Card>}
+        <Text size="xs" c="dimmed">JMRI protocol: <a href="https://www.jmri.org/help/en/html/web/JsonServlet.shtml" target="_blank" rel="noreferrer">JSON Servlet</a> · Standalone debug app, no Hub runtime changes.</Text>
+      </Stack>
+    </Container></AppShell.Main>
+  </AppShell>;
 }
