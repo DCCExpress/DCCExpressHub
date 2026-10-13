@@ -14,6 +14,7 @@ import type {
 } from "../domain/automationFlow";
 
 import type { StationRouteDefinition } from "@/domain/layout/stationRoutes";
+import type { LayoutView } from "@/models/editor/core/LayoutView";
 
 import type {
   MovementDocument,
@@ -96,6 +97,7 @@ type AutomationPanelProps = {
       string | null
   ) => void;
   stationRoutes: StationRouteDefinition[];
+  layout: LayoutView;
   stationNames: Array<{ id: string; name: string }>;
   onOpenStationRoutes: (routeId: string) => void;
 };
@@ -111,6 +113,7 @@ export default function AutomationPanel({
   onMovementsChange,
   onSelectMovementRoute,
   stationRoutes,
+  layout,
   stationNames,
   onOpenStationRoutes,
 }: AutomationPanelProps) {
@@ -280,6 +283,7 @@ export default function AutomationPanel({
             onDocumentChange={onMovementsChange}
             onSelectRoute={onSelectMovementRoute}
             stationRoutes={stationRoutes}
+            layout={layout}
             stationNames={stationNames}
             onOpenStationRoutes={onOpenStationRoutes}
           />
