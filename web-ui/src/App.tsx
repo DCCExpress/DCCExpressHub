@@ -1207,7 +1207,7 @@ export default function App() {
 
     if (page === "programming") return <ProgrammingPage onBack={() => navigate("home")} status={status} />;
 
-    if (page === "s88-adapter") return <S88AdapterPage onBack={() => navigate("home")} />;
+    if (page === "s88-adapter") return <S88AdapterPage onBack={() => navigate("external-devices")} />;
 
     if (page === "external-devices") return <ExternalDevicesPage onBack={() => navigate("home")} onDiagnostics={() => navigate("s88-adapter")} />;
 
