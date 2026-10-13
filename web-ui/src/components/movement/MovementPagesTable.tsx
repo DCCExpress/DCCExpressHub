@@ -26,6 +26,7 @@ import {
   IconAlertTriangle,
   IconEdit,
   IconPlayerStop,
+  IconPlayerPlay,
   IconPlus,
   IconRoute,
   IconTrash,
@@ -58,6 +59,9 @@ import {
   getMovementEngineState,
   stopAllMovements,
   stopMovement,
+  abortMovement,
+  getMovementTaskStates,
+  subscribeMovementTaskStates,
   subscribeMovementEngineState,
   type MovementEngineState,
 } from "../../services/movementEngine";
@@ -489,6 +493,8 @@ export default function MovementPagesTable({
   onOpenStationRoutes,
 }: Props) {
   const [stationToStart, setStationToStart] = useState<StationRouteDefinition | null>(null);
+  const [stationTasks, setStationTasks] = useState(getMovementTaskStates);
+  useEffect(() => subscribeMovementTaskStates(() => setStationTasks(getMovementTaskStates())), []);
   const [stationPreview, setStationPreview] = useState<{ route: StationRouteDefinition; plans: StationRoutePlan[]; error: string | null } | null>(null);
   const showStationPreview = (route: StationRouteDefinition) => {
     try {
@@ -1029,6 +1035,8 @@ export default function MovementPagesTable({
           gap="sm"
         >
           {stationRoutes.map(route => {
+            const runningTasks = stationTasks.filter(({pageId,state}) =>
+              pageId.includes(`-station-${route.id}-`) && (state.status === "running" || state.status === "stopping"));
             const stationName = (id: string) => stationNames.find(s => s.id === id)?.name ?? id;
             const viaLabel = route.via.map(v => {
               if (v.type === "station") return stationName(v.targetId);
@@ -1044,9 +1052,16 @@ export default function MovementPagesTable({
                 {route.via.length > 0 && <Text size="xs" c="dimmed">Via: {viaLabel}</Text>}
                 <Group justify="space-between">
                   <Badge variant="outline">{route.allowReverse ? "Both directions" : "One-way"}</Badge>
-                  <Group gap="xs"><Button size="xs" color="green" disabled={!route.enabled} onClick={() => setStationToStart(route)}>Play</Button><Button size="xs" variant="light" leftSection={<IconRoute size={14}/>} onClick={() => showStationPreview(route)}>Preview</Button><ActionIcon variant="light" aria-label="Edit Station Route" onClick={() => onOpenStationRoutes(route.id)}><IconEdit size={16}/></ActionIcon></Group>
+                  <Group gap="xs">
+                    <Tooltip label="Start Station Route"><ActionIcon color="green" variant="light" disabled={!route.enabled} aria-label="Start Station Route" onClick={() => setStationToStart(route)}><IconPlayerPlay size={17}/></ActionIcon></Tooltip>
+                    <Tooltip label="Stop this route's running tasks"><ActionIcon color="yellow" variant="light" aria-label="Stop Station Route tasks" disabled={!runningTasks.some(t => t.state.status === "running")} onClick={() => runningTasks.forEach(t => stopMovement(t.pageId))}><IconPlayerStop size={17}/></ActionIcon></Tooltip>
+                    <Tooltip label="Abort this route's running tasks"><ActionIcon color="red" variant="light" aria-label="Abort Station Route tasks" disabled={!runningTasks.length} onClick={() => runningTasks.forEach(t => abortMovement(t.pageId))}><IconAlertTriangle size={17}/></ActionIcon></Tooltip>
+                    <Tooltip label="Preview"><ActionIcon variant="light" aria-label="Preview Station Route" onClick={() => showStationPreview(route)}><IconRoute size={17}/></ActionIcon></Tooltip>
+                    <Tooltip label="Edit"><ActionIcon variant="light" aria-label="Edit Station Route" onClick={() => onOpenStationRoutes(route.id)}><IconEdit size={17}/></ActionIcon></Tooltip>
+                  </Group>
                 </Group>
-                <Text size="xs" c="dimmed">Route template · not executable until dispatcher integration.</Text>
+                {runningTasks.length > 0 && <Text size="xs" c="green">{runningTasks.length} active Task(s) · {runningTasks.map(t => `#${t.state.locoAddress ?? "?"}`).join(", ")}</Text>}
+                <Text size="xs" c="dimmed">Each launch creates an independent temporary Movement Task; manage individual trains in TaskMan.</Text>
               </Stack>
             </Paper>;
           })}
