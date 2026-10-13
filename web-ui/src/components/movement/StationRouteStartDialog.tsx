@@ -78,10 +78,13 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
     return () => { cancelled = true; };
   }, [opened, route?.id]);
 
+  const stationName = (id: string) => layout.stations?.find(station => station.id === id)?.name ?? id;
+  const actualFromStationId = reverse ? route?.toStationId ?? "" : route?.fromStationId ?? "";
+  const actualToStationId = reverse ? route?.fromStationId ?? "" : route?.toStationId ?? "";
   const blocks = layout.blocks.elements.filter((b): b is BlockElement => b instanceof BlockElement);
   const stationBlockIds = (id: string) => new Set(blocks.filter(b => b.stationId === id).map(b => b.id));
-  const fromIds = stationBlockIds(reverse ? route?.toStationId ?? "" : route?.fromStationId ?? "");
-  const toIds = stationBlockIds(reverse ? route?.fromStationId ?? "" : route?.toStationId ?? "");
+  const fromIds = stationBlockIds(actualFromStationId);
+  const toIds = stationBlockIds(actualToStationId);
   const locos = useMemo(() => tracking.enabled && tracking.active && tracking.ready
     ? tracking.locos.filter(l => l.confidence === "certain" && l.currentBlockId !== null && fromIds.has(l.currentBlockId))
     : [], [tracking, route, reverse, layout]);
@@ -159,11 +162,15 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
   return <Modal opened={opened} onClose={() => { if (!starting) onClose(); }} centered size="lg" title={route ? `Start Station Route · ${route.name}` : "Start Station Route"}>
     <Stack gap="sm">
       <Text size="sm" c="dimmed">One locomotive → one temporary Movement Task. Dispatcher and SwitchMan enforce track safety.</Text>
-      {route?.allowReverse && <Select label="Direction" allowDeselect={false}
-        data={[{value:"forward",label:"From → To"},{value:"reverse",label:"To → From"}]}
+      {route?.allowReverse && <Select label="Station Route direction" allowDeselect={false}
+        data={[
+          {value:"forward",label:`${stationName(route.fromStationId)} → ${stationName(route.toStationId)} (From → To)`},
+          {value:"reverse",label:`${stationName(route.toStationId)} → ${stationName(route.fromStationId)} (To → From)`}
+        ]}
         value={reverse ? "reverse" : "forward"} onChange={value => { setReverse(value === "reverse"); setSource(null); setDestination("auto"); }}/>}
+      <Text size="sm" fw={600}>Departing: {stationName(actualFromStationId)} → Arriving: {stationName(actualToStationId)}</Text>
       {!tracking.ready && <Alert color="orange">Train Tracking is not ready. Automatic train identification is required.</Alert>}
-      <Select label="From block / Locomotive" placeholder="Select confirmed locomotive" searchable
+      <Select label={`Locomotive departing from ${stationName(actualFromStationId)}`} placeholder="Select confirmed locomotive" searchable
         data={locos.map(l => {
           const loco = locomotives.find(item => item.address === l.locoAddress);
           const blockName = blocks.find(b => b.id === l.currentBlockId)?.name ?? l.currentBlockName ?? "Unknown";
