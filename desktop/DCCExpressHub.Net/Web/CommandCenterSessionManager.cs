@@ -125,20 +125,27 @@ public sealed class CommandCenterSessionManager
     private async Task StopCurrentAsync()
     {
         var active = _active;
-        _active = null;
-        Volatile.Write(ref _started, false);
         if (active is null) return;
 
-        // First stop physical train motion and clear track power if possible.
+        // Do not abandon control of a running train unless at least one safe
+        // physical intervention (E-STOP or track power off) was acknowledged.
         if (_hub.Connected)
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-            try { await _hub.EmergencyStopAsync(cts.Token); }
+            bool stopped = false;
+            bool poweredOff = false;
+            using var stopCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            try { stopped = await _hub.EmergencyStopAsync(stopCts.Token); }
             catch (Exception ex) { _log.LogWarning(ex, "Emergency stop before command-center switch failed"); }
-            try { await _hub.SetTrackPowerAsync(false, ct: cts.Token); }
+            using var powerCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            try { poweredOff = await _hub.SetTrackPowerAsync(false, ct: powerCts.Token); }
             catch (Exception ex) { _log.LogWarning(ex, "Track power off before command-center switch failed"); }
+            if (!stopped && !poweredOff)
+                throw new InvalidOperationException(
+                    "Cannot leave Command Center: neither emergency stop nor track power off was acknowledged.");
         }
 
+        _active = null;
+        Volatile.Write(ref _started, false);
         try { await active.StopAsync(CancellationToken.None); }
         finally
         {
