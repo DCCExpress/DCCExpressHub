@@ -15,7 +15,10 @@
     "typescript": "~5.8.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "lucide-react": "^0.468.0"
+    "@mantine/core": "^9.1.1",
+    "@mantine/hooks": "^9.1.1",
+    "@mantine/notifications": "^9.1.1",
+    "@tabler/icons-react": "^3.42.0"
   },
   "devDependencies": {
     "@types/react": "^19.1.0",
