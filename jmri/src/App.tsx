@@ -1,9 +1,10 @@
+import JmriThrottle from "./JmriThrottle";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppShell, Alert, Badge, Box, Button, Card, Code, Container, Group, NavLink, ScrollArea, Select, SimpleGrid, Stack, Table, Tabs, Text, Textarea, TextInput, Title, ActionIcon, Divider } from "@mantine/core";
 import { IconActivity, IconAlertTriangle, IconArrowDown, IconCopy, IconDatabase, IconEye, IconList, IconPlugConnected, IconRefresh, IconSend, IconTerminal2, IconWifi, IconWifiOff } from "@tabler/icons-react";
 import { BASE, DEFAULT_TYPES, format, jsonPath, needsWriteConfirmation, parseIncoming, wsUrl, type LogRecord } from "./protocol";
 type Status = "disconnected" | "connecting" | "connected";
-type Tab = "explorer" | "socket" | "log";
+type Tab = "explorer" | "socket" | "log" | "throttle";
 const presets = [
   { label: "Ping", value: '{"type":"ping"}' },
   { label: "Sensors", value: '{"list":"sensors"}' },
@@ -26,6 +27,8 @@ export default function App() {
   const [input, setInput] = useState('{"type":"ping"}');
   const [logs, setLogs] = useState<LogRecord[]>([]);
   const [filter, setFilter] = useState("");
+  const [lastMessage, setLastMessage] = useState<unknown>(null);
+  const [connectionId, setConnectionId] = useState(0);
   const socket = useRef<WebSocket | null>(null);
   const heartbeat = useRef<ReturnType<typeof setInterval> | null>(null);
   const stopHeartbeat = () => { if (heartbeat.current !== null) { clearInterval(heartbeat.current); heartbeat.current = null; } };
@@ -88,6 +91,7 @@ export default function App() {
     ws.onopen = () => {
       if (socket.current !== ws) return;
       setStatus("connected");
+      setConnectionId(id => id + 1);
       log("SYSTEM", "info", "WebSocket connected");
       // A list request is not a substitute for per-object listeners.
       ws.send(JSON.stringify({list: "sensors"}));
@@ -101,6 +105,7 @@ export default function App() {
       if (typeof event.data === "string") {
         try {
           const message = JSON.parse(event.data) as unknown;
+          setLastMessage(message);
           if (Array.isArray(message) && message.every(item => item?.type === "sensor")) {
             for (const item of message) {
               const name = item?.data?.name;
@@ -144,6 +149,15 @@ export default function App() {
 
   useEffect(() => () => { stopHeartbeat(); socket.current?.close(); socket.current = null; }, []);
 
+  const sendThrottle = useCallback((value: Record<string, unknown>): boolean => {
+    const ws = socket.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+    const message = JSON.stringify(value);
+    ws.send(message);
+    log("WS", "out", message);
+    return true;
+  }, [log]);
+
   const send = () => {
     if (status !== "connected" || socket.current?.readyState !== WebSocket.OPEN) return;
     let parsed: unknown;
@@ -183,6 +197,7 @@ export default function App() {
     </AppShell.Header>
     <AppShell.Navbar p="md">
       <Stack gap="xs"><Text size="xs" c="dimmed" fw={700} mb="xs">WORKSPACE</Text>
+        <NavLink active={tab==="throttle"} onClick={()=>setTab("throttle")} label="Loco throttle" leftSection={<IconActivity size={18}/>} />
         <NavLink active={tab==="explorer"} onClick={()=>setTab("explorer")} label="Object explorer" leftSection={<IconDatabase size={18}/>} />
         <NavLink active={tab==="socket"} onClick={()=>setTab("socket")} label="WebSocket console" leftSection={<IconTerminal2 size={18}/>} />
         <NavLink active={tab==="log"} onClick={()=>setTab("log")} label="Event log" leftSection={<IconList size={18}/>} rightSection={<Badge size="sm" variant="light">{logs.length}</Badge>} />
@@ -191,12 +206,13 @@ export default function App() {
     </AppShell.Navbar>
     <AppShell.Main><Container fluid maw={1500} py="md">
       <Stack gap="lg">
-        <Box><Text size="xs" fw={700} c="teal">JMRI CONNECTIVITY / EXPERIMENTAL</Text><Title order={2} mt={5}>{tab==="explorer"?"JSON Object Explorer":tab==="socket"?"WebSocket Console":"Event Log"}</Title><Text size="sm" c="dimmed">Explore live JMRI data before designing the full integration.</Text></Box>
+        <Box><Text size="xs" fw={700} c="teal">JMRI CONNECTIVITY / EXPERIMENTAL</Text><Title order={2} mt={5}>{tab==="explorer"?"JSON Object Explorer":tab==="socket"?"WebSocket Console":tab==="throttle"?"Loco Throttle":"Event Log"}</Title><Text size="sm" c="dimmed">Explore live JMRI data before designing the full integration.</Text></Box>
         <Card withBorder radius="lg" padding="lg"><Group justify="space-between" align="center" wrap="wrap" gap="md"><Box><Text size="xs" c="dimmed" fw={700}>JMRI WEB SERVER · DEVELOPMENT PROXY</Text><Group gap="xs" mt={6}><Code>/jmri</Code><Text size="sm">→</Text><Code>JMRI_TARGET</Code><Text size="xs" c="dimmed">(default 127.0.0.1:12080)</Text></Group></Box><Group gap="xs">
           <Button variant="light" leftSection={<IconRefresh size={16}/>} loading={busy} onClick={()=>void discover()}>Discover types</Button>
           <Button color={status==="connected"?"gray":"teal"} leftSection={<IconPlugConnected size={16}/>} loading={status==="connecting"} onClick={status==="connected"?disconnect:connect}>{status==="connected"?"Disconnect":"Connect WS"}</Button>
         </Group></Group></Card>
         {httpError && <Alert color="red" icon={<IconAlertTriangle size={18}/>} title="JMRI request failed">{httpError}</Alert>}
+        {tab==="throttle" && <JmriThrottle connected={status==="connected"} connectionId={connectionId} lastMessage={lastMessage} send={sendThrottle}/>}
         {tab==="explorer" && <SimpleGrid cols={{base:1,md:2}} spacing="md">
           <Card withBorder radius="lg" padding="lg"><Stack gap="md">
             <Group justify="space-between"><Title order={4}>Objects</Title><Badge variant="outline">HTTP GET</Badge></Group><Divider/>
