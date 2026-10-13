@@ -66,6 +66,8 @@ public sealed class ConfiguredCommandCenter : ICommandCenter
         };
     }
 
+    public void NotifyDeactivated() => ConnectionChanged?.Invoke(false);
+
     public bool ReloadLocomotiveConfiguration()
     {
         if(!File.Exists(_locosPath))
