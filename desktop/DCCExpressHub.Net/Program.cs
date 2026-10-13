@@ -47,29 +47,6 @@ builder.Services.AddSingleton(
         contentRoot,
         webRoot));
 
-var commandCenterProtocol =
-    (
-        builder.Configuration[
-            "CommandCenter:Protocol"] ??
-        ""
-    )
-    .Trim()
-    .ToLowerInvariant();
-
-var useLocoNetTcp =
-    commandCenterProtocol == "loconet";
-
-var useLocoNetSerial =
-    commandCenterProtocol == "loconet-serial";
-
-var useRocoZ21 =
-    commandCenterProtocol ==
-    "z21";
-
-var useYaMoRcZ21 =
-    commandCenterProtocol ==
-    "yamorc7010";
-
 builder.Services.AddSingleton<HubState>();
 builder.Services.AddSingleton<LayoutRuntime>();
 builder.Services.AddSingleton<SignalAutomationEngine>();
@@ -94,97 +71,18 @@ builder.Services.AddSingleton<FileManagerApi>();
 builder.Services.AddSingleton<ScriptInfoApi>();
 builder.Services.AddSingleton<DesktopControlApi>();
 
-if (useLocoNetSerial || useLocoNetTcp)
-{
-    builder.Services.AddSingleton<ILocoNetTransport>(sp =>
-        useLocoNetSerial
-            ? new LocoNetSerialTransport(builder.Configuration,
-                sp.GetRequiredService<ILogger<LocoNetSerialTransport>>())
-            : new LocoNetTcpTransport(builder.Configuration,
-                sp.GetRequiredService<ILogger<LocoNetTcpTransport>>()));
-    builder.Services.AddSingleton<LocoNetCommandCenter>();
-    builder.Services.AddHostedService(
-        sp => sp.GetRequiredService<LocoNetCommandCenter>());
-}
-else if (useYaMoRcZ21)
-{
-    builder.Services
-        .AddSingleton<YaMoRcZ21CommandCenter>();
-
-    builder.Services
-        .AddHostedService(
-            sp =>
-                sp.GetRequiredService<
-                    YaMoRcZ21CommandCenter>());
-}
-else if (useRocoZ21)
-{
-    builder.Services
-        .AddSingleton<RocoZ21CommandCenter>();
-
-    builder.Services
-        .AddHostedService(
-            sp =>
-                sp.GetRequiredService<
-                    RocoZ21CommandCenter>());
-}
-else
-{
-    builder.Services
-        .AddSingleton<IDccExTransport>(
-            sp =>
-                string.Equals(
-                    builder.Configuration[
-                        "DccEx:Transport"],
-                    "Serial",
-                    StringComparison
-                        .OrdinalIgnoreCase)
-                    ? new SerialDccExTransport(
-                        builder.Configuration)
-                    : new TcpDccExTransport(
-                        builder.Configuration));
-
-    builder.Services
-        .AddSingleton<DccExCommandCenter>();
-
-    builder.Services
-        .AddHostedService(
-            sp =>
-                sp.GetRequiredService<
-                    DccExCommandCenter>());
-}
-
-builder.Services
-    .AddSingleton<ConfiguredCommandCenter>(
-        sp =>
-        {
-            ICommandCenter inner =
-                (useLocoNetSerial || useLocoNetTcp)
-                    ? sp.GetRequiredService<LocoNetCommandCenter>()
-                    : useYaMoRcZ21
-                    ? sp.GetRequiredService<
-                        YaMoRcZ21CommandCenter>()
-                    : useRocoZ21
-                        ? sp.GetRequiredService<
-                            RocoZ21CommandCenter>()
-                        : sp.GetRequiredService<
-                            DccExCommandCenter>();
-
-            return
-                new ConfiguredCommandCenter(
-                    inner,
-                    sp.GetRequiredService<
-                        AppPaths>(),
-                    sp.GetRequiredService<
-                        ILogger<
-                            ConfiguredCommandCenter>>());
-        });
-
-builder.Services
-    .AddSingleton<ICommandCenter>(
-        sp =>
-            sp.GetRequiredService<
-                ConfiguredCommandCenter>());
+// The startup browser must be usable without a physical command station.
+// A dormant DCC-EX driver is only a safe ICommandCenter placeholder;
+// CommandCenterSessionManager creates/starts the selected physical driver on OK.
+builder.Services.AddSingleton<ConfiguredCommandCenter>(sp =>
+    new ConfiguredCommandCenter(
+        new DccExCommandCenter(new TcpDccExTransport("127.0.0.1", 2560),
+            sp.GetRequiredService<ILogger<DccExCommandCenter>>()),
+        sp.GetRequiredService<AppPaths>(),
+        sp.GetRequiredService<ILogger<ConfiguredCommandCenter>>()));
+builder.Services.AddSingleton<ICommandCenter>(sp =>
+    sp.GetRequiredService<ConfiguredCommandCenter>());
+builder.Services.AddSingleton<CommandCenterSessionManager>();
 
 builder.Services.AddSingleton<FastClockRuntime>();
 builder.Services.AddSingleton<SwitchManManager>();
@@ -236,34 +134,13 @@ var ccConfigStore =
         .GetRequiredService<
             CommandCenterConfigStore>();
 
-var persistedCc =
-    ccConfigStore.Current;
+// Reading the persisted profile does not connect to hardware.
+_ = ccConfigStore.Current;
 
 var configuredCommandCenter =
     app.Services
         .GetRequiredService<
             ConfiguredCommandCenter>();
-
-configuredCommandCenter
-    .SetCommandIntervalMs(
-        persistedCc.CommandIntervalMs);
-
-if (useRocoZ21 || useYaMoRcZ21)
-{
-    configuredCommandCenter
-        .SetRBusOffset(
-            persistedCc.RBusOffset);
-}
-
-configuredCommandCenter
-    .SetEndpoint(
-        persistedCc.IsSerial
-            ? persistedCc.SerialPort
-            : persistedCc.TcpHost,
-        persistedCc.IsSerial
-            ? CommandCenterSettings
-                .DccExSerialBaudRate
-            : persistedCc.TcpPort);
 
 configuredCommandCenter
     .ReloadLocomotiveConfiguration();
