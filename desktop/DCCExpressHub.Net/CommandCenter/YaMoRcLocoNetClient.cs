@@ -76,23 +76,21 @@ public sealed class YaMoRcLocoNetClient
                 DefaultBinaryPort);
 
         var savedSerial = YaMoRcLocoNetSerialSettings.Load();
-        var feedbackEnabled = configuration.GetValue("LocoNet:FeedbackEnabled", true);
         _serialPortName = (configuration["LocoNet:SerialPort"] ?? savedSerial.Port).Trim();
         _serialBaudRate = configuration.GetValue("LocoNet:SerialBaudRate", savedSerial.BaudRate);
-        _serialFeedbackEnabled = feedbackEnabled &&
-            (configuration.GetValue("LocoNet:SerialFeedback", false) || savedSerial.Enabled ||
-            string.Equals(configuration["CommandCenter:Protocol"], "loconet-serial", StringComparison.OrdinalIgnoreCase));
+        _serialFeedbackEnabled = configuration.GetValue("LocoNet:SerialFeedback", false) || savedSerial.Enabled ||
+            string.Equals(configuration["CommandCenter:Protocol"], "loconet-serial", StringComparison.OrdinalIgnoreCase);
 
         // Never activate two concurrent LocoNet feedback sources for the
         // same physical sensors. USB Serial takes priority only when enabled.
         _lbServerEnabled =
-            feedbackEnabled && !_serialFeedbackEnabled &&
+            !_serialFeedbackEnabled &&
             configuration.GetValue(
                 "LocoNet:LbServerFeedback",
                 true);
 
         _binaryFeedbackEnabled =
-            feedbackEnabled && !_serialFeedbackEnabled &&
+            !_serialFeedbackEnabled &&
             configuration.GetValue(
                 "LocoNet:BinaryFeedback",
                 false);
