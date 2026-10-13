@@ -44,6 +44,14 @@ public sealed partial class WatsonWebServerService
         }
         var form = await ReadUrlEncodedFormAsync(ctx);
         var portName = Get(form, "port").Trim();
+        if (Service<ExternalDevicesRuntime>().IsPortReserved(portName))
+        {
+            await SendAsync(ctx, HubApiResponse.Error(409, new {
+                ok = false,
+                message = "Serial port is assigned to an enabled External Device. Disable it there before using the diagnostic console."
+            }));
+            return;
+        }
         if (!SerialPort.GetPortNames().Contains(portName, StringComparer.OrdinalIgnoreCase))
         {
             await SendAsync(ctx, HubApiResponse.Error(400, new { ok = false, message = "Select an available serial port." }));
@@ -108,6 +116,14 @@ public sealed partial class WatsonWebServerService
         var form = await ReadUrlEncodedFormAsync(ctx);
         var portName = Get(form, "port").Trim();
         var command = Get(form, "command").Trim().ToUpperInvariant();
+        if (Service<ExternalDevicesRuntime>().IsPortReserved(portName))
+        {
+            await SendAsync(ctx, HubApiResponse.Error(409, new {
+                ok = false,
+                message = "Serial port is assigned to an enabled External Device. Disable it there before using the diagnostic console."
+            }));
+            return;
+        }
         if (portName.Length == 0 || !SerialPort.GetPortNames().Contains(portName, StringComparer.OrdinalIgnoreCase))
         {
             await SendAsync(ctx, HubApiResponse.Error(400, new { ok = false, message = "Select an available serial port." }));
