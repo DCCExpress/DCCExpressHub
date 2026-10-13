@@ -33,6 +33,14 @@ npm run dev
 
 If you run Vite inside a container, `127.0.0.1` means the container, not the host. Use the reachable JMRI address.
 
+## Hub-style locomotive throttle
+
+Choose **Loco throttle** in the sidebar, click **Connect WS**, choose a locomotive from the JMRI Roster (or enter its DCC address), and click **Mozdony csatlakoztatása**.
+The panel uses the same socket as the JSON debugger and shows live speed, direction, functions F0–F28 and JMRI client count.
+Use **STOP** or **EMERGENCY STOP** as appropriate. **Release** only relinquishes the session; it does not stop a moving locomotive.
+Direction changes are disabled while nonzero speed is reported. The percentage speed is a normalized JMRI throttle setting, not the Hub's calibrated km/h.
+The UI is an experimental test of the JMRI throttle protocol; it is not integrated with the Hub dispatcher, tracking, reservation, or safety logic.
+
 ## Explorer functionality
 
 - HTTP GET for `/json/type`, all listed object types and named objects
