@@ -36,6 +36,7 @@ import type { StationRouteDefinition } from "@/domain/layout/stationRoutes";
 import type { LayoutView } from "@/models/editor/core/LayoutView";
 import { previewStationRoute, type StationRoutePlan } from "@/services/stationRoutePlanner";
 import AppModal from "@/components/common/AppModal";
+import StationRouteStartDialog from "./StationRouteStartDialog";
 
 import type {
   MovementDocument,
@@ -484,6 +485,7 @@ export default function MovementPagesTable({
   stationNames,
   onOpenStationRoutes,
 }: Props) {
+  const [stationToStart, setStationToStart] = useState<StationRouteDefinition | null>(null);
   const [stationPreview, setStationPreview] = useState<{ route: StationRouteDefinition; plans: StationRoutePlan[]; error: string | null } | null>(null);
   const showStationPreview = (route: StationRouteDefinition) => {
     try {
@@ -1039,7 +1041,7 @@ export default function MovementPagesTable({
                 {route.via.length > 0 && <Text size="xs" c="dimmed">Via: {viaLabel}</Text>}
                 <Group justify="space-between">
                   <Badge variant="outline">{route.allowReverse ? "Both directions" : "One-way"}</Badge>
-                  <Group gap="xs"><Button size="xs" variant="light" leftSection={<IconRoute size={14}/>} onClick={() => showStationPreview(route)}>Preview</Button><ActionIcon variant="light" aria-label="Edit Station Route" onClick={() => onOpenStationRoutes(route.id)}><IconEdit size={16}/></ActionIcon></Group>
+                  <Group gap="xs"><Button size="xs" color="green" disabled={!route.enabled} onClick={() => setStationToStart(route)}>Play</Button><Button size="xs" variant="light" leftSection={<IconRoute size={14}/>} onClick={() => showStationPreview(route)}>Preview</Button><ActionIcon variant="light" aria-label="Edit Station Route" onClick={() => onOpenStationRoutes(route.id)}><IconEdit size={16}/></ActionIcon></Group>
                 </Group>
                 <Text size="xs" c="dimmed">Route template · not executable until dispatcher integration.</Text>
               </Stack>
@@ -1104,6 +1106,7 @@ export default function MovementPagesTable({
           }
         </Stack>
       </ScrollArea>
+      <StationRouteStartDialog opened={stationToStart !== null} onClose={() => setStationToStart(null)} route={stationToStart} layout={layout}/>
       <AppModal opened={stationPreview !== null} onClose={() => setStationPreview(null)}
         title={stationPreview ? `Station Route Preview · ${stationPreview.route.name}` : "Station Route Preview"}
         size="min(750px, 90vw)" draggable centered>
