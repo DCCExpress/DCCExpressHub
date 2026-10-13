@@ -1,4 +1,5 @@
 using System.IO.Ports;
+using Microsoft.Extensions.Configuration;
 using WatsonWebserver;
 using WatsonWebserver.Core;
 using WatsonHttpMethod = WatsonWebserver.Core.HttpMethod;
@@ -42,6 +43,19 @@ public sealed partial class WatsonWebServerService
                 await SendAsync(ctx, HubApiResponse.Error(400, new { ok = false, message = "Invalid S88 address range." }));
                 return;
             }
+            // Older clients sent SensorCount only. Newer clients choose bytes/groups;
+            // the backend derives sensor count from the adapter's byte count.
+            var bytesText = Get(form, "s88Bytes");
+            var bytes = string.IsNullOrWhiteSpace(bytesText)
+                ? (count % 8 == 0 ? count / 8 : 0)
+                : int.TryParse(bytesText, out var parsedBytes) ? parsedBytes : 0;
+            if (bytes is < 1 or > 32)
+            {
+                await SendAsync(ctx, HubApiResponse.Error(400, new {
+                    ok = false, message = "S88 bytes/groups must be 1–32."
+                }));
+                return;
+            }
             var proposed = new ExternalDeviceConfig
             {
                 Id = Get(form, "id"),
@@ -50,7 +64,8 @@ public sealed partial class WatsonWebServerService
                 Enabled = string.Equals(Get(form, "enabled"), "true", StringComparison.OrdinalIgnoreCase),
                 SerialPort = Get(form, "serialPort"),
                 SensorOffset = offset,
-                SensorCount = count
+                SensorCount = bytes * 8,
+                S88Bytes = bytes
             };
             // Reject known main command-station/feedback collisions before persisting.
             if (proposed.Enabled)
@@ -89,6 +104,10 @@ public sealed partial class WatsonWebServerService
             try
             {
                 var id = await Service<ExternalDeviceStore>().UpsertAsync(proposed, ctx.Token);
+                // Don't return success while an old COM port is still owned.
+                // The apply operation first stops/disposes the old worker, then starts
+                // the new one. Hardware handshake continues asynchronously.
+                await Service<ExternalDevicesRuntime>().ApplyConfigurationAsync(CancellationToken.None);
                 await SendAsync(ctx, HubApiResponse.Ok(new { ok = true, id }));
             }
             catch (ArgumentException ex)
@@ -110,6 +129,8 @@ public sealed partial class WatsonWebServerService
             }
             var form = await ReadUrlEncodedFormAsync(ctx);
             var removed = await Service<ExternalDeviceStore>().RemoveAsync(Get(form, "id"), ctx.Token);
+            if (removed)
+                await Service<ExternalDevicesRuntime>().ApplyConfigurationAsync(CancellationToken.None);
             await SendAsync(ctx, removed
                 ? HubApiResponse.Ok(new { ok = true })
                 : HubApiResponse.Error(404, new { ok = false, message = "Device not found." }));
