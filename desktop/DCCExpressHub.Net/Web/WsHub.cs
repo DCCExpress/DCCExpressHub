@@ -2034,7 +2034,7 @@ public sealed class WsHub
         }
         await Send(ws, "trainDriverResponse", new {
             requestId, action, ok = error is null && ok,
-            error = error ?? (action is "stop" or "abort" && !ok ? "train_driver_not_running" : null),
+            error = error ?? ((action is "stop" or "abort") && !ok ? "train_driver_not_running" : null),
             state
         });
     }
