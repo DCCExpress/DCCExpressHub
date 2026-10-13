@@ -14,7 +14,7 @@ export function parseIncoming(text: string): unknown {
   try { return JSON.parse(text); } catch { return text; }
 }
 export function wsUrl(): string {
-  return `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}${BASE}/json`;
+  return `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}${BASE}/json/`;
 }
 export function isReadOnlyCommand(input: unknown): boolean {
   if (typeof input !== "object" || input === null || Array.isArray(input)) return false;
