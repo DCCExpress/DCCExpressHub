@@ -350,16 +350,6 @@ function HomePage({
           </Text>
         </Card>
 
-        <Card className="action-card" withBorder radius={5} p="lg" onClick={() => onNavigate("s88-adapter")}>
-          <ThemeIcon size={48} radius="lg" color="teal" variant="light">
-            <IconCpu size={27} />
-          </ThemeIcon>
-          <Title order={4} mt="md">S88Adapter</Title>
-          <Text size="sm" c="dimmed" mt={4}>
-            Configure the USB S88 adapter and monitor occupancy inputs.
-          </Text>
-        </Card>
-
         {/* <Card className="action-card" withBorder radius={5} p="lg" onClick={() => onNavigate("settings")}>
           <ThemeIcon size={48} radius="lg" color="indigo" variant="light">
             <IconRouter size={27} />
@@ -1219,7 +1209,7 @@ export default function App() {
 
     if (page === "s88-adapter") return <S88AdapterPage onBack={() => navigate("home")} />;
 
-    if (page === "external-devices") return <ExternalDevicesPage onBack={() => navigate("home")} />;
+    if (page === "external-devices") return <ExternalDevicesPage onBack={() => navigate("home")} onDiagnostics={() => navigate("s88-adapter")} />;
 
     if (page === "device-config") return <DeviceConfigurationPage onBack={() => navigate("home")} />;
 
