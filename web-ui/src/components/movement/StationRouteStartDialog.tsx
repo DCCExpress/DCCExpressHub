@@ -8,7 +8,7 @@ import type { StationRouteDefinition } from "@/domain/layout/stationRoutes";
 import { createMovementPage, createEmptyMovementDocument } from "@/domain/movement";
 import { applyMovementRouteCandidate, loadMovementRouteCandidates, type MovementRouteCandidate } from "@/services/movementRouteCatalog";
 import { getTrainTrackingState, subscribeTrainTrackingState } from "@/services/trainTrackingRuntime";
-import { startTransientMovement } from "@/services/movementEngine";
+import { wsApi } from "@/services/wsApi";
 import { wsClient } from "@/services/wsClient";
 
 type Props = {
@@ -142,7 +142,16 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
       page.name = `Station Route · ${route.name} · #${selectedLoco.locoAddress}`;
       page.speed = Number(speed);
       page.expectedLocoAddress = selectedLoco.locoAddress;
-      await startTransientMovement(page);
+      const driverTaskId = `train-driver-${selectedLoco.locoAddress}-${Date.now()}`;
+      const requestId = `train-driver-start-${Date.now()}`;
+      const result = await wsApi.request(
+        "trainDriverCommand",
+        { requestId, action: "start", taskId: driverTaskId, page },
+        "trainDriverResponse",
+        response => response.requestId === requestId,
+        10000
+      );
+      if (!result.ok) throw new Error(result.error || "Train Driver could not start.");
       onClose();
     } catch(e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setStarting(false); }
