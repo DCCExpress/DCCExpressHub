@@ -284,6 +284,7 @@ export default function AutomationPanel({
             onSelectRoute={onSelectMovementRoute}
             stationRoutes={stationRoutes}
             layout={layout}
+            locos={locos}
             stationNames={stationNames}
             onOpenStationRoutes={onOpenStationRoutes}
           />
