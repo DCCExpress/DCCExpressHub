@@ -51,6 +51,11 @@ public sealed class TrainDriverRuntime
         {
             if (_tasks.ContainsKey(taskId))
                 return (false, "train_driver_task_exists", null);
+            if (_tasks.Values.Any(task =>
+                task.MovementId == page.Id &&
+                _activeByLoco.TryGetValue(task.LocoAddress, out var owner) &&
+                owner == task.TaskId))
+                return (false, "train_driver_movement_already_managed", null);
             if (_activeByLoco.ContainsKey(address) || _movement.IsLocoManaged(address))
                 return (false, "locomotive_already_managed", null);
 
