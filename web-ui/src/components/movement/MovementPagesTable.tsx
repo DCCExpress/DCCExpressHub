@@ -34,6 +34,7 @@ import {
 
 import type { StationRouteDefinition } from "@/domain/layout/stationRoutes";
 import type { LayoutView } from "@/models/editor/core/LayoutView";
+import type { Loco } from "@/domain/domainTypes";
 import { previewStationRoute, type StationRoutePlan } from "@/services/stationRoutePlanner";
 import AppModal from "@/components/common/AppModal";
 import StationRouteStartDialog from "./StationRouteStartDialog";
@@ -93,6 +94,7 @@ type Props = {
   ) => void;
   stationRoutes: StationRouteDefinition[];
   layout: LayoutView;
+  locos: Loco[];
   stationNames: Array<{ id: string; name: string }>;
   onOpenStationRoutes: (routeId: string) => void;
 };
@@ -482,6 +484,7 @@ export default function MovementPagesTable({
   onSelectRoute,
   stationRoutes,
   layout,
+  locos,
   stationNames,
   onOpenStationRoutes,
 }: Props) {
@@ -1106,7 +1109,7 @@ export default function MovementPagesTable({
           }
         </Stack>
       </ScrollArea>
-      <StationRouteStartDialog opened={stationToStart !== null} onClose={() => setStationToStart(null)} route={stationToStart} layout={layout}/>
+      <StationRouteStartDialog opened={stationToStart !== null} onClose={() => setStationToStart(null)} route={stationToStart} layout={layout} locomotives={locos}/>
       <AppModal opened={stationPreview !== null} onClose={() => setStationPreview(null)}
         title={stationPreview ? `Station Route Preview · ${stationPreview.route.name}` : "Station Route Preview"}
         size="min(750px, 90vw)" draggable centered>
