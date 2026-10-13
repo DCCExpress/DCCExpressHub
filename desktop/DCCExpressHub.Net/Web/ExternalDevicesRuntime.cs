@@ -199,28 +199,52 @@ public sealed class ExternalDevicesRuntime : BackgroundService
     {
         // Verify that this COM/tty endpoint really speaks the S88Adapter
         // protocol before sending any commands that change device state.
-        async Task<(int Active, int Staged, int Saved)> StatusAsync()
+        async Task<(int Active, int Staged, int Saved, bool EepromValid, bool AddressPending)> StatusAsync()
         {
             var response = await ExchangeAsync(port, "STATUS",
                 output => output.Contains("--- S88Adapter STATUS ---", StringComparison.Ordinal) &&
+                          output.Contains("EEPROM valid:", StringComparison.Ordinal) &&
+                          output.Contains("Unsaved serial changes:", StringComparison.Ordinal) &&
                           TryParseByteStatus(output, out _, out _, out _), ct);
             if (!TryParseByteStatus(response, out var active, out var staged, out var saved))
                 throw new IOException("Invalid S88 adapter STATUS response.");
-            return (active, staged, saved);
+
+            var stagedAddress = Regex.Match(response,
+                @"(?m)^\s*I2C staged address:\s*(0x[0-9A-Fa-f]+)\s*$");
+            var savedAddress = Regex.Match(response,
+                @"(?m)^\s*I2C saved address:\s*(0x[0-9A-Fa-f]+)\s*$");
+            if (!stagedAddress.Success || !savedAddress.Success)
+                throw new IOException("Incomplete S88 adapter I2C configuration status.");
+
+            return (active, staged, saved,
+                response.Contains("EEPROM valid: YES", StringComparison.Ordinal),
+                !string.Equals(stagedAddress.Groups[1].Value, savedAddress.Groups[1].Value,
+                    StringComparison.OrdinalIgnoreCase));
         }
 
         var status = await StatusAsync();
         await ExchangeAsync(port, "LOG OFF",
             output => output.Contains("OK: periodic S88 log OFF", StringComparison.Ordinal), ct);
 
-        if (status.Active != config.S88Bytes ||
-            status.Staged != config.S88Bytes ||
-            status.Saved != config.S88Bytes)
+        var needsByteChange = status.Active != config.S88Bytes ||
+                              status.Staged != config.S88Bytes ||
+                              status.Saved != config.S88Bytes;
+
+        if (needsByteChange || !status.EepromValid)
         {
-            await ExchangeAsync(port, "SET BYTES " + config.S88Bytes,
-                output => output.Contains(
-                    "NOTE: SAVE stores this byte length for the next boot.",
-                    StringComparison.Ordinal), ct);
+            // SAVE persists both S88 length AND the staged I2C address.
+            // Never accidentally save an unrelated, unsaved address change.
+            if (status.AddressPending)
+                throw new IOException(
+                    "Adapter has an unsaved I2C address change. Resolve it in diagnostics before saving S88 bytes.");
+
+            if (needsByteChange)
+            {
+                await ExchangeAsync(port, "SET BYTES " + config.S88Bytes,
+                    output => output.Contains(
+                        "NOTE: SAVE stores this byte length for the next boot.",
+                        StringComparison.Ordinal), ct);
+            }
 
             await ExchangeAsync(port, "SAVE",
                 output => output.Contains(
@@ -229,7 +253,8 @@ public sealed class ExternalDevicesRuntime : BackgroundService
             status = await StatusAsync();
             if (status.Active != config.S88Bytes ||
                 status.Staged != config.S88Bytes ||
-                status.Saved != config.S88Bytes)
+                status.Saved != config.S88Bytes ||
+                !status.EepromValid)
                 throw new IOException("Adapter S88 bytes were not saved/verified.");
         }
     }
