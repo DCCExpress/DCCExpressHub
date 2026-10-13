@@ -19,6 +19,8 @@ jobs:
           dotnet-version: "10.0.x"
       - name: Build .NET backend (Linux)
         run: dotnet build desktop/DCCExpressHub.Net/DCCExpressHub.Net.csproj -c Release
+      - name: Exercise S88 HEX/CRC16 decoder
+        run: dotnet run --project tests/S88HexSmoke/S88HexSmoke.csproj -c Release
 
   web-ui:
     runs-on: ubuntu-latest
