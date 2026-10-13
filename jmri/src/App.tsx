@@ -27,6 +27,8 @@ export default function App() {
   const [logs, setLogs] = useState<LogRecord[]>([]);
   const [filter, setFilter] = useState("");
   const socket = useRef<WebSocket | null>(null);
+  const heartbeat = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stopHeartbeat = () => { if (heartbeat.current !== null) { clearInterval(heartbeat.current); heartbeat.current = null; } };
   const logId = useRef(0);
   const log = useCallback((channel: LogRecord["channel"], direction: LogRecord["direction"], message: string) => {
     setLogs(old => [...old, { id: ++logId.current, at: new Date().toLocaleTimeString(), channel, direction, message }].slice(-350));
@@ -77,6 +79,7 @@ export default function App() {
   }, [httpGet]);
 
   const connect = useCallback(() => {
+    stopHeartbeat();
     if (socket.current) socket.current.close();
     setStatus("connecting");
     const ws = new WebSocket(wsUrl());
@@ -86,26 +89,45 @@ export default function App() {
       if (socket.current !== ws) return;
       setStatus("connected");
       log("SYSTEM", "info", "WebSocket connected");
+      // Start conservatively, then adapt to the interval announced by JMRI hello.
+      heartbeat.current = setInterval(() => {
+        if (socket.current === ws && ws.readyState === WebSocket.OPEN) ws.send('{"type":"ping"}');
+      }, 8000);
     };
     ws.onmessage = event => {
+      if (typeof event.data === "string") {
+        try {
+          const message = JSON.parse(event.data) as {type?: string; data?: {heartbeat?: number}};
+          if (message.type === "hello" && Number.isFinite(message.data?.heartbeat) && (message.data?.heartbeat ?? 0) > 1000) {
+            stopHeartbeat();
+            const interval = Math.max(1000, Math.floor(message.data!.heartbeat! * 0.6));
+            heartbeat.current = setInterval(() => {
+              if (socket.current === ws && ws.readyState === WebSocket.OPEN) ws.send('{"type":"ping"}');
+            }, interval);
+            log("SYSTEM", "info", `JMRI heartbeat active: ping every ${interval} ms`);
+          }
+        } catch { /* Non-JSON frames are still logged below. */ }
+      }
       log("WS", "in", typeof event.data === "string" ? event.data : "[binary message]");
     };
     ws.onerror = () => log("SYSTEM", "error", "WebSocket error (check JMRI Web Server and proxy)");
     ws.onclose = event => {
       if (socket.current !== ws) return;
+      stopHeartbeat();
       socket.current = null;
       setStatus("disconnected");
-      log("SYSTEM", "info", "WebSocket closed (" + event.code + ")");
+      log("SYSTEM", "info", "WebSocket closed (" + event.code + ", reason: " + (event.reason || "none") + ")");
     };
   }, [log]);
 
   const disconnect = () => {
+    stopHeartbeat();
     socket.current?.close();
     socket.current = null;
     setStatus("disconnected");
   };
 
-  useEffect(() => () => { socket.current?.close(); socket.current = null; }, []);
+  useEffect(() => () => { stopHeartbeat(); socket.current?.close(); socket.current = null; }, []);
 
   const send = () => {
     if (status !== "connected" || socket.current?.readyState !== WebSocket.OPEN) return;
