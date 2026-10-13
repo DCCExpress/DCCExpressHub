@@ -111,6 +111,9 @@ builder.Services.AddSingleton<CalibrationRuntime>();
 builder.Services.AddSingleton<PrecisionBrakingRuntime>();
 builder.Services.AddSingleton<WsHub>();
 
+// Manager has a no-op host StartAsync and is not allowed to activate hardware
+// automatically; hosted lifetime ensures the driver is stopped on shutdown.
+builder.Services.AddHostedService(sp => sp.GetRequiredService<CommandCenterSessionManager>());
 builder.Services.AddHostedService<WsRuntimeCoordinator>();
 // Subscribe to external sensor feedback before starting serial readers.
 builder.Services.AddHostedService(sp => sp.GetRequiredService<ExternalDevicesRuntime>());
