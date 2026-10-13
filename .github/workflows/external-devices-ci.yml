@@ -37,3 +37,13 @@ jobs:
         run: npm run typecheck --prefix web-ui
       - name: External Devices regressions
         run: node --test web-ui/tests/external-devices.test.mjs
+
+  windows-desktop:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - name: Build WPF WebView2 desktop shell
+        run: dotnet build desktop/DCCExpressHub.Desktop/DCCExpressHub.Desktop.csproj -c Release
