@@ -44,11 +44,13 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
         if(Number.isInteger(id) && id>0) ids.add(id);
       setReserved({loaded:true,blocks:ids});
     });
+    const requestDispatcher = () => wsClient.send({type:"dispatcherCommand",data:{action:"snapshot",requestId:`station-route-${Date.now()}`}});
     const offStatus = wsClient.subscribeStatus(status => {
       setReserved({loaded:false,blocks:new Set()});
       setSensorStates(new Map());
-      if(status==="connected") wsClient.send({type:"dispatcherCommand",data:{action:"snapshot",requestId:`station-route-${Date.now()}`}});
+      if(status==="connected") requestDispatcher();
     });
+    if (wsClient.isConnected()) requestDispatcher();
     return () => {offSensor();offSnapshot();offDispatcher();offStatus();};
   }, []);
   const [candidates, setCandidates] = useState<MovementRouteCandidate[]>([]);
