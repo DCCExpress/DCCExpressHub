@@ -13,6 +13,7 @@ type ExternalDevice = {
   serialPort: string;
   sensorOffset: number;
   sensorCount: number;
+  s88Bytes: number;
 };
 type DeviceStatus = {
   id: string;
@@ -38,6 +39,7 @@ const emptyDevice = (): ExternalDevice => ({
   serialPort: "",
   sensorOffset: 50000,
   sensorCount: 32,
+  s88Bytes: 4,
 });
 
 async function postForm(path: string, payload: Record<string, string>): Promise<ApiResult> {
@@ -102,7 +104,8 @@ export default function ExternalDevicesPage({
         enabled: String(draft.enabled),
         serialPort: draft.serialPort,
         sensorOffset: String(draft.sensorOffset),
-        sensorCount: String(draft.sensorCount),
+        sensorCount: String(draft.s88Bytes * 8),
+        s88Bytes: String(draft.s88Bytes),
       });
       await refresh();
       setEditing(false);
@@ -138,7 +141,8 @@ export default function ExternalDevicesPage({
       await postForm("/api/external-devices/save", {
         id: device.id, name: device.name, type: device.type,
         serialPort: device.serialPort, sensorOffset: String(device.sensorOffset),
-        sensorCount: String(device.sensorCount), enabled: String(enabled),
+        sensorCount: String(device.s88Bytes * 8), s88Bytes: String(device.s88Bytes),
+        enabled: String(enabled),
       });
       await refresh();
       setMessage(enabled ? "Device enabled: backend will connect automatically." :
@@ -179,6 +183,7 @@ export default function ExternalDevicesPage({
               <Table.Th>Name</Table.Th>
               <Table.Th>Device</Table.Th>
               <Table.Th>Port</Table.Th>
+              <Table.Th>Groups</Table.Th>
               <Table.Th>Sensor addresses</Table.Th>
               <Table.Th>Status</Table.Th>
               <Table.Th>Actions</Table.Th>
@@ -192,6 +197,7 @@ export default function ExternalDevicesPage({
                 <Table.Td><Text fw={600} size="sm">{device.name}</Text></Table.Td>
                 <Table.Td><Text size="xs">DCCExpressS88Adapter</Text></Table.Td>
                 <Table.Td><Text size="sm">{device.serialPort}</Text></Table.Td>
+                <Table.Td><Text size="sm">{device.s88Bytes} bytes / {device.sensorCount} inputs</Text></Table.Td>
                 <Table.Td><Text size="sm">{device.sensorOffset + 1}–{device.sensorOffset + device.sensorCount}</Text></Table.Td>
                 <Table.Td>
                   <Badge size="sm" color={online ? "green" : device.enabled ? "yellow" : "gray"}>
@@ -222,7 +228,7 @@ export default function ExternalDevicesPage({
           <div>
             <Title order={4}>S88Adapter monitor — {selected.name}</Title>
             <Text size="sm" c="dimmed">
-              {selected.serialPort} · 115200 baud · Sensor {selected.sensorOffset + 1}–{selected.sensorOffset + selected.sensorCount}
+              {selected.serialPort} · 115200 baud · {selected.s88Bytes} bytes / {selected.sensorCount} inputs · Sensor {selected.sensorOffset + 1}–{selected.sensorOffset + selected.sensorCount}
             </Text>
           </div>
           <Group gap="xs">
@@ -278,11 +284,18 @@ export default function ExternalDevicesPage({
         <Group grow>
           <NumberInput label="Sensor offset" description="Input 1 = offset + 1" min={0} max={65527} value={draft.sensorOffset}
             onChange={value => setDraft(old => ({ ...old, sensorOffset: typeof value === "number" ? value : 0 }))} />
-          <NumberInput label="S88 inputs" description="8–256 inputs, in multiples of 8" min={8} max={256} step={8} value={draft.sensorCount}
-            onChange={value => setDraft(old => ({ ...old, sensorCount: typeof value === "number" ? value : 32 }))} />
+          <NumberInput label="S88 bytes / groups" description={`${draft.s88Bytes * 8} occupancy inputs`} min={1} max={32} step={1} value={draft.s88Bytes}
+            onChange={value => setDraft(old => {
+              const bytes = typeof value === "number" ? value : 4;
+              return { ...old, s88Bytes: bytes, sensorCount: bytes * 8 };
+            })} />
         </Group>
         <Switch label="Enabled – connect automatically at backend startup" checked={draft.enabled}
           onChange={event => setDraft(old => ({ ...old, enabled: event.currentTarget.checked }))} />
+        <Text size="xs" c="dimmed">
+          The backend reads STATUS and only sends SET BYTES / SAVE if the adapter needs an update.
+          Replacing the COM/tty port closes the old connection before opening the new one.
+        </Text>
         <Text size="xs" c="dimmed">
           Choose a unique sensor range that does not overlap with command-center feedback,
           R-BUS, LocoNet, or other external devices. If the adapter disconnects,
