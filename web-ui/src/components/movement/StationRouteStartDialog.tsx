@@ -9,6 +9,7 @@ import { createMovementPage, createEmptyMovementDocument } from "@/domain/moveme
 import { applyMovementRouteCandidate, loadMovementRouteCandidates, type MovementRouteCandidate } from "@/services/movementRouteCatalog";
 import { getTrainTrackingState, subscribeTrainTrackingState } from "@/services/trainTrackingRuntime";
 import { startTransientMovement } from "@/services/movementEngine";
+import { wsClient } from "@/services/wsClient";
 
 type Props = {
   opened: boolean;
@@ -20,6 +21,36 @@ type Props = {
 
 export default function StationRouteStartDialog({ opened, onClose, layout, locomotives, route }: Props) {
   const [tracking, setTracking] = useState(getTrainTrackingState);
+  const [sensorStates, setSensorStates] = useState<Map<number,boolean>>(new Map());
+  const [reserved, setReserved] = useState<{loaded:boolean;blocks:Set<number>}>({loaded:false,blocks:new Set()});
+  useEffect(() => {
+    const offSensor = wsClient.on("sensorChanged", data => setSensorStates(old => new Map(old).set(data.address,data.on)));
+    const offSnapshot = wsClient.on("sensorSnapshot", data => {
+      const map = new Map<number,boolean>();
+      for (const [base,active,known] of data.groups) for (let i=0;i<16;i++) {
+        const bit = 1<<i;
+        if (known & bit) map.set(base+i,(active & bit)!==0);
+      }
+      setSensorStates(map);
+    });
+    const offDispatcher = wsClient.subscribeMessages(raw => {
+      const m = raw as unknown as {type:string;data?:any};
+      const snapshot = m.type==="dispatcherResponse" && m.data?.action==="snapshot" && m.data?.ok===true;
+      if (!snapshot && m.type!=="dispatcherChanged") return;
+      const data = snapshot ? m.data?.extra : m.data;
+      if (!Array.isArray(data?.leases) || !Array.isArray(data?.routes)) return;
+      const ids = new Set<number>();
+      for(const lease of [...data.leases,...data.routes]) for(const id of [lease.fromBlockId,lease.toBlockId,lease.sourceBlockId,lease.destinationBlockId])
+        if(Number.isInteger(id) && id>0) ids.add(id);
+      setReserved({loaded:true,blocks:ids});
+    });
+    const offStatus = wsClient.subscribeStatus(status => {
+      setReserved({loaded:false,blocks:new Set()});
+      setSensorStates(new Map());
+      if(status==="connected") wsClient.send({type:"dispatcherCommand",data:{action:"snapshot",requestId:`station-route-${Date.now()}`}});
+    });
+    return () => {offSensor();offSnapshot();offDispatcher();offStatus();};
+  }, []);
   const [candidates, setCandidates] = useState<MovementRouteCandidate[]>([]);
   const [source, setSource] = useState<string | null>(null);
   const [destination, setDestination] = useState<string | null>("auto");
@@ -78,11 +109,17 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
       });
       return {
         value: String(id),
-        label: tracked.length ? `${blockName} · ${identities.join(", ")}` : `${blockName} · No tracked locomotive`,
+        label: tracked.length ? `${blockName} · ${identities.join(", ")}` : `${blockName} · ${confirmedFree(id) ? "Confirmed free" : "Not confirmed free / reserved"}`,
       };
     });
   const selectedLoco = locos.find(l => String(l.currentBlockId) === source);
-  const selectedCandidate = available[0];
+  const confirmedFree = (id:number) => {
+    const block = blocks.find(b=>b.id===id);
+    return !!block && block.sensorAddress>0 && sensorStates.get(block.sensorAddress)===false &&
+      reserved.loaded && !reserved.blocks.has(id) && tracking.ready && tracking.active && tracking.enabled &&
+      !tracking.locos.some(l=>l.currentBlockId===id);
+  };
+  const selectedCandidate = available.find(candidate => confirmedFree(candidate.toBlockId));
   const canStart = !loading && !starting && !!route?.enabled && !!selectedLoco && !!selectedCandidate &&
     Number.isInteger(Number(speed)) && Number(speed) >= 1 && Number(speed) <= 126;
   const start = async () => {
@@ -90,6 +127,7 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
     setStarting(true);
     setError(null);
     try {
+      if (!confirmedFree(selectedCandidate.toBlockId)) throw new Error("Destination is not confirmed free.");
       const fresh = getTrainTrackingState();
       const tracked = fresh.locos.find(l => l.locoAddress === selectedLoco.locoAddress);
       if (!fresh.enabled || !fresh.active || !fresh.ready || tracked?.confidence !== "certain" ||
@@ -159,7 +197,7 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
                       {l.confidence !== "certain" ? " · Position uncertain" : ""}
                     </Text>;
                   })
-                : <Text size="xs" c="dimmed">No tracked locomotive · occupancy not verified</Text>}
+                : <Text size="xs" c="dimmed">{confirmedFree(Number(option.value)) ? "Confirmed free" : "Not confirmed free / reserved"}</Text>}
             </Stack>
           </Group>;
         }}
@@ -167,7 +205,7 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
       <NumberInput label="Speed" min={1} max={126} allowDecimal={false} value={speed} onChange={setSpeed}/>
       {loading && <Text size="sm" c="dimmed">Loading route topology…</Text>}
       {selectedCandidate && <Text size="sm">Planned: {selectedCandidate.blockPath.map(b => b.name).join(" → ")}</Text>}
-      {!loading && source && !selectedCandidate && <Alert color="orange">No runnable Movement path matches this locomotive and destination. Check Via and route topology.</Alert>}
+      {!loading && source && !selectedCandidate && <Alert color="orange">No confirmed-free destination is available. Check occupancy sensors, dispatcher reservations and route topology.</Alert>}
       {error && <Alert color="red">{error}</Alert>}
       <Group justify="flex-end"><Button variant="default" onClick={onClose} disabled={starting}>Cancel</Button><Button onClick={() => void start()} loading={starting} disabled={!canStart}>Start Task</Button></Group>
     </Stack>
