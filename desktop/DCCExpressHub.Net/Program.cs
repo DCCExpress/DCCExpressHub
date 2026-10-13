@@ -59,6 +59,7 @@ builder.Services.AddSingleton<LocoStorageCoordinator>();
 builder.Services.AddSingleton<AutomationExclusiveGate>();
 builder.Services.AddSingleton<CommandCenterConfigStore>();
 builder.Services.AddSingleton<CommandCenterApi>();
+builder.Services.AddSingleton<CommandCenterStartupApi>();
 builder.Services.AddSingleton<ExternalDeviceStore>();
 builder.Services.AddSingleton<ExternalDevicesRuntime>();
 builder.Services.AddSingleton<LocomotiveConfigApi>();
