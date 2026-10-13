@@ -1,0 +1,37 @@
+name: External Devices CI
+
+on:
+  push:
+    branches:
+      - feature/external-devices
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - name: Build .NET backend (Linux)
+        run: dotnet build desktop/DCCExpressHub.Net/DCCExpressHub.Net.csproj -c Release
+
+  web-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web-ui/package-lock.json
+      - name: Install web dependencies
+        run: npm ci --prefix web-ui
+      - name: Typecheck web UI
+        run: npm run typecheck --prefix web-ui
+      - name: External Devices regressions
+        run: node --test web-ui/tests/external-devices.test.mjs
