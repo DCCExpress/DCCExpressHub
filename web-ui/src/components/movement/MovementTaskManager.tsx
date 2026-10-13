@@ -178,7 +178,8 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
         const quickRouteMatch = isQuickRoute
           ? /^Quick route\\s*·\\s*(?:#\\d+\\s*·\\s*)?(.*)$/i.exec(fullName)
           : null;
-        const title = isQuickRoute ? "Quick route" : fullName;
+        const isStationRoute = isQuickRoute && fullName.startsWith("Station Route ·");
+        const title = isStationRoute ? fullName : isQuickRoute ? "Quick route" : fullName;
         const route = state.routeDescription?.trim() || quickRouteMatch?.[1]?.trim() || null;
         return (
           <Paper key={pageId} withBorder p="sm" radius="sm">
