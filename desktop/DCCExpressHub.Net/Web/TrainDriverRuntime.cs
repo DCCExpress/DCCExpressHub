@@ -121,6 +121,8 @@ public sealed class TrainDriverRuntime
             {
                 "running" => "running",
                 "stopping" => "stopping",
+                "idle" when movement.Info == "Movement aborted" => "aborted",
+                "idle" when movement.Info == "Movement stopped" => "stopped",
                 "idle" => "completed",
                 "error" => "error",
                 "aborted" => "aborted",
@@ -129,7 +131,7 @@ public sealed class TrainDriverRuntime
             };
             updated = current with { Status = status, Info = movement.Info, Error = movement.Error };
             _tasks[current.TaskId] = updated;
-            if (status is "completed" or "aborted" or "error")
+            if (status is "completed" or "aborted" or "stopped" or "error")
                 _activeByLoco.Remove(current.LocoAddress);
         }
         Changed?.Invoke(updated);
