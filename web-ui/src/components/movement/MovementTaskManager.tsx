@@ -1,3 +1,4 @@
+import type { TrainDriverStatePayload } from "@/domain/wsTypes";
 import { ActionIcon, Badge, Button, Group, Paper, Stack, Text, Tooltip, Divider, SimpleGrid, ScrollArea } from "@mantine/core";
 import { IconAlertTriangle, IconPlayerStop } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
@@ -21,6 +22,7 @@ type Props = { document: MovementDocument; locos: Loco[]; layout: LayoutView };
 
 export default function MovementTaskManager({ document, locos, layout }: Props) {
   const [tasks, setTasks] = useState<Task[]>(getMovementTaskStates);
+  const [drivers, setDrivers] = useState<TrainDriverStatePayload[]>([]);
   const [traffic, setTraffic] = useState<Traffic>(emptyTraffic);
   const [loaded, setLoaded] = useState({ locks: false, dispatcher: false });
   const liveTraffic = loaded.locks && loaded.dispatcher;
@@ -43,6 +45,13 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
           extra?: { locks?: Lock[]; leases?: Lease[]; routes?: Lease[] } | null;
         };
       };
+      if (frame.type === "trainDriverStateChanged") {
+        const driver = frame.data as unknown as TrainDriverStatePayload;
+        if (driver?.taskId) setDrivers(previous => [...previous.filter(t => t.taskId !== driver.taskId), driver]);
+      } else if (frame.type === "trainDriverResponse" && frame.data?.action === "snapshot" && frame.data?.ok === true) {
+        const states = (frame.data as unknown as { states?: TrainDriverStatePayload[] }).states;
+        if (Array.isArray(states)) setDrivers(states);
+      }
       const isSwitchManSnapshot =
         frame.type === "switchManResponse" &&
         frame.data?.action === "snapshot" &&
@@ -69,6 +78,7 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
 
     const unsubscribeStatus = wsClient.subscribeStatus(status => {
       if (status !== "connected") {
+        setDrivers([]);
         setTraffic(emptyTraffic);
         setLoaded({ locks: false, dispatcher: false });
         return;
@@ -82,6 +92,7 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
         type: "switchManCommand",
         data: { action: "snapshot", requestId: requestId() },
       });
+      wsClient.send({ type: "trainDriverCommand", data: { action: "snapshot", requestId: requestId() } });
       wsClient.send({
         type: "dispatcherCommand",
         data: { action: "snapshot", requestId: requestId() },
@@ -169,6 +180,7 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
           {active.map(({ pageId, state }) => {
         const page = document.pages.find(item => item.id === pageId);
         const loco = locos.find(item => item.address === state.locoAddress);
+        const driver = drivers.find(item => item.movementId === pageId);
         const isQuickRoute = pageId.startsWith("quick-route-loco-");
         const fullName = state.movementName || page?.name || (isQuickRoute
           ? "Quick route"
@@ -197,6 +209,7 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
                 <Text size="sm" fw={600} truncate>{title}</Text>
                 <Group gap={6} wrap="wrap">
                   <Badge color={state.status === "stopping" ? "yellow" : "green"} size="xs">{state.status}</Badge>
+                  {driver && <Badge size="xs" variant="light" color="blue">Train Driver · {driver.status}</Badge> }
                   <Text size="xs" c="dimmed" style={{ whiteSpace: "nowrap" }}>
                     Speed {state.desiredSpeed}
                     {state.currentBlockId != null && (
@@ -212,11 +225,11 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
                 <Tooltip label="Stop movement">
                   <ActionIcon aria-label="Stop movement" variant="light" color="yellow"
                     disabled={state.status === "stopping"}
-                    onClick={() => stopMovement(pageId)}><IconPlayerStop size={17} /></ActionIcon>
+                    onClick={() => driver ? wsClient.send({type:"trainDriverCommand", data:{requestId:`driver-stop-${Date.now()}`,action:"stop",taskId:driver.taskId}}) : stopMovement(pageId)}><IconPlayerStop size={17} /></ActionIcon>
                 </Tooltip>
                 <Tooltip label="Abort movement (E-STOP)">
                   <ActionIcon aria-label="Abort movement (E-STOP)" variant="light" color="red"
-                    onClick={() => abortMovement(pageId)}><IconAlertTriangle size={17} /></ActionIcon>
+                    onClick={() => driver ? wsClient.send({type:"trainDriverCommand", data:{requestId:`driver-abort-${Date.now()}`,action:"abort",taskId:driver.taskId}}) : abortMovement(pageId)}><IconAlertTriangle size={17} /></ActionIcon>
                 </Tooltip>
               </Group>
             </Group>
