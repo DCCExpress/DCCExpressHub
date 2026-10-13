@@ -23,6 +23,7 @@ public sealed class WsRuntimeCoordinator : BackgroundService
         LayoutRuntime runtime,
         SignalAutomationEngine signalAutomation,
         AppPaths env,
+        ExternalDevicesRuntime externalDevices,
         ILogger<WsRuntimeCoordinator> log)
     {
         _cc=cc;
@@ -36,6 +37,10 @@ public sealed class WsRuntimeCoordinator : BackgroundService
         cc.ConnectionChanged+=OnConnectionChanged;
         cc.SensorFeedbackChanged+=OnSensorFeedbackChanged;
         cc.AccessoryFeedbackChanged+=OnAccessoryFeedbackChanged;
+        // Every sensor source uses the same authoritative LayoutRuntime path.
+        externalDevices.SensorFeedbackChanged += OnSensorFeedbackChanged;
+        externalDevices.SensorRangeUnavailable +=
+            (first, count) => _runtime.InvalidateSensorRange(first, count);
     }
 
     void OnConnectionChanged(bool connected)
