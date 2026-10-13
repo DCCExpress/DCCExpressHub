@@ -1,8 +1,9 @@
 import {
   Alert, Badge, Button, Card, Group, NumberInput, Select, Stack,
-  Switch, Text, TextInput, Title
+  Switch, Text, TextInput, Title, Table, ScrollArea, SimpleGrid
 } from "@mantine/core";
 import { useCallback, useEffect, useState } from "react";
+import { S88SensorIndicator } from "./components/S88SensorIndicator";
 
 type ExternalDevice = {
   id: string;
@@ -20,6 +21,7 @@ type DeviceStatus = {
   activeInputs: number;
   lastSnapshotUtc: string | null;
   message: string;
+  snapshot: boolean[];
 };
 type DeviceReply = {
   ok: boolean;
@@ -49,7 +51,13 @@ async function postForm(path: string, payload: Record<string, string>): Promise<
   return result;
 }
 
-export default function ExternalDevicesPage({ onBack }: { onBack: () => void }) {
+export default function ExternalDevicesPage({
+  onBack,
+  onDiagnostics,
+}: {
+  onBack: () => void;
+  onDiagnostics: () => void;
+}) {
   const [devices, setDevices] = useState<ExternalDevice[]>([]);
   const [status, setStatus] = useState<DeviceStatus[]>([]);
   const [ports, setPorts] = useState<string[]>([]);
@@ -57,6 +65,7 @@ export default function ExternalDevicesPage({ onBack }: { onBack: () => void }) 
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [monitorId, setMonitorId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     const response = await fetch("/api/external-devices", { cache: "no-store" });
@@ -108,6 +117,7 @@ export default function ExternalDevicesPage({ onBack }: { onBack: () => void }) 
       await postForm("/api/external-devices/remove", { id });
       await refresh();
       if (draft.id === id) setEditing(false);
+      if (monitorId === id) setMonitorId(null);
       setMessage("Device removed.");
     } catch (error) { setMessage("NOK: " + String(error)); }
     finally { setBusy(false); }
@@ -121,6 +131,23 @@ export default function ExternalDevicesPage({ onBack }: { onBack: () => void }) 
     } catch (error) { setMessage("NOK: " + String(error)); }
     finally { setBusy(false); }
   };
+
+  const setEnabled = async (device: ExternalDevice, enabled: boolean) => {
+    setBusy(true);
+    try {
+      await postForm("/api/external-devices/save", {
+        id: device.id, name: device.name, type: device.type,
+        serialPort: device.serialPort, sensorOffset: String(device.sensorOffset),
+        sensorCount: String(device.sensorCount), enabled: String(enabled),
+      });
+      await refresh();
+      setMessage(enabled ? "Device enabled: backend will connect automatically." :
+        "Device disabled: backend will close its serial port and invalidate its sensors.");
+    } catch (error) { setMessage("NOK: " + String(error)); }
+    finally { setBusy(false); }
+  };
+  const selected = devices.find(x => x.id === monitorId);
+  const selectedStatus = status.find(x => x.id === monitorId);
 
   const portOptions = [...new Set([...ports, ...(draft.serialPort ? [draft.serialPort] : [])])]
     .sort((a, b) => a.localeCompare(b));
@@ -144,30 +171,90 @@ export default function ExternalDevicesPage({ onBack }: { onBack: () => void }) 
 
     {devices.length === 0 && !editing &&
       <Text c="dimmed">No external devices configured. Select Add device to connect an S88 adapter.</Text>}
-    {devices.map(device => {
-      const live = status.find(x => x.id === device.id);
-      const online = !!(device.enabled && live?.connected);
-      return <Card key={device.id} withBorder radius="md" p="md">
-        <Group justify="space-between" align="start">
-          <Stack gap={4}>
-            <Group gap="xs">
-              <Text fw={600}>{device.name}</Text>
-              <Badge color={online ? "green" : "gray"}>
-                {online ? "Connected" : device.enabled ? "Disconnected" : "Disabled"}
-              </Badge>
-            </Group>
-            <Text size="sm" c="dimmed">DCCExpressS88Adapter · {device.serialPort} · 115200 baud</Text>
-            <Text size="sm">Sensor addresses: {device.sensorOffset + 1}–{device.sensorOffset + device.sensorCount}</Text>
-            <Text size="xs" c="dimmed">{live?.message ?? "Not started"}{live?.connected ? ` · ${live.activeInputs} inputs reporting` : ""}</Text>
-          </Stack>
+    {devices.length > 0 && <Card withBorder p="md" radius="md">
+      <ScrollArea>
+        <Table striped highlightOnHover withColumnBorders miw={760}>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Name</Table.Th>
+              <Table.Th>Device</Table.Th>
+              <Table.Th>Port</Table.Th>
+              <Table.Th>Sensor addresses</Table.Th>
+              <Table.Th>Status</Table.Th>
+              <Table.Th>Actions</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {devices.map(device => {
+              const live = status.find(x => x.id === device.id);
+              const online = !!(device.enabled && live?.connected);
+              return <Table.Tr key={device.id}>
+                <Table.Td><Text fw={600} size="sm">{device.name}</Text></Table.Td>
+                <Table.Td><Text size="xs">DCCExpressS88Adapter</Text></Table.Td>
+                <Table.Td><Text size="sm">{device.serialPort}</Text></Table.Td>
+                <Table.Td><Text size="sm">{device.sensorOffset + 1}–{device.sensorOffset + device.sensorCount}</Text></Table.Td>
+                <Table.Td>
+                  <Badge size="sm" color={online ? "green" : device.enabled ? "yellow" : "gray"}>
+                    {online ? "Connected" : device.enabled ? "Disconnected" : "Disabled"}
+                  </Badge>
+                  <Text size="xs" c="dimmed">{live?.message ?? "Not started"}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Group gap={5} wrap="nowrap">
+                    <Button size="compact-xs" variant="light" onClick={() => { setMonitorId(device.id); setEditing(false); }}>Monitor</Button>
+                    <Button size="compact-xs" variant="light" disabled={!device.enabled || busy} onClick={() => void test(device.id)}>Test</Button>
+                    <Button size="compact-xs" variant="light" disabled={busy} onClick={() => { setDraft({ ...device }); setEditing(true); setMessage(""); }}>Edit</Button>
+                    <Button size="compact-xs" variant="light" color={device.enabled ? "orange" : "teal"} disabled={busy}
+                      onClick={() => void setEnabled(device, !device.enabled)}>{device.enabled ? "Stop" : "Start"}</Button>
+                    <Button size="compact-xs" variant="light" color="red" disabled={busy} onClick={() => void remove(device.id)}>Delete</Button>
+                  </Group>
+                </Table.Td>
+              </Table.Tr>;
+            })}
+          </Table.Tbody>
+        </Table>
+      </ScrollArea>
+    </Card>}
+
+    {selected && <Card withBorder radius="md" p="lg">
+      <Stack gap="sm">
+        <Group justify="space-between">
+          <div>
+            <Title order={4}>S88Adapter monitor — {selected.name}</Title>
+            <Text size="sm" c="dimmed">
+              {selected.serialPort} · 115200 baud · Sensor {selected.sensorOffset + 1}–{selected.sensorOffset + selected.sensorCount}
+            </Text>
+          </div>
           <Group gap="xs">
-            <Button size="xs" variant="light" disabled={!device.enabled || busy} onClick={() => void test(device.id)}>Test</Button>
-            <Button size="xs" variant="light" onClick={() => { setDraft({ ...device }); setEditing(true); setMessage(""); }}>Edit</Button>
-            <Button size="xs" variant="light" color="red" disabled={busy} onClick={() => void remove(device.id)}>Remove</Button>
+            <Badge color={selectedStatus?.connected ? "green" : "gray"}>
+              {selectedStatus?.connected ? "ONLINE" : selected.enabled ? "OFFLINE" : "DISABLED"}
+            </Badge>
+            <Button variant="subtle" size="xs" onClick={() => setMonitorId(null)}>Close monitor</Button>
           </Group>
         </Group>
-      </Card>;
-    })}
+        <Text size="xs" c="dimmed">
+          {selectedStatus?.message ?? "Waiting for backend connection"}
+          {selectedStatus?.lastSnapshotUtc && ` · Last snapshot: ${new Date(selectedStatus.lastSnapshotUtc).toLocaleTimeString()}`}
+        </Text>
+        <SimpleGrid cols={{ base: 4, xs: 8, md: 16 }} spacing="xs">
+          {Array.from({ length: selected.sensorCount }, (_, index) =>
+            <S88SensorIndicator key={index} number={index + 1}
+              known={!!selectedStatus?.connected && index < (selectedStatus.snapshot?.length ?? 0)}
+              active={!!selectedStatus?.snapshot?.[index]} />
+          )}
+        </SimpleGrid>
+        <Text size="xs" c="dimmed">
+          S88 input 1 = Hub sensor {selected.sensorOffset + 1}. The backend owns this COM/tty port.
+          The original USB diagnostic console can be opened after stopping the device.
+        </Text>
+        <Group>
+          <Button variant="light" disabled={selected.enabled} onClick={onDiagnostics}>
+            Open S88Adapter diagnostics
+          </Button>
+          {selected.enabled && <Text size="xs" c="dimmed">Stop the device first to release the serial port for diagnostics.</Text>}
+        </Group>
+      </Stack>
+    </Card>}
 
     {editing && <Card withBorder radius="md" p="lg">
       <Stack gap="md">
