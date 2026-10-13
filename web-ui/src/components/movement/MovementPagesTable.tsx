@@ -1136,7 +1136,7 @@ export default function MovementPagesTable({
           <ScrollArea.Autosize mah={420}>
             <Stack gap="xs">
               {stationPreview?.plans.map((plan,i) => <Paper withBorder p="xs" key={i}>
-                <Group gap="xs"><Badge variant="light">{plan.direction === "reverse" ? "Reverse" : "Forward"}</Badge>
+                <Group gap="xs"><Badge variant="light" color={plan.direction === "reverse" ? "orange" : "blue"}>{plan.direction === "reverse" ? "Reverse" : "Forward"}</Badge>
                   <Text size="sm">{plan.blockNames.join(" → ")}</Text></Group>
               </Paper>)}
             </Stack>
