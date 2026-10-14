@@ -75,6 +75,9 @@ import {
   useTranslation,
 } from "react-i18next";
 
+// Enable this only while diagnosing route topology; keep the viewer available for debugging.
+const SHOW_DEBUG_GRAPH_VISUALIZATION = false;
+
 type RoutesDialogProps = {
   opened: boolean;
   onClose: () => void;
@@ -1148,7 +1151,7 @@ export default function RoutesDialog({
                 {t("ui.graph")}
               </Tabs.Tab>
 
-              <Tabs.Tab value="graphVisualization">Graph visualization</Tabs.Tab>
+              {SHOW_DEBUG_GRAPH_VISUALIZATION && <Tabs.Tab value="graphVisualization">Graph visualization</Tabs.Tab>}
 
               <Tabs.Tab value="segments">
                 {t("ui.segments")}
@@ -1645,10 +1648,10 @@ export default function RoutesDialog({
               </ScrollArea.Autosize>
             </Tabs.Panel>
 
-            <Tabs.Panel value="graphVisualization" pt="sm"
+            {SHOW_DEBUG_GRAPH_VISUALIZATION && <Tabs.Panel value="graphVisualization" pt="sm"
               style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
               <RouteGraphVisualization graph={result.graph} layout={layout} />
-            </Tabs.Panel>
+            </Tabs.Panel>}
 
             <Tabs.Panel
               value="segments"
