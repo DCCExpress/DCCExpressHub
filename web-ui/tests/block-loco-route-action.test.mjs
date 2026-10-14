@@ -18,6 +18,7 @@ test("block click keeps assignment picker and reuses existing Drive to Block dia
   assert.match(picker, /onDriveToBlock=\{setDriveLoco\}/);
   assert.match(picker, /wsApi\.setBlock\(/);
   assert.match(picker, /<LocoTargetBlockDialog/);
+  assert.match(picker, /onClose=\{\(\) => \{[\s\S]*?setDriveLoco\(null\);[\s\S]*?onClose\(\);[\s\S]*?\}\}/);
   assert.match(picker, /loco=\{driveLoco\}/);
 });
 
