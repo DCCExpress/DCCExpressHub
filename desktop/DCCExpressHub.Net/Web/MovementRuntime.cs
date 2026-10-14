@@ -2549,7 +2549,12 @@ public sealed class MovementRuntime
                     result.BlockingSensor.HasValue
                         ? "Waiting for safety sensor #" + result.BlockingSensor.Value
                         : result.BlockingBlock.HasValue
-                            ? "Waiting for block " + result.BlockingBlock.Value
+                            ? "Waiting for block " +
+                              (execution.Plan.Blocks.FirstOrDefault(block =>
+                                   block.BlockId == result.BlockingBlock.Value)?.Name
+                               ?? (Block(result.BlockingBlock.Value) is { } blockingBlock
+                                   ? BlockLabel(blockingBlock)
+                                   : "#" + result.BlockingBlock.Value))
                             : result.Error == "turnout_locked"
                                 ? "Waiting for turnout lock"
                                 : "Waiting for route authority",
