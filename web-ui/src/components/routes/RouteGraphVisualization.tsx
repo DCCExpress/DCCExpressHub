@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { Badge, Button, Group, Paper, ScrollArea, Select, Slider, Stack, Text } from "@mantine/core";
 import type { Graph } from "@/domain/railway/graph";
 import type { LayoutView } from "@/models/editor/core/LayoutView";
@@ -7,10 +7,12 @@ type Props = { graph: Graph; layout: LayoutView };
 
 export default function RouteGraphVisualization({ graph, layout }: Props) {
   const [scale, setScale] = useState(1);
-  const [viewMode, setViewMode] = useState<"physical" | "force" | "layers">("force");
+  const [viewMode, setViewMode] = useState<"force" | "layers">("force");
   const [xSpacing, setXSpacing] = useState(2);
   const [ySpacing, setYSpacing] = useState(2);
   const [selected, setSelected] = useState<string | null>(null);
+  const scrollViewportRef = useRef<HTMLDivElement>(null);
+  const zoom = (delta: number) => setScale(value => Math.max(0.25, Math.min(4, Math.round((value + delta) * 100) / 100)));
   const geometry = useMemo(() => {
     const serialized = JSON.parse(JSON.stringify(layout)) as {
       layers?: Array<{ elements?: Array<{ id?: number; type?: string; x?: number; y?: number; w?: number; h?: number }> }>;
@@ -179,20 +181,19 @@ export default function RouteGraphVisualization({ graph, layout }: Props) {
           <Badge variant="light">{graph.edges.length} directed edges</Badge>
         </Group>
         <Group gap="xs">
-          <Button size="xs" variant="default" onClick={() => setScale(value => Math.max(.5, value - .25))}>−</Button>
-          <Button size="xs" variant="default" onClick={() => setScale(1)}>100%</Button>
-          <Button size="xs" variant="default" onClick={() => setScale(value => Math.min(3, value + .25))}>+</Button>
+          <Button size="xs" variant="default" onClick={() => zoom(-.25)}>−</Button>
+          <Button size="xs" variant="default" onClick={() => setScale(1)}>{Math.round(scale * 100)}%</Button>
+          <Button size="xs" variant="default" onClick={() => zoom(.25)}>+</Button>
         </Group>
       </Group>
       <Group align="end" gap="md">
         <Select label="Graph layout" value={viewMode}
           data={[
             { value: "force", label: "Force-directed (physical anchors)" },
-            { value: "physical", label: "Physical positions" },
             { value: "layers", label: "Hierarchical (BFS)" },
           ]}
           onChange={value => {
-            if (value === "physical" || value === "force" || value === "layers") setViewMode(value);
+            if (value === "force" || value === "layers") setViewMode(value);
           }} w={270} allowDeselect={false} />
         <Text size="xs" c="dimmed">Display only · graph topology unchanged</Text>
       </Group>
@@ -209,7 +210,13 @@ export default function RouteGraphVisualization({ graph, layout }: Props) {
         </Stack>
         <Button size="xs" variant="subtle" onClick={() => { setXSpacing(2); setYSpacing(2); }}>Reset spacing</Button>
       </Group>
-      <ScrollArea h={420} type="auto" offsetScrollbars>
+      <ScrollArea h={420} type="auto" offsetScrollbars viewportRef={scrollViewportRef}
+        onWheelCapture={event => {
+          if (!event.ctrlKey && !event.shiftKey) {
+            event.preventDefault();
+            zoom(event.deltaY < 0 ? .1 : -.1);
+          }
+        }}>
         <svg width={width * scale} height={height * scale} viewBox={`0 0 ${width} ${height}`}
           role="img" aria-label="Directed route graph">
           <defs>
