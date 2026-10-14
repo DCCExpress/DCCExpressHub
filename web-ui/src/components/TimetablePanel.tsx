@@ -1021,6 +1021,7 @@ export default function TimetablePanel({
                               }
                             >
                               {
+                                row.targetType === "fromto" ? "From–To" :
                                 row.targetType ===
                                   "movement"
                                   ? "Movement"
