@@ -3745,9 +3745,9 @@ public sealed class MovementRuntime
         {
             var blockId = routeBlock.BlockId!.Value;
             var liveBlock = Block(blockId);
-            var blockName = liveBlock is null
+            var blockName = !string.IsNullOrWhiteSpace(routeBlock.Name)
                 ? routeBlock.Name
-                : BlockLabel(liveBlock);
+                : liveBlock is null ? $"#{blockId}" : BlockLabel(liveBlock);
             var sensorAddress = liveBlock?.SensorAddress ?? (ushort)0;
 
             if (liveBlock is null)
