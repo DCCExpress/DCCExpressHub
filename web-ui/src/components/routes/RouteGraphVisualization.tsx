@@ -1,14 +1,17 @@
 import { useMemo, useState } from "react";
 import { Badge, Button, Group, Paper, ScrollArea, Stack, Text } from "@mantine/core";
 import type { Graph } from "@/domain/railway/graph";
+import type { LayoutView } from "@/models/editor/core/LayoutView";
 
-type Props = { graph: Graph; layout: { layers?: Array<{ elements?: Array<{ id?: number; type?: string; x?: number; y?: number; w?: number; h?: number }> }> } };
+type Props = { graph: Graph; layout: LayoutView };
 
 export default function RouteGraphVisualization({ graph, layout }: Props) {
   const [scale, setScale] = useState(1);
   const [selected, setSelected] = useState<string | null>(null);
   const geometry = useMemo(() => {
-    const serialized = JSON.parse(JSON.stringify(layout)) as Props["layout"];
+    const serialized = JSON.parse(JSON.stringify(layout)) as {
+      layers?: Array<{ elements?: Array<{ id?: number; type?: string; x?: number; y?: number; w?: number; h?: number }> }>;
+    };
     const elements = new Map<number, { id?: number; type?: string; x?: number; y?: number; w?: number; h?: number }>();
     for (const layer of serialized.layers ?? []) {
       for (const element of layer.elements ?? []) {
