@@ -44,6 +44,7 @@ import {
 } from "@/services/apiFetchTimeout";
 
 import SandboxEntry from "./SandboxEntry";
+import MovementStartErrorDialog from "./components/movement/MovementStartErrorDialog";
 import FirstRunWelcome from "@/components/FirstRunWelcome";
 import "./styles.css";
 import "./mobile-drive-split.css";
@@ -75,6 +76,8 @@ ReactDOM.createRoot(
         position="bottom-center"
         autoClose={2500}
       />
+
+      <MovementStartErrorDialog />
 
       <CommandCenterProvider>
         <EditorSettingsProvider>
