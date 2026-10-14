@@ -75,3 +75,29 @@ test("editor picks the block over its underlying rail and moves its anchor cell"
   assert.deepEqual([block.x, block.y], [10, 5]);
   assert.equal(layout.getElement(10, 5), block);
 });
+
+test("selected block uses one viewport transform and an outline aligned to artwork", () => {
+  const block = new BlockElement(9, 5);
+  block.selected = true;
+  const { ctx, calls } = recordingCanvas();
+  block.draw(ctx, { scale: 1.7, offsetX: 123, offsetY: -34 });
+
+  assert.deepEqual(
+    calls.filter(([operation]) => operation === "translate"),
+    [
+      ["translate", 123, -34],
+      ["translate", block.posLeft + block.GridSizeX / 2, block.posTop + block.GridSizeY / 2],
+      ["translate", -block.centerX, -block.centerY],
+    ],
+    "Selecting a block must not apply the viewport transform twice",
+  );
+
+  assert.ok(
+    calls.some(([operation, x, y, w, h]) =>
+      operation === "strokeRect" &&
+      x === block.posLeft && y === block.posTop &&
+      w === block.width && h === block.height
+    ),
+    "Selection outline must cover exactly the block artwork",
+  );
+});
