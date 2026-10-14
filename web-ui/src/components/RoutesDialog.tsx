@@ -686,6 +686,26 @@ export default function RoutesDialog({
     return index;
   }, [layout]);
 
+  const signalAccessoryAddressByElementId = useMemo(() => {
+    const result = new Map<number, number>();
+    const serialized = JSON.parse(JSON.stringify(layout)) as {
+      layers?: Array<{ elements?: Array<{
+        id?: number; type?: string; address?: number;
+        signalOutput?: { address?: number };
+      }> }>;
+    };
+    for (const layer of serialized.layers ?? []) {
+      for (const element of layer.elements ?? []) {
+        if (element.type !== "tracksignal" || !Number.isInteger(element.id)) continue;
+        const address = element.signalOutput?.address ?? element.address;
+        if (typeof address === "number" && Number.isInteger(address) && address > 0) {
+          result.set(element.id!, address);
+        }
+      }
+    }
+    return result;
+  }, [layout]);
+
   const segmentDetectorAddresses = (node: {
     elementIds: number[];
     detectors: Array<{ address: number }>;
@@ -1692,8 +1712,10 @@ export default function RoutesDialog({
                         </Table.Td>
 
                         <Table.Td>
-                          {node.signals
-                            .map(item => item.address)
+                          {[...new Set(node.signals
+                            .map(item => signalAccessoryAddressByElementId.get(item.id))
+                            .filter((address): address is number => address !== undefined))]
+                            .sort((a, b) => a - b)
                             .join(", ") || "—"}
                         </Table.Td>
                       </Table.Tr>
