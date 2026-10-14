@@ -14,6 +14,7 @@ import {
   SimpleGrid,
   Stack,
   Tabs,
+  Tooltip,
   Text,
   Title,
 } from "@mantine/core";
@@ -43,6 +44,11 @@ import {
   IconBug,
   IconLockOpen,
   IconListCheck,
+  IconClipboardList,
+  IconRobot,
+  IconCalendarTime,
+  IconInfoCircle,
+  IconListDetails,
   IconRoute,
   IconVolume,
   IconServerCog,
@@ -2236,11 +2242,21 @@ export default function LiteLayoutPage({
                   className="lite-runtime-tabs"
                 >
                   <Tabs.List grow mb="sm">
-                    <Tabs.Tab value="tasks">TaskMan</Tabs.Tab>
-                    <Tabs.Tab value="automation">{i18next.t("ui.automation2")}</Tabs.Tab>
-                    <Tabs.Tab value="timetable">{i18next.t("ui.timetable")}</Tabs.Tab>
-                    <Tabs.Tab value="info">{i18next.t("ui.info")}</Tabs.Tab>
-                    <Tabs.Tab value="log">{i18next.t("ui.log")}</Tabs.Tab>
+                    <Tooltip label="TaskMan" withArrow>
+                      <Tabs.Tab value="tasks" aria-label="TaskMan"><IconClipboardList size={20} aria-hidden="true" /></Tabs.Tab>
+                    </Tooltip>
+                    <Tooltip label={i18next.t("ui.automation2")} withArrow>
+                      <Tabs.Tab value="automation" aria-label={i18next.t("ui.automation2")}><IconRobot size={20} aria-hidden="true" /></Tabs.Tab>
+                    </Tooltip>
+                    <Tooltip label={i18next.t("ui.timetable")} withArrow>
+                      <Tabs.Tab value="timetable" aria-label={i18next.t("ui.timetable")}><IconCalendarTime size={20} aria-hidden="true" /></Tabs.Tab>
+                    </Tooltip>
+                    <Tooltip label={i18next.t("ui.info")} withArrow>
+                      <Tabs.Tab value="info" aria-label={i18next.t("ui.info")}><IconInfoCircle size={20} aria-hidden="true" /></Tabs.Tab>
+                    </Tooltip>
+                    <Tooltip label={i18next.t("ui.log")} withArrow>
+                      <Tabs.Tab value="log" aria-label={i18next.t("ui.log")}><IconListDetails size={20} aria-hidden="true" /></Tabs.Tab>
+                    </Tooltip>
                   </Tabs.List>
 
                   <Tabs.Panel value="tasks" className="lite-info-tab-panel">
