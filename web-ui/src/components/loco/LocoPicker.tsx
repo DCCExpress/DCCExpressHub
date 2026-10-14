@@ -42,6 +42,7 @@ type LocoPickerProps = {
   onRemoveAllLoco?: () => void;
   onSelect: (loco: Loco) => void;
   onDriveToBlock?: (loco: Loco) => void;
+  canDriveToBlock?: (loco: Loco) => boolean;
 };
 
 export default function LocoPicker({
@@ -52,6 +53,7 @@ export default function LocoPicker({
   onClose,
   onSelect,
   onDriveToBlock,
+  canDriveToBlock,
   onRemoveLoco,
   removeEnabled,
   onRemoveAllLoco,
@@ -216,6 +218,7 @@ export default function LocoPicker({
                   {onDriveToBlock && (
                     <ActionIcon
                       ml="auto"
+                      disabled={canDriveToBlock ? !canDriveToBlock(loco) : false}
                       variant="light"
                       color="teal"
                       size="lg"
