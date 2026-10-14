@@ -22,6 +22,8 @@ export default function MovementStartErrorDialog() {
       onClose={() => setFailure(null)}
       title="Movement start blocked"
       centered
+      draggable
+      closeOnClickOutside={false}
       size="md"
       zIndex={1100}
     >
