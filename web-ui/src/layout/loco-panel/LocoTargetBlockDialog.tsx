@@ -1,6 +1,8 @@
-import { Alert, Button, Group, Modal, Select, Slider, Stack, Text } from "@mantine/core";
+import { Alert, Badge, Button, Group, Modal, Select, Slider, Stack, Text } from "@mantine/core";
 import { useEffect, useMemo, useState } from "react";
 import type { Loco } from "@domain/types";
+import { wsClient } from "../../services/wsClient";
+import { getBlockTargetLocoAddress } from "../../services/blockTargetLocoRuntime";
 import { createMovementPage } from "../../domain/movement";
 import { loadAutomationMovement } from "../../services/automationApi";
 import { startTransientMovement } from "../../services/movementEngine";
@@ -21,6 +23,18 @@ type Props = { loco: Loco; opened: boolean; onClose: () => void };
 
 export default function LocoTargetBlockDialog({ loco, opened, onClose }: Props) {
   const [tracking, setTracking] = useState(getTrainTrackingState);
+  const [blockLocos, setBlockLocos] = useState<Record<string, number>>({});
+  useEffect(() => wsClient.on("blockStateChanged", data => {
+    const next: Record<string, number> = {};
+    for (const [id, block] of Object.entries(data)) {
+      if (!block || typeof block !== "object") continue;
+      const item = block as { blockId?: string; locoAddress?: number };
+      if (typeof item.locoAddress === "number" && item.locoAddress > 0) {
+        next[String(item.blockId ?? id)] = item.locoAddress;
+      }
+    }
+    setBlockLocos(next);
+  }), []);
   const [candidates, setCandidates] = useState<MovementRouteCandidate[]>([]);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [speed, setSpeed] = useState(readSpeed);
@@ -71,6 +85,23 @@ export default function LocoTargetBlockDialog({ loco, opened, onClose }: Props) 
   const routeLabel = (route: MovementRouteCandidate) =>
     route.blockPath.map(block => block.name).join(" → ");
 
+  // This is an informational pre-check, not movement authority. The server
+  // remains responsible for final dispatcher/sensor safety decisions.
+  const routeWarnings = (route: MovementRouteCandidate) => {
+    const warnings: string[] = [];
+    for (const block of route.blockPath.slice(1)) {
+      const occupant = tracking.locos.find(item =>
+        item.currentBlockId === block.id && item.locoAddress !== loco.address);
+      const assigned = blockLocos[String(block.id)] ?? 0;
+      const reserved = getBlockTargetLocoAddress(block.id);
+      if (occupant || (assigned > 0 && assigned !== loco.address) ||
+          (reserved > 0 && reserved !== loco.address)) {
+        warnings.push(block.name);
+      }
+    }
+    return [...new Set(warnings)];
+  };
+
   const selected = availableRoutes.find(route => route.key === selectedKey);
   const close = () => { if (!starting) onClose(); };
 
@@ -117,7 +148,7 @@ export default function LocoTargetBlockDialog({ loco, opened, onClose }: Props) 
           placeholder={loading ? "Loading routes…" : "Select a reachable block"}
           data={availableRoutes.map(route => ({
             value: route.key,
-            label: routeLabel(route),
+            label: `${routeWarnings(route).length ? "⚠ " : ""}${routeLabel(route)}${routeWarnings(route).length ? " · Route not clear" : ""}`,
           }))}
           searchable
           clearable
@@ -126,7 +157,11 @@ export default function LocoTargetBlockDialog({ loco, opened, onClose }: Props) 
           onChange={setSelectedKey}
           disabled={!validSource || loading || starting}
         />
-        {selected && <Text size="xs" c="dimmed">Route: {routeLabel(selected)} · {selected.locoDirection}</Text>}
+        {selected && <Group gap="xs" align="center">
+          <Text size="xs" c="dimmed">Route: {routeLabel(selected)} · {selected.locoDirection}</Text>
+          {routeWarnings(selected).length > 0 &&
+            <Badge color="orange" variant="light">Route not clear: {routeWarnings(selected).join(", ")}</Badge>}
+        </Group>}
         <div>
           <Group justify="space-between" mb={8}><Text size="sm" fw={500}>Movement speed</Text><Text size="sm">{speed} / 126</Text></Group>
           <Slider min={1} max={126} step={1} value={speed}
