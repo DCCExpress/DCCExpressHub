@@ -229,7 +229,7 @@ export class TrackTravelDirectionResolver {
           element.pos
         ) ??
         this.topology.getTurnouts().find(turnout =>
-          turnout.pos.isEqual(connection.point) &&
+          connection.point.isEqual(turnout.pos) &&
           this.getSideTowards(turnout, element) !== undefined
         );
 
