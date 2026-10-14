@@ -167,7 +167,7 @@ export default function AppModal({
 
   // Keep the same padded, vertically centered title for every AppModal.
   // Dragging is optional; it must not determine the header layout.
-  const modalTitle = (
+  const modalTitle = title == null ? title : (
     <Box
       onPointerDown={draggable ? handleDragAreaPointerDown : undefined}
       onDoubleClick={draggable ? handleDragAreaDoubleClick : undefined}
