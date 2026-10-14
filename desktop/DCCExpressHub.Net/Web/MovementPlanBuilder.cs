@@ -767,15 +767,6 @@ public sealed class MovementPlanBuilder
             throw new InvalidOperationException(
                 "movement_route_topology_missing");
 
-        var version =
-            Int(
-                topology,
-                "version");
-
-        if (version is not (2 or 3 or 4 or 5 or 6))
-            throw new InvalidOperationException(
-                "movement_route_topology_unsupported");
-
         if (!topology.TryGetProperty("graph", out var graph) ||
             graph.ValueKind != JsonValueKind.Object ||
             !graph.TryGetProperty("ready", out var ready) ||
