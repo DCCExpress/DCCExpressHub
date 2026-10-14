@@ -663,6 +663,19 @@ public sealed class TimetableRuntime : BackgroundService
         if (!movement.Enabled)
             return;
 
+        // Do not create a Timetable run for an empty source block. A timetable
+        // entry is a scheduled opportunity, not an instruction to start an
+        // unoccupied Movement and then report a safety error.
+        var sourceBlockId = movement.RouteRef?.FromBlockId;
+        if (sourceBlockId is > 0 &&
+            !_movement.HasSourceLocomotive(sourceBlockId.Value))
+        {
+            _log.LogDebug(
+                "Timetable skipped Movement {Movement}: source block #{BlockId} has no locomotive",
+                movement.Name, sourceBlockId.Value);
+            return;
+        }
+
         var runId =
             NewRunId();
 
@@ -702,6 +715,21 @@ public sealed class TimetableRuntime : BackgroundService
 
         if (!result.Ok)
         {
+            // Source assignment can change after the preflight but before
+            // Start() checks it. Still skip this occurrence rather than
+            // retaining an ERROR row for a now-empty block.
+            if (result.Error == "movement_source_loco_missing")
+            {
+                lock (_gate)
+                    _activeRuns.Remove(runId);
+
+                _log.LogDebug(
+                    "Timetable skipped Movement {Movement}: source locomotive disappeared before start",
+                    movement.Name);
+                Publish();
+                return;
+            }
+
             lock (_gate)
                 _activeRuns[runId] = active with {
                     Status = "error",
@@ -750,6 +778,17 @@ public sealed class TimetableRuntime : BackgroundService
             return;
         }
 
+        // Skip silently when the source is empty. This is normal timetable
+        // operation, not a Movement failure and must not create an ERROR row.
+        // The actual block assignment (not target/predicted) is authoritative.
+        if (!_movement.HasSourceLocomotive(route.FromBlockId))
+        {
+            _log.LogDebug(
+                "Timetable skipped From-To {Route}: source block #{BlockId} has no locomotive",
+                action.TargetId, route.FromBlockId);
+            return;
+        }
+
         var runId = NewRunId();
         var movementId = "timetable-fromto-" + runId;
         var name = string.IsNullOrWhiteSpace(action.TargetId)
@@ -778,6 +817,17 @@ public sealed class TimetableRuntime : BackgroundService
         var result = _movement.StartTransient(movement, calibrationBypass: false);
         if (!result.Ok)
         {
+            if (result.Error == "movement_source_loco_missing")
+            {
+                lock (_gate)
+                    _activeRuns.Remove(runId);
+                _log.LogDebug(
+                    "Timetable skipped From-To {Route}: source locomotive disappeared before start",
+                    name);
+                Publish();
+                return;
+            }
+
             lock (_gate)
                 _activeRuns[runId] = active with {
                     Status = "error",
