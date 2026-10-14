@@ -1266,12 +1266,14 @@ export default function TimetableDialog({
                                                         "ui.timetableScriptType"
                                                       ),
                                                   },
-                                                  {
-                                                    value:
-                                                      "movement",
-                                                    label:
-                                                      "Movement",
-                                                  },
+                                                  // Movement remains supported by storage/runtime;
+                                                  // hide it from new Timetable action selection for now.
+                                                  // {
+                                                  //                                                     value:
+                                                  //                                                       "movement",
+                                                  //                                                     label:
+                                                  //                                                       "Movement",
+                                                  //                                                   },
                                                   { value: "fromto", label: "From–To" },
                                                 ]}
                                                 value={
