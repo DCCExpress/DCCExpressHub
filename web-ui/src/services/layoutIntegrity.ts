@@ -259,8 +259,12 @@ export function inspectProjectIntegrity(
     for (const [address, labels] of [...sensorsByAddress].sort(([a], [b]) => a - b)) {
       if (knownSensorStates.has(address)) continue;
       unknownCount++;
+      const assignedBlocks = blocksBySensor.get(address) ?? [];
+      const references = assignedBlocks.length > 0
+        ? `block(s): ${assignedBlocks.join(", ")}`
+        : `track elements: ${labels.slice(0, 3).join(", ")}${labels.length > 3 ? ` (+${labels.length - 3} more)` : ""}`;
       add("Sensors", "error",
-        `Occupancy sensor #${address} is UNKNOWN (no current feedback). Used by: ${labels.join(", ")}. Check the connection/snapshot before automatic Movement.`);
+        `Occupancy sensor #${address} is UNKNOWN (no current feedback); used by ${references}. Check the connection/snapshot before automatic Movement.`);
     }
     summaries.set("Sensors", `${sensorsByAddress.size} configured addresses · ${unknownCount} UNKNOWN`);
   } else {
