@@ -689,17 +689,14 @@ export default function RoutesDialog({
   const segmentDetectorAddresses = (node: {
     elementIds: number[];
     detectors: Array<{ address: number }>;
-    signals: Array<{ address: number }>;
   }) => {
-    const explicitDetectors = new Set(node.detectors.map(detector => detector.address));
-    const signalAddresses = new Set(node.signals.map(signal => signal.address));
+    const explicitDetectors = node.detectors.map(detector => detector.address);
     const railDetectors = node.elementIds
       .map(id => railSensorAddressesByElementId.get(id))
-      .filter((address): address is number =>
-        address !== undefined &&
-        // An overlapping signal output address is not evidence of occupancy.
-        // A real, explicitly placed TrackSensor is still authoritative.
-        (!signalAddresses.has(address) || explicitDetectors.has(address)));
+      .filter((address): address is number => address !== undefined);
+    // Sensor and accessory addresses belong to independent namespaces.
+    // Never discard a real occupancy address just because a signal uses
+    // the same numeric address.
     return [...new Set([...explicitDetectors, ...railDetectors])]
       .sort((left, right) => left - right);
   };
