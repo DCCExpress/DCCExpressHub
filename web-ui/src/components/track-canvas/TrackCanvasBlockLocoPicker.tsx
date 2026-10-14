@@ -108,7 +108,17 @@ export function TrackCanvasBlockLocoPicker({
             )
       }
       onClose={onClose}
-      onDriveToBlock={setDriveLoco}
+      canDriveToBlock={loco =>
+        (selectedBlock?.locoAddress ?? 0) > 0 &&
+        selectedBlock?.locoAddress === loco.address
+      }
+      onDriveToBlock={loco => {
+        // A target-only or predicted locomotive is NOT physically assigned
+        // to this block and must never enable this shortcut.
+        if (!selectedBlock || selectedBlock.locoAddress <= 0 ||
+            selectedBlock.locoAddress !== loco.address) return;
+        setDriveLoco(loco);
+      }}
       onSelect={loco => {
         if (!selectedBlock) {
           return;
