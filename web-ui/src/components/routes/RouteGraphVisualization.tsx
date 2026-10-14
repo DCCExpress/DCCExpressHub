@@ -2,29 +2,64 @@ import { useMemo, useState } from "react";
 import { Badge, Button, Group, Paper, ScrollArea, Stack, Text } from "@mantine/core";
 import type { Graph } from "@/domain/railway/graph";
 
-type Props = { graph: Graph };
+type Props = { graph: Graph; layout: { layers?: Array<{ elements?: Array<{ id?: number; type?: string; x?: number; y?: number; w?: number; h?: number }> }> } };
 
-export default function RouteGraphVisualization({ graph }: Props) {
+export default function RouteGraphVisualization({ graph, layout }: Props) {
   const [scale, setScale] = useState(1);
   const [selected, setSelected] = useState<string | null>(null);
-  const positions = useMemo(() => {
-    const result = new Map<string, { x: number; y: number }>();
-    const nodes = graph.nodes;
-    // Use a deterministic ring arrangement, independently of the physical canvas.
-    // This is a diagnostic visualization, never a replacement for route topology.
-    const radius = Math.max(165, nodes.length * 24);
-    const size = radius * 2 + 180;
-    nodes.forEach((node, index) => {
-      const angle = (2 * Math.PI * index) / Math.max(1, nodes.length) - Math.PI / 2;
-      result.set(node.name, {
-        x: size / 2 + radius * Math.cos(angle),
-        y: size / 2 + radius * Math.sin(angle),
-      });
+  const geometry = useMemo(() => {
+    const serialized = JSON.parse(JSON.stringify(layout)) as Props["layout"];
+    const elements = new Map<number, { id?: number; type?: string; x?: number; y?: number; w?: number; h?: number }>();
+    for (const layer of serialized.layers ?? []) {
+      for (const element of layer.elements ?? []) {
+        if (typeof element.id === "number") elements.set(element.id, element);
+      }
+    }
+    const center = (e: { x?: number; y?: number; w?: number; h?: number }) => ({
+      x: (e.x ?? 0) + (e.w ?? 0) / 2,
+      y: (e.y ?? 0) + (e.h ?? 0) / 2,
     });
-    return result;
-  }, [graph]);
-  const radius = Math.max(165, graph.nodes.length * 24);
-  const size = radius * 2 + 180;
+    const raw = graph.nodes.map(node => {
+      // Place named block nodes next to their actual position on the layout.
+      const blocks = node.blocks.map(block => elements.get(block.id))
+        .filter((value): value is NonNullable<typeof value> => value !== undefined);
+      const tracks = node.elementIds.map(id => elements.get(id))
+        .filter((value): value is NonNullable<typeof value> => value !== undefined);
+      const anchors = blocks.length ? blocks : tracks;
+      const points = anchors.map(center);
+      const fallback = { x: node.x, y: node.y };
+      const x = points.length ? points.reduce((sum, p) => sum + p.x, 0) / points.length : fallback.x;
+      const y = points.length ? points.reduce((sum, p) => sum + p.y, 0) / points.length : fallback.y;
+      return { name: node.name, x, y };
+    });
+    const minX = Math.min(...raw.map(p => p.x), 0);
+    const minY = Math.min(...raw.map(p => p.y), 0);
+    const maxX = Math.max(...raw.map(p => p.x), 1);
+    const maxY = Math.max(...raw.map(p => p.y), 1);
+    const extent = Math.max(maxX - minX, maxY - minY, 1);
+    const factor = Math.max(.65, Math.min(2.6, 760 / extent));
+    const positions = new Map<string, { x: number; y: number }>();
+    // Spread only overlapping labels; keep the overall geographical topology.
+    const occupied: Array<{ x: number; y: number }> = [];
+    for (const node of raw) {
+      let x = 75 + (node.x - minX) * factor;
+      let y = 75 + (node.y - minY) * factor;
+      let attempt = 0;
+      while (occupied.some(p => Math.abs(p.x - x) < 78 && Math.abs(p.y - y) < 43) && attempt < 24) {
+        attempt++;
+        const angle = attempt * 2.399963;
+        const offset = 22 * Math.sqrt(attempt);
+        x = 75 + (node.x - minX) * factor + Math.cos(angle) * offset;
+        y = 75 + (node.y - minY) * factor + Math.sin(angle) * offset;
+      }
+      occupied.push({ x, y });
+      positions.set(node.name, { x, y });
+    }
+    const width = Math.max(350, ...occupied.map(p => p.x + 75));
+    const height = Math.max(260, ...occupied.map(p => p.y + 75));
+    return { positions, width, height };
+  }, [graph, layout]);
+  const { positions, width, height } = geometry;
   const chosen = graph.nodes.find(node => node.name === selected);
   return (
     <Stack gap="xs">
@@ -40,7 +75,7 @@ export default function RouteGraphVisualization({ graph }: Props) {
         </Group>
       </Group>
       <ScrollArea h={420} type="auto" offsetScrollbars>
-        <svg width={size * scale} height={size * scale} viewBox={`0 0 ${size} ${size}`}
+        <svg width={width * scale} height={height * scale} viewBox={`0 0 ${width} ${height}`}
           role="img" aria-label="Directed route graph">
           <defs>
             <marker id="route-graph-arrow" markerWidth="7" markerHeight="7"
