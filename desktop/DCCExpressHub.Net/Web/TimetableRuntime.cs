@@ -702,9 +702,10 @@ public sealed class TimetableRuntime : BackgroundService
             return;
         }
 
-        var sourceStatus = sourceBlockId is > 0
-            ? _movement.TimetableSourceStatus(sourceBlockId.Value)
-            : default;
+        (bool Skip, int LocoAddress, string Reason) sourceStatus =
+            sourceBlockId is > 0
+                ? _movement.TimetableSourceStatus(sourceBlockId.Value)
+                : default;
         if (sourceStatus.Skip)
         {
             LogSourceSkip("Movement", movement.Name, sourceBlockId!.Value, sourceStatus.Reason);
