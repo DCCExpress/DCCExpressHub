@@ -703,8 +703,10 @@ public sealed class TimetableRuntime : BackgroundService
         if (!result.Ok)
         {
             lock (_gate)
-                _activeRuns.Remove(
-                    runId);
+                _activeRuns[runId] = active with {
+                    Status = "error",
+                    Message = result.Error ?? "Movement start rejected"
+                };
 
             _log.LogWarning(
                 "Timetable Movement {Movement} was not started: {Error}",
@@ -776,7 +778,11 @@ public sealed class TimetableRuntime : BackgroundService
         var result = _movement.StartTransient(movement, calibrationBypass: false);
         if (!result.Ok)
         {
-            lock (_gate) _activeRuns.Remove(runId);
+            lock (_gate)
+                _activeRuns[runId] = active with {
+                    Status = "error",
+                    Message = result.Error ?? "From-To start rejected"
+                };
             _log.LogWarning("Timetable From-To {Route} not started: {Error}",
                 name, result.Error);
             Publish();
