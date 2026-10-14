@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { Badge, Button, Group, Paper, ScrollArea, Select, Slider, Stack, Text } from "@mantine/core";
 import type { Graph } from "@/domain/railway/graph";
 import type { LayoutView } from "@/models/editor/core/LayoutView";
@@ -13,6 +13,19 @@ export default function RouteGraphVisualization({ graph, layout }: Props) {
   const [selected, setSelected] = useState<string | null>(null);
   const scrollViewportRef = useRef<HTMLDivElement>(null);
   const zoom = (delta: number) => setScale(value => Math.max(0.25, Math.min(4, Math.round((value + delta) * 100) / 100)));
+  useEffect(() => {
+    const viewport = scrollViewportRef.current;
+    if (!viewport) return;
+    const handleWheel = (event: WheelEvent) => {
+      if (event.ctrlKey || event.shiftKey) return;
+      event.preventDefault();
+      setScale(current => Math.max(0.25, Math.min(4,
+        Math.round((current + (event.deltaY < 0 ? 0.1 : -0.1)) * 100) / 100)));
+    };
+    viewport.addEventListener("wheel", handleWheel, { passive: false });
+    return () => viewport.removeEventListener("wheel", handleWheel);
+  }, []);
+
   const geometry = useMemo(() => {
     const serialized = JSON.parse(JSON.stringify(layout)) as {
       layers?: Array<{ elements?: Array<{ id?: number; type?: string; x?: number; y?: number; w?: number; h?: number }> }>;
@@ -210,13 +223,7 @@ export default function RouteGraphVisualization({ graph, layout }: Props) {
         </Stack>
         <Button size="xs" variant="subtle" onClick={() => { setXSpacing(2); setYSpacing(2); }}>Reset spacing</Button>
       </Group>
-      <ScrollArea h={420} type="auto" offsetScrollbars viewportRef={scrollViewportRef}
-        onWheelCapture={event => {
-          if (!event.ctrlKey && !event.shiftKey) {
-            event.preventDefault();
-            zoom(event.deltaY < 0 ? .1 : -.1);
-          }
-        }}>
+      <ScrollArea h={420} type="auto" offsetScrollbars viewportRef={scrollViewportRef}>
         <svg width={width * scale} height={height * scale} viewBox={`0 0 ${width} ${height}`}
           role="img" aria-label="Directed route graph">
           <defs>
