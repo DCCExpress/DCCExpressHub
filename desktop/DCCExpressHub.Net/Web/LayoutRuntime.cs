@@ -1031,7 +1031,10 @@ public sealed class LayoutRuntime
         }
 
         if (hadKnown)
+        {
             Changed?.Invoke("sensorSnapshot", SensorSnapshot());
+            SensorTransitionProcessed?.Invoke();
+        }
     }
 
     // Invalidate only sensors owned by one external device. Never emit OFF
