@@ -2677,6 +2677,8 @@ export default function LiteLayoutPage({
         onSaved={() => setTimetableRevision(value => value + 1)}
         scripts={automationScripts}
         movements={movementDocument.pages}
+        layout={layout}
+        movementDocument={movementDocument}
       />
 
       <FullscreenLoader visible={canvasBusy} text={canvasBusyText} />
