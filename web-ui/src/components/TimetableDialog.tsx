@@ -685,7 +685,7 @@ export default function TimetableDialog({
           .find(
             action =>
               action.targetType === "fromto"
-                ? !action.routeRef || !action.locoAddress || action.locoAddress < 1 || !action.speed || action.speed < 1
+                ? !action.routeRef || !action.locoAddress || action.locoAddress < 1 || action.locoAddress > 10239 || !action.speed || action.speed < 1 || action.speed > 126
                 : action.targetType ===
                 "movement"
                 ? !movements.some(
@@ -863,7 +863,7 @@ export default function TimetableDialog({
           scripts.length ===
             0 &&
           movements.length ===
-            0 && (
+            0 && false && (
             <Alert
               color="yellow"
             >
@@ -1563,7 +1563,8 @@ export default function TimetableDialog({
                   movements.length ===
                     0 &&
                   rows.length >
-                    0
+                    0 &&
+                  !rows.some(row => row.actions.some(action => action.targetType === "fromto"))
                 )
               }
               onClick={
