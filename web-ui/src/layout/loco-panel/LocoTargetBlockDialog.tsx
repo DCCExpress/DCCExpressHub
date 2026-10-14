@@ -103,7 +103,7 @@ export default function LocoTargetBlockDialog({ loco, opened, onClose }: Props) 
   };
 
   return (
-    <Modal opened={opened} onClose={close} title={`Drive locomotive #${loco.address} to block`} centered>
+    <Modal opened={opened} onClose={close} title={`Drive locomotive #${loco.address} to block`} centered zIndex={600}>
       <Stack gap="md">
         <Text size="sm">Locomotive: <strong>{loco.name || `#${loco.address}`}</strong></Text>
         <Text size="sm">Current block: <strong>{current?.currentBlockName ?? "Unknown"}</strong></Text>
