@@ -13,13 +13,13 @@ export default function EditorShortcutsHelp() {
     { keys: "R", label: t("ui.editorShortcutRotate") },
     { keys: "Esc", label: t("ui.editorShortcutSelect") },
     { keys: "Ctrl+S", label: t("ui.editorShortcutSave") },
-    { keys: "Right drag", label: t("ui.editorShortcutPan") },
-    { keys: "Wheel", label: t("ui.editorShortcutZoom") },
+    { keys: t("ui.editorShortcutPanKeys"), label: t("ui.editorShortcutPan") },
+    { keys: t("ui.editorShortcutZoomKeys"), label: t("ui.editorShortcutZoom") },
     { keys: "F", label: t("ui.editorShortcutFit") },
     { keys: "E", label: t("ui.editorShortcutEditMode") },
     { keys: "Del", label: t("ui.editorShortcutDelete") },
     { keys: "Ctrl+C", label: t("ui.editorShortcutClone") },
-    { keys: "Ctrl+click", label: t("ui.editorShortcutMultiSelect") },
+    { keys: t("ui.editorShortcutMultiSelectKeys"), label: t("ui.editorShortcutMultiSelect") },
   ];
 
   return (
