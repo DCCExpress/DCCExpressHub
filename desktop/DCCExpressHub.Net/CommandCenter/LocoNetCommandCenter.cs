@@ -248,6 +248,9 @@ public sealed class LocoNetCommandCenter : BackgroundService, ICommandCenter
                 _emergencyPaused = false;
                 RawInfo?.Invoke("LocoNet emergency resume confirmed by power ON");
             }
+            // Track-power cycling also powers some feedback modules. All cached
+            // input states must be reported again, including unchanged ON inputs.
+            lock (_slotSync) _sensors.Clear();
             PowerFeedbackChanged?.Invoke(new PowerFeedback(on, "Main"));
         }
         else if (packet[0] == 0xB2 && packet.Length == 4)
