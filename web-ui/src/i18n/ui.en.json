@@ -695,7 +695,7 @@
   "editorShortcutDelete": "Delete selected",
   "editorShortcutClone": "Clone for placement",
   "editorShortcutMultiSelect": "Multi-select",
-  "editorShortcutPanKeys": "Right button",
+  "editorShortcutPanKeys": "Right-drag",
   "editorShortcutZoomKeys": "Wheel",
   "editorShortcutMultiSelectKeys": "Ctrl+click",
   "editorShortcutsCanvasHint": "For element shortcuts, focus the canvas first.",
