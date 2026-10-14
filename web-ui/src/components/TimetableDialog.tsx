@@ -859,23 +859,6 @@ export default function TimetableDialog({
           )
         }
 
-        {
-          scripts.length ===
-            0 &&
-          movements.length ===
-            0 && false && (
-            <Alert
-              color="yellow"
-            >
-              {
-                t(
-                  "ui.timetableNoTargets"
-                )
-              }
-            </Alert>
-          )
-        }
-
         <SegmentedControl
           fullWidth
           value={viewMode}
@@ -1555,18 +1538,7 @@ export default function TimetableDialog({
               loading={
                 saving
               }
-              disabled={
-                loading ||
-                (
-                  scripts.length ===
-                    0 &&
-                  movements.length ===
-                    0 &&
-                  rows.length >
-                    0 &&
-                  !rows.some(row => row.actions.some(action => action.targetType === "fromto"))
-                )
-              }
+              disabled={loading}
               onClick={
                 () => {
                   void persist();
