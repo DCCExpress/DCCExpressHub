@@ -24,7 +24,10 @@ test("timetable checks source occupancy before creating a saved Movement run", (
   assert.ok(check >= 0 && check < run && run < start,
     "empty source must be skipped BEFORE run creation and Movement.Start");
   assert.match(code, /sourceBlockId is > 0/);
-  assert.match(code, /if \(result\.Error == "movement_source_loco_missing"\)/);
+  assert.match(code, /_movement\.TimetableSourceStatus\(sourceBlockId\.Value\)/);
+  assert.match(code, /sourceStatus\.Skip/);
+  assert.match(code, /sourceStatus\.LocoAddress > 0/);
+  assert.match(code, /if \(IsTimetableNotReadyFailure\(result\.Error\)\)/);
   assert.match(code, /_activeRuns\.Remove\(runId\)/);
 });
 
@@ -35,8 +38,11 @@ test("timetable From-To skips empty source before registering or starting", () =
   const start = code.indexOf("_movement.StartTransient(");
   assert.ok(check >= 0 && check < run && run < start,
     "empty source must be skipped BEFORE run creation and StartTransient");
-  assert.match(code, /if \(result\.Error == "movement_source_loco_missing"\)/);
+  assert.match(code, /if \(IsTimetableNotReadyFailure\(result\.Error\)\)/);
   assert.match(code, /_activeRuns\.Remove\(runId\)/);
+  assert.match(code, /_movement\.TimetableSourceStatus\(route\.FromBlockId\)/);
+  assert.match(code, /sourceStatus\.Skip/);
+  assert.match(code, /ExpectedLocoAddress = sourceStatus\.LocoAddress/);
   assert.match(code, /Status = "error"/, "other genuine safety failures remain errors");
 });
 
@@ -50,4 +56,24 @@ test("source preflight is based on the real block locomotive, never target or pr
   assert.doesNotMatch(code, /TargetLocoAddress|runtimeTransit|prediction/i);
   assert.match(movement, /return \(false, "movement_source_loco_missing"\)/,
     "the authoritative Movement start-time safety check remains intact");
+});
+
+test("sensor OFF/UNKNOWN and already-managed source cannot create timetable runs", () => {
+  const methodStart = movement.indexOf("public (bool Skip, int LocoAddress, string Reason) TimetableSourceStatus(int blockId)");
+  const methodEnd = movement.indexOf("bool ConditionsSatisfied(", methodStart);
+  assert.ok(methodStart > 0 && methodEnd > methodStart);
+  const status = movement.slice(methodStart, methodEnd);
+  assert.match(status, /!_layout\.TryGetSensorState\(block\.SensorAddress, out var on\)/);
+  assert.match(status, /if \(!on\)/);
+  assert.match(status, /IsLocoManaged\(block\.LocoAddress\)/);
+  assert.match(status, /"source_block_empty"/);
+  assert.match(status, /"source sensor #/);
+  assert.match(status, /"locomotive #/);
+
+  assert.match(timetable, /static bool IsTimetableNotReadyFailure\(string\? error\)/);
+  assert.match(timetable, /"locomotive_already_managed"/);
+  assert.match(timetable, /" is not ON\."/);
+  assert.match(timetable, /" is UNKNOWN \(no current feedback\)\."/);
+  assert.match(timetable, /void LogSourceSkip\(/);
+  assert.match(timetable, /Status = "error"/, "unrelated configuration/safety errors still remain ERROR");
 });
