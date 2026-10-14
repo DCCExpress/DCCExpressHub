@@ -1561,6 +1561,14 @@ export default function TimetableDialog({
         movements={movementDocument}
         editingMovementId={null}
         onMovementsChange={() => {}}
+        initialRoute={(() => {
+          const action = rows.find(row => row.id === routePicker?.rowId)
+            ?.actions.find(action => action.id === routePicker?.actionId);
+          return action?.routeRef
+            ? { name: action.targetId.replace(/ \((forward|reverse)\)$/i, ""),
+                speed: action.speed ?? 20, routeRef: action.routeRef }
+            : null;
+        })()}
         onSelectRoute={page => {
           if (!routePicker || !page.routeRef) return;
           updateAction(routePicker.rowId, routePicker.actionId, current => ({
