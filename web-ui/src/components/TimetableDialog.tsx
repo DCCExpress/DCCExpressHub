@@ -685,7 +685,7 @@ export default function TimetableDialog({
           .find(
             action =>
               action.targetType === "fromto"
-                ? !action.routeRef || !action.locoAddress || action.locoAddress < 1 || action.locoAddress > 10239 || !action.speed || action.speed < 1 || action.speed > 126
+                ? !action.routeRef || !action.speed || action.speed < 1 || action.speed > 126
                 : action.targetType ===
                 "movement"
                 ? !movements.some(
@@ -1298,7 +1298,7 @@ export default function TimetableDialog({
                                                             ? movements[0]?.id ?? ""
                                                             : scripts[0]?.id ?? "",
                                                         ...(targetType === "fromto"
-                                                          ? { routeRef: null, locoAddress: 0, speed: 20 }
+                                                          ? { routeRef: null, speed: 20 }
                                                           : { routeRef: null }),
                                                       })
                                                     );
@@ -1313,8 +1313,8 @@ export default function TimetableDialog({
 
                                               {action.targetType === "fromto" ? (
                                                 <Group gap={4} wrap="nowrap">
-                                                  <Text size="xs" w={225} truncate>{action.targetId || "Select exact route"}</Text>
-                                                  <Button size="compact-xs" variant="light" onClick={() => setRoutePicker({ rowId: row.id, actionId: action.id })}>[...]</Button>
+                                                  <Text size="xs" w={225} truncate>{action.targetId ? `${action.targetId} · Speed ${action.speed ?? 20}` : "Select exact route"}</Text>
+                                                  <Button size="compact-xs" variant="light" onClick={() => setRoutePicker({ rowId: row.id, actionId: action.id })}>...</Button>
                                                 </Group>
                                               ) : <Select
                                                 size="xs"
@@ -1362,8 +1362,6 @@ export default function TimetableDialog({
                                                     "0 0 290px",
                                                 }}
                                               />}
-                                              {action.targetType === "fromto" && <NumberInput size="xs" w={85} min={1} max={10239} placeholder="Loco #" value={action.locoAddress || ""} onChange={value => updateAction(row.id, action.id, current => ({ ...current, locoAddress: Number(value) || 0 }))} />}
-                                              {action.targetType === "fromto" && <NumberInput size="xs" w={66} min={1} max={126} placeholder="Speed" value={action.speed ?? 20} onChange={value => updateAction(row.id, action.id, current => ({ ...current, speed: Number(value) || 20 }))} />}
 
                                               <Tooltip
                                                 label={
@@ -1567,6 +1565,7 @@ export default function TimetableDialog({
             ...current, targetType: "fromto",
             targetId: page.name + " (" + page.routeRef!.direction + ")",
             routeRef: page.routeRef,
+            speed: page.speed,
           }));
           setRoutePicker(null);
         }}
