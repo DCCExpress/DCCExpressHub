@@ -60,6 +60,7 @@ import {
 import AppModal from "@/components/common/AppModal";
 
 import RoutePreviewDialog from "@/components/routes/RoutePreviewDialog";
+import RouteGraphVisualization from "@/components/routes/RouteGraphVisualization";
 import StationRoutesTab from "@/components/routes/StationRoutesTab";
 
 import {
@@ -1147,6 +1148,8 @@ export default function RoutesDialog({
                 {t("ui.graph")}
               </Tabs.Tab>
 
+              <Tabs.Tab value="graphVisualization">Graph visualization</Tabs.Tab>
+
               <Tabs.Tab value="segments">
                 {t("ui.segments")}
               </Tabs.Tab>
@@ -1640,6 +1643,11 @@ export default function RoutesDialog({
                   </Table.Tbody>
                 </Table>
               </ScrollArea.Autosize>
+            </Tabs.Panel>
+
+            <Tabs.Panel value="graphVisualization" pt="sm"
+              style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+              <RouteGraphVisualization graph={result.graph} />
             </Tabs.Panel>
 
             <Tabs.Panel
