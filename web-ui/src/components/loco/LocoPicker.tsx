@@ -1,4 +1,5 @@
 import {
+  ActionIcon,
   Button,
   Card,
   Group,
@@ -7,6 +8,7 @@ import {
   Text,
 } from "@mantine/core";
 import {
+  IconRoute,
   IconTrash,
   IconTrashFilled,
 } from "@tabler/icons-react";
@@ -39,6 +41,7 @@ type LocoPickerProps = {
 
   onRemoveAllLoco?: () => void;
   onSelect: (loco: Loco) => void;
+  onDriveToBlock?: (loco: Loco) => void;
 };
 
 export default function LocoPicker({
@@ -48,6 +51,7 @@ export default function LocoPicker({
   title,
   onClose,
   onSelect,
+  onDriveToBlock,
   onRemoveLoco,
   removeEnabled,
   onRemoveAllLoco,
@@ -209,6 +213,22 @@ export default function LocoPicker({
                       {t("loco.maxSpeedShort")}: {loco.maxSpeed}
                     </Text>
                   </div>
+                  {onDriveToBlock && (
+                    <ActionIcon
+                      ml="auto"
+                      variant="light"
+                      color="teal"
+                      size="lg"
+                      title={`Drive ${loco.name || `#${loco.address}`} to block`}
+                      aria-label={`Drive locomotive #${loco.address} to block`}
+                      onClick={event => {
+                        event.stopPropagation();
+                        onDriveToBlock(loco);
+                      }}
+                    >
+                      <IconRoute size={20} />
+                    </ActionIcon>
+                  )}
                 </Group>
               </Card>
             ))}
