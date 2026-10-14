@@ -42,6 +42,9 @@ import {
 
 import AppModal from "@/components/common/AppModal";
 import TimetableTimeline from "@/components/TimetableTimeline";
+import RoutesDialog from "@/components/RoutesDialog";
+import type { LayoutView } from "@/models/editor/core/LayoutView";
+import type { MovementDocument } from "@/domain/movement";
 
 import type {
   MovementPage,
@@ -74,6 +77,8 @@ type TimetableDialogProps = {
     AutomationScriptDefinition[];
   movements:
     MovementPage[];
+  layout: LayoutView;
+  movementDocument: MovementDocument;
 };
 
 type ScheduleMode =
@@ -315,11 +320,15 @@ export default function TimetableDialog({
   onSaved,
   scripts,
   movements,
+  layout,
+  movementDocument,
 }: TimetableDialogProps) {
   const {
     t,
   } =
     useTranslation();
+
+  const [routePicker, setRoutePicker] = useState<{ rowId: string; actionId: string } | null>(null);
 
   const [viewMode, setViewMode] = useState<"editor" | "timeline">("editor");
 
@@ -675,7 +684,9 @@ export default function TimetableDialog({
           )
           .find(
             action =>
-              action.targetType ===
+              action.targetType === "fromto"
+                ? !action.routeRef || !action.locoAddress || action.locoAddress < 1 || !action.speed || action.speed < 1
+                : action.targetType ===
                 "movement"
                 ? !movements.some(
                     movement =>
@@ -1278,6 +1289,7 @@ export default function TimetableDialog({
                                                     label:
                                                       "Movement",
                                                   },
+                                                  { value: "fromto", label: "From–To" },
                                                 ]}
                                                 value={
                                                   action.targetType
@@ -1286,10 +1298,8 @@ export default function TimetableDialog({
                                                   value => {
                                                     const targetType =
                                                       (
-                                                        value ===
-                                                        "movement"
-                                                          ? "movement"
-                                                          : "script"
+                                                        value === "fromto" ? "fromto" :
+                                                        value === "movement" ? "movement" : "script"
                                                       ) as
                                                         TimetableTargetType;
 
@@ -1300,12 +1310,13 @@ export default function TimetableDialog({
                                                         ...current,
                                                         targetType,
                                                         targetId:
-                                                          targetType ===
-                                                            "movement"
-                                                            ? movements[0]?.id ??
-                                                              ""
-                                                            : scripts[0]?.id ??
-                                                              "",
+                                                          targetType === "fromto" ? "" :
+                                                          targetType === "movement"
+                                                            ? movements[0]?.id ?? ""
+                                                            : scripts[0]?.id ?? "",
+                                                        routeRef: null,
+                                                        locoAddress: targetType === "fromto" ? 0 : undefined,
+                                                        speed: targetType === "fromto" ? 20 : undefined,
                                                       })
                                                     );
                                                   }
@@ -1317,7 +1328,12 @@ export default function TimetableDialog({
                                                 }}
                                               />
 
-                                              <Select
+                                              {action.targetType === "fromto" ? (
+                                                <Group gap={4} wrap="nowrap">
+                                                  <Text size="xs" w={225} truncate>{action.targetId || "Select exact route"}</Text>
+                                                  <Button size="compact-xs" variant="light" onClick={() => setRoutePicker({ rowId: row.id, actionId: action.id })}>[...]</Button>
+                                                </Group>
+                                              ) : <Select
                                                 size="xs"
                                                 searchable
                                                 clearable={
@@ -1362,7 +1378,9 @@ export default function TimetableDialog({
                                                   flex:
                                                     "0 0 290px",
                                                 }}
-                                              />
+                                              />}
+                                              {action.targetType === "fromto" && <NumberInput size="xs" w={85} min={1} max={10239} placeholder="Loco #" value={action.locoAddress || ""} onChange={value => updateAction(row.id, action.id, current => ({ ...current, locoAddress: Number(value) || 0 }))} />}
+                                              {action.targetType === "fromto" && <NumberInput size="xs" w={66} min={1} max={126} placeholder="Speed" value={action.speed ?? 20} onChange={value => updateAction(row.id, action.id, current => ({ ...current, speed: Number(value) || 20 }))} />}
 
                                               <Tooltip
                                                 label={
@@ -1563,6 +1581,23 @@ export default function TimetableDialog({
           </Group>
         </Group>
       </Stack>
+      <RoutesDialog
+        opened={routePicker !== null}
+        onClose={() => setRoutePicker(null)}
+        layout={layout}
+        movements={movementDocument}
+        editingMovementId={null}
+        onMovementsChange={() => {}}
+        onSelectRoute={page => {
+          if (!routePicker || !page.routeRef) return;
+          updateAction(routePicker.rowId, routePicker.actionId, current => ({
+            ...current, targetType: "fromto",
+            targetId: page.name + " (" + page.routeRef!.direction + ")",
+            routeRef: page.routeRef,
+          }));
+          setRoutePicker(null);
+        }}
+      />
     </AppModal>
   );
 }
