@@ -924,6 +924,15 @@ public sealed class MovementRuntime
                 .FirstOrDefault(x => x.Id == (ushort)id)
             : null;
 
+    // Timetable preflight: a source block must actually contain an assigned
+    // locomotive. A target-only or predicted loco is not a source locomotive.
+    // Use the same authoritative runtime block state as StartSavedPage().
+    public bool HasSourceLocomotive(int blockId)
+    {
+        var block = Block(blockId);
+        return block is not null && block.LocoAddress > 0;
+    }
+
     bool ConditionsSatisfied(IEnumerable<MovementSensorCondition> conditions)
     {
         var any = false;
