@@ -741,7 +741,6 @@ public sealed class TimetableRuntime : BackgroundService
         var route = action.RouteRef;
         if (route is null || route.FromBlockId <= 0 || route.ToBlockId <= 0 ||
             route.Direction is not ("forward" or "reverse") ||
-            action.LocoAddress is < 1 or > 10239 ||
             action.Speed is < 1 or > 126)
         {
             _log.LogWarning("Timetable From-To action {ActionId} has an invalid route/loco/speed",
@@ -752,14 +751,15 @@ public sealed class TimetableRuntime : BackgroundService
         var runId = NewRunId();
         var movementId = "timetable-fromto-" + runId;
         var name = string.IsNullOrWhiteSpace(action.TargetId)
-            ? $"#{action.LocoAddress} · {route.FromBlockId} → {route.ToBlockId}"
+            ? $"{route.FromBlockId} → {route.ToBlockId}"
             : action.TargetId;
         var movement = new MovementPageModel
         {
             Id = movementId,
             Name = name,
             Enabled = true,
-            ExpectedLocoAddress = action.LocoAddress,
+            // The Movement runtime resolves the locomotive from the source block.
+            ExpectedLocoAddress = null,
             Speed = action.Speed,
             RouteRef = route
         };
