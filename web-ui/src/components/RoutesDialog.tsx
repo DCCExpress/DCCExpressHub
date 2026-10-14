@@ -1647,7 +1647,7 @@ export default function RoutesDialog({
 
             <Tabs.Panel value="graphVisualization" pt="sm"
               style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-              <RouteGraphVisualization graph={result.graph} />
+              <RouteGraphVisualization graph={result.graph} layout={layout} />
             </Tabs.Panel>
 
             <Tabs.Panel
