@@ -105,6 +105,10 @@ for (const closed of [true, false]) {
     new Resolver(topology).resolve();
     assert.equal(topology.tracks.find(item => item.id === 1).travelDirection, "forward");
     assert.equal(topology.tracks.find(item => item.id === 6).travelDirection, "reverse");
+    assert.equal(topology.tracks.find(item => item.id === 7).travelDirection, "reverse");
+    for (let id = 8; id <= 19; id++) {
+      assert.equal(topology.tracks.find(item => item.id === id).travelDirection, "forward", `Track #${id}`);
+    }
     for (const item of topology.tracks) {
       assert.notEqual(item.travelDirection, "unknown", `Track #${item.id} was left without direction`);
     }
