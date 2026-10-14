@@ -29,8 +29,7 @@ import {
   createClientGraphFromRouteGraphDto,
 } from "@/services/routeGraphDtoMapper";
 
-// v6 adds reversible turnout-chain edges. Invalidate saved v5 graphs so
-// the return routes are regenerated instead of reusing stale topology.
+// Retained only as informational metadata; loading validates the actual graph shape.
 const ROUTE_TOPOLOGY_VERSION = 6;
 
 const ROUTE_TOPOLOGY_FIELD =
@@ -955,8 +954,6 @@ function parsePersistedState(
   }
 
   if (
-    candidate.version !==
-      ROUTE_TOPOLOGY_VERSION ||
     typeof candidate.fingerprint !==
       "string" ||
     !validPositiveRevision(
