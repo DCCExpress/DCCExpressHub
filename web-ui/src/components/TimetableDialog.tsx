@@ -1297,9 +1297,9 @@ export default function TimetableDialog({
                                                           targetType === "movement"
                                                             ? movements[0]?.id ?? ""
                                                             : scripts[0]?.id ?? "",
-                                                        routeRef: null,
-                                                        locoAddress: targetType === "fromto" ? 0 : undefined,
-                                                        speed: targetType === "fromto" ? 20 : undefined,
+                                                        ...(targetType === "fromto"
+                                                          ? { routeRef: null, locoAddress: 0, speed: 20 }
+                                                          : { routeRef: null }),
                                                       })
                                                     );
                                                   }
