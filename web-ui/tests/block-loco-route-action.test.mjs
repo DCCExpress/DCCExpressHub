@@ -30,10 +30,12 @@ test("route icon requires the card locomotive to be the block's actual loco", ()
   assert.doesNotMatch(block, /canDriveToBlock=\{loco =>[\s\S]*?getBlockTargetLocoAddress/);
 });
 
-test("runtime canvas checks block overlay before the underlying track element", () => {
+test("runtime canvas checks block overlay before labels and underlying track", () => {
   const canvas = read("components/TrackCanvas.tsx");
-  assert.match(canvas, /const runtimeBlock = !editModeRef\.current/);
-  assert.match(canvas, /currentLayout\.blocks\.elements\.find/);
-  assert.match(canvas, /element\.visible && element\.hitTest\(grid\.x, grid\.y\)/);
-  assert.match(canvas, /runtimeBlock \?\? currentLayout\.getElement\(grid\.x, grid\.y\)/);
+  const hitTest = read("components/track-canvas/trackCanvasRuntimeHitTest.ts");
+  assert.match(canvas, /getTrackCanvasHitElement\(currentLayout, grid\.x, grid\.y, editModeRef\.current\)/);
+  assert.match(hitTest, /layout\.blocks\.elements\.find/);
+  assert.match(hitTest, /element\.visible && element\.hitTest\(x, y\)/);
+  assert.match(hitTest, /if \(block\) return block/);
+  assert.match(hitTest, /!\(element instanceof LabelElement\)/);
 });
