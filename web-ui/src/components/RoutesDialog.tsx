@@ -652,7 +652,7 @@ export default function RoutesDialog({
       editingMovementId,
       movements,
       layout,
-      onSelectRoute,
+      Boolean(onSelectRoute),
       initialRoute?.name,
       initialRoute?.speed,
       initialRoute?.routeRef,
