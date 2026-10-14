@@ -1036,18 +1036,22 @@ export default function TimetablePanel({
                                 size="xs"
                                 variant="filled"
                                 color={
-                                  row.activeRun.status === "paused"
-                                    ? "yellow"
-                                    : row.activeRun.status === "launching"
-                                      ? "blue"
-                                      : "green"
+                                  row.activeRun.status === "error"
+                                    ? "red"
+                                    : row.activeRun.status === "paused"
+                                      ? "yellow"
+                                      : row.activeRun.status === "launching"
+                                        ? "blue"
+                                        : "green"
                                 }
                               >
-                                {row.activeRun.status === "paused"
-                                  ? t("ui.pausedShort")
-                                  : row.activeRun.status === "launching"
-                                    ? t("ui.launchingShort")
-                                    : t("ui.runningShort")}
+                                {row.activeRun.status === "error"
+                                  ? "ERROR"
+                                  : row.activeRun.status === "paused"
+                                    ? t("ui.pausedShort")
+                                    : row.activeRun.status === "launching"
+                                      ? t("ui.launchingShort")
+                                      : t("ui.runningShort")}
                               </Badge>
                             )}
                           </Group>
