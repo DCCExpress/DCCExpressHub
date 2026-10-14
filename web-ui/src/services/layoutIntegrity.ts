@@ -11,12 +11,12 @@ import { TrackTurnoutThreeWayElement } from "../models/editor/elements/TrackTurn
 import { TrackSignalElement } from "../models/editor/elements/TrackSignalElement";
 import { TrackLevelCrossingElement } from "../models/editor/elements/TrackLevelCrossingElement";
 
-export type IntegrityArea = "Layout" | "Route buttons" | "Automatic routes" | "Signal logic" | "Locomotives";
+export type IntegrityArea = "Layout" | "Blocks" | "Sensors" | "Route buttons" | "Automatic routes" | "Signal logic" | "Locomotives";
 export type IntegrityIssue = { level: "error" | "warning"; area: IntegrityArea; message: string };
 export type IntegrityAreaResult = { area: IntegrityArea; checked: number; summary?: string; issues: IntegrityIssue[] };
 export type IntegrityReport = { areas: IntegrityAreaResult[]; issues: IntegrityIssue[] };
 
-const AREAS: IntegrityArea[] = ["Layout", "Route buttons", "Automatic routes", "Signal logic", "Locomotives"];
+const AREAS: IntegrityArea[] = ["Layout", "Blocks", "Sensors", "Route buttons", "Automatic routes", "Signal logic", "Locomotives"];
 
 function elementLabel(data: { name?: string; id?: LayoutElementId }, fallback: string): string {
   const name = data.name?.trim();
@@ -75,11 +75,34 @@ function isSignalLogicSensorElement(
   return String(element.type).startsWith("track");
 }
 
+// These physical elements expose sensor addresses in LayoutRuntime.AddElement.
+// Block overlays use their own sensorAddress reference; signal output addresses
+// are not occupancy inputs. Multiple rail elements may legitimately share one
+// occupancy address within the SAME physical section.
+const OCCUPANCY_INPUT_TYPES = new Set<string>([
+  ELEMENT_TYPES.TRACK_STRAIGHT,
+  ELEMENT_TYPES.TRACK_BRIDGE,
+  ELEMENT_TYPES.TRACK_DIRECTION,
+  ELEMENT_TYPES.TRACK_END,
+  ELEMENT_TYPES.TRACK_CORNER,
+  ELEMENT_TYPES.TRACK_CURVE,
+  ELEMENT_TYPES.TRACK_CROSSING,
+  ELEMENT_TYPES.TRACK_LEVEL_CROSSING,
+  ELEMENT_TYPES.TRACK_SENSOR,
+  ELEMENT_TYPES.TRACK_TURNOUT,
+  ELEMENT_TYPES.TRACK_TURNOUT_LEFT,
+  ELEMENT_TYPES.TRACK_TURNOUT_RIGHT,
+  ELEMENT_TYPES.TRACK_TURNOUT_DOUBLE,
+  ELEMENT_TYPES.TRACK_TURNOUT_TWO_WAY,
+  ELEMENT_TYPES.TRACK_TURNOUT_THREE_WAY,
+]);
+
 export function inspectProjectIntegrity(
   layout: LayoutView,
   locos: Loco[],
   signalDocument: SignalLogicDocumentDto | null,
-  signalLoadIssues: Array<{ level: "error" | "warning"; message: string }> = []
+  signalLoadIssues: Array<{ level: "error" | "warning"; message: string }> = [],
+  knownSensorStates?: ReadonlyMap<number, boolean>
 ): IntegrityReport {
   const elements = layout.getAllElements();
   const issues: IntegrityIssue[] = [];
@@ -180,6 +203,68 @@ export function inspectProjectIntegrity(
         );
       }
     }
+  }
+
+  // Automatic Movement safety: validate the actual block->sensor references,
+  // not merely the presence of a numeric sensorAddress field. Like the .NET
+  // MovementRuntime, every routed block needs a real physical sensor binding.
+  const blocks = elements.filter(element => element.type === ELEMENT_TYPES.TRACK_BLOCK);
+  checked.set("Blocks", blocks.length);
+
+  const sensorsByAddress = new Map<number, string[]>();
+  for (const element of elements) {
+    if (!OCCUPANCY_INPUT_TYPES.has(element.type)) continue;
+    const address = Number((element as unknown as { address?: unknown }).address ?? 0);
+    if (!Number.isInteger(address) || address < 1 || address > 65535) continue;
+    const labels = sensorsByAddress.get(address) ?? [];
+    labels.push(elementLabel(element, "Track/sensor"));
+    sensorsByAddress.set(address, labels);
+  }
+  checked.set("Sensors", sensorsByAddress.size);
+
+  const blocksBySensor = new Map<number, string[]>();
+  for (const element of blocks) {
+    const data = element as unknown as { id: LayoutElementId; name?: string; sensorAddress?: unknown };
+    const label = elementLabel(data, "Block");
+    const address = Number(data.sensorAddress ?? 0);
+
+    if (!Number.isInteger(address) || address < 1 || address > 65535) {
+      add("Blocks", "error",
+        `Block ${label} has no valid occupancy sensor address. Automatic Movement cannot start from/to this block.`);
+      continue;
+    }
+
+    const blockLabels = blocksBySensor.get(address) ?? [];
+    blockLabels.push(label);
+    blocksBySensor.set(address, blockLabels);
+
+    if (!sensorsByAddress.has(address)) {
+      add("Blocks", "error",
+        `Block ${label} references sensor #${address}, but no physical track/sensor element has that address. Automatic Movement cannot start.`);
+    }
+  }
+
+  for (const [address, blockLabels] of blocksBySensor) {
+    if (blockLabels.length <= 1) continue;
+    add("Blocks", "error",
+      `Occupancy sensor #${address} is assigned to multiple blocks: ${blockLabels.join(", ")}. Each block requires a unique sensor address; automatic Movement cannot start.`);
+  }
+  summaries.set("Blocks", `${blocks.length} blocks · ${blocksBySensor.size} sensor addresses`);
+
+  // ON and OFF are both known states. Only absent addresses are UNKNOWN.
+  // The websocket cache is cleared on reconnect and on a new sensor snapshot,
+  // so stale last-known sensor values cannot falsely pass this check.
+  if (knownSensorStates !== undefined) {
+    let unknownCount = 0;
+    for (const [address, labels] of [...sensorsByAddress].sort(([a], [b]) => a - b)) {
+      if (knownSensorStates.has(address)) continue;
+      unknownCount++;
+      add("Sensors", "error",
+        `Occupancy sensor #${address} is UNKNOWN (no current feedback). Used by: ${labels.join(", ")}. Check the connection/snapshot before automatic Movement.`);
+    }
+    summaries.set("Sensors", `${sensorsByAddress.size} configured addresses · ${unknownCount} UNKNOWN`);
+  } else {
+    summaries.set("Sensors", `${sensorsByAddress.size} configured addresses · live states not checked`);
   }
 
   const turnoutById = new Map(
