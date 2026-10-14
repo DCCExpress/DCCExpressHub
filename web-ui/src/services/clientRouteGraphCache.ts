@@ -982,6 +982,9 @@ function parsePersistedState(
     ) ||
     !Array.isArray(
       graph.trackRuntime
+    ) ||
+    !Array.isArray(
+      candidate.routeTable
     )
   ) {
     return null;
