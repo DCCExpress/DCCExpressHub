@@ -3805,12 +3805,6 @@ public sealed class MovementRuntime
                 false,
                 "movement_source_loco_mismatch");
 
-        lock (_gate)
-        {
-            if (_executions.ContainsKey(page.Id))
-                return (false, "movement_already_running");
-        }
-
         var execution =
             new Execution
             {
@@ -3850,8 +3844,22 @@ public sealed class MovementRuntime
         foreach (var pair in LoadFunctionBindingMap(execution.LocoAddress))
             execution.FunctionNumbersByBindingId[pair.Key] = pair.Value;
 
+        // Atomically claim both the task ID and locomotive. Checking the
+        // address before constructing the execution is not sufficient: two
+        // requests can race through the initial validation.
         lock (_gate)
         {
+            if (_executions.ContainsKey(page.Id))
+            {
+                execution.Cancellation.Dispose();
+                return (false, "movement_already_running");
+            }
+            if (_executions.Values.Any(active =>
+                active.LocoAddress == execution.LocoAddress))
+            {
+                execution.Cancellation.Dispose();
+                return (false, "locomotive_already_managed");
+            }
             _executions[page.Id] = execution;
             _states[page.Id] = execution.State;
         }

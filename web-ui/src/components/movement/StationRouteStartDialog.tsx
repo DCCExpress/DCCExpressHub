@@ -8,7 +8,7 @@ import type { StationRouteDefinition } from "@/domain/layout/stationRoutes";
 import { createMovementPage, createEmptyMovementDocument } from "@/domain/movement";
 import { applyMovementRouteCandidate, loadMovementRouteCandidates, type MovementRouteCandidate } from "@/services/movementRouteCatalog";
 import { getTrainTrackingState, subscribeTrainTrackingState } from "@/services/trainTrackingRuntime";
-import { startTransientMovement } from "@/services/movementEngine";
+import { wsApi } from "@/services/wsApi";
 import { wsClient } from "@/services/wsClient";
 
 type Props = {
@@ -78,10 +78,13 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
     return () => { cancelled = true; };
   }, [opened, route?.id]);
 
+  const stationName = (id: string) => layout.stations?.find(station => station.id === id)?.name ?? id;
+  const actualFromStationId = reverse ? route?.toStationId ?? "" : route?.fromStationId ?? "";
+  const actualToStationId = reverse ? route?.fromStationId ?? "" : route?.toStationId ?? "";
   const blocks = layout.blocks.elements.filter((b): b is BlockElement => b instanceof BlockElement);
   const stationBlockIds = (id: string) => new Set(blocks.filter(b => b.stationId === id).map(b => b.id));
-  const fromIds = stationBlockIds(reverse ? route?.toStationId ?? "" : route?.fromStationId ?? "");
-  const toIds = stationBlockIds(reverse ? route?.fromStationId ?? "" : route?.toStationId ?? "");
+  const fromIds = stationBlockIds(actualFromStationId);
+  const toIds = stationBlockIds(actualToStationId);
   const locos = useMemo(() => tracking.enabled && tracking.active && tracking.ready
     ? tracking.locos.filter(l => l.confidence === "certain" && l.currentBlockId !== null && fromIds.has(l.currentBlockId))
     : [], [tracking, route, reverse, layout]);
@@ -98,16 +101,25 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
     }
     return true;
   });
-  const available = eligible.filter(candidate =>
-    (!source || candidate.fromBlockId === Number(source)) &&
-    (destination === "auto" || !destination || candidate.toBlockId === Number(destination)));
+  const selectedLoco = source === null ? undefined : locos.find(l => String(l.currentBlockId) === source);
+  const fromSource = selectedLoco ? candidates.filter(candidate =>
+    candidate.fromBlockId === selectedLoco.currentBlockId) : [];
+  const fromSourceToStation = fromSource.filter(candidate =>
+    toIds.has(candidate.toBlockId));
+  const usableToStation = fromSourceToStation.filter(candidate =>
+    candidate.locoDirection !== "unknown");
+  const directionUnknownToStation = fromSourceToStation.length - usableToStation.length;
+  const destinationsInTable = [...new Set(fromSource.map(candidate => candidate.toBlockName))];
+  const available = selectedLoco ? eligible.filter(candidate =>
+    candidate.fromBlockId === selectedLoco.currentBlockId &&
+    (destination === "auto" || !destination || candidate.toBlockId === Number(destination))) : [];
   const confirmedFree = (id:number) => {
     const block = blocks.find(b=>b.id===id);
     return !!block && block.sensorAddress>0 && sensorStates.get(block.sensorAddress)===false &&
       reserved.loaded && !reserved.blocks.has(id) && tracking.ready && tracking.active && tracking.enabled &&
       !tracking.locos.some(l=>l.currentBlockId===id);
   };
-  const destinations = [...new Set(eligible.filter(c => !source || c.fromBlockId === Number(source)).map(c => c.toBlockId))]
+  const destinations = [...new Set(available.filter(c => c.fromBlockId === selectedLoco?.currentBlockId).map(c => c.toBlockId))]
     .map(id => {
       const tracked = tracking.locos.filter(l => l.currentBlockId === id);
       const blockName = blocks.find(b => b.id === id)?.name ?? `Block #${id}`;
@@ -120,8 +132,7 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
         label: tracked.length ? `${blockName} · ${identities.join(", ")}` : `${blockName} · ${confirmedFree(id) ? "Confirmed free" : "Not confirmed free / reserved"}`,
       };
     });
-  const selectedLoco = locos.find(l => String(l.currentBlockId) === source);
-  const selectedCandidate = available.find(candidate => confirmedFree(candidate.toBlockId));
+  const selectedCandidate = selectedLoco ? available.find(candidate => confirmedFree(candidate.toBlockId)) : undefined;
   const canStart = !loading && !starting && !!route?.enabled && !!selectedLoco && !!selectedCandidate &&
     Number.isInteger(Number(speed)) && Number(speed) >= 1 && Number(speed) <= 126;
   const start = async () => {
@@ -142,7 +153,16 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
       page.name = `Station Route · ${route.name} · #${selectedLoco.locoAddress}`;
       page.speed = Number(speed);
       page.expectedLocoAddress = selectedLoco.locoAddress;
-      await startTransientMovement(page);
+      const driverTaskId = `train-driver-${selectedLoco.locoAddress}-${Date.now()}`;
+      const requestId = `train-driver-start-${Date.now()}`;
+      const result = await wsApi.request(
+        "trainDriverCommand",
+        { requestId, action: "start", taskId: driverTaskId, page },
+        "trainDriverResponse",
+        response => response.requestId === requestId,
+        10000
+      );
+      if (!result.ok) throw new Error(result.error || "Train Driver could not start.");
       onClose();
     } catch(e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setStarting(false); }
@@ -150,11 +170,15 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
   return <Modal opened={opened} onClose={() => { if (!starting) onClose(); }} centered size="lg" title={route ? `Start Station Route · ${route.name}` : "Start Station Route"}>
     <Stack gap="sm">
       <Text size="sm" c="dimmed">One locomotive → one temporary Movement Task. Dispatcher and SwitchMan enforce track safety.</Text>
-      {route?.allowReverse && <Select label="Direction" allowDeselect={false}
-        data={[{value:"forward",label:"From → To"},{value:"reverse",label:"To → From"}]}
+      {route?.allowReverse && <Select label="Station Route direction" allowDeselect={false}
+        data={[
+          {value:"forward",label:`${stationName(route.fromStationId)} → ${stationName(route.toStationId)} (From → To)`},
+          {value:"reverse",label:`${stationName(route.toStationId)} → ${stationName(route.fromStationId)} (To → From)`}
+        ]}
         value={reverse ? "reverse" : "forward"} onChange={value => { setReverse(value === "reverse"); setSource(null); setDestination("auto"); }}/>}
+      <Text size="sm" fw={600}>Departing: {stationName(actualFromStationId)} → Arriving: {stationName(actualToStationId)}</Text>
       {!tracking.ready && <Alert color="orange">Train Tracking is not ready. Automatic train identification is required.</Alert>}
-      <Select label="From block / Locomotive" placeholder="Select confirmed locomotive" searchable
+      <Select label={`Locomotive departing from ${stationName(actualFromStationId)}`} placeholder="Select confirmed locomotive" searchable
         data={locos.map(l => {
           const loco = locomotives.find(item => item.address === l.locoAddress);
           const blockName = blocks.find(b => b.id === l.currentBlockId)?.name ?? l.currentBlockName ?? "Unknown";
@@ -206,8 +230,12 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
         value={destination} onChange={setDestination}/>
       <NumberInput label="Speed" min={1} max={126} allowDecimal={false} value={speed} onChange={setSpeed}/>
       {loading && <Text size="sm" c="dimmed">Loading route topology…</Text>}
-      {selectedCandidate && <Text size="sm">Planned: {selectedCandidate.blockPath.map(b => b.name).join(" → ")}</Text>}
-      {!loading && source && !selectedCandidate && <Alert color="orange">No confirmed-free destination is available. Check occupancy sensors, dispatcher reservations and route topology.</Alert>}
+      {selectedLoco && selectedCandidate && <Text size="sm">Planned: {selectedCandidate.blockPath.map(b => b.name).join(" → ")}</Text>}
+      {!loading && source && !selectedCandidate && <Alert color="orange">
+        {available.length === 0
+          ? `No executable route found from the selected source to ${destination === "auto" ? "the destination station" : "the selected destination block"}. Route table: ${fromSource.length} outgoing route(s), ${fromSourceToStation.length} reaching destination station, ${directionUnknownToStation} with unknown direction, ${usableToStation.length} direction-known. Reachable targets: ${destinationsInTable.slice(0,12).join(", ") || "none"}. ${route?.via.length ? "Via checkpoints may exclude some alternatives. " : ""}Check graph direction and topology; a FREE sensor does not establish physical reachability.`
+          : `${available.length} route candidate(s) exist (${[...new Set(available.map(item => item.toBlockName))].join(", ")}), but no destination is confirmed free. ${!reserved.loaded ? "Dispatcher snapshot missing. " : ""}Check target sensor OFF/FREE, current locomotive assignments and reservations.`}
+      </Alert>}
       {error && <Alert color="red">{error}</Alert>}
       <Group justify="flex-end"><Button variant="default" onClick={onClose} disabled={starting}>Cancel</Button><Button onClick={() => void start()} loading={starting} disabled={!canStart}>Start Task</Button></Group>
     </Stack>

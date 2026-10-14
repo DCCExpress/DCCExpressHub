@@ -936,6 +936,25 @@ export class RouteGraphBuilder {
         turnoutPath
       )
     );
+
+    // A turnout crossing is physically reversible in the same turnout state.
+    // Derive the exact inverse of each validated crossing, instead of
+    // independently guessing its direction from the track at the other end.
+    // This also preserves the ordered chain of turnouts on the return trip.
+    if (turnoutPath.length > 0) {
+      const oppositeDirection: TravelDirection =
+        locoDirection === "forward" ? "reverse" :
+        locoDirection === "reverse" ? "forward" : "unknown";
+      const oppositePath = [...turnoutPath].reverse();
+      const oppositeKey =
+        `${to.name}->${from.name}:${turnoutKey}:${oppositePath.map(p => String(p.elementId)).join(">")}:${oppositeDirection}`;
+      if (!this.createdEdgeKeys.has(oppositeKey)) {
+        this.createdEdgeKeys.add(oppositeKey);
+        this.graph.addEdge(
+          new Edge(to, from, normalizedStates, oppositeDirection, oppositePath)
+        );
+      }
+    }
   }
 
   private normalizeTurnoutStates(

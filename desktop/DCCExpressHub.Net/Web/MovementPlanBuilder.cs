@@ -772,7 +772,7 @@ public sealed class MovementPlanBuilder
                 topology,
                 "version");
 
-        if (version is not (2 or 3 or 4 or 5))
+        if (version is not (2 or 3 or 4 or 5 or 6))
             throw new InvalidOperationException(
                 "movement_route_topology_unsupported");
 

@@ -29,9 +29,9 @@ import {
   createClientGraphFromRouteGraphDto,
 } from "@/services/routeGraphDtoMapper";
 
-// v4 introduces directed block parts inside an unchanged physical section.
-// Invalidate persisted v3 graphs (which flattened all blocks into one node).
-const ROUTE_TOPOLOGY_VERSION = 5;
+// v6 adds reversible turnout-chain edges. Invalidate saved v5 graphs so
+// the return routes are regenerated instead of reusing stale topology.
+const ROUTE_TOPOLOGY_VERSION = 6;
 
 const ROUTE_TOPOLOGY_FIELD =
   "routeTopology";

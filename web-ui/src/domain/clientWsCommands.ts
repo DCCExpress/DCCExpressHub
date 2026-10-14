@@ -431,6 +431,13 @@ export type FlowCommandPayload = {
   mode?: string;
 };
 
+export type TrainDriverCommandPayload = {
+  requestId: string;
+  action: "snapshot" | "start" | "stop" | "abort";
+  taskId?: string;
+  page?: import("./movement").MovementPage;
+};
+
 export type ClientWsPayloadMap = {
   heartbeat: EmptyClientWsCommandPayload;
   broadcastPlayAudio: BroadcastPlayAudioCommandPayload;
@@ -438,6 +445,7 @@ export type ClientWsPayloadMap = {
   audioPlaybackState: AudioPlaybackStateCommandPayload;
   dispatcherCommand: DispatcherCommandPayload;
   movementCommand: MovementCommandPayload;
+  trainDriverCommand: TrainDriverCommandPayload;
   movementAudioComplete: MovementAudioCompleteCommandPayload;
   trainTrackingCommand: TrainTrackingCommandPayload;
   scriptCommand: ScriptCommandPayload;
