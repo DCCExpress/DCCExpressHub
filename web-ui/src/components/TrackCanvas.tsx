@@ -10,6 +10,7 @@ import {
 } from "../models/editor/elements/TrackTurnoutThreeWayElement";
 import { AudioButtonElement } from "../models/editor/elements/AudioButtonElement";
 import { BlockElement } from "../models/editor/elements/BlockElement";
+import { getTrackCanvasHitElement } from "./track-canvas/trackCanvasRuntimeHitTest";
 import { RouteButtonElement } from "../models/editor/elements/RouteButtonElement";
 import { TrackSignalElement } from "../models/editor/elements/TrackSignalElement";
 import { TrackLevelCrossingElement } from "../models/editor/elements/TrackLevelCrossingElement";
@@ -867,7 +868,7 @@ export default function TrackCanvas({
           viewRef.current,
           layoutRef.current.gridSize
         );
-        const hitElement = layoutRef.current.getElement(grid.x, grid.y);
+        const hitElement = getTrackCanvasHitElement(layoutRef.current, grid.x, grid.y, editModeRef.current);
         handleClickableUp(hitElement, ev);
         return;
       }
@@ -916,16 +917,7 @@ export default function TrackCanvas({
         currentLayout.gridSize
       );
 
-      // In runtime mode a block is drawn above its underlying rail elements.
-      // Prefer the visible block's complete 3x1 hit area over the track layer,
-      // otherwise clicks on the locomotive image can hit the rail underneath.
-      const runtimeBlock = !editModeRef.current
-        ? currentLayout.blocks.elements.find(
-            element => element instanceof BlockElement &&
-              element.visible && element.hitTest(grid.x, grid.y)
-          ) ?? null
-        : null;
-      const hitElement = runtimeBlock ?? currentLayout.getElement(grid.x, grid.y);
+      const hitElement = getTrackCanvasHitElement(currentLayout, grid.x, grid.y, editModeRef.current);
 
       if (!editModeRef.current) {
         if (hitElement instanceof AudioButtonElement) {
@@ -1274,7 +1266,7 @@ export default function TrackCanvas({
           viewRef.current,
           layoutRef.current.gridSize
         );
-        const hitElement = layoutRef.current.getElement(grid.x, grid.y);
+        const hitElement = getTrackCanvasHitElement(layoutRef.current, grid.x, grid.y, editModeRef.current);
         handleClickableUp(hitElement, ev);
       }
 
