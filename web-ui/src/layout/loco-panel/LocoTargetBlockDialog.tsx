@@ -112,7 +112,7 @@ export default function LocoTargetBlockDialog({ loco, opened, onClose }: Props) 
           <Alert color="orange">No reachable destination was found in the generated route topology. Check the route network.</Alert>}
         {error && <Alert color="red">{error}</Alert>}
         <Select
-          comboboxProps={{ withinPortal: false }}
+          comboboxProps={{ withinPortal: true, zIndex: 650, position: "bottom", middlewares: { flip: true, shift: true } }}
           label="Destination block"
           placeholder={loading ? "Loading routes…" : "Select a reachable block"}
           data={availableRoutes.map(route => ({
