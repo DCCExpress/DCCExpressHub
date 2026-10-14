@@ -1034,6 +1034,30 @@ public sealed class LayoutRuntime
             Changed?.Invoke("sensorSnapshot", SensorSnapshot());
     }
 
+    // Invalidate only sensors owned by one external device. Never emit OFF
+    // transitions for a lost connection: the dispatcher must see UNKNOWN.
+    public void InvalidateSensorRange(int firstAddress, int count)
+    {
+        bool changed = false;
+        lock (_gate)
+        {
+            for (int address = firstAddress; address < firstAddress + count; address++)
+            {
+                if (address is < 1 or > 65535)
+                    continue;
+                var key = (ushort)address;
+                if (_pendingSensorOff.Remove(key, out var pending))
+                    pending.Cancel();
+                changed |= _sensorStates.Remove(key);
+            }
+        }
+        if (changed)
+        {
+            Changed?.Invoke("sensorSnapshot", SensorSnapshot());
+            SensorTransitionProcessed?.Invoke();
+        }
+    }
+
     public bool SetSensor(ushort address, bool on)
     {
         bool changed = false;

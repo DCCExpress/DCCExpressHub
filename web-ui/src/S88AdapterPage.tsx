@@ -10,16 +10,37 @@ const activeBytesFromStatus = (raw: string): number | null => {
   return Number.isInteger(value) && value >= 1 && value <= 32 ? value : null;
 };
 
+// Firmware v0.6 uses ASCII HEX + CRC16. VIEW BIN (and v0.5 firmware)
+// retain the original human-readable underscore-bit snapshot.
 const parseBits = (raw: string): number[] => {
-  const lines = raw.match(/S88:\s*((?:_[01]{8}\s*){1,32})/g);
-  if (!lines?.length) return [];
-  const snapshot = lines.at(-1);
-  if (!snapshot) return [];
-  const bytes = [...snapshot.matchAll(/_([01]{8})/g)]
-    .map(match => match[1])
-    .filter((value): value is string => value !== undefined)
-    .map(value => parseInt(value, 2));
-  return bytes.flatMap(byte => Array.from({ length: 8 }, (_, bit) => (byte >> bit) & 1));
+  let latest: number[] = [];
+  for (const entry of raw.split(/\r?\n/)) {
+    const line = entry.trim();
+    const hex = /^S88:([0-9a-f]{2}):([0-9a-f]+)\*([0-9a-f]{4})$/i.exec(line);
+    let bytes: number[] = [];
+    if (hex) {
+      const count = parseInt(hex[1] ?? "", 16);
+      const encoded = hex[2] ?? "";
+      if (count < 1 || count > 32 || encoded.length !== count * 2) continue;
+      bytes = Array.from({ length: count }, (_, i) => parseInt(encoded.slice(i * 2, i * 2 + 2), 16));
+      let crc = 0xffff;
+      for (const value of [count, ...bytes]) {
+        crc ^= value << 8;
+        for (let i = 0; i < 8; i++) {
+          crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) & 0xffff : (crc << 1) & 0xffff;
+        }
+      }
+      if (crc !== parseInt(hex[3] ?? "", 16)) continue;
+    } else {
+      const bin = /^S88:\s*((?:_[01]{8}(?:\s+|$)){1,32})$/i.exec(line);
+      if (!bin) continue;
+      bytes = [...(bin[1] ?? "").matchAll(/_([01]{8})/g)]
+        .map(match => parseInt(match[1] ?? "0", 2));
+    }
+    latest = bytes.flatMap(value =>
+      Array.from({ length: 8 }, (_, bit) => (value >> bit) & 1));
+  }
+  return latest;
 };
 
 export default function S88AdapterPage({ onBack }: { onBack: () => void }) {
@@ -161,13 +182,13 @@ export default function S88AdapterPage({ onBack }: { onBack: () => void }) {
   return <Stack gap="md" p="md">
     <Group justify="space-between">
       <div><Title order={2}>DCCExpress S88Adapter</Title><Text c="dimmed">USB serial configuration and live S88 monitor · 115200 baud</Text></div>
-      <Button variant="subtle" onClick={onBack}>Back to Home</Button>
+      <Button variant="subtle" onClick={onBack}>Back to Devices</Button>
     </Group>
     <Card withBorder radius="md" p="md">
       <Stack gap="sm">
         <Group align="end"><Select label="Serial port" data={ports} value={port} onChange={setPort} disabled={!!connectedPort || busy} placeholder="Select adapter port" searchable style={{ flex: 1 }} /><Button variant="light" onClick={() => void refreshPorts()}>Refresh ports</Button><Badge color={connectedPort ? "green" : "gray"}>{connectedPort ? "Connected: " + connectedPort : "Disconnected"}</Badge></Group>
         <Text size="xs" c="dimmed">Connect to the adapter USB port, not the command-station port. Opening an Uno serial connection may reboot the adapter.</Text>
-        <Group>{connectedPort ? <Button color="red" variant="light" disabled={busy} onClick={() => void connectionAction("disconnect")}>Disconnect</Button> : <Button disabled={!port || busy} onClick={() => void connectionAction("connect")}>Connect</Button>}<Button disabled={!port || connectedPort !== port || busy} onClick={() => void command("STATUS")}>STATUS</Button><Button variant="light" disabled={!port || connectedPort !== port || busy} onClick={() => void command("INFO")}>INFO</Button></Group>
+        <Group>{connectedPort ? <Button color="red" variant="light" disabled={busy} onClick={() => void connectionAction("disconnect")}>Disconnect</Button> : <Button disabled={!port || busy} onClick={() => void connectionAction("connect")}>Connect</Button>}<Button disabled={!port || connectedPort !== port || busy} onClick={() => void command("STATUS")}>STATUS</Button><Button variant="light" disabled={!port || connectedPort !== port || busy} onClick={() => void command("INFO")}>INFO</Button><Button variant="light" disabled={!connectedPort || busy} onClick={() => void command("VIEW HEX")}>VIEW HEX</Button><Button variant="light" disabled={!connectedPort || busy} onClick={() => void command("VIEW BIN")}>VIEW BIN</Button></Group>
       </Stack>
     </Card>
     <SimpleGrid cols={{ base: 1, md: 2 }}>

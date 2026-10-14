@@ -150,6 +150,8 @@ public sealed partial class WatsonWebServerService :
 
         RegisterS88AdapterRoutes(server);
 
+        RegisterExternalDeviceRoutes(server);
+
         RegisterConfigurationRoutes(
             server);
 

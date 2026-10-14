@@ -81,6 +81,8 @@ builder.Services.AddSingleton<AutomationStorageCoordinator>();
 builder.Services.AddSingleton<LocoStorageCoordinator>();
 builder.Services.AddSingleton<AutomationExclusiveGate>();
 builder.Services.AddSingleton<CommandCenterConfigStore>();
+builder.Services.AddSingleton<ExternalDeviceStore>();
+builder.Services.AddSingleton<ExternalDevicesRuntime>();
 builder.Services.AddSingleton<CommandCenterApi>();
 builder.Services.AddSingleton<LocomotiveConfigApi>();
 builder.Services.AddSingleton<LayoutConfigApi>();
@@ -215,6 +217,7 @@ builder.Services.AddHostedService<WsRuntimeCoordinator>();
 
 // Register the HTTP/WebSocket host last so command-center and automation
 // hosted services start before clients can connect.
+builder.Services.AddHostedService(sp => sp.GetRequiredService<ExternalDevicesRuntime>());
 builder.Services.AddHostedService<WatsonWebServerService>();
 
 using var app =

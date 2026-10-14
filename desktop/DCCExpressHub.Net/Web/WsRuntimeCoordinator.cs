@@ -10,6 +10,7 @@ public sealed class WsRuntimeCoordinator : BackgroundService
     readonly LayoutRuntime _runtime;
     readonly SignalAutomationEngine _signalAutomation;
     readonly AppPaths _env;
+    readonly ExternalDevicesRuntime _externalDevices;
     readonly ILogger<WsRuntimeCoordinator> _log;
     volatile bool _connected;
     volatile bool _connectionChanged;
@@ -23,6 +24,7 @@ public sealed class WsRuntimeCoordinator : BackgroundService
         LayoutRuntime runtime,
         SignalAutomationEngine signalAutomation,
         AppPaths env,
+        ExternalDevicesRuntime externalDevices,
         ILogger<WsRuntimeCoordinator> log)
     {
         _cc=cc;
@@ -30,12 +32,17 @@ public sealed class WsRuntimeCoordinator : BackgroundService
         _runtime=runtime;
         _signalAutomation=signalAutomation;
         _env=env;
+        _externalDevices=externalDevices;
         _log=log;
 
         _connected=cc.Connected;
         cc.ConnectionChanged+=OnConnectionChanged;
         cc.SensorFeedbackChanged+=OnSensorFeedbackChanged;
         cc.AccessoryFeedbackChanged+=OnAccessoryFeedbackChanged;
+        // Every sensor source uses the same authoritative LayoutRuntime path.
+        externalDevices.SensorFeedbackChanged += OnSensorFeedbackChanged;
+        externalDevices.SensorRangeUnavailable +=
+            (first, count) => _runtime.InvalidateSensorRange(first, count);
     }
 
     void OnConnectionChanged(bool connected)
@@ -48,6 +55,7 @@ public sealed class WsRuntimeCoordinator : BackgroundService
             // Drop stale known states, never translate a disconnect to FREE.
             // The reconnect snapshot must be the new source of truth.
             _runtime.InvalidateSensorStates();
+            _externalDevices.ReplayLiveSensorStates();
             _log.LogWarning(
                 "Command center disconnected: previous sensor states are UNKNOWN pending fresh feedback");
         }
