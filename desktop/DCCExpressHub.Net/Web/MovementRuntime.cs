@@ -933,6 +933,37 @@ public sealed class MovementRuntime
         return block is not null && block.LocoAddress > 0;
     }
 
+    // Only timetable scheduling uses this non-runnable classification.
+    // Manual Movement starts remain fail-closed and return their full errors.
+    // UNKNOWN/OFF sensor feedback cannot establish physical locomotive
+    // presence even when the block has a stale manually assigned loco.
+    public (bool Skip, int LocoAddress, string Reason) TimetableSourceStatus(int blockId)
+    {
+        var block = Block(blockId);
+        if (block is null)
+            return (false, 0, "source_block_missing"); // let Movement report a configuration error
+
+        if (block.LocoAddress == 0)
+            return (true, 0, "source_block_empty");
+
+        if (block.SensorAddress > 0)
+        {
+            if (!_layout.TryGetSensorState(block.SensorAddress, out var on))
+                return (true, block.LocoAddress,
+                    $"source sensor #{block.SensorAddress} is UNKNOWN for block {BlockLabel(block)}");
+
+            if (!on)
+                return (true, block.LocoAddress,
+                    $"source sensor #{block.SensorAddress} is OFF for block {BlockLabel(block)}, assigned loco #{block.LocoAddress}");
+        }
+
+        if (IsLocoManaged(block.LocoAddress))
+            return (true, block.LocoAddress,
+                $"locomotive #{block.LocoAddress} is already managed by an active Movement");
+
+        return (false, block.LocoAddress, "ready");
+    }
+
     bool ConditionsSatisfied(IEnumerable<MovementSensorCondition> conditions)
     {
         var any = false;
@@ -3649,7 +3680,8 @@ public sealed class MovementRuntime
     }
 
     public (bool Ok, string? Error) Start(
-        string pageId)
+        string pageId,
+        int? expectedSourceLocoAddress = null)
     {
         var page =
             LoadSavedMovementPage(
@@ -3659,6 +3691,17 @@ public sealed class MovementRuntime
             return (
                 false,
                 "movement_not_found");
+
+        // A timetable preflight must not accidentally start a different loco
+        // if the source assignment changes between preflight and Start().
+        if (expectedSourceLocoAddress is > 0)
+        {
+            if (page.ExpectedLocoAddress is > 0 &&
+                page.ExpectedLocoAddress.Value != expectedSourceLocoAddress.Value)
+                return (false, "movement_source_loco_mismatch");
+
+            page.ExpectedLocoAddress = expectedSourceLocoAddress;
+        }
 
         return StartSavedPage(
             page,
