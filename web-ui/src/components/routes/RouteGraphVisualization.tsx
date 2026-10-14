@@ -230,7 +230,8 @@ export default function RouteGraphVisualization({ graph, layout }: Props) {
             for (const edge of graph.edges) {
               const from = edge.from.name, to = edge.to.name;
               if (from === to) continue;
-              const [first, second] = [from, to].sort();
+              const first = from < to ? from : to;
+              const second = from < to ? to : from;
               const key = JSON.stringify([first, second]);
               let connection = connections.get(key);
               if (!connection) {
