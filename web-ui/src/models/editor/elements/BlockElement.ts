@@ -276,7 +276,15 @@ export class BlockElement extends TrackElement {
   protected drawBlock(ctx: CanvasRenderingContext2D, options?: DrawOptions): void {
     if (!this.visible) return;
     this.beginDraw(ctx, options);
-    ctx.translate(this.centerX, this.centerY);
+    // The block is anchored at the CENTRAL rail cell (x, y), whereas its
+    // 3x1 artwork uses a left-origin rectangle. Rotate the artwork around
+    // the anchor cell's center and translate its unrotated center there.
+    // This keeps the drawn rectangle identical to getBounds()/hitTest()
+    // for 0, 90, 180 and 270 degrees (selection and drag hit the artwork).
+    ctx.translate(
+      this.posLeft + this.GridSizeX / 2,
+      this.posTop + this.GridSizeY / 2
+    );
     ctx.rotate((this.rotation * Math.PI) / 180);
     ctx.translate(-this.centerX, -this.centerY);
     const blockX = this.posLeft + 5;
