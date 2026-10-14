@@ -659,6 +659,41 @@ export default function RoutesDialog({
     ]
   );
 
+  // Presentation only: occupancy addresses configured on ordinary rail cells
+  // are also detectors. Never mutate GraphNode.detectors or the route graph,
+  // and never confuse turnout/accessory addresses with occupancy feedback.
+  const railSensorAddressesByElementId = useMemo(() => {
+    const index = new Map<number, number>();
+    const serialized = JSON.parse(JSON.stringify(layout)) as {
+      layers?: Array<{ elements?: Array<{ id?: number; type?: string; address?: number }> }>;
+    };
+    const occupancyRailTypes = new Set([
+      "trackstraight", "trackbridge", "trackdirection", "trackend",
+      "trackcorner", "trackcurve", "trackcrossing", "tracklevelcrossing",
+    ]);
+    for (const layer of serialized.layers ?? []) {
+      for (const element of layer.elements ?? []) {
+        if (!occupancyRailTypes.has(element.type ?? "")) continue;
+        const id = element.id;
+        const address = element.address;
+        if (typeof id === "number" && Number.isInteger(id) &&
+            typeof address === "number" && Number.isInteger(address) &&
+            address > 0 && address <= 65535) {
+          index.set(id, address);
+        }
+      }
+    }
+    return index;
+  }, [layout]);
+
+  const segmentDetectorAddresses = (node: { elementIds: number[]; detectors: Array<{ address: number }> }) =>
+    [...new Set([
+      ...node.detectors.map(detector => detector.address),
+      ...node.elementIds
+        .map(id => railSensorAddressesByElementId.get(id))
+        .filter((address): address is number => address !== undefined),
+    ])].sort((left, right) => left - right);
+
   const nodes =
     result?.graph.nodes ?? [];
 
@@ -1646,9 +1681,7 @@ export default function RoutesDialog({
                         </Table.Td>
 
                         <Table.Td>
-                          {node.detectors
-                            .map(item => item.address)
-                            .join(", ") || "—"}
+                          {segmentDetectorAddresses(node).join(", ") || "—"}
                         </Table.Td>
 
                         <Table.Td>
