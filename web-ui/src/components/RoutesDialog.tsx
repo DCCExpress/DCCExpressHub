@@ -89,6 +89,7 @@ type RoutesDialogProps = {
   onPersistRouteTopology?: () => Promise<void>;
   onGenerated?: () => void;
   onSelectRoute?: (page: MovementPage) => void;
+  initialRoute?: Pick<MovementPage, "name" | "speed" | "routeRef"> | null;
 };
 
 function previewMovementPage(
@@ -212,6 +213,7 @@ export default function RoutesDialog({
   onPersistRouteTopology,
   onGenerated,
   onSelectRoute,
+  initialRoute,
 }: RoutesDialogProps) {
   const { t } = useTranslation();
 
@@ -461,6 +463,7 @@ export default function RoutesDialog({
         false;
 
       const editingPage =
+        onSelectRoute && initialRoute ? initialRoute :
         editingMovementId ===
           null
           ? null
@@ -649,6 +652,10 @@ export default function RoutesDialog({
       editingMovementId,
       movements,
       layout,
+      onSelectRoute,
+      initialRoute?.name,
+      initialRoute?.speed,
+      initialRoute?.routeRef,
     ]
   );
 
