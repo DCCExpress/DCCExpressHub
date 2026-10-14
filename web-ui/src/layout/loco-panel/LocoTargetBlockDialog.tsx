@@ -37,7 +37,13 @@ export default function LocoTargetBlockDialog({ loco, opened, onClose }: Props) 
   }), []);
   const [candidates, setCandidates] = useState<MovementRouteCandidate[]>([]);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
-  const [speed, setSpeed] = useState(readSpeed);
+  const maxSpeed = Number.isFinite(loco.maxSpeed) && loco.maxSpeed > 0
+    ? Math.max(1, Math.min(126, Math.round(loco.maxSpeed)))
+    : 126;
+  const [speed, setSpeed] = useState(() => Math.min(readSpeed(), maxSpeed));
+  useEffect(() => {
+    setSpeed(current => Math.min(current, maxSpeed));
+  }, [maxSpeed, loco.address]);
   const [loading, setLoading] = useState(false);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -122,7 +128,7 @@ export default function LocoTargetBlockDialog({ loco, opened, onClose }: Props) 
       // One-off execution: never persist Drive to block under Saved Movements.
       page.id = `quick-route-loco-${loco.address}`;
       page.name = `Quick route · #${loco.address} · ${routeLabel(selected)}`;
-      page.speed = speed;
+      page.speed = Math.min(speed, maxSpeed);
       page.expectedLocoAddress = loco.address;
       await startTransientMovement(page);
       onClose();
@@ -163,8 +169,8 @@ export default function LocoTargetBlockDialog({ loco, opened, onClose }: Props) 
             <Badge color="orange" variant="light">Route not clear: {routeWarnings(selected).join(", ")}</Badge>}
         </Group>}
         <div>
-          <Group justify="space-between" mb={8}><Text size="sm" fw={500}>Movement speed</Text><Text size="sm">{speed} / 126</Text></Group>
-          <Slider min={1} max={126} step={1} value={speed}
+          <Group justify="space-between" mb={8}><Text size="sm" fw={500}>Movement speed</Text><Text size="sm">{speed} / {maxSpeed}</Text></Group>
+          <Slider min={1} max={maxSpeed} step={1} value={speed}
             onChange={value => { setSpeed(value); try { localStorage.setItem(SPEED_KEY, String(value)); } catch { /* browser storage unavailable */ } }}
             disabled={starting} />
         </div>
