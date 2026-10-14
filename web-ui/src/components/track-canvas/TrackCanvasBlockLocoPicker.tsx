@@ -221,7 +221,12 @@ export function TrackCanvasBlockLocoPicker({
       <LocoTargetBlockDialog
         loco={driveLoco}
         opened={opened}
-        onClose={() => setDriveLoco(null)}
+        onClose={() => {
+          // Drive-to-Block is a continuation of the picker, not a nested
+          // dialog that should return to the locomotive list on completion.
+          setDriveLoco(null);
+          onClose();
+        }}
       />
     )}
     </>
