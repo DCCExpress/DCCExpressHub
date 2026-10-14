@@ -88,6 +88,7 @@ type RoutesDialogProps = {
   ) => void;
   onPersistRouteTopology?: () => Promise<void>;
   onGenerated?: () => void;
+  onSelectRoute?: (page: MovementPage) => void;
 };
 
 function previewMovementPage(
@@ -210,6 +211,7 @@ export default function RoutesDialog({
   onMovementsChange,
   onPersistRouteTopology,
   onGenerated,
+  onSelectRoute,
 }: RoutesDialogProps) {
   const { t } = useTranslation();
 
@@ -1053,7 +1055,7 @@ export default function RoutesDialog({
 
         {!error && result && (
           <Tabs
-            defaultValue="stationRoutes"
+            defaultValue={onSelectRoute ? "routes" : "stationRoutes"}
             keepMounted={false}
             style={{
               flex: 1,
@@ -1063,10 +1065,10 @@ export default function RoutesDialog({
             }}
           >
             <Tabs.List>
-              <Tabs.Tab value="stationRoutes">Station Routes</Tabs.Tab>
-              <Tabs.Tab value="selectRoute">
+              {!onSelectRoute && <Tabs.Tab value="stationRoutes">Station Routes</Tabs.Tab>}
+              {!onSelectRoute && <Tabs.Tab value="selectRoute">
                 {t("ui.movementSelectRouteTitle")}
-              </Tabs.Tab>
+              </Tabs.Tab>}
 
               <Tabs.Tab value="routes">
                 {t("ui.routeNetwork")}
@@ -1081,7 +1083,7 @@ export default function RoutesDialog({
               </Tabs.Tab>
             </Tabs.List>
 
-            <Tabs.Panel value="stationRoutes" pt="sm" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+            {!onSelectRoute && <Tabs.Panel value="stationRoutes" pt="sm" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
               <StationRoutesTab
                 layout={layout}
                 editingRouteId={editingStationRouteId ?? null}
@@ -1092,7 +1094,7 @@ export default function RoutesDialog({
                 }}
                 onChanged={() => onGenerated?.()}
               />
-            </Tabs.Panel>
+            </Tabs.Panel>}
 
             <Tabs.Panel
               value="selectRoute"
@@ -1731,6 +1733,7 @@ export default function RoutesDialog({
                         {t("ui.direction")}
                       </Table.Th>
 
+                      {onSelectRoute && <Table.Th w={90}>Select</Table.Th>}
                       <Table.Th
                         style={{ width: 110 }}
                       >
@@ -1779,6 +1782,13 @@ export default function RoutesDialog({
                                 : t("ui.unknown")}
                           </Table.Td>
 
+                          {onSelectRoute && <Table.Td>
+                            <Button size="xs" disabled={route.solution.locoDirection === "unknown"}
+                              onClick={() => {
+                                const selected = previewMovementPage(route);
+                                if (selected.routeRef) onSelectRoute(selected);
+                              }}>Select</Button>
+                          </Table.Td>}
                           <Table.Td>
                             <Button
                               size="xs"
