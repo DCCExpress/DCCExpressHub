@@ -249,7 +249,7 @@ export default function TimetablePanel({
           const hasRunnableAction =
             entry.actions.some(
               action => {
-                if (action.targetType === "fromto") return !!action.routeRef && !!action.locoAddress;
+                if (action.targetType === "fromto") return !!action.routeRef && !!action.speed;
                 if (
                   action.targetType ===
                   "movement"
@@ -456,7 +456,7 @@ export default function TimetablePanel({
               }
 
               const target =
-                action.targetType === "fromto" ? (action.routeRef ? {name: action.targetId || `From–To #${action.locoAddress}`} : undefined) :
+                action.targetType === "fromto" ? (action.routeRef ? {name: action.targetId || "From–To"} : undefined) :
                 action.targetType ===
                   "movement"
                   ? movementsById.get(
