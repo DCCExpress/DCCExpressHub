@@ -75,7 +75,8 @@ type ExpandedTimetableRow = {
   targetMissing: boolean;
   targetType:
     "script" |
-    "movement";
+    "movement" |
+    "fromto";
   isCurrent: boolean;
   activeRun: TimetableActiveRun | null;
 };
@@ -248,6 +249,7 @@ export default function TimetablePanel({
           const hasRunnableAction =
             entry.actions.some(
               action => {
+                if (action.targetType === "fromto") return !!action.routeRef && !!action.locoAddress;
                 if (
                   action.targetType ===
                   "movement"
@@ -454,6 +456,7 @@ export default function TimetablePanel({
               }
 
               const target =
+                action.targetType === "fromto" ? (action.routeRef ? {name: action.targetId || `From–To #${action.locoAddress}`} : undefined) :
                 action.targetType ===
                   "movement"
                   ? movementsById.get(
@@ -478,6 +481,7 @@ export default function TimetablePanel({
                 targetName:
                   target?.name ??
                   (
+                    action.targetType === "fromto" ? "Missing From–To route" :
                     action.targetType ===
                       "movement"
                       ? t(
