@@ -78,7 +78,7 @@ public sealed class WsRuntimeCoordinator : BackgroundService
 
     void OnPowerFeedbackChanged(PowerFeedback feedback)
     {
-        if (_cc.Type != "loconet" || !string.Equals(feedback.District, "Main", StringComparison.OrdinalIgnoreCase))
+        if (_cc.Type != "loconet" || !string.Equals(feedback.Target, "Main", StringComparison.OrdinalIgnoreCase))
             return;
 
         // Do not lose an already arriving sensor report to a delayed reset:
