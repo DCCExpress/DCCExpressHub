@@ -1736,11 +1736,7 @@ export default function RoutesDialog({
                         {t("ui.preview")}
                       </Table.Th>
 
-                      <Table.Th
-                        style={{ width: 100 }}
-                      >
-                        {t("ui.test")}
-                      </Table.Th>
+                      {!onSelectRoute && <Table.Th w={100}>{t("ui.test")}</Table.Th>}
                     </Table.Tr>
                   </Table.Thead>
 
@@ -1808,7 +1804,7 @@ export default function RoutesDialog({
                             </Button>
                           </Table.Td>
 
-                          <Table.Td>
+                          {!onSelectRoute && <>                          <Table.Td>
                             <Button
                               size="xs"
                               variant="light"
@@ -1833,7 +1829,7 @@ export default function RoutesDialog({
                             >
                               {t("ui.test")}
                             </Button>
-                          </Table.Td>
+                          </Table.Td></>}
                         </Table.Tr>
                       )
                     )}
