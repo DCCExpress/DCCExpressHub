@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Badge, Button, Group, Paper, ScrollArea, Stack, Text } from "@mantine/core";
+import { Badge, Button, Group, Paper, ScrollArea, Slider, Stack, Text } from "@mantine/core";
 import type { Graph } from "@/domain/railway/graph";
 import type { LayoutView } from "@/models/editor/core/LayoutView";
 
@@ -7,6 +7,8 @@ type Props = { graph: Graph; layout: LayoutView };
 
 export default function RouteGraphVisualization({ graph, layout }: Props) {
   const [scale, setScale] = useState(1);
+  const [xSpacing, setXSpacing] = useState(2);
+  const [ySpacing, setYSpacing] = useState(2);
   const [selected, setSelected] = useState<string | null>(null);
   const geometry = useMemo(() => {
     const serialized = JSON.parse(JSON.stringify(layout)) as {
@@ -41,19 +43,21 @@ export default function RouteGraphVisualization({ graph, layout }: Props) {
     const maxY = Math.max(...raw.map(p => p.y), 1);
     const extent = Math.max(maxX - minX, maxY - minY, 1);
     const factor = Math.max(.65, Math.min(2.6, 760 / extent));
+    const factorX = factor * xSpacing;
+    const factorY = factor * ySpacing;
     const positions = new Map<string, { x: number; y: number }>();
     // Spread only overlapping labels; keep the overall geographical topology.
     const occupied: Array<{ x: number; y: number }> = [];
     for (const node of raw) {
-      let x = 75 + (node.x - minX) * factor;
-      let y = 75 + (node.y - minY) * factor;
+      let x = 75 + (node.x - minX) * factorX;
+      let y = 75 + (node.y - minY) * factorY;
       let attempt = 0;
       while (occupied.some(p => Math.abs(p.x - x) < 78 && Math.abs(p.y - y) < 43) && attempt < 24) {
         attempt++;
         const angle = attempt * 2.399963;
         const offset = 22 * Math.sqrt(attempt);
-        x = 75 + (node.x - minX) * factor + Math.cos(angle) * offset;
-        y = 75 + (node.y - minY) * factor + Math.sin(angle) * offset;
+        x = 75 + (node.x - minX) * factorX + Math.cos(angle) * offset;
+        y = 75 + (node.y - minY) * factorY + Math.sin(angle) * offset;
       }
       occupied.push({ x, y });
       positions.set(node.name, { x, y });
@@ -61,7 +65,7 @@ export default function RouteGraphVisualization({ graph, layout }: Props) {
     const width = Math.max(350, ...occupied.map(p => p.x + 75));
     const height = Math.max(260, ...occupied.map(p => p.y + 75));
     return { positions, width, height };
-  }, [graph, layout]);
+  }, [graph, layout, xSpacing, ySpacing]);
   const { positions, width, height } = geometry;
   const chosen = graph.nodes.find(node => node.name === selected);
   return (
@@ -76,6 +80,19 @@ export default function RouteGraphVisualization({ graph, layout }: Props) {
           <Button size="xs" variant="default" onClick={() => setScale(1)}>100%</Button>
           <Button size="xs" variant="default" onClick={() => setScale(value => Math.min(3, value + .25))}>+</Button>
         </Group>
+      </Group>
+      <Group grow gap="md">
+        <Stack gap={2}>
+          <Text size="xs">X spacing: {xSpacing.toFixed(1)}×</Text>
+          <Slider min={0.5} max={6} step={0.25} value={xSpacing} onChange={setXSpacing}
+            label={value => `${value.toFixed(2)}×`} />
+        </Stack>
+        <Stack gap={2}>
+          <Text size="xs">Y spacing: {ySpacing.toFixed(1)}×</Text>
+          <Slider min={0.5} max={6} step={0.25} value={ySpacing} onChange={setYSpacing}
+            label={value => `${value.toFixed(2)}×`} />
+        </Stack>
+        <Button size="xs" variant="subtle" onClick={() => { setXSpacing(2); setYSpacing(2); }}>Reset spacing</Button>
       </Group>
       <ScrollArea h={420} type="auto" offsetScrollbars>
         <svg width={width * scale} height={height * scale} viewBox={`0 0 ${width} ${height}`}
