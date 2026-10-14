@@ -29,7 +29,7 @@ test("shortcut help lists implemented controls, with localized labels", () => {
       assert.ok(help.includes('"ui.' + key + '"'), "unused help translation: " + key);
     }
   }
-  assert.match(help, /<SimpleGrid cols=\{2\}/);
+  assert.match(help, /<SimpleGrid cols=\{1\}/);
 });
 
 test("shortcut descriptions agree with actual keyboard and canvas handlers", () => {
