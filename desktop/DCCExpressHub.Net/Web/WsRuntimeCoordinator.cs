@@ -17,6 +17,12 @@ public sealed class WsRuntimeCoordinator : BackgroundService
     readonly Queue<int> _locoSync=new();
     readonly Queue<(int Address,int Function)> _startupFunctions=new();
     bool _startupFunctionsApplied;
+    // Power ON may also boot the LocoNet feedback modules; delay probing until
+    // they have had time to initialise. The normal coordinator loop owns TX.
+    readonly object _loconetResyncGate = new();
+    DateTimeOffset? _loconetResyncDue;
+    bool? _loconetPowerOn;
+
 
     public WsRuntimeCoordinator(
         ICommandCenter cc,
@@ -38,6 +44,7 @@ public sealed class WsRuntimeCoordinator : BackgroundService
         _connected=cc.Connected;
         cc.ConnectionChanged+=OnConnectionChanged;
         cc.SensorFeedbackChanged+=OnSensorFeedbackChanged;
+        cc.PowerFeedbackChanged+=OnPowerFeedbackChanged;
         cc.AccessoryFeedbackChanged+=OnAccessoryFeedbackChanged;
         // Every sensor source uses the same authoritative LayoutRuntime path.
         externalDevices.SensorFeedbackChanged += OnSensorFeedbackChanged;
@@ -49,6 +56,14 @@ public sealed class WsRuntimeCoordinator : BackgroundService
     {
         _connected=connected;
         _connectionChanged=true;
+        if (!connected && _cc.Type == "loconet")
+        {
+            lock (_loconetResyncGate)
+            {
+                _loconetPowerOn = null;
+                _loconetResyncDue = null;
+            }
+        }
 
         if (!connected)
         {
@@ -59,6 +74,29 @@ public sealed class WsRuntimeCoordinator : BackgroundService
             _log.LogWarning(
                 "Command center disconnected: previous sensor states are UNKNOWN pending fresh feedback");
         }
+    }
+
+    void OnPowerFeedbackChanged(PowerFeedback feedback)
+    {
+        if (_cc.Type != "loconet" || !string.Equals(feedback.District, "Main", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        // Do not lose an already arriving sensor report to a delayed reset:
+        // mark everything UNKNOWN immediately, before requesting a fresh scan.
+        lock (_loconetResyncGate)
+        {
+            if (_loconetPowerOn == feedback.On)
+                return; // Duplicate broadcast must not repeatedly discard valid states.
+            _loconetPowerOn = feedback.On;
+            _loconetResyncDue = feedback.On
+                ? DateTimeOffset.UtcNow.AddMilliseconds(1500)
+                : null;
+        }
+        _runtime.InvalidateSensorStates();
+        _externalDevices.ReplayLiveSensorStates();
+        _log.LogInformation("LocoNet track power {Power}: sensor states UNKNOWN; {Action}",
+            feedback.On ? "ON" : "OFF",
+            feedback.On ? "sensor interrogation scheduled" : "waiting for power ON");
     }
 
     void OnSensorFeedbackChanged(int address,bool on)
@@ -122,6 +160,26 @@ public sealed class WsRuntimeCoordinator : BackgroundService
             }
 
             var now=DateTimeOffset.UtcNow;
+            bool requestLocoNetSensors = false;
+            if (_cc.Connected && _cc.Type == "loconet")
+            {
+                lock (_loconetResyncGate)
+                {
+                    if (_loconetResyncDue.HasValue && now >= _loconetResyncDue.Value)
+                    {
+                        _loconetResyncDue = null;
+                        requestLocoNetSensors = true;
+                    }
+                }
+            }
+            if (requestLocoNetSensors)
+            {
+                var requested = await _cc.RequestSensorSnapshotAsync(ct);
+                _log.LogInformation(
+                    "LocoNet power ON sensor interrogation {Result}; missing feedback remains UNKNOWN",
+                    requested ? "sent" : "not sent");
+            }
+
 
             if(_cc.Connected && _locoSync.Count>0 && now>=nextLoco)
             {
