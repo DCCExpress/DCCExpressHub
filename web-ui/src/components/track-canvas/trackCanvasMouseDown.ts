@@ -1,5 +1,6 @@
 import i18next from "i18next";
 import { getBridgePlacement } from "./bridgePlacement";
+import { getTrackCanvasHitElement } from "./trackCanvasRuntimeHitTest";
 import type {
   Dispatch,
   SetStateAction,
@@ -203,7 +204,7 @@ export function handleTrackCanvasMouseDown(
     currentLayout.gridSize
   );
 
-  const hitElement = currentLayout.getElement(grid.x, grid.y);
+  const hitElement = getTrackCanvasHitElement(currentLayout, grid.x, grid.y, currentEditMode);
 
   if (!editModeRef.current && hitElement?.type === ELEMENT_TYPES.BUTTON_AUDIO) {
     const audioButton = hitElement as AudioButtonElement;
