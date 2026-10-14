@@ -916,7 +916,16 @@ export default function TrackCanvas({
         currentLayout.gridSize
       );
 
-      const hitElement = currentLayout.getElement(grid.x, grid.y);
+      // In runtime mode a block is drawn above its underlying rail elements.
+      // Prefer the visible block's complete 3x1 hit area over the track layer,
+      // otherwise clicks on the locomotive image can hit the rail underneath.
+      const runtimeBlock = !editModeRef.current
+        ? currentLayout.blocks.elements.find(
+            element => element instanceof BlockElement &&
+              element.visible && element.hitTest(grid.x, grid.y)
+          ) ?? null
+        : null;
+      const hitElement = runtimeBlock ?? currentLayout.getElement(grid.x, grid.y);
 
       if (!editModeRef.current) {
         if (hitElement instanceof AudioButtonElement) {
