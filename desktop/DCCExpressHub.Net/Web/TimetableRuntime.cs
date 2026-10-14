@@ -643,6 +643,34 @@ public sealed class TimetableRuntime : BackgroundService
         ":" +
         minute.ToString("00");
 
+    // Expected scheduling conditions are not failed train tasks. They may
+    // change between preflight and Start(), so handle the race here too.
+    // Structural/configuration failures remain visible as ERROR.
+    static bool IsTimetableNotReadyFailure(string? error) =>
+        error is "movement_source_loco_missing" or
+                 "locomotive_already_managed" or
+                 "movement_already_running" ||
+        (error is not null &&
+         error.StartsWith("Movement cannot start: locomotive #", StringComparison.Ordinal) &&
+         error.EndsWith(" is not ON.", StringComparison.Ordinal)) ||
+        (error is not null &&
+         error.StartsWith("Movement cannot start: block ", StringComparison.Ordinal) &&
+         error.Contains(" is UNKNOWN (no current feedback).", StringComparison.Ordinal));
+
+    void LogSourceSkip(string kind, string name, int blockId, string reason)
+    {
+        // An assigned locomotive without live occupancy feedback is worth
+        // investigating; an empty source or already-managed loco is routine.
+        if (reason.StartsWith("source sensor #", StringComparison.Ordinal))
+            _log.LogWarning(
+                "Timetable skipped {Kind} {Name}: block #{BlockId} is not confirmed occupied: {Reason}",
+                kind, name, blockId, reason);
+        else
+            _log.LogDebug(
+                "Timetable skipped {Kind} {Name} at block #{BlockId}: {Reason}",
+                kind, name, blockId, reason);
+    }
+
     void LaunchMovement(
         TimetableEntry entry,
         TimetableAction action,
@@ -670,9 +698,16 @@ public sealed class TimetableRuntime : BackgroundService
         if (sourceBlockId is > 0 &&
             !_movement.HasSourceLocomotive(sourceBlockId.Value))
         {
-            _log.LogDebug(
-                "Timetable skipped Movement {Movement}: source block #{BlockId} has no locomotive",
-                movement.Name, sourceBlockId.Value);
+            LogSourceSkip("Movement", movement.Name, sourceBlockId.Value, "source_block_empty");
+            return;
+        }
+
+        var sourceStatus = sourceBlockId is > 0
+            ? _movement.TimetableSourceStatus(sourceBlockId.Value)
+            : default;
+        if (sourceStatus.Skip)
+        {
+            LogSourceSkip("Movement", movement.Name, sourceBlockId!.Value, sourceStatus.Reason);
             return;
         }
 
@@ -711,21 +746,22 @@ public sealed class TimetableRuntime : BackgroundService
 
         var result =
             _movement.Start(
-                movement.Id);
+                movement.Id,
+                sourceStatus.LocoAddress > 0 ? sourceStatus.LocoAddress : null);
 
         if (!result.Ok)
         {
             // Source assignment can change after the preflight but before
             // Start() checks it. Still skip this occurrence rather than
             // retaining an ERROR row for a now-empty block.
-            if (result.Error == "movement_source_loco_missing")
+            if (IsTimetableNotReadyFailure(result.Error))
             {
                 lock (_gate)
                     _activeRuns.Remove(runId);
 
                 _log.LogDebug(
-                    "Timetable skipped Movement {Movement}: source locomotive disappeared before start",
-                    movement.Name);
+                    "Timetable skipped Movement {Movement}: source no longer runnable ({Reason})",
+                    movement.Name, result.Error);
                 Publish();
                 return;
             }
@@ -783,9 +819,14 @@ public sealed class TimetableRuntime : BackgroundService
         // The actual block assignment (not target/predicted) is authoritative.
         if (!_movement.HasSourceLocomotive(route.FromBlockId))
         {
-            _log.LogDebug(
-                "Timetable skipped From-To {Route}: source block #{BlockId} has no locomotive",
-                action.TargetId, route.FromBlockId);
+            LogSourceSkip("From-To", action.TargetId, route.FromBlockId, "source_block_empty");
+            return;
+        }
+
+        var sourceStatus = _movement.TimetableSourceStatus(route.FromBlockId);
+        if (sourceStatus.Skip)
+        {
+            LogSourceSkip("From-To", action.TargetId, route.FromBlockId, sourceStatus.Reason);
             return;
         }
 
@@ -799,8 +840,10 @@ public sealed class TimetableRuntime : BackgroundService
             Id = movementId,
             Name = name,
             Enabled = true,
-            // The Movement runtime resolves the locomotive from the source block.
-            ExpectedLocoAddress = null,
+            // Bind this scheduled occurrence to the verified source loco.
+            // Never silently start a different loco if the assignment changes.
+            ExpectedLocoAddress = sourceStatus.LocoAddress > 0
+                ? sourceStatus.LocoAddress : null,
             Speed = action.Speed,
             RouteRef = route
         };
@@ -817,13 +860,13 @@ public sealed class TimetableRuntime : BackgroundService
         var result = _movement.StartTransient(movement, calibrationBypass: false);
         if (!result.Ok)
         {
-            if (result.Error == "movement_source_loco_missing")
+            if (IsTimetableNotReadyFailure(result.Error))
             {
                 lock (_gate)
                     _activeRuns.Remove(runId);
                 _log.LogDebug(
-                    "Timetable skipped From-To {Route}: source locomotive disappeared before start",
-                    name);
+                    "Timetable skipped From-To {Route}: source no longer runnable ({Reason})",
+                    name, result.Error);
                 Publish();
                 return;
             }
