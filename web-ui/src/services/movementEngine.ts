@@ -68,6 +68,27 @@ const listeners =
 
 const allStateListeners = new Set<() => void>();
 
+export type MovementStartRejection = {
+  movementName: string;
+  message: string;
+};
+
+const movementStartRejectionListeners = new Set<(failure: MovementStartRejection) => void>();
+
+export function subscribeMovementStartRejections(
+  listener: (failure: MovementStartRejection) => void
+): () => void {
+  movementStartRejectionListeners.add(listener);
+  return () => { movementStartRejectionListeners.delete(listener); };
+}
+
+function publishMovementStartRejection(page: MovementPage, message: string): void {
+  for (const listener of movementStartRejectionListeners) {
+    listener({ movementName: page.name, message });
+  }
+}
+
+
 export function getMovementTaskStates(): Array<{ pageId: string; state: MovementEngineState }> {
   installTracking();
   return Array.from(states, ([pageId, state]) => ({ pageId, state: copyState(state) }));
@@ -452,10 +473,9 @@ export async function startMovement(
   if (
     !response.ok
   ) {
-    throw new Error(
-      response.message ||
-      "Movement could not be started."
-    );
+    const message = response.message || "Movement could not be started.";
+    publishMovementStartRejection(page, message);
+    throw new Error(message);
   }
 
   if (
@@ -484,7 +504,11 @@ export async function startTransientMovement(page: MovementPage): Promise<void> 
     data => data.requestId === id,
     10000
   );
-  if (!response.ok) throw new Error(response.message || "Quick route could not be started.");
+  if (!response.ok) {
+    const message = response.message || "Quick route could not be started.";
+    publishMovementStartRejection(page, message);
+    throw new Error(message);
+  }
   if (response.extra?.state) applyBackendState(response.extra.state as BackendMovementState);
 }
 
