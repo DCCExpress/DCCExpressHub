@@ -283,7 +283,10 @@ public sealed class TimetableRuntime : BackgroundService
     sealed record TimetableAction(
         string Id,
         string TargetType,
-        string TargetId);
+        string TargetId,
+        MovementRouteRefModel? RouteRef = null,
+        int LocoAddress = 0,
+        int Speed = 20);
 
     sealed record TimetableEntry(
         string Id,
@@ -441,13 +444,25 @@ public sealed class TimetableRuntime : BackgroundService
                                 ? targetElement.GetString() ?? ""
                                 : "";
 
+                        MovementRouteRefModel? routeRef = null;
+                        if (targetType == "fromto" &&
+                            action.TryGetProperty("routeRef", out var routeElement) &&
+                            routeElement.ValueKind == JsonValueKind.Object)
+                        {
+                            try
+                            {
+                                routeRef = JsonSerializer.Deserialize<MovementRouteRefModel>(
+                                    routeElement.GetRawText(), _json);
+                            }
+                            catch (JsonException) { }
+                        }
+                        var locoAddress = action.TryGetProperty("locoAddress", out var locoElement) &&
+                            locoElement.TryGetInt32(out var loco) ? loco : 0;
+                        var speed = action.TryGetProperty("speed", out var speedElement) &&
+                            speedElement.TryGetInt32(out var configuredSpeed) ? configuredSpeed : 20;
                         if (actionId.Length > 0 &&
-                            targetId.Length > 0)
-                            actions.Add(
-                                new(
-                                    actionId,
-                                    targetType,
-                                    targetId));
+                            (targetId.Length > 0 || targetType == "fromto"))
+                            actions.Add(new(actionId, targetType, targetId, routeRef, locoAddress, speed));
                     }
                 }
 
@@ -570,6 +585,11 @@ public sealed class TimetableRuntime : BackgroundService
 
             foreach (var action in entry.Actions)
             {
+                if (action.TargetType == "fromto")
+                {
+                    LaunchFromTo(entry, action, hour, minute, minuteOfDay);
+                    continue;
+                }
                 if (string.Equals(
                         action.TargetType,
                         "movement",
@@ -711,6 +731,64 @@ public sealed class TimetableRuntime : BackgroundService
         Publish();
     }
 
+    void LaunchFromTo(
+        TimetableEntry entry,
+        TimetableAction action,
+        int hour,
+        int minute,
+        int minuteOfDay)
+    {
+        var route = action.RouteRef;
+        if (route is null || route.FromBlockId <= 0 || route.ToBlockId <= 0 ||
+            route.Direction is not ("forward" or "reverse") ||
+            action.LocoAddress is < 1 or > 10239 ||
+            action.Speed is < 1 or > 126)
+        {
+            _log.LogWarning("Timetable From-To action {ActionId} has an invalid route/loco/speed",
+                action.Id);
+            return;
+        }
+
+        var runId = NewRunId();
+        var movementId = "timetable-fromto-" + runId;
+        var name = string.IsNullOrWhiteSpace(action.TargetId)
+            ? $"#{action.LocoAddress} · {route.FromBlockId} → {route.ToBlockId}"
+            : action.TargetId;
+        var movement = new MovementPageModel
+        {
+            Id = movementId,
+            Name = name,
+            Enabled = true,
+            ExpectedLocoAddress = action.LocoAddress,
+            Speed = action.Speed,
+            RouteRef = route
+        };
+        var active = new TimetableActiveRunState(
+            runId, entry.Id, action.Id, "fromto", movementId, name,
+            null, FormatTime(hour, minute), minuteOfDay, "launching", null);
+        lock (_gate)
+        {
+            _activeRuns[runId] = active;
+            _lastTriggeredAt = active.ScheduledTime;
+            _lastTriggeredTargetName = name;
+        }
+        Publish();
+        var result = _movement.StartTransient(movement, calibrationBypass: false);
+        if (!result.Ok)
+        {
+            lock (_gate) _activeRuns.Remove(runId);
+            _log.LogWarning("Timetable From-To {Route} not started: {Error}",
+                name, result.Error);
+            Publish();
+            return;
+        }
+        lock (_gate)
+            if (_activeRuns.ContainsKey(runId))
+                _activeRuns[runId] = active with { Status = "running",
+                    Message = _movement.GetState(movementId).Info };
+        Publish();
+    }
+
     void LaunchScript(
         TimetableEntry entry,
         TimetableAction action,
@@ -815,8 +893,7 @@ public sealed class TimetableRuntime : BackgroundService
             var pair =
                 _activeRuns
                     .FirstOrDefault(item =>
-                        item.Value.TargetType ==
-                            "movement" &&
+                        (item.Value.TargetType == "movement" || item.Value.TargetType == "fromto") &&
                         item.Value.TargetId ==
                             state.PageId);
 
