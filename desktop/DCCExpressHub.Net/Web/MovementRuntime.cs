@@ -3680,8 +3680,12 @@ public sealed class MovementRuntime
     }
 
     public (bool Ok, string? Error) Start(
+        string pageId) =>
+        Start(pageId, null);
+
+    public (bool Ok, string? Error) Start(
         string pageId,
-        int? expectedSourceLocoAddress = null)
+        int? expectedSourceLocoAddress)
     {
         var page =
             LoadSavedMovementPage(
