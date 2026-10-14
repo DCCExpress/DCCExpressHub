@@ -29,7 +29,7 @@ export default function EditorShortcutsHelp() {
           <IconHelpCircle size={16} />
           <Text fw={600} size="sm">{t("ui.editorShortcutsTitle")}</Text>
         </Group>
-        <SimpleGrid cols={2} spacing={6} verticalSpacing={7}>
+        <SimpleGrid cols={1} spacing={6} verticalSpacing={7}>
           {shortcuts.map(item => (
             <Group key={item.keys} wrap="nowrap" gap={6} align="center">
               <Kbd size="xs" style={{ flexShrink: 0 }}>{item.keys}</Kbd>
