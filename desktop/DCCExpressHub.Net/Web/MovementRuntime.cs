@@ -3737,6 +3737,43 @@ public sealed class MovementRuntime
                 blockWithoutSensor.Name +
                 " has no occupancy sensor configured.");
 
+        // Fail closed before registering an execution: every block on the
+        // resolved route (FROM, VIA and TO) needs a real configured occupancy
+        // input and a fresh, known value from the command center. A stored
+        // block.sensorAddress alone does not prove the sensor exists.
+        foreach (var routeBlock in plan.Blocks.Where(block => block.BlockId.HasValue))
+        {
+            var blockId = routeBlock.BlockId!.Value;
+            var liveBlock = Block(blockId);
+            var blockName = liveBlock is null
+                ? routeBlock.Name
+                : BlockLabel(liveBlock);
+            var sensorAddress = liveBlock?.SensorAddress ?? (ushort)0;
+
+            if (liveBlock is null)
+                return (false,
+                    $"Movement cannot start: block {blockName} (#{blockId}) " +
+                    "does not exist in the current layout.");
+
+            if (sensorAddress == 0 || routeBlock.SensorAddress != sensorAddress)
+                return (false,
+                    $"Movement cannot start: block {blockName} has no valid " +
+                    "occupancy sensor or the saved route sensor binding is outdated. " +
+                    "Regenerate the route graph and verify the block sensor configuration.");
+
+            if (_layout.FindSensor(sensorAddress) is null)
+                return (false,
+                    $"Movement cannot start: block {blockName}, sensor #{sensorAddress} " +
+                    "is not registered among the layout sensors. Configure a track " +
+                    "occupancy sensor with this address before starting.");
+
+            if (!_layout.TryGetSensorState(sensorAddress, out _))
+                return (false,
+                    $"Movement cannot start: block {blockName}, sensor #{sensorAddress} " +
+                    "is UNKNOWN (no current feedback). Check the sensor connection " +
+                    "and wait for a fresh sensor report after Power ON.");
+        }
+
         var sourceBlock =
             Block(source.BlockId.Value);
 
