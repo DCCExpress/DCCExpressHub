@@ -405,7 +405,8 @@ export type MovementResponsePayload = WsCommandResponseMeta & {
 export type TimetableRunStatusPayload =
   | "launching"
   | "running"
-  | "paused";
+  | "paused"
+  | "error";
 
 export type TimetableActiveRunPayload = {
   id: string;
@@ -413,7 +414,8 @@ export type TimetableActiveRunPayload = {
   timetableActionId: string;
   targetType:
     | "script"
-    | "movement";
+    | "movement"
+    | "fromto";
   targetId: string;
   targetName: string;
   executionId: string | null;
