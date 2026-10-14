@@ -29,3 +29,11 @@ test("route icon requires the card locomotive to be the block's actual loco", ()
   assert.match(block, /selectedBlock\.locoAddress !== loco\.address\) return/);
   assert.doesNotMatch(block, /canDriveToBlock=\{loco =>[\s\S]*?getBlockTargetLocoAddress/);
 });
+
+test("runtime canvas checks block overlay before the underlying track element", () => {
+  const canvas = read("components/TrackCanvas.tsx");
+  assert.match(canvas, /const runtimeBlock = !editModeRef\.current/);
+  assert.match(canvas, /currentLayout\.blocks\.elements\.find/);
+  assert.match(canvas, /element\.visible && element\.hitTest\(grid\.x, grid\.y\)/);
+  assert.match(canvas, /runtimeBlock \?\? currentLayout\.getElement\(grid\.x, grid\.y\)/);
+});
