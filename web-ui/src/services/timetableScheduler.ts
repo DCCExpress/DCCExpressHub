@@ -8,6 +8,8 @@ import type {
   MovementPage,
 } from "@/domain/movement";
 
+import type { TimetableRunStatusPayload } from "@/domain/wsTypes";
+
 import {
   wsApi,
 } from "@/services/wsApi";
@@ -16,10 +18,7 @@ import {
   wsClient,
 } from "@/services/wsClient";
 
-export type TimetableRunStatus =
-  | "launching"
-  | "running"
-  | "paused";
+export type TimetableRunStatus = TimetableRunStatusPayload;
 
 export type TimetableActiveRun = {
   id: string;
