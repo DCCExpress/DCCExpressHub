@@ -17,11 +17,11 @@ public sealed class WsRuntimeCoordinator : BackgroundService
     readonly Queue<int> _locoSync=new();
     readonly Queue<(int Address,int Function)> _startupFunctions=new();
     bool _startupFunctionsApplied;
-    // Power ON may also boot the LocoNet feedback modules; delay probing until
-    // they have had time to initialise. The normal coordinator loop owns TX.
-    readonly object _loconetResyncGate = new();
-    DateTimeOffset? _loconetResyncDue;
-    bool? _loconetPowerOn;
+    // Power ON may boot feedback modules on any command center. Delay the
+    // driver-specific sensor interrogation; the coordinator owns the schedule.
+    readonly object _powerResyncGate = new();
+    DateTimeOffset? _powerResyncDue;
+    bool? _powerOn;
 
 
     public WsRuntimeCoordinator(
@@ -56,12 +56,12 @@ public sealed class WsRuntimeCoordinator : BackgroundService
     {
         _connected=connected;
         _connectionChanged=true;
-        if (!connected && _cc.Type == "loconet")
+        if (!connected)
         {
-            lock (_loconetResyncGate)
+            lock (_powerResyncGate)
             {
-                _loconetPowerOn = null;
-                _loconetResyncDue = null;
+                _powerOn = null;
+                _powerResyncDue = null;
             }
         }
 
@@ -78,23 +78,24 @@ public sealed class WsRuntimeCoordinator : BackgroundService
 
     void OnPowerFeedbackChanged(PowerFeedback feedback)
     {
-        if (_cc.Type != "loconet" || !string.Equals(feedback.Target, "Main", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(feedback.Target, "Main", StringComparison.OrdinalIgnoreCase))
             return;
 
         // Do not lose an already arriving sensor report to a delayed reset:
         // mark everything UNKNOWN immediately, before requesting a fresh scan.
-        lock (_loconetResyncGate)
+        lock (_powerResyncGate)
         {
-            if (_loconetPowerOn == feedback.On)
+            if (_powerOn == feedback.On)
                 return; // Duplicate broadcast must not repeatedly discard valid states.
-            _loconetPowerOn = feedback.On;
-            _loconetResyncDue = feedback.On
+            _powerOn = feedback.On;
+            _powerResyncDue = feedback.On
                 ? DateTimeOffset.UtcNow.AddMilliseconds(1500)
                 : null;
         }
         _runtime.InvalidateSensorStates();
         _externalDevices.ReplayLiveSensorStates();
-        _log.LogInformation("LocoNet track power {Power}: sensor states UNKNOWN; {Action}",
+        _log.LogInformation("{CommandCenter} track power {Power}: sensor states UNKNOWN; {Action}",
+            _cc.Name,
             feedback.On ? "ON" : "OFF",
             feedback.On ? "sensor interrogation scheduled" : "waiting for power ON");
     }
@@ -160,23 +161,24 @@ public sealed class WsRuntimeCoordinator : BackgroundService
             }
 
             var now=DateTimeOffset.UtcNow;
-            bool requestLocoNetSensors = false;
-            if (_cc.Connected && _cc.Type == "loconet")
+            bool requestPowerOnSensors = false;
+            if (_cc.Connected)
             {
-                lock (_loconetResyncGate)
+                lock (_powerResyncGate)
                 {
-                    if (_loconetResyncDue.HasValue && now >= _loconetResyncDue.Value)
+                    if (_powerResyncDue.HasValue && now >= _powerResyncDue.Value)
                     {
-                        _loconetResyncDue = null;
-                        requestLocoNetSensors = true;
+                        _powerResyncDue = null;
+                        requestPowerOnSensors = true;
                     }
                 }
             }
-            if (requestLocoNetSensors)
+            if (requestPowerOnSensors)
             {
                 var requested = await _cc.RequestSensorSnapshotAsync(ct);
                 _log.LogInformation(
-                    "LocoNet power ON sensor interrogation {Result}; missing feedback remains UNKNOWN",
+                    "{CommandCenter} power ON sensor interrogation {Result}; missing feedback remains UNKNOWN",
+                    _cc.Name,
                     requested ? "sent" : "not sent");
             }
 
