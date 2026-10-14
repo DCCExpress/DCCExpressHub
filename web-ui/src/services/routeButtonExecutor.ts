@@ -89,7 +89,8 @@ export async function executeLegacyRouteButton({
   routeExecutionInProgress = true;
   try {
     setBusy?.(true, busyText);
-    const timing = await loadTurnoutTiming();
+    const timing = await loadTurnoutTiming().catch(() => null);
+    if (!timing) return false;
     let lastCommandAt = 0;
     const sendTimed = async (send: () => boolean): Promise<boolean> => {
       if (lastCommandAt) {
