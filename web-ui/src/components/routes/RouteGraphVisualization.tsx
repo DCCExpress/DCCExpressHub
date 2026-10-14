@@ -213,33 +213,53 @@ export default function RouteGraphVisualization({ graph, layout }: Props) {
         <svg width={width * scale} height={height * scale} viewBox={`0 0 ${width} ${height}`}
           role="img" aria-label="Directed route graph">
           <defs>
-            <marker id="route-graph-arrow" markerWidth="7" markerHeight="7"
+            <marker id="route-graph-arrow-end" markerWidth="7" markerHeight="7"
               refX="6" refY="3" orient="auto" markerUnits="strokeWidth">
               <path d="M0,0 L6,3 L0,6 Z" fill="#64748b" />
             </marker>
+            <marker id="route-graph-arrow-start" markerWidth="7" markerHeight="7"
+              refX="0" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M6,0 L0,3 L6,6 Z" fill="#64748b" />
+            </marker>
           </defs>
-          {graph.edges.map((edge, index) => {
-            const a = positions.get(edge.from.name);
-            const b = positions.get(edge.to.name);
-            if (!a || !b) return null;
-            const dx = b.x - a.x, dy = b.y - a.y;
-            const distance = Math.hypot(dx, dy) || 1;
-            const nx = -dy / distance, ny = dx / distance;
-            // Separate opposite directional edges.
-            const shift = 8;
-            const sx = a.x + nx * shift + dx / distance * 29;
-            const sy = a.y + ny * shift + dy / distance * 29;
-            const tx = b.x + nx * shift - dx / distance * 32;
-            const ty = b.y + ny * shift - dy / distance * 32;
-            const color = edge.locoDirection === "unknown" ? "#d97706"
-              : edge.locoDirection === "reverse" ? "#a855f7" : "#2563eb";
-            return <g key={index}>
-              <line x1={sx} y1={sy} x2={tx} y2={ty} stroke={color}
-                strokeWidth="2.2" markerEnd="url(#route-graph-arrow)" />
-              <title>{edge.from.name} → {edge.to.name} · {edge.locoDirection}
-                {edge.turnoutStates.length ? ` · Turnouts: ${edge.turnoutStates.map(t => `${t.address}:${t.closed ? "C" : "T"}`).join(", ")}` : ""}</title>
-            </g>;
-          })}
+          {(() => {
+            const connections = new Map<string, {
+              first: string; second: string; forward: boolean; backward: boolean;
+              labels: string[];
+            }>();
+            for (const edge of graph.edges) {
+              const from = edge.from.name, to = edge.to.name;
+              if (from === to) continue;
+              const [first, second] = [from, to].sort();
+              const key = JSON.stringify([first, second]);
+              let connection = connections.get(key);
+              if (!connection) {
+                connection = { first, second, forward: false, backward: false, labels: [] };
+                connections.set(key, connection);
+              }
+              if (from === first) connection.forward = true;
+              else connection.backward = true;
+              connection.labels.push(`${from} → ${to} (${edge.locoDirection})`);
+            }
+            return [...connections.values()].map(connection => {
+              const a = positions.get(connection.first);
+              const b = positions.get(connection.second);
+              if (!a || !b) return null;
+              const dx = b.x - a.x, dy = b.y - a.y;
+              const distance = Math.max(1, Math.hypot(dx, dy));
+              const sx = a.x + dx / distance * 34;
+              const sy = a.y + dy / distance * 20;
+              const tx = b.x - dx / distance * 34;
+              const ty = b.y - dy / distance * 20;
+              return <g key={JSON.stringify([connection.first, connection.second])}>
+                <line x1={sx} y1={sy} x2={tx} y2={ty}
+                  stroke="#64748b" strokeWidth="2.2"
+                  markerStart={connection.backward ? "url(#route-graph-arrow-start)" : undefined}
+                  markerEnd={connection.forward ? "url(#route-graph-arrow-end)" : undefined} />
+                <title>{connection.labels.join(" | ")}</title>
+              </g>;
+            });
+          })()}
           {graph.nodes.map(node => {
             const p = positions.get(node.name)!;
             const active = selected === node.name;
