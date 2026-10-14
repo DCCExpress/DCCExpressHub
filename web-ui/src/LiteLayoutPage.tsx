@@ -62,6 +62,7 @@ import LayoutRuntimeLogPanel from "@/components/LayoutRuntimeLogPanel";
 import SystemInfoPanel from "@/components/SystemInfoPanel";
 import SafetyEmergencyStopDialog from "@/components/SafetyEmergencyStopDialog";
 import VisibilitySettings from "@/components/VisibilitySettings";
+import EditorShortcutsHelp from "@/layout/property-panel/EditorShortcutsHelp";
 import { useCommandCenter } from "@/context/CommandCenterContext";
 import { useLayoutPageShortcuts } from "@/hooks/layout/useLayoutPageShortcuts";
 import BasicPropertyEditor from "@/layout/property-panel/BasicPropertyEditor";
@@ -783,7 +784,14 @@ function LitePropertyPanel({
       );
     }
 
-    return <VisibilitySettings title={i18next.t("ui.layoutVisibility")} />;
+    return (
+      <ScrollArea h="100%">
+        <Stack gap="xs">
+          <VisibilitySettings title={i18next.t("ui.layoutVisibility")} />
+          <EditorShortcutsHelp />
+        </Stack>
+      </ScrollArea>
+    );
   }
 
   const onChange = (property: IEditableProperty, value: unknown) => {
