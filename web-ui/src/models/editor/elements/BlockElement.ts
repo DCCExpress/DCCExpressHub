@@ -504,7 +504,16 @@ export class BlockElement extends TrackElement {
         });
       }
     }
-    this.drawSelection(ctx);
+    // The block already has the viewport and rotation transforms applied.
+    // BaseElement.drawSelection() calls beginDraw() AGAIN, which applies the
+    // viewport transform twice and shifts/scales the selection outline away
+    // from the artwork. Paint it in the same coordinates as the block.
+    if (this.selected) {
+      ctx.beginPath();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = "red";
+      ctx.strokeRect(this.posLeft, this.posTop, this.width, this.height);
+    }
     this.endDraw(ctx);
   }
   private drawForwardDirectionTriangle(
