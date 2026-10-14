@@ -1532,6 +1532,10 @@ test("Movement waiting indicator survives stopped-speed polling loops", () => {
 
   assert.match(backend, /execution\.Moving = false;[\s\S]*await ApplySpeed/);
   assert.match(backend, /Waiting for block/);
+  assert.match(backend, /execution\.Plan\.Blocks\.FirstOrDefault\(block =>/);
+  assert.match(backend, /block\.BlockId == result\.BlockingBlock\.Value/);
+  assert.match(backend, /BlockLabel\(blockingBlock\)/);
+  assert.doesNotMatch(backend, /"Waiting for block " \+ result\.BlockingBlock\.Value/);
   assert.match(backend, /Waiting for route authority/);
   assert.match(backend, /Waiting for safety sensor/);
 });
