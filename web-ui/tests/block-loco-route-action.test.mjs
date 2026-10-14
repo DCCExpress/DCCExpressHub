@@ -20,3 +20,12 @@ test("block click keeps assignment picker and reuses existing Drive to Block dia
   assert.match(picker, /<LocoTargetBlockDialog/);
   assert.match(picker, /loco=\{driveLoco\}/);
 });
+
+test("route icon requires the card locomotive to be the block's actual loco", () => {
+  const picker = read("components/loco/LocoPicker.tsx");
+  const block = read("components/track-canvas/TrackCanvasBlockLocoPicker.tsx");
+  assert.match(picker, /disabled=\{canDriveToBlock \? !canDriveToBlock\(loco\) : false\}/);
+  assert.match(block, /selectedBlock\?\.locoAddress === loco\.address/);
+  assert.match(block, /selectedBlock\.locoAddress !== loco\.address\) return/);
+  assert.doesNotMatch(block, /canDriveToBlock=\{loco =>[\s\S]*?getBlockTargetLocoAddress/);
+});
