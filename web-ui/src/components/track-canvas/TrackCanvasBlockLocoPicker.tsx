@@ -1,6 +1,7 @@
 import { showNotification } from "@mantine/notifications";
 import i18next from "i18next";
 import { useTranslation } from "react-i18next";
+import { useState } from "react";
 
 import type { Loco } from "@domain/types";
 import type { BlockElement } from "../../models/editor/elements/BlockElement";
@@ -10,6 +11,7 @@ import {
 } from "../../services/blockTargetLocoRuntime";
 import { wsApi } from "../../services/wsApi";
 import LocoPicker from "../loco/LocoPicker";
+import LocoTargetBlockDialog from "../../layout/loco-panel/LocoTargetBlockDialog";
 
 export type TrackCanvasBlockLocoPickerProps = {
   opened: boolean;
@@ -35,6 +37,7 @@ export function TrackCanvasBlockLocoPicker({
   onClose,
 }: TrackCanvasBlockLocoPickerProps) {
   useTranslation();
+  const [driveLoco, setDriveLoco] = useState<Loco | null>(null);
 
   /*
    * Actual and target locomotive state are separate.
@@ -84,8 +87,9 @@ export function TrackCanvasBlockLocoPicker({
     );
 
   return (
+    <>
     <LocoPicker
-      opened={opened}
+      opened={opened && driveLoco === null}
       locos={locos}
       selectedLocoId={selectedLocoId}
       removeEnabled={canRemoveLoco}
@@ -104,6 +108,7 @@ export function TrackCanvasBlockLocoPicker({
             )
       }
       onClose={onClose}
+      onDriveToBlock={setDriveLoco}
       onSelect={loco => {
         if (!selectedBlock) {
           return;
@@ -202,5 +207,13 @@ export function TrackCanvasBlockLocoPicker({
         onClose();
       }}
     />
+    {driveLoco && (
+      <LocoTargetBlockDialog
+        loco={driveLoco}
+        opened={opened}
+        onClose={() => setDriveLoco(null)}
+      />
+    )}
+    </>
   );
 }
