@@ -1665,10 +1665,6 @@ export default function RoutesDialog({
                       </Table.Th>
 
                       <Table.Th>
-                        {t("ui.network")}
-                      </Table.Th>
-
-                      <Table.Th>
                         {t("ui.trackElements")}
                       </Table.Th>
 
@@ -1691,10 +1687,6 @@ export default function RoutesDialog({
                       <Table.Tr key={node.name}>
                         <Table.Td>
                           {node.name}
-                        </Table.Td>
-
-                        <Table.Td>
-                          {node.trackName || "—"}
                         </Table.Td>
 
                         <Table.Td>
