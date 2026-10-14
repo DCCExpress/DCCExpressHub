@@ -1,6 +1,7 @@
 
 import { ELEMENT_TYPES } from "@domain/layout/elementTypes";
 import { getBridgePlacement } from "./bridgePlacement";
+import { getTrackCanvasHitElement } from "./trackCanvasRuntimeHitTest";
 import type {
   Dispatch,
   SetStateAction,
@@ -115,7 +116,7 @@ export function handleTrackCanvasMouseMove(
   );
 
   const hoveredElement =
-    currentLayout.getElement(grid.x, grid.y);
+    getTrackCanvasHitElement(currentLayout, grid.x, grid.y, editModeRef.current);
 
   if (toolRef.current.mode === "draw" && currentCursorRef.current) {
     const cursorAnchor = getCenteredElementGridAnchor(
