@@ -910,7 +910,7 @@ export default function TimetableDialog({
                   highlightOnHover
                   withTableBorder
                   withColumnBorders
-                  miw={1040}
+                  miw={1280}
                   w="100%"
                   verticalSpacing="xs"
                   style={{
@@ -951,7 +951,7 @@ export default function TimetableDialog({
                       </Table.Th>
 
                       <Table.Th
-                        w={550}
+                        w={790}
                       >
                         {
                           t(
