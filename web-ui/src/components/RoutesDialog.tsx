@@ -1055,7 +1055,7 @@ export default function RoutesDialog({
 
         {!error && result && (
           <Tabs
-            defaultValue={onSelectRoute ? "routes" : "stationRoutes"}
+            defaultValue={onSelectRoute ? "selectRoute" : "stationRoutes"}
             keepMounted={false}
             style={{
               flex: 1,
@@ -1066,9 +1066,9 @@ export default function RoutesDialog({
           >
             <Tabs.List>
               {!onSelectRoute && <Tabs.Tab value="stationRoutes">Station Routes</Tabs.Tab>}
-              {!onSelectRoute && <Tabs.Tab value="selectRoute">
+              <Tabs.Tab value="selectRoute">
                 {t("ui.movementSelectRouteTitle")}
-              </Tabs.Tab>}
+              </Tabs.Tab>
 
               <Tabs.Tab value="routes">
                 {t("ui.routeNetwork")}
@@ -1435,7 +1435,7 @@ export default function RoutesDialog({
                                       fullWidth
                                       color="teal"
                                       disabled={
-                                        candidate.used ||
+                                        (!onSelectRoute && candidate.used) ||
                                         candidate.locoDirection ===
                                           "unknown" ||
                                         assigningRoute
@@ -1449,12 +1449,14 @@ export default function RoutesDialog({
                                       loading={
                                         assigningRoute
                                       }
-                                      onClick={
-                                        () =>
-                                          void assignCandidateToMovement(
-                                            candidate
-                                          )
-                                      }
+                                      onClick={() => {
+                                        if (onSelectRoute) {
+                                          const page = previewCandidate(candidate);
+                                          if (page.routeRef) onSelectRoute(page);
+                                        } else {
+                                          void assignCandidateToMovement(candidate);
+                                        }
+                                      }}
                                     >
                                       {t("ui.select")}
                                     </Button>
@@ -1728,15 +1730,13 @@ export default function RoutesDialog({
                       <Table.Th>
                         {t("ui.direction")}
                       </Table.Th>
-
-                      {onSelectRoute && <Table.Th w={90}>Select</Table.Th>}
                       <Table.Th
                         style={{ width: 110 }}
                       >
                         {t("ui.preview")}
                       </Table.Th>
 
-                      {!onSelectRoute && <Table.Th w={100}>{t("ui.test")}</Table.Th>}
+                      <Table.Th w={100}>{t("ui.test")}</Table.Th>
                     </Table.Tr>
                   </Table.Thead>
 
@@ -1773,18 +1773,6 @@ export default function RoutesDialog({
                                 ? t("ui.reverse")
                                 : t("ui.unknown")}
                           </Table.Td>
-
-                          {onSelectRoute && <Table.Td>
-                            <Button size="xs" disabled={route.solution.locoDirection === "unknown"}
-                              onClick={() => {
-                                const selected = previewMovementPage(route);
-                                selected.name = route.solution.path
-                                  .filter(item => item.type === "block")
-                                  .map(item => item.type === "block" ? item.block.name : "")
-                                  .join(" → ");
-                                if (selected.routeRef) onSelectRoute(selected);
-                              }}>Select</Button>
-                          </Table.Td>}
                           <Table.Td>
                             <Button
                               size="xs"
@@ -1804,7 +1792,7 @@ export default function RoutesDialog({
                             </Button>
                           </Table.Td>
 
-                          {!onSelectRoute && <>                          <Table.Td>
+                                                    <Table.Td>
                             <Button
                               size="xs"
                               variant="light"
@@ -1829,7 +1817,7 @@ export default function RoutesDialog({
                             >
                               {t("ui.test")}
                             </Button>
-                          </Table.Td></>}
+                          </Table.Td>
                         </Table.Tr>
                       )
                     )}
