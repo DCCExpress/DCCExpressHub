@@ -8,6 +8,7 @@ import AppModal from "@/components/common/AppModal";
 import type { LayoutView } from "@/models/editor/core/LayoutView";
 import { inspectProjectIntegrity,type IntegrityReport } from "@/services/layoutIntegrity";
 import type { Loco } from "@domain/types";
+import { wsClient } from "@/services/wsClient";
 
 type Props={opened:boolean;onClose:()=>void;layout:LayoutView;locos:Loco[]};
 
@@ -21,10 +22,10 @@ export default function IntegrityCheckDialog({opened,onClose,layout,locos}:Props
     setLoading(true);setLoadError(null);
     try{
       const signalResult=await loadSignalLogicRulesWs();
-      setReport(inspectProjectIntegrity(layout,locos,signalResult.document,signalResult.issues));
+      setReport(inspectProjectIntegrity(layout,locos,signalResult.document,signalResult.issues,wsClient.getSensorStatesSnapshot()));
     }catch(error){
       setLoadError(error instanceof Error?error.message:String(error));
-      setReport(inspectProjectIntegrity(layout,locos,null));
+      setReport(inspectProjectIntegrity(layout,locos,null,[],wsClient.getSensorStatesSnapshot()));
     }finally{setLoading(false);}
   },[layout,locos]);
 
@@ -49,6 +50,7 @@ export default function IntegrityCheckDialog({opened,onClose,layout,locos}:Props
           :warnings>0?i18next.t("ui.noBrokenReferencesWarningSFound",{value1:warnings})
           :i18next.t("ui.integrityCheckPassedEveryCheckedReferenceIsValid")}
       </Alert>}
+      {report && <Text size="xs" c="dimmed">Sensor status is live feedback: ON and OFF are known; UNKNOWN means no valid current state. Use Check Again after Power ON, reconnect or receiving a new sensor snapshot.</Text>}
       {/* <Alert color="blue" variant="light">
         Signal Logic cleanup is non-destructive: a missing/recreated layout ID is not a reason to delete physical signal, turnout or sensor automation.
       </Alert> */}
