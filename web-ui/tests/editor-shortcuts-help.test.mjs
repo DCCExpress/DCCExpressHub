@@ -6,7 +6,6 @@ const read = relativePath => readFileSync(new URL("../" + relativePath, import.m
 
 test("empty property panel shows shortcut help directly below Layout Visibility", () => {
   const page = read("src/LiteLayoutPage.tsx");
-  const start = page.indexOf('return (\n      <ScrollArea h="100%">');
   assert.match(page, /<VisibilitySettings title=\{i18next\.t\("ui\.layoutVisibility"\)\} \/>/);
   assert.match(page, /<VisibilitySettings[^>]*\/>\s*<EditorShortcutsHelp\s*\/>/);
   assert.match(page, /import EditorShortcutsHelp from/);
