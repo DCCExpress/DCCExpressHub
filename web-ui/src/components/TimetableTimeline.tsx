@@ -63,6 +63,19 @@ export default function TimetableTimeline({ entries, movements, scripts }: Props
           if (script) dots.push({ id: `${entry.id}:${action.id}`, minute: start, name: script.name, kind: "Script" });
           continue;
         }
+        if (action.targetType === "fromto") {
+          if (!action.routeRef || !action.locoAddress) {
+            missing++;
+            continue;
+          }
+          dots.push({
+            id: `${entry.id}:${action.id}`,
+            minute: start,
+            name: action.targetId || "From–To",
+            kind: "From–To"
+          });
+          continue;
+        }
         const movement = byMovement.get(action.targetId);
         if (!movement) continue;
         const blocks = movement.routeRef
