@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { Direction, Loco } from "@domain/types";
 import LocoImage from "../../components/loco/LocoImage";
 import { getBuiltinFunctionIcon } from "../../components/loco/FunctionIconRegistry";
+import { customFunctionIconUrl } from "../../api/functionIconApi";
 import { wsApi } from "../../services/wsApi";
 import { wsClient } from "../../services/wsClient";
 import { getMovementTaskStates, subscribeMovementTaskStates } from "../../services/movementEngine";
@@ -86,12 +87,15 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
                 {[0, 1, 2, 3, 4].map(number => {
                   const fn = loco.functions?.find(item => item.number === number);
                   const Icon = getBuiltinFunctionIcon(fn?.icon ?? "");
+                  const customIcon = customFunctionIconUrl(fn?.icon ?? "");
                   return <Tooltip key={number} label={fn?.name ? `F${number} · ${fn.name}` : `Function F${number}`}>
                     <ActionIcon size="sm" radius="sm" variant={(state.functionsMask & (1 << number)) !== 0 ? "filled" : "light"}
                       color={(state.functionsMask & (1 << number)) !== 0 ? "lime" : "gray"}
                       disabled={locked} aria-label={`Function F${number}`}
                       onClick={event => { event.stopPropagation(); toggleFunction(loco, number); }}>
-                      {Icon ? <Icon size={16} /> : <Text size="10px" fw={700}>F{number}</Text>}
+                      {Icon ? <Icon size={16} /> : customIcon ?
+                        <img src={customIcon} alt="" style={{ width: 16, height: 16, objectFit: "contain" }} /> :
+                        <Text size="10px" fw={700}>F{number}</Text>}
                     </ActionIcon>
                   </Tooltip>;
                 })}
