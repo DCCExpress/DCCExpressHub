@@ -1,6 +1,6 @@
 import type { TrainDriverStatePayload } from "@/domain/wsTypes";
 import { ActionIcon, Badge, Button, Group, Paper, Stack, Text, Tooltip, Divider, SimpleGrid, ScrollArea } from "@mantine/core";
-import { IconAlertTriangle, IconPlayerStop } from "@tabler/icons-react";
+import { IconAlertTriangle, IconPlayerStop, IconPlayerPlay } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import type { MovementDocument } from "../../domain/movement";
 import type { Loco } from "../../domain/domainTypes";
@@ -209,7 +209,7 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
                 <Text size="sm" fw={600} truncate>{title}</Text>
                 <Group gap={6} wrap="wrap">
                   <Badge color={state.status === "stopping" ? "yellow" : "green"} size="xs">{state.status}</Badge>
-                  {driver && <Badge size="xs" variant="light" color="blue">Train Driver · {driver.status}</Badge> }
+                  {driver && <Badge size="xs" variant="light" color={driver.status === "paused" ? "yellow" : "blue"}>Train Driver · {driver.status}</Badge> }
                   <Text size="xs" c="dimmed" style={{ whiteSpace: "nowrap" }}>
                     Speed {state.desiredSpeed}
                     {state.currentBlockId != null && (
@@ -222,9 +222,17 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
                 {route && <Text size="sm" fw={500} lineClamp={2}>{route}</Text>}
               </Stack>
               <Group gap={5} wrap="nowrap">
-                <Tooltip label="Stop movement">
+                {driver?.status === "paused" && (
+                  <Tooltip label="Resume train driver">
+                    <ActionIcon aria-label="Resume train driver" variant="light" color="green"
+                      onClick={() => wsClient.send({ type: "trainDriverCommand", data: {
+                        requestId: `driver-resume-${Date.now()}`, action: "resume", taskId: driver.taskId,
+                      } })}><IconPlayerPlay size={17} /></ActionIcon>
+                  </Tooltip>
+                )}
+                <Tooltip label={driver ? "Pause train driver (speed 0)" : "Stop movement"}>
                   <ActionIcon aria-label="Stop movement" variant="light" color="yellow"
-                    disabled={state.status === "stopping"}
+                    disabled={state.status === "stopping" || driver?.status === "paused"}
                     onClick={() => driver ? wsClient.send({type:"trainDriverCommand", data:{requestId:`driver-stop-${Date.now()}`,action:"stop",taskId:driver.taskId}}) : stopMovement(pageId)}><IconPlayerStop size={17} /></ActionIcon>
                 </Tooltip>
                 <Tooltip label="Abort movement (E-STOP)">
