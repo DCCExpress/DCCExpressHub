@@ -89,7 +89,6 @@ export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
               </Stack>
             ) : <Text size="sm" c="dimmed">Host diagnostics unavailable</Text>}
             </Stack>
-            </Stack>
           </Card>
           <Card withBorder padding={0} style={{ overflow: "hidden" }}>
             <Group gap="xs" px="md" py={10} bg="var(--mantine-color-teal-light)" style={{ borderBottom: "2px solid var(--mantine-color-teal-6)" }}><IconPlugConnected size={17} color="var(--mantine-color-teal-7)" /><Text fw={700} c="var(--mantine-color-teal-light-color)">{info?.type === "loconet" ? "LocoNet " + (info?.transport?.toLowerCase() === "tcp" ? "TCP" : "Serial") : info?.name ?? "Command center"}</Text></Group>
@@ -114,6 +113,7 @@ export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
                 </>
               )}
               {info?.feedbackLinkName && <Text size="sm">Feedback: {info.feedbackLinkName}</Text>}
+            </Stack>
             </Stack>
           </Card>
           <Card withBorder padding={0} style={{ overflow: "hidden" }}>
