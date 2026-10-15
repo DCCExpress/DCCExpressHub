@@ -32,6 +32,7 @@ export const createEmptyLoco = (): Loco => ensureLocoFunctions({
   id: generateId(),
   name: "",
   address: 3,
+  active: true,
   maxSpeed: 100,
   cruisingSpeed: 20,
   invert: false,
