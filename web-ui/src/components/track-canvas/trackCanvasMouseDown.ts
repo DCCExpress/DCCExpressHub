@@ -27,6 +27,8 @@ import {
   type LayoutView,
 } from "../../models/editor/core/LayoutView";
 
+import { EmergencyButtonElement } from "../../models/editor/elements/EmergencyButtonElement";
+
 import {
   AudioButtonElement,
 } from "../../models/editor/elements/AudioButtonElement";
