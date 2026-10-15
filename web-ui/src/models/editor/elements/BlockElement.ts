@@ -282,8 +282,8 @@ export class BlockElement extends TrackElement {
     // This keeps the drawn rectangle identical to getBounds()/hitTest()
     // for 0, 90, 180 and 270 degrees (selection and drag hit the artwork).
     ctx.translate(
-      this.posLeft + this.GridSizeX / 2,
-      this.posTop + this.GridSizeY / 2
+      this.centerX,
+      this.centerY
     );
     ctx.rotate((this.rotation * Math.PI) / 180);
     ctx.translate(-this.centerX, -this.centerY);
