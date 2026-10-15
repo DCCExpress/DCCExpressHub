@@ -75,6 +75,25 @@ export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
             <Text size="sm">Last message type: {traffic.lastMessage}</Text>
           </Card>
         </SimpleGrid>
+        {info?.locoNetStandardTelemetry && (
+          <Card withBorder>
+            <Group justify="space-between" mb="xs">
+              <Text fw={600}>LocoNet {info.transport?.toLowerCase() === "tcp" ? "TCP" : "Serial"} · Live telemetry</Text>
+              <Badge color={info.connected ? "green" : "red"}>{info.connected ? "CONNECTED" : "DISCONNECTED"}</Badge>
+            </Group>
+            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
+              <Text size="sm">Valid RX frames: {info.locoNetStandardTelemetry.rxFrames}</Text>
+              <Text size="sm">TX frames: {info.locoNetStandardTelemetry.txFrames}</Text>
+              <Text size="sm">Sensor reports: {info.locoNetStandardTelemetry.sensorReports}</Text>
+              <Text size="sm">Turnout reports: {info.locoNetStandardTelemetry.turnoutReports}</Text>
+              <Text size="sm">Power reports: {info.locoNetStandardTelemetry.powerReports}</Text>
+              <Text size="sm">Reported track power: {info.locoNetStandardTelemetry.reportedTrackPowerOn === null ? "Unknown" : info.locoNetStandardTelemetry.reportedTrackPowerOn ? "ON" : "OFF"}</Text>
+              <Text size="sm">Last RX: {info.locoNetStandardTelemetry.lastRxAgeMs >= 0 ? info.locoNetStandardTelemetry.lastRxAgeMs + " ms ago" : "No data"}</Text>
+              <Text size="sm">Last power report: {info.locoNetStandardTelemetry.lastPowerReportAgeMs >= 0 ? info.locoNetStandardTelemetry.lastPowerReportAgeMs + " ms ago" : "No data"}</Text>
+            </SimpleGrid>
+            <Text size="xs" c="dimmed" mt="xs">Cumulative, checksum-validated LocoNet frames from the command-center runtime. Refreshed every 5 seconds.</Text>
+          </Card>
+        )}
         {info?.locoNetDiagnostics && (
           <Card withBorder>
             <Group justify="space-between" mb="xs">
