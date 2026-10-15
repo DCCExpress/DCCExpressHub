@@ -93,7 +93,7 @@ export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
             <Badge color={info?.connected ? "green" : "red"}>{info?.connected ? "CONNECTED" : "DISCONNECTED"}</Badge>
             <Stack gap={5} mt="xs">
               <Text size="sm">Protocol: {info?.type ?? "—"} · {info?.transport ?? "—"}</Text>
-              <Text size="sm">Endpoint: {info?.host ? info.host + (info.port ? ":" + info.port : "") : "—"}</Text>
+              <Text size="sm">Endpoint: {info?.host ? info.host + (info.port ? ":" + info.port : "") : info?.serialPort || "—"}</Text>
               {info?.locoNetStandardTelemetry && (
                 <>
                   <Text size="sm">RX / TX: {info.locoNetStandardTelemetry.rxFrames} / {info.locoNetStandardTelemetry.txFrames} frames</Text>
