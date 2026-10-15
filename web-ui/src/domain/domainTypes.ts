@@ -32,6 +32,8 @@ export type LocoFunction = {
   icon: string;
   momentary: boolean;
   showOnLocoCard?: boolean;
+  iconTintMode?: "original" | "tint";
+  iconColor?: string;
   startupActive?: boolean;
   active?: boolean;
 };
