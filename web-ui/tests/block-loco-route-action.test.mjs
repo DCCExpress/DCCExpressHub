@@ -14,7 +14,7 @@ test("locomotive card route action is separate from block assignment", () => {
 
 test("block click keeps assignment picker and reuses existing Drive to Block dialog", () => {
   const picker = read("components/track-canvas/TrackCanvasBlockLocoPicker.tsx");
-  assert.match(picker, /opened=\{opened && driveLoco === null\}/);
+  assert.match(picker, /opened=\{opened && driveLoco === null && !blockSelectionActive\}/);
   assert.match(picker, /onDriveToBlock=\{setDriveLoco\}/);
   assert.match(picker, /wsApi\.setBlock\(/);
   assert.match(picker, /<LocoTargetBlockDialog/);
