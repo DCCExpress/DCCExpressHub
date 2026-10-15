@@ -10,6 +10,8 @@ import {
   ActionIcon,
   Button,
   Checkbox,
+  ColorInput,
+  Select,
   Group,
   SegmentedControl,
   ScrollArea,
@@ -32,8 +34,8 @@ import type {
 import FunctionBindingsDialog from "./FunctionBindingsDialog";
 import FunctionIconPicker from "./FunctionIconPicker";
 import { useFunctionButtonDisplayMode, setFunctionButtonDisplayMode } from "../../services/functionButtonDisplayMode";
-import { getBuiltinFunctionIcon } from "../loco/FunctionIconRegistry";
-import { customFunctionIconUrl } from "../../api/functionIconApi";
+import FunctionIconAsset from "../loco/FunctionIconAsset";
+
 
 type LocoFunctionsTabProps = {
   functions: LocoFunction[];
@@ -361,16 +363,19 @@ export default function LocoFunctionsTab({
                   <Table.Td>
                     <Group gap={4} wrap="nowrap">
                       {(() => {
-                        const Icon = getBuiltinFunctionIcon(fn.icon);
-                        const image = customFunctionIconUrl(fn.icon);
                         return <ActionIcon size="lg" variant="light" color="gray"
                           title="Select function icon" aria-label="Select function icon"
                           onClick={() => setIconFunctionId(fn.id)}>
-                          {Icon ? <Icon size={22} /> : image ?
-                            <img src={image} alt="" style={{ width: 22, height: 22, objectFit: "contain" }} /> :
-                            <IconDots size={18} />}
+                          {fn.icon ? <FunctionIconAsset fn={fn} size={22} /> : <IconDots size={18} />}
                         </ActionIcon>;
                       })()}
+                      {fn.icon && (fn.icon.startsWith("builtin:") || /\.svg$/i.test(fn.icon)) && <>
+                        <Select size="xs" w={88} value={fn.iconTintMode ?? "original"}
+                          data={[{ value: "original", label: "Original" }, { value: "tint", label: "Tint" }]}
+                          onChange={mode => onUpdateFunction(fn.id, { iconTintMode: mode === "tint" ? "tint" : "original" })}/>
+                        {fn.iconTintMode === "tint" && <ColorInput size="xs" w={90} format="hex" withEyeDropper={false}
+                          value={fn.iconColor ?? "#ffffff"} onChange={color => onUpdateFunction(fn.id, { iconColor: color })}/>}
+                      </>}
                     </Group>
                   </Table.Td>
 
