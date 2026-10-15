@@ -118,7 +118,7 @@ export default function FunctionIconPicker({ opened, value, onClose, onSelect }:
       </ScrollArea>
       <Group gap="sm" align="center" wrap="nowrap">
         <div style={{ width: 44, height: 44, display: "grid", placeItems: "center" }}>
-          {selection ? <FunctionIconAsset fn={{ icon: selection, iconTintMode: mode, iconColor: color }} size={32}/> : <IconPhoto size={24}/>}
+          {selection ? <FunctionIconAsset fn={{ icon: selection, iconTintMode: mode, iconColor: color }} size={32} preview/> : <IconPhoto size={24}/>}
         </div>
         <Text size="xs" c="dimmed" style={{ minWidth: 0, flex: 1 }} truncate>{selection || "No icon selected"}</Text>
         {selection.startsWith("custom:") && <Tooltip label={usedIcons.has(selection) ? "Icon in use: cannot delete" : "Delete icon"}>
