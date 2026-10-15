@@ -1,4 +1,7 @@
 import { Badge, Button, Card, Group, Stack, Text } from "@mantine/core";
+import type { TrainDriverStatePayload } from "@domain/wsTypes";
+import { wsClient } from "../../services/wsClient";
+import { getMovementTaskStates, subscribeMovementTaskStates } from "../../services/movementEngine";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type {
@@ -65,6 +68,41 @@ export default function LocoControlCard({
   // Keep the former dialog implementation available, but enter canvas
   // destination selection when the throttle's Drive to Block is clicked.
   const [targetDialogOpened, setTargetDialogOpened] = useState(false);
+  const [drivers, setDrivers] = useState<TrainDriverStatePayload[]>([]);
+  const [movementTasks, setMovementTasks] = useState(getMovementTaskStates);
+  useEffect(() => subscribeMovementTaskStates(() => setMovementTasks(getMovementTaskStates())), []);
+  useEffect(() => {
+    const messages = wsClient.subscribeMessages(message => {
+      if (message.type === "trainDriverStateChanged") {
+        const driver = message.data as TrainDriverStatePayload;
+        setDrivers(previous => [...previous.filter(item => item.taskId !== driver.taskId), driver]);
+      } else if (message.type === "trainDriverResponse" &&
+                 message.data.action === "snapshot" && message.data.ok &&
+                 Array.isArray(message.data.states)) {
+        setDrivers(message.data.states);
+      }
+    });
+    const connection = wsClient.subscribeStatus(status => {
+      if (status !== "connected") {
+        setDrivers([]);
+        return;
+      }
+      wsClient.send({ type: "trainDriverCommand", data: {
+        requestId: `loco-driver-snapshot-${Date.now()}`, action: "snapshot",
+      } });
+    });
+    return () => { messages(); connection(); };
+  }, []);
+  const driver = drivers.find(item => item.locoAddress === loco.address &&
+    ["created", "running", "waiting", "paused", "stopping"].includes(item.status));
+  const movement = movementTasks.find(item => item.state.locoAddress === loco.address &&
+    ["running", "stopping"].includes(item.state.status));
+  const driverAction = (action: "stop" | "resume" | "abort") => {
+    if (!driver) return;
+    wsClient.send({ type: "trainDriverCommand", data: {
+      requestId: `driver-${action}-${Date.now()}`, action, taskId: driver.taskId,
+    } });
+  };
   const [driveSelection, setDriveSelection] = useState(getDriveToBlockSelectionState);
   useEffect(() => subscribeDriveToBlockSelection(() =>
     setDriveSelection(getDriveToBlockSelectionState())), []);
@@ -435,7 +473,40 @@ export default function LocoControlCard({
           onStop={onStop}
         />
 
-        <Button fullWidth variant="light" color="teal" disabled={controlsDisabled || !driveSelection.available || driveSelection.active} onClick={() => { requestDriveToBlockSelection(loco); }}>Drive to block…</Button>
+        {(driver || movement) && (
+          <Stack gap={2} w="100%">
+            <Group justify="space-between" wrap="nowrap">
+              <Text size="xs" fw={600} truncate>{driver?.name || movement?.state.movementName || "Movement"}</Text>
+              <Badge size="xs" color={driver?.status === "paused" ? "yellow" : "blue"}>
+                {driver?.status || movement?.state.status}
+              </Badge>
+            </Group>
+            <Text size="xs" c="dimmed" lineClamp={1}>
+              {driver?.info || movement?.state.info || "Movement in progress"}
+            </Text>
+          </Stack>
+        )}
+        <Group w="100%" wrap="nowrap" gap="xs" style={{ height: 42 }}>
+          {driver ? (
+            driver.status === "paused" ? (
+              <>
+                <Button h={40} style={{ flex: 1 }} color="green" variant="light" disabled={controlsDisabled} onClick={() => driverAction("resume")}>Resume</Button>
+                <Button h={40} style={{ flex: 1 }} color="red" variant="light" onClick={() => driverAction("abort")}>Abort</Button>
+              </>
+            ) : (
+              <>
+                <Button h={40} style={{ flex: 1 }} color="yellow" variant="light" disabled={controlsDisabled || driver.status === "stopping"} onClick={() => driverAction("stop")}>Stop</Button>
+                <Button h={40} style={{ flex: 1 }} color="red" variant="light" onClick={() => driverAction("abort")}>Abort</Button>
+              </>
+            )
+          ) : (
+            <Button h={40} fullWidth variant="light" color="teal"
+              disabled={controlsDisabled || !!movement || !driveSelection.available || driveSelection.active}
+              onClick={() => { requestDriveToBlockSelection(loco); }}>
+              {movement ? "Movement already running" : "Drive to block…"}
+            </Button>
+          )}
+        </Group>
         <LocoTargetBlockDialog loco={loco} opened={targetDialogOpened} onClose={() => setTargetDialogOpened(false)} />
 
         <LocoEmergencyButton
