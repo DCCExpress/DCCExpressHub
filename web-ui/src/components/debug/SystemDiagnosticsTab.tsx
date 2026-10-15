@@ -67,9 +67,14 @@ export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
             {info?.feedbackLinkName && <Text size="sm">Feedback: {info.feedbackLinkName}{info.feedbackHost ? " · " + info.feedbackHost : ""}</Text>}
           </Card>
           <Card withBorder>
-            <Text fw={600}>WebSocket</Text>
-            <Group gap="xs" mt="xs"><Badge color={status === "connected" ? "green" : status === "connecting" || status === "reconnecting" ? "yellow" : "red"}>{status.toUpperCase()}</Badge></Group>
-            <SemiCircleGauge value={traffic.incoming} max={traffic.peakIncoming} label="Current received" maxLabel="Session peak" unit="msg/s" />
+            <Group align="flex-start" justify="space-between" gap="xs" wrap="nowrap">
+              <Stack gap="xs" style={{ minWidth: 0, flex: 1 }}>
+                <Text fw={600}>WebSocket</Text>
+                <Badge style={{ alignSelf: "flex-start" }} color={status === "connected" ? "green" : status === "connecting" || status === "reconnecting" ? "yellow" : "red"}>{status.toUpperCase()}</Badge>
+                <Text size="sm">Received: {traffic.incoming} msg/s</Text>
+              </Stack>
+              <SemiCircleGauge compact width={80} value={traffic.incoming} max={traffic.peakIncoming} label="Current received" maxLabel="Session peak" unit="msg/s" />
+            </Group>
             <Text size="sm">Sent: {traffic.outgoing} msg/s</Text>
             <Text size="sm">Sensor messages: {traffic.sensor} msg/s</Text>
             <Text size="sm">Peak received (this session): {traffic.peakIncoming} msg/s</Text>
