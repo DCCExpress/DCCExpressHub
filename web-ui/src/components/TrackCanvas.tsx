@@ -17,7 +17,7 @@ import { loadAutomationMovement } from "../services/automationApi";
 import { loadMovementRouteCandidates, applyMovementRouteCandidate, type MovementRouteCandidate } from "../services/movementRouteCatalog";
 import { createMovementPage } from "../domain/movement";
 
-import { registerDriveToBlockCanvas, setDriveToBlockSelectionActive } from "../services/driveToBlockSelection";
+import { activateDriveToBlockLoco, registerDriveToBlockCanvas, setDriveToBlockSelectionActive } from "../services/driveToBlockSelection";
 import { showNotification } from "@mantine/notifications";
 import { getTrackCanvasHitElement } from "./track-canvas/trackCanvasRuntimeHitTest";
 import { RouteButtonElement } from "../models/editor/elements/RouteButtonElement";
@@ -232,6 +232,7 @@ export default function TrackCanvas({
       "trainDriverResponse", response => response.requestId === requestId, 10000
     ).then(response => {
       if (!response.ok) throw new Error(response.error || "Train Driver rejected the task");
+      activateDriveToBlockLoco(state.loco.id);
 
       exitBlockSelection();
     }).catch(error => {
