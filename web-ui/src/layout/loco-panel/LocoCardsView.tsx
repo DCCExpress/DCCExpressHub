@@ -3,6 +3,7 @@ import { IconArrowBigLeft, IconArrowBigRight, IconPlayerStopFilled } from "@tabl
 import { useEffect, useState } from "react";
 import type { Direction, Loco } from "@domain/types";
 import LocoImage from "../../components/loco/LocoImage";
+import { getBuiltinFunctionIcon } from "../../components/loco/FunctionIconRegistry";
 import { wsApi } from "../../services/wsApi";
 import { wsClient } from "../../services/wsClient";
 import { getMovementTaskStates, subscribeMovementTaskStates } from "../../services/movementEngine";
@@ -82,16 +83,18 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
               <Text size="sm" fw={600} truncate>{loco.name || `#${loco.address}`}</Text>
               <Text size="xs" c="dimmed">#{loco.address}</Text>
               <Group gap={3} wrap="nowrap" mt={3} onClick={event => event.stopPropagation()}>
-                {[0, 1, 2, 3, 4].map(number => (
-                  <Tooltip key={number} label={`Function F${number}`}>
+                {[0, 1, 2, 3, 4].map(number => {
+                  const fn = loco.functions?.find(item => item.number === number);
+                  const Icon = getBuiltinFunctionIcon(fn?.icon ?? "");
+                  return <Tooltip key={number} label={fn?.name ? `F${number} · ${fn.name}` : `Function F${number}`}>
                     <ActionIcon size="sm" radius="sm" variant={(state.functionsMask & (1 << number)) !== 0 ? "filled" : "light"}
                       color={(state.functionsMask & (1 << number)) !== 0 ? "lime" : "gray"}
                       disabled={locked} aria-label={`Function F${number}`}
                       onClick={event => { event.stopPropagation(); toggleFunction(loco, number); }}>
-                      <Text size="10px" fw={700}>F{number}</Text>
+                      {Icon ? <Icon size={16} /> : <Text size="10px" fw={700}>F{number}</Text>}
                     </ActionIcon>
-                  </Tooltip>
-                ))}
+                  </Tooltip>;
+                })}
               </Group>
             </Stack>
             <Badge color="dark" variant="filled" radius="sm" size="lg" styles={{ root: { backgroundColor: "#111", minWidth: 40 }, label: { fontVariantNumeric: "tabular-nums" } }}>{state.speed}</Badge>
