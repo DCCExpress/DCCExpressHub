@@ -7,6 +7,9 @@ import type {
   LocoFunction,
 } from "@domain/types";
 import { wsApi } from "../../services/wsApi";
+import { getBuiltinFunctionIcon } from "../../components/loco/FunctionIconRegistry";
+import { customFunctionIconUrl } from "../../api/functionIconApi";
+import { useFunctionButtonDisplayMode } from "../../services/functionButtonDisplayMode";
 
 type LocoFunctionButtonProps = {
   address: number;
@@ -28,6 +31,13 @@ export default function LocoFunctionButton({
   disabled = false,
   onActiveFunctionsChange,
 }: LocoFunctionButtonProps) {
+  const displayMode = useFunctionButtonDisplayMode();
+  const Icon = getBuiltinFunctionIcon(fn?.icon ?? "");
+  const customIcon = customFunctionIconUrl(fn?.icon ?? "");
+  const hasIcon = !!Icon || !!customIcon;
+  const showIcon = displayMode !== "default" && displayMode !== "text" && hasIcon;
+  const showNumber = displayMode === "default" || (displayMode === "icon" && !hasIcon);
+  const showName = displayMode === "text" || displayMode === "icon-text";
   const hasName =
     !!fn?.name?.trim();
 
@@ -139,7 +149,8 @@ export default function LocoFunctionButton({
           lineHeight: 1.15,
         }}
       >
-        <span
+        {showIcon && (Icon ? <Icon size={20} /> : <img src={customIcon!} alt="" width={20} height={20} style={{ objectFit: "contain" }} />)}
+        {showNumber && <span
           style={{
             display: "block",
             width: "100%",
@@ -149,9 +160,9 @@ export default function LocoFunctionButton({
           }}
         >
           F{fnNumber}
-        </span>
+        </span>}
 
-        {hasName && (
+        {showName && (
           <span
             style={{
               display: "block",
@@ -166,7 +177,7 @@ export default function LocoFunctionButton({
               textAlign: "center",
             }}
           >
-            {fn?.name}
+            {hasName ? fn?.name : `F${fnNumber}`}
             {fn?.momentary ? " *" : ""}
           </span>
         )}
