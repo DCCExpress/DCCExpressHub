@@ -933,7 +933,8 @@ export default function LocoPanel({
 
         <div style={{ display: panelView === "cards" ? "block" : "none", height: "100%" }}>
           {panelView === "cards" && <LocoCardsView locos={locos} selectedLocoId={selectedLocoId}
-            onSelect={loco => selectLocoId(loco.id)} disabled={controlsDisabled} />}
+            onSelect={loco => selectLocoId(loco.id)} disabled={controlsDisabled}
+            emergencyStop={powerInfo?.emergencyStop ?? false} onEmergencyToggle={handleEmergencyToggle} />}
         </div>
         <div
           ref={fitContainerRef}
