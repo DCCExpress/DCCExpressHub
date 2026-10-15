@@ -106,6 +106,39 @@ public sealed class TrainDriverRuntime
         return (true, null, state);
     }
 
+    // AUTO Drive to Block: the backend evaluates every candidate against
+    // current sensor feedback before choosing the concrete Movement route.
+    // This avoids binding to the first topology route merely by table order.
+    public (bool Ok, string? Error, DriverState? State) StartAuto(
+        string taskId, MovementPageModel[] candidates)
+    {
+        if (candidates is null || candidates.Length == 0 || candidates.Length > 128)
+            return (false, "invalid_auto_route_candidates", null);
+        var first = candidates[0];
+        if (first.ExpectedLocoAddress is not > 0 || first.RouteRef is null)
+            return (false, "invalid_auto_route_candidates", null);
+        var source = first.RouteRef.FromBlockId;
+        var destination = first.RouteRef.ToBlockId;
+        var address = first.ExpectedLocoAddress.Value;
+        if (source == destination || candidates.Any(page =>
+                page.ExpectedLocoAddress != address || page.RouteRef is null ||
+                page.RouteRef.FromBlockId != source ||
+                page.RouteRef.ToBlockId != destination))
+            return (false, "auto_route_candidates_mismatch", null);
+
+        var viable = candidates
+            .Select(page => (Page: page, Check: _movement.EvaluateAutoRoute(page)))
+            .Where(item => item.Check.Available)
+            .OrderBy(item => item.Check.Cost)
+            .ThenBy(item => item.Page.RouteRef!.Direction, StringComparer.Ordinal)
+            .ToArray();
+        if (viable.Length == 0)
+            return (false, "no_currently_free_auto_route", null);
+        // StartTransient still performs all authoritative Movement validation,
+        // Dispatcher reservations and SwitchMan turnout acquisition.
+        return Start(taskId, viable[0].Page);
+    }
+
     const string PauseOwnerPrefix = "train-driver-pause:";
 
     // Stop is a reversible pause, not MovementRuntime.Stop (which cancels the task).
