@@ -10,6 +10,12 @@ import {
 } from "../models/editor/elements/TrackTurnoutThreeWayElement";
 import { AudioButtonElement } from "../models/editor/elements/AudioButtonElement";
 import { BlockElement } from "../models/editor/elements/BlockElement";
+import { getTrainTrackingState } from "../services/trainTrackingRuntime";
+import { loadAutomationMovement } from "../services/automationApi";
+import { loadMovementRouteCandidates, applyMovementRouteCandidate, type MovementRouteCandidate } from "../services/movementRouteCatalog";
+import { createMovementPage } from "../domain/movement";
+import { startTransientMovement } from "../services/movementEngine";
+import { showNotification } from "@mantine/notifications";
 import { getTrackCanvasHitElement } from "./track-canvas/trackCanvasRuntimeHitTest";
 import { RouteButtonElement } from "../models/editor/elements/RouteButtonElement";
 import { TrackSignalElement } from "../models/editor/elements/TrackSignalElement";
@@ -80,6 +86,7 @@ import {
 
 export default function TrackCanvas({
   editMode = false,
+  onBlockSelectionChange,
   tool,
   onToolChange,
   layout,
@@ -109,6 +116,86 @@ export default function TrackCanvas({
   const [canvasSize, setCanvasSize] = useState<CanvasSize>({ width: 0, height: 0 });
   const [locoPickerOpen, setLocoPickerOpen] = useState(false);
   const [selectedBlock, setSelectedBlock] = useState<BlockElement | null>(null);
+  const [blockSelection, setBlockSelection] = useState<{ loco: Loco; sourceId: number; routes: MovementRouteCandidate[] } | null>(null);
+  const blockSelectionRef = useRef<{ loco: Loco; sourceId: number; routes: MovementRouteCandidate[] } | null>(null);
+  const blockSelectionBusyRef = useRef(false);
+  const onBlockSelectionChangeRef = useRef(onBlockSelectionChange);
+  onBlockSelectionChangeRef.current = onBlockSelectionChange;
+
+  const exitBlockSelection = () => {
+    blockSelectionRef.current = null;
+    setBlockSelection(null);
+    onBlockSelectionChangeRef.current?.(false);
+    canvasRef.current && (canvasRef.current.style.cursor = "default");
+  };
+
+  const startBlockSelection = async (loco: Loco) => {
+    if (editModeRef.current || blockSelectionRef.current) return;
+    const tracking = getTrainTrackingState();
+    const current = tracking.locos.find(item => item.locoAddress === loco.address);
+    const sourceId = current?.currentBlockId;
+    if (!tracking.enabled || !tracking.active || !tracking.ready ||
+        current?.confidence !== "certain" || sourceId == null) {
+      showNotification({ color: "orange", message: "Drive to Block requires a confirmed current locomotive block." });
+      return;
+    }
+    // Lock the editor while the asynchronously loaded destinations are prepared.
+    const state = { loco, sourceId, routes: [] as MovementRouteCandidate[] };
+    blockSelectionRef.current = state;
+    setBlockSelection(state);
+    onBlockSelectionChangeRef.current?.(true);
+    try {
+      const routes = await loadMovementRouteCandidates(await loadAutomationMovement());
+      if (blockSelectionRef.current !== state) return;
+      const next = { ...state, routes: routes.filter(route =>
+        route.fromBlockId === sourceId && route.toBlockId !== sourceId &&
+        route.locoDirection !== "unknown" && route.blockPath.length >= 2) };
+      if (!next.routes.length) {
+        showNotification({ color: "orange", message: "No reachable destination in the route topology." });
+        exitBlockSelection();
+        return;
+      }
+      blockSelectionRef.current = next;
+      setBlockSelection(next);
+    } catch (error) {
+      showNotification({ color: "red", message: error instanceof Error ? error.message : String(error) });
+      exitBlockSelection();
+    }
+  };
+
+  const selectDestination = (hit: BaseElement | null) => {
+    const state = blockSelectionRef.current;
+    if (!state) return false;
+    if (blockSelectionBusyRef.current) return true;
+    if (!(hit instanceof BlockElement) || !state.routes.some(route => route.toBlockId === hit.id)) {
+      exitBlockSelection();
+      return true;
+    }
+    const route = state.routes.find(route => route.toBlockId === hit.id)!;
+    const live = getTrainTrackingState();
+    const current = live.locos.find(item => item.locoAddress === state.loco.address);
+    if (!live.enabled || !live.active || !live.ready || current?.confidence !== "certain" ||
+        current.currentBlockId !== state.sourceId) {
+      showNotification({ color: "orange", message: "Locomotive position changed. Select Drive to Block again." });
+      exitBlockSelection();
+      return true;
+    }
+    blockSelectionBusyRef.current = true;
+    const page = applyMovementRouteCandidate(createMovementPage(), route);
+    page.id = `quick-route-loco-${state.loco.address}`;
+    page.name = `Quick route · #${state.loco.address} · ${route.blockPath.map(block => block.name).join(" → ")}`;
+    page.expectedLocoAddress = state.loco.address;
+    page.speed = Math.min(20, state.loco.maxSpeed > 0 ? state.loco.maxSpeed : 126);
+    void startTransientMovement(page).then(() => {
+      exitBlockSelection();
+    }).catch(error => {
+      showNotification({ color: "red", message: error instanceof Error ? error.message : String(error) });
+      exitBlockSelection();
+    }).finally(() => { blockSelectionBusyRef.current = false; });
+    return true;
+  };
+  const selectDestinationRef = useRef(selectDestination);
+  selectDestinationRef.current = selectDestination;
 
   const [signalAspectPopover, setSignalAspectPopover] =
     useState<SignalAspectPopoverState>({
@@ -712,6 +799,21 @@ export default function TrackCanvas({
       turnoutSelectionMode,
       locos || []
     );
+    if (blockSelection?.routes.length) {
+      ctx.save();
+      ctx.translate(dpr * viewRef.current.offsetX, dpr * viewRef.current.offsetY);
+      ctx.scale(dpr * viewRef.current.scale, dpr * viewRef.current.scale);
+      ctx.strokeStyle = "#ffd43b";
+      ctx.lineWidth = 3 / viewRef.current.scale;
+      for (const block of layout.blocks.elements) {
+        if (!(block instanceof BlockElement) || !block.visible ||
+            !blockSelection.routes.some(route => route.toBlockId === block.id)) continue;
+        const bounds = block.getBounds();
+        ctx.strokeRect(bounds.x * layout.gridSize, bounds.y * layout.gridSize,
+          bounds.width * layout.gridSize, bounds.height * layout.gridSize);
+      }
+      ctx.restore();
+    }
   }, [
     canvasSize,
     editMode,
@@ -724,6 +826,7 @@ export default function TrackCanvas({
     selectedElement,
     settings,
     turnoutSelectionMode,
+    blockSelection,
     locos,
   ]);
 
@@ -784,6 +887,14 @@ export default function TrackCanvas({
         return;
       }
 
+      if (blockSelectionRef.current && ev.button === 0) {
+        const rect = canvas.getBoundingClientRect();
+        const grid = screenToGrid(ev.clientX - rect.left, ev.clientY - rect.top,
+          viewRef.current, layoutRef.current.gridSize);
+        selectDestinationRef.current(getTrackCanvasHitElement(layoutRef.current, grid.x, grid.y, false));
+        ev.preventDefault();
+        return;
+      }
       handleTrackCanvasMouseDown(ev, {
         canvas,
         layoutRef,
@@ -920,6 +1031,10 @@ export default function TrackCanvas({
       const hitElement = getTrackCanvasHitElement(currentLayout, grid.x, grid.y, editModeRef.current);
 
       if (!editModeRef.current) {
+        if (blockSelectionRef.current) {
+          selectDestinationRef.current(hitElement);
+          return;
+        }
         if (hitElement instanceof AudioButtonElement) {
           hitElement.press(() => {
             invalidate();
@@ -1360,6 +1475,11 @@ export default function TrackCanvas({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (blockSelectionRef.current && event.key === "Escape") {
+        exitBlockSelection();
+        event.preventDefault();
+        return;
+      }
       handleTrackCanvasKeyDown(event, {
         canvasRef,
         layoutRef,
@@ -1406,6 +1526,8 @@ export default function TrackCanvas({
         locos={locos}
         selectedBlock={selectedBlock}
         onClose={() => setLocoPickerOpen(false)}
+        onBeginBlockSelection={startBlockSelection}
+        blockSelectionActive={blockSelection !== null}
       />
     </>
   );
