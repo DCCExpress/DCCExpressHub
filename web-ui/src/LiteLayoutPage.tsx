@@ -2022,6 +2022,7 @@ export default function LiteLayoutPage({
           </Group>
 
           <Group gap={6} wrap="nowrap">
+            {blockSelectionActive && <Badge color="yellow" variant="filled" size="md">Select yellow destination · Esc to cancel</Badge>}
             <ActionIcon
               variant={editMode ? "filled" : "light"}
               color="violet"
