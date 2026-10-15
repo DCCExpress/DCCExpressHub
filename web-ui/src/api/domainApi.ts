@@ -5,7 +5,7 @@ export async function getLocos(): Promise<Loco[]> {
   const response = await fetch("/api/locos", { cache: "no-store" });
   if (!response.ok) throw new Error(`Could not load locomotives: HTTP ${response.status}`);
   const locos = await response.json() as Loco[];
-  return locos.map(ensureLocoFunctions);
+  return locos.filter(loco => loco.active !== false).map(ensureLocoFunctions);
 }
 
 export async function saveLocos(locos: Loco[]): Promise<void> {
