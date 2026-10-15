@@ -37,6 +37,9 @@ import { customFunctionIconUrl } from "../../api/functionIconApi";
 
 type LocoFunctionsTabProps = {
   functions: LocoFunction[];
+  /** Legacy callbacks retained for existing dialog callers; fixed slots cannot be added/removed. */
+  onAddFunction?: () => void;
+  onDeleteFunction?: (fnId: string) => void;
   functionBindings: FunctionBinding[];
   onFunctionBindingsChange: (
     bindings: FunctionBinding[]
