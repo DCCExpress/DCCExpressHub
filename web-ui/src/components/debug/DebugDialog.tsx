@@ -10,6 +10,7 @@ import type { CSSProperties } from "react";
 
 import {
   IconBug,
+  IconActivity,
   IconRefresh,
   IconRoute,
   IconSwitch3,
@@ -20,6 +21,7 @@ import {
 import AppModal from "@/components/common/AppModal";
 
 import BasicAccessoryDebugTab from "./BasicAccessoryDebugTab";
+import SystemDiagnosticsTab from "./SystemDiagnosticsTab";
 import ExtendedAccessoryDebugTab from "./ExtendedAccessoryDebugTab";
 import SensorDebugTab from "./SensorDebugTab";
 import TurnoutDebugTab from "./TurnoutDebugTab";
@@ -81,7 +83,7 @@ export default function DebugDialog({ opened, onClose }: Props) {
       </Group>
 
       <Tabs
-        defaultValue="sensors"
+        defaultValue="system"
         keepMounted={false}
         style={{
           flex: 1,
@@ -91,6 +93,7 @@ export default function DebugDialog({ opened, onClose }: Props) {
         }}
       >
         <Tabs.List mb="md" style={{ flexShrink: 0 }}>
+          <Tabs.Tab value="system" leftSection={<IconActivity size={16} />}>System</Tabs.Tab>
           <Tabs.Tab value="sensors" leftSection={<IconRoute size={16} />}>
             Sensors ({runtime.sensors.size})
           </Tabs.Tab>
@@ -107,6 +110,10 @@ export default function DebugDialog({ opened, onClose }: Props) {
             Extended ({runtime.extendedAccessories.size})
           </Tabs.Tab>
         </Tabs.List>
+
+        <Tabs.Panel value="system" style={panelStyle}>
+          <SystemDiagnosticsTab opened={opened} />
+        </Tabs.Panel>
 
         <Tabs.Panel value="sensors" style={panelStyle}>
           <SensorDebugTab
