@@ -21,8 +21,8 @@ test("block drawing and selection have the same bounds at all 4 rotations", () =
     const uncenter = translations[2];
     assert.deepEqual(anchor, [
       "translate",
-      block.posLeft + block.GridSizeX / 2,
-      block.posTop + block.GridSizeY / 2,
+      block.centerX,
+      block.centerY,
     ], `rotation ${rotation}: visual center must be the anchor cell`);
     assert.deepEqual(uncenter, [
       "translate",
@@ -86,7 +86,7 @@ test("selected block uses one viewport transform and an outline aligned to artwo
     calls.filter(([operation]) => operation === "translate"),
     [
       ["translate", 123, -34],
-      ["translate", block.posLeft + block.GridSizeX / 2, block.posTop + block.GridSizeY / 2],
+      ["translate", block.centerX, block.centerY],
       ["translate", -block.centerX, -block.centerY],
     ],
     "Selecting a block must not apply the viewport transform twice",
