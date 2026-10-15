@@ -238,6 +238,7 @@ public sealed class TrainDriverRuntime
                 return;
             var address = movement.LocoAddress.Value;
             DriverState? current = null;
+            var created = false;
             if (_activeByLoco.TryGetValue(address, out var taskId) &&
                 _tasks.TryGetValue(taskId, out var active) &&
                 active.MovementId == movement.PageId)
@@ -255,6 +256,7 @@ public sealed class TrainDriverRuntime
                     DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
                 _tasks[current.TaskId] = current;
                 _activeByLoco[address] = current.TaskId;
+                created = true;
             }
 
             var status = movement.Status switch
@@ -277,7 +279,7 @@ public sealed class TrainDriverRuntime
             {
                 Status = status, Info = movement.Info, Error = movement.Error
             };
-            if (updated == current)
+            if (!created && updated == current)
                 return;
             _tasks[current.TaskId] = updated;
             if (status is "completed" or "aborted" or "stopped" or "error")
