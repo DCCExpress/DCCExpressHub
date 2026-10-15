@@ -433,7 +433,7 @@ export type FlowCommandPayload = {
 
 export type TrainDriverCommandPayload = {
   requestId: string;
-  action: "snapshot" | "start" | "stop" | "abort";
+  action: "snapshot" | "start" | "stop" | "resume" | "abort";
   taskId?: string;
   page?: import("./movement").MovementPage;
 };
