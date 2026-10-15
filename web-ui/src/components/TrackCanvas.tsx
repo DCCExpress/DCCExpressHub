@@ -808,8 +808,10 @@ export default function TrackCanvas({
     );
     if (blockSelection?.routes.length) {
       ctx.save();
-      ctx.translate(dpr * viewRef.current.offsetX, dpr * viewRef.current.offsetY);
-      ctx.scale(dpr * viewRef.current.scale, dpr * viewRef.current.scale);
+      ctx.setTransform(
+        dpr * viewRef.current.scale, 0, 0, dpr * viewRef.current.scale,
+        dpr * viewRef.current.offsetX, dpr * viewRef.current.offsetY
+      );
       ctx.strokeStyle = "#ffd43b";
       ctx.lineWidth = 3 / viewRef.current.scale;
       for (const block of layout.blocks.elements) {
