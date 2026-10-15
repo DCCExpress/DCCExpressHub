@@ -837,7 +837,7 @@ export default function TrackCanvas({
         dpr * viewRef.current.scale, 0, 0, dpr * viewRef.current.scale,
         dpr * viewRef.current.offsetX, dpr * viewRef.current.offsetY
       );
-      ctx.lineWidth = 3 / viewRef.current.scale;
+      ctx.lineWidth = 1 / (dpr * viewRef.current.scale);
       for (const block of layout.blocks.elements) {
         if (!(block instanceof BlockElement) || !block.visible) continue;
         const isSource = block.id === blockSelection.sourceId;
