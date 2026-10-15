@@ -121,18 +121,18 @@ export function TrackCanvasBlockLocoPicker({
       <Popover.Dropdown p={6} onPointerDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()}>
         <Group gap={5} wrap="nowrap">
           <Tooltip label="Remove locomotive from block">
-            <ActionIcon color="red" variant="light" size="lg" disabled={!canRemoveLoco}
-              aria-label="Remove locomotive" onClick={removeBlockLoco}><IconTrash size={20}/></ActionIcon>
+            <ActionIcon color="red" variant="light" size={40} disabled={!canRemoveLoco}
+              aria-label="Remove locomotive" onClick={removeBlockLoco}><IconTrash size={24}/></ActionIcon>
           </Tooltip>
           <Tooltip label="Select locomotive">
-            <ActionIcon color="blue" variant="light" size="lg" aria-label="Select locomotive"
-              onClick={() => setPickerOpen(true)}><IconTrain size={20}/></ActionIcon>
+            <ActionIcon color="blue" variant="light" size={40} aria-label="Select locomotive"
+              onClick={() => setPickerOpen(true)}><IconTrain size={24}/></ActionIcon>
           </Tooltip>
           <Tooltip label="Drive to Block">
-            <ActionIcon color="teal" variant="light" size="lg" aria-label="Drive to Block"
+            <ActionIcon color="teal" variant="light" size={40} aria-label="Drive to Block"
               disabled={!routeLoco || !onBeginBlockSelection}
               onClick={() => { if (routeLoco && onBeginBlockSelection) { onBeginBlockSelection(routeLoco); onClose(); } }}>
-              <IconRoute size={20}/>
+              <IconRoute size={24}/>
             </ActionIcon>
           </Tooltip>
         </Group>
