@@ -32,6 +32,7 @@ export const createEmptyLoco = (): Loco => ({
   name: "",
   address: 3,
   maxSpeed: 100,
+  startingSpeed: 20,
   invert: false,
   image: "",
   length: 200,
