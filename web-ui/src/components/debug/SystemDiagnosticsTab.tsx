@@ -4,14 +4,14 @@ import { IconRefresh } from "@tabler/icons-react";
 import { getCommandCenterInfo, type CommandCenterInfo } from "@/api/commandCenterInfo";
 import { wsClient, type WsConnectionStatus } from "@/services/wsClient";
 
-type Traffic = { incoming: number; outgoing: number; sensor: number; peakIncoming: number; lastMessage: string };
+type Traffic = { incoming: number; outgoing: number; sensor: number; peakIncoming: number; lastMessage: string; messageTypes: Array<{ type: string; count: number }> };
 
 export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
   const [info, setInfo] = useState<CommandCenterInfo | null>(null);
   const [error, setError] = useState("");
   const [status, setStatus] = useState<WsConnectionStatus>(wsClient.getStatus());
-  const [traffic, setTraffic] = useState<Traffic>({ incoming: 0, outgoing: 0, sensor: 0, peakIncoming: 0, lastMessage: "—" });
-  const counters = useRef({ incoming: 0, outgoing: 0, sensor: 0, peak: 0, last: "—" });
+  const [traffic, setTraffic] = useState<Traffic>({ incoming: 0, outgoing: 0, sensor: 0, peakIncoming: 0, lastMessage: "—", messageTypes: [] });
+  const counters = useRef({ incoming: 0, outgoing: 0, sensor: 0, peak: 0, last: "—", types: new Map<string, number>() });
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -24,12 +24,13 @@ export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
         if (live) setError(String(reason));
       });
     };
-    counters.current = { incoming: 0, outgoing: 0, sensor: 0, peak: 0, last: "—" };
+    counters.current = { incoming: 0, outgoing: 0, sensor: 0, peak: 0, last: "—", types: new Map<string, number>() };
     setTraffic({ incoming: 0, outgoing: 0, sensor: 0, peakIncoming: 0, lastMessage: "—" });
     refresh();
     const offStatus = wsClient.subscribeStatus(setStatus);
     const offIn = wsClient.subscribeMessages(message => {
       counters.current.incoming++;
+      counters.current.types.set(message.type, (counters.current.types.get(message.type) ?? 0) + 1);
       counters.current.last = message.type;
       if (message.type === "sensorChanged" || message.type === "sensorSnapshot") counters.current.sensor++;
     });
@@ -37,10 +38,11 @@ export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
     const ticker = window.setInterval(() => {
       const c = counters.current;
       c.peak = Math.max(c.peak, c.incoming);
-      setTraffic({ incoming: c.incoming, outgoing: c.outgoing, sensor: c.sensor, peakIncoming: c.peak, lastMessage: c.last });
+      setTraffic({ incoming: c.incoming, outgoing: c.outgoing, sensor: c.sensor, peakIncoming: c.peak, lastMessage: c.last, messageTypes: [...c.types.entries()].map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count) });
       c.incoming = 0;
       c.outgoing = 0;
       c.sensor = 0;
+      c.types.clear();
     }, 1000);
     const polling = window.setInterval(refresh, 5000);
     return () => { live = false; offStatus(); offIn(); offOut(); window.clearInterval(ticker); window.clearInterval(polling); };
@@ -73,6 +75,17 @@ export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
             <Text size="sm">Last message type: {traffic.lastMessage}</Text>
           </Card>
         </SimpleGrid>
+        <Card withBorder>
+          <Text fw={600} mb="xs">Message types (live, msg/s)</Text>
+          {traffic.messageTypes.length === 0
+            ? <Text size="sm" c="dimmed">No messages in the last second</Text>
+            : traffic.messageTypes.map(item => (
+              <Group key={item.type} justify="space-between" gap="xs" py={3}>
+                <Text size="sm" ff="monospace">{item.type}</Text>
+                <Text size="sm" fw={600} style={{ fontVariantNumeric: "tabular-nums" }}>{item.count}</Text>
+              </Group>
+            ))}
+        </Card>
         <Text size="xs" c="dimmed">Message rates are measured in this browser while the diagnostics tab is open. Sensor messages include snapshots; they are not individual occupancy transitions. Protocol-specific R-BUS/LocoNet packet counters and backend queue statistics are not available in this view.</Text>
       </Stack>
     </ScrollArea>
