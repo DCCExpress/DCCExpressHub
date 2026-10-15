@@ -12,6 +12,7 @@ import {
   Checkbox,
   Group,
   NumberInput,
+  SegmentedControl,
   ScrollArea,
   Stack,
   Table,
@@ -33,6 +34,7 @@ import type {
 
 import FunctionBindingsDialog from "./FunctionBindingsDialog";
 import FunctionIconPicker from "./FunctionIconPicker";
+import { useFunctionButtonDisplayMode, setFunctionButtonDisplayMode } from "../../services/functionButtonDisplayMode";
 import { getBuiltinFunctionIcon } from "../loco/FunctionIconRegistry";
 import { customFunctionIconUrl } from "../../api/functionIconApi";
 
@@ -68,6 +70,7 @@ export default function LocoFunctionsTab({
   t,
 }: LocoFunctionsTabProps) {
   useTranslation();
+  const displayMode = useFunctionButtonDisplayMode();
   const [iconFunctionId, setIconFunctionId] = useState<string | null>(null);
   const iconFunction = functions.find(fn => fn.id === iconFunctionId);
   const [
@@ -186,6 +189,12 @@ export default function LocoFunctionsTab({
 
   return (
     <Stack h="100%">
+      <Group gap="xs" wrap="wrap">
+        <Text size="xs" fw={600}>LocoPanel function buttons</Text>
+        <SegmentedControl size="xs" value={displayMode} onChange={value => setFunctionButtonDisplayMode(value as typeof displayMode)}
+          data={[{ label: "Default (F0–F28)", value: "default" }, { label: "Icon", value: "icon" },
+            { label: "Icon + text", value: "icon-text" }, { label: "Text", value: "text" }]} />
+      </Group>
       <Group
         justify="space-between"
       >
