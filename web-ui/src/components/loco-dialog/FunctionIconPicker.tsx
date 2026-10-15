@@ -52,8 +52,8 @@ export default function FunctionIconPicker({ opened, value, onClose, onSelect }:
           })}
         </SimpleGrid>
       </ScrollArea> : <>
-        <FileButton onChange={file => void upload(file)} accept="image/png,image/webp">
-          {props => <Button {...props} loading={busy} variant="light" leftSection={<IconUpload size={16}/>}>Upload icon (PNG / WebP)</Button>}
+        <FileButton onChange={file => void upload(file)} accept="image/png,image/webp,image/svg+xml,.svg">
+          {props => <Button {...props} loading={busy} variant="light" leftSection={<IconUpload size={16}/>}>Upload icon (PNG / WebP / SVG)</Button>}
         </FileButton>
         <Text size="xs" c="dimmed">Maximum 256 KB. Icons are stored on the Hub and available to all clients.</Text>
         <ScrollArea style={{ flex: 1, minHeight: 0 }}>
