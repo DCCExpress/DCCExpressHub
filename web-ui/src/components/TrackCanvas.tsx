@@ -138,7 +138,7 @@ export default function TrackCanvas({
   useEffect(() => subscribeTrainTrackingState(() => requestDraw()), []);
   const driveDestinationAvailable = (blockId: number) =>
     !getTrainTrackingState().locos.some(item => item.currentBlockId === blockId) &&
-    !(driveBlockLocosRef.current[String(blockId)] > 0) &&
+    !((driveBlockLocosRef.current[String(blockId)] ?? 0) > 0) &&
     !(getBlockTargetLocoAddress(blockId) > 0);
 
   const [blockSelection, setBlockSelection] = useState<{ loco: Loco; sourceId: number; routes: MovementRouteCandidate[] } | null>(null);
