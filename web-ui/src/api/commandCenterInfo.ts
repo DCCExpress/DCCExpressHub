@@ -18,6 +18,25 @@ export type CommandCenterCapabilities = {
   signalAspect: boolean;
 };
 
+export type LocoNetTcpDiagnostics = {
+  lbServerEnabled: boolean;
+  lbServerConnected: boolean;
+  host: string;
+  lbServerPort: number;
+  lbServerUptimeMs: number;
+  lastLbServerRxAgeMs: number;
+  lbServerLinesObserved: number;
+  lbServerVersion: string;
+  binaryFeedbackEnabled: boolean;
+  binaryPort: number;
+  sensorFeedbackCount: number;
+  lastSensorAddress: number;
+  lastSensorOn: boolean | null;
+  lastSensorFeedbackAgeMs: number;
+  lastInterrogateAgeMs: number;
+  interrogateEnabled: boolean;
+};
+
 export type CommandCenterInfo = {
   ok: boolean;
   embedded?: boolean;
@@ -27,6 +46,7 @@ export type CommandCenterInfo = {
   transport?: string;
   defaultPort: number;
   connected: boolean;
+  locoNetDiagnostics?: LocoNetTcpDiagnostics | null;
   host?: string;
   port?: number;
   feedbackLinkName?: string;
