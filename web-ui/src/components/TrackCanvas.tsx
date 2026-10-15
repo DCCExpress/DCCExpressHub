@@ -9,6 +9,7 @@ import {
   TrackTurnoutThreeWayElement,
 } from "../models/editor/elements/TrackTurnoutThreeWayElement";
 import { AudioButtonElement } from "../models/editor/elements/AudioButtonElement";
+import type { Loco } from "@domain/types";
 import { BlockElement } from "../models/editor/elements/BlockElement";
 import { getTrainTrackingState } from "../services/trainTrackingRuntime";
 import { loadAutomationMovement } from "../services/automationApi";
