@@ -1,5 +1,6 @@
 import { ELEMENT_TYPES } from "@domain/layout/elementTypes";
 import { BaseElement } from "../../models/editor/core/BaseElement";
+import { EmergencyButtonElement } from "../../models/editor/elements/EmergencyButtonElement";
 import { AudioButtonElement } from "../../models/editor/elements/AudioButtonElement";
 import { AudioListButtonElement } from "../../models/editor/elements/AudioListButtonElement";
 import { BlockElement } from "../../models/editor/elements/BlockElement";
@@ -51,6 +52,7 @@ const cursorButtonElement = new ButtonElement(0, 0);
 const cursorButtonScriptElement = new ButtonScriptElement(0, 0);
 const cursorRouteButtonElement = new RouteButtonElement(0, 0);
 const cursorExtendedRouteButtonElement = new ExtendedRouteButtonElement(0, 0);
+const cursorEmergencyButtonElement = new EmergencyButtonElement(0, 0);
 const cursorAudioButtonElement = new AudioButtonElement(0, 0);
 const cursorAudioListButtonElement = new AudioListButtonElement(0, 0);
 const cursorClockElement = new ClockElement(0, 0);
@@ -81,6 +83,7 @@ export function createCursorElement(tool: EditorTool): BaseElement | null {
     case ELEMENT_TYPES.TRACK_SENSOR: return cursorTrackSensorElement;
     case ELEMENT_TYPES.BUTTON: return cursorButtonElement;
     case ELEMENT_TYPES.BUTTON_SCRIPT: return cursorButtonScriptElement;
+    case ELEMENT_TYPES.BUTTON_EMERGENCY: return cursorEmergencyButtonElement;
     case ELEMENT_TYPES.BUTTON_AUDIO: return cursorAudioButtonElement;
     case ELEMENT_TYPES.BUTTON_AUDIO_LIST: return cursorAudioListButtonElement;
     case ELEMENT_TYPES.BUTTON_ROUTE: return cursorRouteButtonElement;
