@@ -2022,6 +2022,32 @@ public sealed class WsHub
                     await Send(ws, "trainDriverResponse", new { requestId, action, ok, error, state });
                     return;
                 }
+            case "startAuto":
+                {
+                    var taskId = S(data, "taskId");
+                    if (!data.TryGetProperty("candidates", out var json) ||
+                        json.ValueKind != JsonValueKind.Array)
+                    {
+                        error = "invalid_auto_route_candidates";
+                        break;
+                    }
+                    MovementPageModel[]? candidates;
+                    try
+                    {
+                        candidates = JsonSerializer.Deserialize<MovementPageModel[]>(
+                            json.GetRawText(), Json);
+                    }
+                    catch (JsonException)
+                    {
+                        candidates = null;
+                    }
+                    var result = TrainDriver.StartAuto(taskId, candidates ?? []);
+                    await Send(ws, "trainDriverResponse", new {
+                        requestId, action, ok = result.Ok,
+                        error = result.Error, state = result.State
+                    });
+                    return;
+                }
             case "stop":
                 ok = TrainDriver.Stop(S(data, "taskId"));
                 break;
