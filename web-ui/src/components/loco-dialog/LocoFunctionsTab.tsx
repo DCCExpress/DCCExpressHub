@@ -33,6 +33,8 @@ import type {
 
 import FunctionBindingsDialog from "./FunctionBindingsDialog";
 import FunctionIconPicker from "./FunctionIconPicker";
+import { getBuiltinFunctionIcon } from "../loco/FunctionIconRegistry";
+import { customFunctionIconUrl } from "../../api/functionIconApi";
 
 type LocoFunctionsTabProps = {
   functions: LocoFunction[];
@@ -381,12 +383,17 @@ export default function LocoFunctionsTab({
 
                   <Table.Td>
                     <Group gap={4} wrap="nowrap">
-                      <TextInput size="xs" value={fn.icon} style={{ flex: 1, minWidth: 70 }}
-                        onChange={event => onUpdateFunction(fn.id, { icon: event.currentTarget.value })} />
-                      <ActionIcon size="sm" variant="light" aria-label="Select function icon"
-                        onClick={() => setIconFunctionId(fn.id)}>
-                        <IconDots size={16} />
-                      </ActionIcon>
+                      {(() => {
+                        const Icon = getBuiltinFunctionIcon(fn.icon);
+                        const image = customFunctionIconUrl(fn.icon);
+                        return <ActionIcon size="lg" variant="light" color="gray"
+                          title="Select function icon" aria-label="Select function icon"
+                          onClick={() => setIconFunctionId(fn.id)}>
+                          {Icon ? <Icon size={22} /> : image ?
+                            <img src={image} alt="" style={{ width: 22, height: 22, objectFit: "contain" }} /> :
+                            <IconDots size={18} />}
+                        </ActionIcon>;
+                      })()}
                     </Group>
                   </Table.Td>
 
