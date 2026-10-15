@@ -169,6 +169,7 @@ export class Layout<
     const buttonTypes = new Set<string>([
       ELEMENT_TYPES.BUTTON, ELEMENT_TYPES.BUTTON_SCRIPT,
       ELEMENT_TYPES.BUTTON_AUDIO, ELEMENT_TYPES.BUTTON_AUDIO_LIST,
+      ELEMENT_TYPES.BUTTON_EMERGENCY,
       ELEMENT_TYPES.BUTTON_ROUTE, ELEMENT_TYPES.BUTTON_ROUTE_EXTENDED,
     ]);
     const destination = buttonTypes.has(element.type) ? "buttons" : layerId;
