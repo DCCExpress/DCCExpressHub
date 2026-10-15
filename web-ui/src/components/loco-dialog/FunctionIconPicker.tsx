@@ -10,14 +10,16 @@ export default function FunctionIconPicker({ opened, value, onClose, onSelect }:
       <Text size="xs" c="dimmed">Built-in railway function icons</Text>
       <ScrollArea.Autosize mah={300}>
         <SimpleGrid cols={5} spacing="xs">
-          {BUILTIN_FUNCTION_ICONS.map(([id, label, Icon]) =>
-            <Tooltip label={label} key={id}>
+          {BUILTIN_FUNCTION_ICONS.map(([id, label]) => {
+            const Icon = getBuiltinFunctionIcon(`builtin:${id}`);
+            return <Tooltip label={label} key={id}>
               <ActionIcon size={46} radius="md" variant={value === `builtin:${id}` ? "filled" : "light"}
                 color={value === `builtin:${id}` ? "lime" : "gray"}
                 aria-label={label} onClick={() => { onSelect(`builtin:${id}`); onClose(); }}>
-                <Icon size={24}/>
+                {Icon && <Icon size={24}/>}
               </ActionIcon>
-            </Tooltip>)}
+            </Tooltip>;
+          })}
         </SimpleGrid>
       </ScrollArea.Autosize>
       <Group justify="space-between">
