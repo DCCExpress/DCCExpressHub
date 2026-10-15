@@ -31,6 +31,7 @@ export type LocoFunction = {
   bindingId?: number | null;
   icon: string;
   momentary: boolean;
+  showOnLocoCard?: boolean;
   startupActive?: boolean;
   active?: boolean;
 };
