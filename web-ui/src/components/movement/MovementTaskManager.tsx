@@ -9,7 +9,7 @@ import { BlockElement } from "../../models/editor/elements/BlockElement";
 import LocoImage from "../loco/LocoImage";
 import { wsClient } from "../../services/wsClient";
 import {
-  abortAllMovements, abortMovement, getMovementTaskStates, stopAllMovements, stopMovement, subscribeMovementTaskStates,
+  abortAllMovements, abortMovement, getMovementTaskStates, stopMovement, subscribeMovementTaskStates,
   type MovementEngineState,
 } from "../../services/movementEngine";
 
@@ -130,7 +130,18 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
         <Group gap="xs" wrap="wrap">
           <Badge variant="light" color={active.length ? "green" : "gray"}>{active.length} active</Badge>
           <Button size="xs" color="yellow" variant="light" leftSection={<IconPlayerStop size={14} />}
-            disabled={!active.length} onClick={() => stopAllMovements()}>Stop All</Button>
+            disabled={!active.length} onClick={() => {
+              const managed = drivers.filter(driver => ["created", "running", "waiting", "paused"].includes(driver.status));
+              for (const driver of managed) {
+                if (driver.status !== "paused") wsClient.send({ type: "trainDriverCommand", data: {
+                  requestId: `driver-pause-all-${Date.now()}-${driver.taskId}`,
+                  action: "stop", taskId: driver.taskId,
+                } });
+              }
+              const owned = new Set(managed.map(driver => driver.movementId));
+              for (const task of active.filter(task => !owned.has(task.pageId)))
+                stopMovement(task.pageId);
+            }}>Stop All</Button>
           <Button size="xs" color="red" variant="light" leftSection={<IconAlertTriangle size={14} />}
             disabled={!active.length} onClick={() => abortAllMovements()}>Abort All</Button>
         </Group>
