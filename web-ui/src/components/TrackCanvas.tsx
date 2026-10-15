@@ -16,6 +16,7 @@ import { loadAutomationMovement } from "../services/automationApi";
 import { loadMovementRouteCandidates, applyMovementRouteCandidate, type MovementRouteCandidate } from "../services/movementRouteCatalog";
 import { createMovementPage } from "../domain/movement";
 import { startTransientMovement } from "../services/movementEngine";
+import { registerDriveToBlockCanvas, setDriveToBlockSelectionActive } from "../services/driveToBlockSelection";
 import { showNotification } from "@mantine/notifications";
 import { getTrackCanvasHitElement } from "./track-canvas/trackCanvasRuntimeHitTest";
 import { RouteButtonElement } from "../models/editor/elements/RouteButtonElement";
@@ -127,6 +128,7 @@ export default function TrackCanvas({
     blockSelectionRef.current = null;
     setBlockSelection(null);
     onBlockSelectionChangeRef.current?.(false);
+    setDriveToBlockSelectionActive(false);
     canvasRef.current && (canvasRef.current.style.cursor = "default");
   };
 
@@ -145,6 +147,7 @@ export default function TrackCanvas({
     blockSelectionRef.current = state;
     setBlockSelection(state);
     onBlockSelectionChangeRef.current?.(true);
+    setDriveToBlockSelectionActive(true);
     try {
       const routes = await loadMovementRouteCandidates(await loadAutomationMovement());
       if (blockSelectionRef.current !== state) return;
@@ -204,6 +207,11 @@ export default function TrackCanvas({
   };
   const selectDestinationRef = useRef(selectDestination);
   selectDestinationRef.current = selectDestination;
+  const beginBlockSelectionRef = useRef(startBlockSelection);
+  beginBlockSelectionRef.current = startBlockSelection;
+  useEffect(() => registerDriveToBlockCanvas(loco => {
+    void beginBlockSelectionRef.current(loco);
+  }), []);
 
   const [signalAspectPopover, setSignalAspectPopover] =
     useState<SignalAspectPopoverState>({
