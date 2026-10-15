@@ -51,3 +51,24 @@ test("the throttle card Drive to Block button uses canvas selection, not the old
   assert.match(canvas, /setDriveToBlockSelectionActive\(false\)/);
   assert.match(bridge, /if \(!handler \|\| selecting\) return false/);
 });
+
+test("destination selection hint moves to status bar and locks other layout surfaces", () => {
+  const page = read("LiteLayoutPage.tsx");
+  const statusIndex = page.indexOf('className="lite-status-bar"');
+  const hintIndex = page.indexOf("Select yellow destination · Esc to cancel");
+  assert.ok(statusIndex >= 0 && hintIndex > statusIndex);
+  assert.doesNotMatch(page.slice(page.indexOf('className="lite-layout-toolbar"'), statusIndex), /Select yellow destination/);
+  for (const className of [
+    "lite-layout-toolbar",
+    "lite-loco-panel",
+    "lite-panel-resizer-left",
+    "lite-panel-resizer-right",
+    "lite-right-loco-panel",
+    "lite-property-panel",
+  ]) {
+    const line = page.split("\n").find(value => value.includes('className="' + className + '"'));
+    assert.ok(line?.includes("inert={blockSelectionActive}"), className + " must be inert while selecting");
+  }
+  assert.match(page, /wrap="nowrap" inert=\{blockSelectionActive\}/);
+  assert.match(page, /color="red" variant="filled" onClick=\{\(\) => wsApi\.emergencyStop\(\)\}/);
+});
