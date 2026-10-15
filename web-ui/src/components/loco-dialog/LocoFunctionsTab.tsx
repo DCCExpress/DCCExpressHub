@@ -65,6 +65,7 @@ export default function LocoFunctionsTab({
 }: LocoFunctionsTabProps) {
   useTranslation();
   const displayMode = useFunctionButtonDisplayMode();
+  const cardFunctionCount = functions.filter(fn => fn.showOnLocoCard ?? fn.number < 5).length;
   const [iconFunctionId, setIconFunctionId] = useState<string | null>(null);
   const iconFunction = functions.find(fn => fn.id === iconFunctionId);
   const [
@@ -197,6 +198,7 @@ export default function LocoFunctionsTab({
             "locodialog.loco_functions"
           )}
         </Text>
+        <Text size="xs" c="dimmed">Loco Card: {cardFunctionCount} / 5</Text>
 
 
       </Group>
@@ -242,6 +244,7 @@ export default function LocoFunctionsTab({
                   "ui.icon"
                 )}
               </Table.Th>
+              <Table.Th w={88} ta="center">Loco Card</Table.Th>
               <Table.Th
                 w={110}
                 ta="center"
@@ -371,6 +374,14 @@ export default function LocoFunctionsTab({
                     </Group>
                   </Table.Td>
 
+                  <Table.Td>
+                    <Group justify="center">
+                      <Checkbox aria-label={`Show F${fn.number} on Loco Card`}
+                        checked={fn.showOnLocoCard ?? fn.number < 5}
+                        disabled={!(fn.showOnLocoCard ?? fn.number < 5) && cardFunctionCount >= 5}
+                        onChange={event => onUpdateFunction(fn.id, { showOnLocoCard: event.currentTarget.checked })} />
+                    </Group>
+                  </Table.Td>
                   <Table.Td>
                     <Group
                       justify="center"
@@ -570,7 +581,7 @@ export default function LocoFunctionsTab({
               0 && (
               <Table.Tr>
                 <Table.Td
-                  colSpan={7}
+                  colSpan={8}
                 >
                   <Text
                     size="sm"
