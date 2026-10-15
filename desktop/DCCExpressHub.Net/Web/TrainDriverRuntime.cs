@@ -194,9 +194,32 @@ public sealed class TrainDriverRuntime
         DriverState? updated = null;
         lock (_gate)
         {
-            if (!_tasks.Values.Any(t => t.MovementId == movement.PageId))
+            // All Movement entry points (Timetable, Automation, direct Start,
+            // Drive to Block) share one locomotive-owned driver. An explicit
+            // driver task is already registered before Movement.StartTransient.
+            if (movement.LocoAddress is not > 0)
                 return;
-            var current = _tasks.Values.First(t => t.MovementId == movement.PageId);
+            var address = movement.LocoAddress.Value;
+            DriverState? current = null;
+            if (_activeByLoco.TryGetValue(address, out var taskId) &&
+                _tasks.TryGetValue(taskId, out var active) &&
+                active.MovementId == movement.PageId)
+                current = active;
+
+            if (current is null)
+            {
+                if (movement.Status != "running" || _activeByLoco.ContainsKey(address))
+                    return;
+                current = new DriverState(
+                    "movement:" + movement.PageId + ":" +
+                        DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                    movement.PageId, address, movement.MovementName,
+                    "running", movement.Info, movement.Error,
+                    DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                _tasks[current.TaskId] = current;
+                _activeByLoco[address] = current.TaskId;
+            }
+
             var status = movement.Status switch
             {
                 "running" => "running",
@@ -209,14 +232,17 @@ public sealed class TrainDriverRuntime
                 "completed" => "completed",
                 _ => movement.Status
             };
-            // Keep the driver in PAUSED while the underlying Movement reports
-            // intermediate RUNNING updates for sensor or route wait events.
+            // Stop means PAUSED: intermediate Movement status updates must
+            // not remove the stop until Resume is explicitly requested.
             if (current.Status == "paused" && (status is "running" or "stopping"))
                 return;
-            updated = current with { Status = status, Info = movement.Info, Error = movement.Error };
+            updated = current with
+            {
+                Status = status, Info = movement.Info, Error = movement.Error
+            };
             _tasks[current.TaskId] = updated;
             if (status is "completed" or "aborted" or "stopped" or "error")
-                _activeByLoco.Remove(current.LocoAddress);
+                _activeByLoco.Remove(address);
         }
         Changed?.Invoke(updated);
     }
