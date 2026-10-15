@@ -4,6 +4,7 @@ import { generateId } from "../../../helpers";
 import { wsApi } from "../../../services/wsApi";
 import { BaseElement } from "../core/BaseElement";
 import type { DrawOptions } from "../types/EditorTypes";
+import type { IEditableProperty } from "./PropertyDescriptor";
 
 export type EmergencyButtonElementDto = BaseElementDto & { type: typeof ELEMENT_TYPES.BUTTON_EMERGENCY };
 
@@ -18,6 +19,26 @@ export class EmergencyButtonElement extends BaseElement {
     this.name = "Emergency Stop";
     this.w = 2;
     this.h = 2;
+  }
+
+  get size(): string { return String(this.w); }
+  set size(value: string) {
+    const size = Number(value);
+    if (size === 1 || size === 2 || size === 4) {
+      this.w = size;
+      this.h = size;
+    }
+  }
+
+  override getEditableProperties(): IEditableProperty[] {
+    return [
+      ...super.getEditableProperties().filter(property => property.key !== "w" && property.key !== "h"),
+      { key: "size", label: "Size", type: "select", options: [
+        { value: "1", label: "1 × 1" },
+        { value: "2", label: "2 × 2" },
+        { value: "4", label: "Double size (4 × 4)" },
+      ] },
+    ];
   }
 
   press(): void {
@@ -72,8 +93,7 @@ export class EmergencyButtonElement extends BaseElement {
     const e = new EmergencyButtonElement(data.x, data.y);
     e.id = data.id;
     e.name = data.name;
-    e.w = data.w;
-    e.h = data.h;
+    e.size = String(data.w ?? 2);
     e.rotation = data.rotation;
     return e;
   }
