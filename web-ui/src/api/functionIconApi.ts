@@ -37,29 +37,75 @@ export async function uploadCustomFunctionIcon(file: File): Promise<CustomFuncti
   return { name, value: `custom:${name}`, url: `/images/${name}` };
 }
 
-/** Strict SVG subset for user-uploaded icons. Active content and external references are rejected. */
+/**
+ * Reduce uploaded SVGs to a passive pictogram subset.
+ * Untrusted links, stylesheets, event handlers and unsupported elements are
+ * removed instead of rejecting the whole image. Never inline the raw upload.
+ */
 async function sanitizeUploadedSvg(file: File): Promise<Blob> {
   const source = await file.text();
-  if (/<!DOCTYPE|<!ENTITY/i.test(source)) throw new Error("SVG document declarations are not allowed.");
+  if (/<!DOCTYPE|<!ENTITY/i.test(source))
+    throw new Error("SVG document declarations are not allowed.");
   const xml = new DOMParser().parseFromString(source, "image/svg+xml");
   if (xml.querySelector("parsererror")) throw new Error("Invalid SVG file.");
   const root = xml.documentElement;
-  if (root.localName !== "svg" || root.namespaceURI !== "http://www.w3.org/2000/svg")
-    throw new Error("Not an SVG image.");
-  const tags = new Set(["svg", "g", "path", "circle", "ellipse", "rect", "line", "polyline", "polygon", "defs", "linearGradient", "radialGradient", "stop", "title", "desc", "clipPath", "mask", "use"]);
-  const attributes = new Set(["xmlns", "viewBox", "width", "height", "d", "fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "stroke-miterlimit", "fill-rule", "clip-rule", "fill-opacity", "stroke-opacity", "opacity", "transform", "cx", "cy", "r", "rx", "ry", "x", "y", "x1", "x2", "y1", "y2", "points", "id", "offset", "stop-color", "stop-opacity", "gradientUnits", "gradientTransform", "clip-path", "mask", "href", "xmlns:xlink"]);
-  const visit = (element: Element): void => {
-    if (!tags.has(element.localName) || element.namespaceURI !== "http://www.w3.org/2000/svg")
-      throw new Error("SVG contains unsupported elements.");
-    for (const attr of Array.from(element.attributes)) {
-      if (!attributes.has(attr.name) || /^on/i.test(attr.name) || /url\s*\(/i.test(attr.value) && !/^url\(#[a-zA-Z0-9_-]+\)$/.test(attr.value.trim()))
-        throw new Error("SVG contains unsafe attributes.");
-      if ((attr.localName === "href" && !/^#[a-zA-Z0-9_-]+$/.test(attr.value)) ||
-          /(?:javascript:|data:|https?:|file:)/i.test(attr.value))
-        throw new Error("SVG external references are not allowed.");
+  const ns = "http://www.w3.org/2000/svg";
+  if (root.localName !== "svg" || root.namespaceURI !== ns) throw new Error("Not an SVG image.");
+
+  const allowedTags = new Set(["svg", "g", "path", "circle", "ellipse", "rect", "line",
+    "polyline", "polygon", "defs", "linearGradient", "radialGradient", "stop",
+    "title", "desc", "clipPath", "mask", "use"]);
+  const allowedAttrs = new Set(["xmlns", "viewBox", "width", "height", "d", "fill",
+    "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "stroke-miterlimit",
+    "fill-rule", "clip-rule", "fill-opacity", "stroke-opacity", "opacity",
+    "transform", "cx", "cy", "r", "rx", "ry", "x", "y", "x1", "x2", "y1", "y2",
+    "points", "id", "offset", "stop-color", "stop-opacity", "gradientUnits",
+    "gradientTransform", "clip-path", "mask", "href", "preserveAspectRatio"]);
+  const paint = new Set(["fill", "stroke", "stop-color"]);
+  const numericStyle = new Set(["stroke-width", "fill-opacity", "stroke-opacity", "opacity",
+    "stroke-linecap", "stroke-linejoin", "fill-rule"]);
+  const localRef = /^url\(\s*['"]?#[a-zA-Z_][\w.-]*['"]?\s*\)$/i;
+  const safePaint = (v: string) => /^(none|currentColor|transparent|#[0-9a-f]{3,8}|[a-z]+)$/i.test(v) ||
+    /^rgba?\([\d\s.,%]+\)$/i.test(v) || localRef.test(v);
+  const safeStyle = (style: string) => style.split(";").map(declaration => {
+    const separator = declaration.indexOf(":");
+    if (separator < 0) return "";
+    const name = declaration.slice(0, separator).trim().toLowerCase();
+    const value = declaration.slice(separator + 1).trim();
+    if ((paint.has(name) && safePaint(value)) ||
+        (numericStyle.has(name) && /^[\w.\s%-]+$/.test(value)))
+      return `${name}:${value}`;
+    return "";
+  }).filter(Boolean).join(";");
+
+  const clean = (element: Element): void => {
+    for (const child of Array.from(element.children)) {
+      if (child.namespaceURI !== ns || !allowedTags.has(child.localName)) child.remove();
+      else clean(child);
     }
-    Array.from(element.children).forEach(visit);
+    for (const attr of Array.from(element.attributes)) {
+      const name = attr.name;
+      const value = attr.value.trim();
+      if (name === "style") {
+        const filtered = safeStyle(value);
+        element.removeAttribute(name);
+        if (filtered) element.setAttribute("style", filtered);
+        continue;
+      }
+      if (name === "xmlns" && value === ns) continue;
+      // Refer only to definitions in this very SVG, never external resources.
+      if (attr.localName === "href") {
+        element.removeAttributeNode(attr);
+        if (/^#[a-zA-Z_][\w.-]*$/.test(value)) element.setAttribute("href", value);
+        continue;
+      }
+      const valid = allowedAttrs.has(name) && !/^on/i.test(name) &&
+        !/(?:javascript:|data:|https?:|file:|@import)/i.test(value) &&
+        (!/url\s*\(/i.test(value) || localRef.test(value)) &&
+        (!paint.has(name) || safePaint(value));
+      if (!valid) element.removeAttributeNode(attr);
+    }
   };
-  visit(root);
+  clean(root);
   return new Blob([new XMLSerializer().serializeToString(root)], { type: "image/svg+xml" });
 }
