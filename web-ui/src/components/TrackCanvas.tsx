@@ -192,14 +192,11 @@ export default function TrackCanvas({
     page.id = `quick-route-loco-${state.loco.address}`;
     page.name = `Quick route · #${state.loco.address} · ${route.blockPath.map(block => block.name).join(" → ")}`;
     page.expectedLocoAddress = state.loco.address;
-    // Retain the speed last selected in the existing Drive-to-Block dialog.
-    let preferredSpeed = 20;
-    try {
-      const saved = Number(localStorage.getItem("dccexpresshub.loco-target-block.speed"));
-      if (Number.isFinite(saved) && saved >= 1) preferredSpeed = Math.round(saved);
-    } catch { /* storage may be unavailable */ }
-    page.speed = Math.max(1, Math.min(preferredSpeed,
-      state.loco.maxSpeed > 0 ? state.loco.maxSpeed : 126));
+    // Drive to Block takes its initial speed from this locomotive's settings.
+    // Older locomotive entries default to step 20.
+    const preferredSpeed = state.loco.startingSpeed ?? 20;
+    page.speed = Math.max(1, Math.min(Math.round(preferredSpeed),
+      state.loco.maxSpeed > 0 ? state.loco.maxSpeed : 126, 126));
     const requestId = `driver-start-${Date.now()}-${state.loco.address}`;
     const taskId = `driver-${state.loco.address}-${Date.now()}`;
     void wsApi.request("trainDriverCommand",
