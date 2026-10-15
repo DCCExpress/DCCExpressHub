@@ -59,6 +59,8 @@
     "loco_functions": "Funktionen",
     "loco_length_mm": "Länge (mm)",
     "loco_max_speed": "Maximale Geschwindigkeit",
+    "loco_starting_speed": "Startgeschwindigkeit",
+    "loco_starting_speed_description": "Standard-DCC-Fahrstufe für Drive to Block",
     "loco_speed_max": "Max.",
     "locoaddress": "Adresse",
     "locomotives": "Lokomotiven",
