@@ -149,6 +149,8 @@ export type Loco = {
   name: string;
   address: number;
   maxSpeed: number;
+  /** Default DCC speed step for Drive to Block. */
+  startingSpeed?: number;
   invert: boolean;
   image?: string;
   length: number;
