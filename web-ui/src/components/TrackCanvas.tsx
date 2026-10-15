@@ -1,3 +1,4 @@
+import { wsApi } from "../services/wsApi";
 import { useMantineColorScheme } from "@mantine/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
