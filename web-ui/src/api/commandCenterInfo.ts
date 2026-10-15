@@ -51,6 +51,17 @@ export type LocoNetStandardTelemetry = {
   temperatureC: number | null;
 };
 
+export type HostDiagnostics = {
+  machine: string;
+  os: string;
+  processorCount: number;
+  uptimeSeconds: number;
+  workingSetBytes: number;
+  managedHeapBytes: number;
+  cpuTimeMs: number;
+  sampledAtMs: number;
+};
+
 export type CommandCenterInfo = {
   ok: boolean;
   embedded?: boolean;
@@ -60,6 +71,7 @@ export type CommandCenterInfo = {
   transport?: string;
   defaultPort: number;
   connected: boolean;
+  hostDiagnostics?: HostDiagnostics;
   locoNetDiagnostics?: LocoNetTcpDiagnostics | null;
   locoNetStandardTelemetry?: LocoNetStandardTelemetry | null;
   host?: string;
