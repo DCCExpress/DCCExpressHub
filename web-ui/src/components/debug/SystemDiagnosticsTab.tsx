@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Alert, Badge, Button, Card, Group, ScrollArea, SimpleGrid, Stack, Text } from "@mantine/core";
 import { IconRefresh } from "@tabler/icons-react";
+import SemiCircleGauge from "@/components/common/SemiCircleGauge";
 import { getCommandCenterInfo, type CommandCenterInfo } from "@/api/commandCenterInfo";
 import { wsClient, type WsConnectionStatus } from "@/services/wsClient";
 
@@ -68,7 +69,7 @@ export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
           <Card withBorder>
             <Text fw={600}>WebSocket</Text>
             <Group gap="xs" mt="xs"><Badge color={status === "connected" ? "green" : status === "connecting" || status === "reconnecting" ? "yellow" : "red"}>{status.toUpperCase()}</Badge></Group>
-            <Text size="sm" mt="xs">Received: {traffic.incoming} msg/s</Text>
+            <SemiCircleGauge value={traffic.incoming} max={traffic.peakIncoming} label="Current received" maxLabel="Session peak" unit="msg/s" />
             <Text size="sm">Sent: {traffic.outgoing} msg/s</Text>
             <Text size="sm">Sensor messages: {traffic.sensor} msg/s</Text>
             <Text size="sm">Peak received (this session): {traffic.peakIncoming} msg/s</Text>
