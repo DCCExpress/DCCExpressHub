@@ -5,14 +5,14 @@ import SemiCircleGauge from "@/components/common/SemiCircleGauge";
 import { getCommandCenterInfo, type CommandCenterInfo } from "@/api/commandCenterInfo";
 import { wsClient, type WsConnectionStatus } from "@/services/wsClient";
 
-type Traffic = { incoming: number; outgoing: number; sensor: number; peakIncoming: number; lastMessage: string; messageTypes: Array<{ type: string; count: number }> };
+type Traffic = { incoming: number; outgoing: number; sensor: number; peakIncoming: number; lastMessage: string; messageTypes: Array<{ type: string; count: number; peak: number }> };
 
 export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
   const [info, setInfo] = useState<CommandCenterInfo | null>(null);
   const [error, setError] = useState("");
   const [status, setStatus] = useState<WsConnectionStatus>(wsClient.getStatus());
   const [traffic, setTraffic] = useState<Traffic>({ incoming: 0, outgoing: 0, sensor: 0, peakIncoming: 0, lastMessage: "—", messageTypes: [] });
-  const counters = useRef({ incoming: 0, outgoing: 0, sensor: 0, peak: 0, last: "—", types: new Map<string, number>() });
+  const counters = useRef({ incoming: 0, outgoing: 0, sensor: 0, peak: 0, last: "—", types: new Map<string, number>(), typePeaks: new Map<string, number>() });
   const [refreshKey, setRefreshKey] = useState(0);
   const [cpuPercent, setCpuPercent] = useState<number | null>(null);
   const previousCpu = useRef<{ cpu: number; at: number } | null>(null);
@@ -55,7 +55,8 @@ export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
     const ticker = window.setInterval(() => {
       const c = counters.current;
       c.peak = Math.max(c.peak, c.incoming);
-      setTraffic({ incoming: c.incoming, outgoing: c.outgoing, sensor: c.sensor, peakIncoming: c.peak, lastMessage: c.last, messageTypes: [...c.types.entries()].map(([type, count]) => ({ type, count })) });
+      setTraffic({ incoming: c.incoming, outgoing: c.outgoing, sensor: c.sensor, peakIncoming: c.peak, lastMessage: c.last, messageTypes: [...c.types.entries()].map(([type, count]) => ({ type, count, peak: Math.max(c.typePeaks.get(type) ?? 0, count) })) });
+      c.types.forEach((count, type) => c.typePeaks.set(type, Math.max(c.typePeaks.get(type) ?? 0, count)));
       c.incoming = 0;
       c.outgoing = 0;
       c.sensor = 0;
@@ -146,7 +147,10 @@ export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
             : traffic.messageTypes.map(item => (
               <Group key={item.type} justify="space-between" gap="xs" py={3}>
                 <Text size="sm" ff="monospace">{item.type}</Text>
-                <Badge color={item.count > 0 ? "violet" : "gray"} variant="light" size="md" style={{ fontVariantNumeric: "tabular-nums" }}>{item.count} msg/s</Badge>
+                <Group gap="xs" wrap="nowrap">
+                  <Badge color={item.count > 0 ? "violet" : "gray"} variant="light" size="md" style={{ fontVariantNumeric: "tabular-nums" }}>{item.count} msg/s</Badge>
+                  <Badge color="orange" variant="light" size="md" style={{ fontVariantNumeric: "tabular-nums" }}>Peak {item.peak} msg/s</Badge>
+                </Group>
               </Group>
             ))}
           </Stack>
