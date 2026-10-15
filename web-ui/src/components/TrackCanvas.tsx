@@ -120,6 +120,7 @@ export default function TrackCanvas({
   const [drawVersion, setDrawVersion] = useState(0);
   const [canvasSize, setCanvasSize] = useState<CanvasSize>({ width: 0, height: 0 });
   const [locoPickerOpen, setLocoPickerOpen] = useState(false);
+  const [blockPopupPoint, setBlockPopupPoint] = useState({ x: 0, y: 0 });
   const [selectedBlock, setSelectedBlock] = useState<BlockElement | null>(null);
   const [driveBlockLocos, setDriveBlockLocos] = useState<Record<string, number>>({});
   const driveBlockLocosRef = useRef(driveBlockLocos);
@@ -1127,6 +1128,7 @@ export default function TrackCanvas({
         if (hitElement instanceof BlockElement) {
           ev.stopPropagation();
           setSelectedBlock(hitElement);
+          setBlockPopupPoint({ x: ev.clientX, y: ev.clientY });
 
           window.setTimeout(() => {
             setLocoPickerOpen(true);
@@ -1600,6 +1602,8 @@ export default function TrackCanvas({
         opened={locoPickerOpen}
         locos={locos}
         selectedBlock={selectedBlock}
+        popupX={blockPopupPoint.x}
+        popupY={blockPopupPoint.y}
         onClose={() => setLocoPickerOpen(false)}
         onBeginBlockSelection={startBlockSelection}
         blockSelectionActive={blockSelection !== null}
