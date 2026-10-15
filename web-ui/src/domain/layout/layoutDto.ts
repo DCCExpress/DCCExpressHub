@@ -313,6 +313,10 @@ export interface ButtonScriptElementDto extends BaseElementDto {
   script: string;
 }
 
+export interface EmergencyButtonElementDto extends BaseElementDto {
+  type: "emergencybutton";
+}
+
 export interface AudioButtonElementDto extends BaseElementDto {
   type: "audiobutton";
   fileName: string;
@@ -469,6 +473,7 @@ export type LayoutElementDto =
   | ButtonElementDto
   | ButtonScriptElementDto
   | AudioButtonElementDto
+  | EmergencyButtonElementDto
   | AudioListButtonElementDto
   | RouteButtonElementDto
   | ExtendedRouteButtonElementDto
