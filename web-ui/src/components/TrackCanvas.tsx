@@ -12,7 +12,7 @@ import {
 import { AudioButtonElement } from "../models/editor/elements/AudioButtonElement";
 import type { Loco } from "@domain/types";
 import { BlockElement } from "../models/editor/elements/BlockElement";
-import { getTrainTrackingState } from "../services/trainTrackingRuntime";
+import { getTrainTrackingState, subscribeTrainTrackingState } from "../services/trainTrackingRuntime";
 import { loadAutomationMovement } from "../services/automationApi";
 import { loadMovementRouteCandidates, applyMovementRouteCandidate, type MovementRouteCandidate } from "../services/movementRouteCatalog";
 import { createMovementPage } from "../domain/movement";
@@ -121,6 +121,26 @@ export default function TrackCanvas({
   const [canvasSize, setCanvasSize] = useState<CanvasSize>({ width: 0, height: 0 });
   const [locoPickerOpen, setLocoPickerOpen] = useState(false);
   const [selectedBlock, setSelectedBlock] = useState<BlockElement | null>(null);
+  const [driveBlockLocos, setDriveBlockLocos] = useState<Record<string, number>>({});
+  const driveBlockLocosRef = useRef(driveBlockLocos);
+  driveBlockLocosRef.current = driveBlockLocos;
+  useEffect(() => wsClient.on("blockStateChanged", data => {
+    const next: Record<string, number> = {};
+    for (const [id, block] of Object.entries(data)) {
+      if (!block || typeof block !== "object") continue;
+      const item = block as { blockId?: string; locoAddress?: number };
+      if (typeof item.locoAddress === "number" && item.locoAddress > 0)
+        next[String(item.blockId ?? id)] = item.locoAddress;
+    }
+    driveBlockLocosRef.current = next;
+    setDriveBlockLocos(next);
+  }), []);
+  useEffect(() => subscribeTrainTrackingState(() => requestDraw()), []);
+  const driveDestinationAvailable = (blockId: number) =>
+    !getTrainTrackingState().locos.some(item => item.currentBlockId === blockId) &&
+    !(driveBlockLocosRef.current[String(blockId)] > 0) &&
+    !(getBlockTargetLocoAddress(blockId) > 0);
+
   const [blockSelection, setBlockSelection] = useState<{ loco: Loco; sourceId: number; routes: MovementRouteCandidate[] } | null>(null);
   const blockSelectionRef = useRef<{ loco: Loco; sourceId: number; routes: MovementRouteCandidate[] } | null>(null);
   const blockSelectionBusyRef = useRef(false);
@@ -176,6 +196,10 @@ export default function TrackCanvas({
     if (blockSelectionBusyRef.current) return true;
     if (!(hit instanceof BlockElement) || !state.routes.some(route => route.toBlockId === hit.id)) {
       exitBlockSelection();
+      return true;
+    }
+    if (!driveDestinationAvailable(hit.id)) {
+      showNotification({ color: "orange", message: "Destination block is occupied or has a target locomotive." });
       return true;
     }
     const candidates = state.routes.filter(route => route.toBlockId === hit.id);
@@ -842,7 +866,8 @@ export default function TrackCanvas({
       for (const block of layout.blocks.elements) {
         if (!(block instanceof BlockElement) || !block.visible) continue;
         const isSource = block.id === blockSelection.sourceId;
-        const isDestination = blockSelection.routes.some(route => route.toBlockId === block.id);
+        const isDestination = driveDestinationAvailable(block.id) &&
+          blockSelection.routes.some(route => route.toBlockId === block.id);
         if (!isSource && !isDestination) continue;
         // FROM is yellow; reachable destination blocks are lime.
         ctx.strokeStyle = isSource ? "#ffd43b" : "#82c91e";
@@ -865,6 +890,7 @@ export default function TrackCanvas({
     settings,
     turnoutSelectionMode,
     blockSelection,
+    driveBlockLocos,
     locos,
   ]);
 
@@ -988,6 +1014,7 @@ export default function TrackCanvas({
           viewRef.current, layoutRef.current.gridSize);
         const hit = getTrackCanvasHitElement(layoutRef.current, grid.x, grid.y, false);
         canvas.style.cursor = hit instanceof BlockElement &&
+          driveDestinationAvailable(hit.id) &&
           blockSelectionRef.current.routes.some(route => route.toBlockId === hit.id)
           ? "pointer" : "default";
       }
