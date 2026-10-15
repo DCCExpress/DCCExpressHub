@@ -2025,6 +2025,9 @@ public sealed class WsHub
             case "stop":
                 ok = TrainDriver.Stop(S(data, "taskId"));
                 break;
+            case "resume":
+                ok = TrainDriver.Resume(S(data, "taskId"));
+                break;
             case "abort":
                 ok = TrainDriver.Abort(S(data, "taskId"));
                 break;
@@ -2034,7 +2037,7 @@ public sealed class WsHub
         }
         await Send(ws, "trainDriverResponse", new {
             requestId, action, ok = error is null && ok,
-            error = error ?? ((action is "stop" or "abort") && !ok ? "train_driver_not_running" : null),
+            error = error ?? ((action is "stop" or "resume" or "abort") && !ok ? "train_driver_action_rejected" : null),
             state
         });
     }
