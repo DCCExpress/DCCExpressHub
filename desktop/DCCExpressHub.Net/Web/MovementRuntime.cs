@@ -876,6 +876,11 @@ public sealed class MovementRuntime
             CurrentBlockName = BlockName(state.CurrentBlockId),
             TargetBlockName = BlockName(state.TargetBlockId)
         };
+        // Polling may recompute the same waiting state many times per second.
+        // Suppress identical publications before they fan out to Driver/Timetable/WS.
+        if (execution.State == state)
+            return;
+
         execution.State = state;
 
         lock (_gate)
