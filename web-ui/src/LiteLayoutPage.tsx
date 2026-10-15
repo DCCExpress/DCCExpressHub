@@ -1140,6 +1140,11 @@ export default function LiteLayoutPage({
   const [tool, setTool] = useState<EditorTool>({ mode: "cursor", elementType: "general" });
   const [editMode, setEditMode] = useState(false);
   const [blockSelectionActive, setBlockSelectionActive] = useState(false);
+  const [cancelBlockSelectionCounter, setCancelBlockSelectionCounter] = useState(0);
+  const emergencyStopAndCancelSelection = () => {
+    setCancelBlockSelectionCounter(value => value + 1);
+    wsApi.emergencyStop();
+  };
   const [turnoutSelectionMode, setTurnoutSelectionMode] = useState(false);
   const [canvasBusy, setCanvasBusy] = useState(false);
   const [canvasBusyText, setCanvasBusyText] = useState("Loading...");
@@ -2167,6 +2172,8 @@ export default function LiteLayoutPage({
           <TrackCanvas
             editMode={editMode}
             onBlockSelectionChange={setBlockSelectionActive}
+            cancelBlockSelectionCounter={cancelBlockSelectionCounter}
+            emergencyStopActive={commandCenter.powerInfo?.emergencyStop === true}
             tool={tool}
             onToolChange={setTool}
             layout={layout}
@@ -2377,7 +2384,7 @@ export default function LiteLayoutPage({
               size="sm"
               variant="light"
               color={commandCenter.powerInfo?.emergencyStop ? "red" : "gray"}
-              onClick={() => wsApi.emergencyStop()}
+              onClick={emergencyStopAndCancelSelection}
               style={{ pointerEvents: "auto" }}
               title={i18next.t("ui.estop")}
               className={`lite-status-action${commandCenter.powerInfo?.emergencyStop
@@ -2503,7 +2510,7 @@ export default function LiteLayoutPage({
             )}
           </Group>
           {blockSelectionActive && (
-            <Button size="compact-xs" color="red" variant="filled" onClick={() => wsApi.emergencyStop()}>
+            <Button size="compact-xs" color="red" variant="filled" onClick={emergencyStopAndCancelSelection}>
               {i18next.t("ui.estop")}
             </Button>
           )}
