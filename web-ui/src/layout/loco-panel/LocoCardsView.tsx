@@ -1,4 +1,4 @@
-import { ActionIcon, Card, Group, ScrollArea, Slider, Stack, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Badge, Card, Group, ScrollArea, Slider, Stack, Text, Tooltip } from "@mantine/core";
 import { IconArrowBigLeft, IconArrowBigRight, IconPlayerStopFilled } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import type { Direction, Loco } from "@domain/types";
@@ -69,7 +69,7 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
               <Text size="sm" fw={600} truncate>{loco.name || `#${loco.address}`}</Text>
               <Text size="xs" c="dimmed">DCC #{loco.address}</Text>
             </Stack>
-            <Text fw={700} size="sm" style={{ fontVariantNumeric: "tabular-nums" }}>{state.speed}</Text>
+            <Badge color="dark" variant="filled" radius="sm" size="lg" styles={{ root: { backgroundColor: "#111", minWidth: 40 }, label: { fontVariantNumeric: "tabular-nums" } }}>{state.speed}</Badge>
           </Group>
           <Group wrap="nowrap" gap={5} mt={5} onClick={event => event.stopPropagation()}>
             <Tooltip label="Reverse"><ActionIcon size="sm" variant={state.direction === "reverse" ? "filled" : "light"}
