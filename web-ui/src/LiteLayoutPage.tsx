@@ -2361,7 +2361,7 @@ export default function LiteLayoutPage({
 
       <Card withBorder p={5} radius="sm" className="lite-status-bar">
         <Group justify="space-between" wrap="nowrap" gap="xs">
-          <Group gap={6} wrap="nowrap" style={{ pointerEvents: blockSelectionActive ? "none" : undefined }}>
+          <Group gap={6} wrap="nowrap" inert={blockSelectionActive} style={{ opacity: blockSelectionActive ? 0.55 : 1 }}>
             <Badge
               data-command-center-status-role="layout-ws"
               size="sm"
@@ -2497,7 +2497,14 @@ export default function LiteLayoutPage({
             </ActionIcon>
 
           </Group>
-          {blockSelectionActive && <Badge color="yellow" variant="filled" size="md">Select yellow destination · Esc to cancel</Badge>}
+          {blockSelectionActive && (
+            <Group gap="xs" wrap="nowrap">
+              <Badge color="yellow" variant="filled" size="md">Select yellow destination · Esc to cancel</Badge>
+              <Button size="compact-xs" color="red" variant="filled" onClick={() => wsApi.emergencyStop()}>
+                {i18next.t("ui.estop")}
+              </Button>
+            </Group>
+          )}
           <Text size="xs" c="dimmed" truncate>
             {layout.getAllElements().length} elements · {locos.length} locos
           </Text>
