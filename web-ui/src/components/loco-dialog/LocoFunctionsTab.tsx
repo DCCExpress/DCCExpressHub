@@ -10,8 +10,6 @@ import {
   ActionIcon,
   Button,
   Checkbox,
-  ColorInput,
-  Select,
   Group,
   SegmentedControl,
   ScrollArea,
@@ -220,17 +218,13 @@ export default function LocoFunctionsTab({
           verticalSpacing="xs"
           horizontalSpacing="sm"
           style={{
-            minWidth: 940,
+            minWidth: 810,
             tableLayout: "fixed",
           }}
         >
           <Table.Thead>
             <Table.Tr>
-              <Table.Th w={90}>
-                {t(
-                  "locodialog.function_number"
-                )}
-              </Table.Th>
+              <Table.Th w={44}>#</Table.Th>
               <Table.Th>
                 {t(
                   "locodialog.functionname"
@@ -369,13 +363,6 @@ export default function LocoFunctionsTab({
                           {fn.icon ? <FunctionIconAsset fn={fn} size={22} /> : <IconDots size={18} />}
                         </ActionIcon>;
                       })()}
-                      {fn.icon && (fn.icon.startsWith("builtin:") || /\.svg$/i.test(fn.icon)) && <>
-                        <Select size="xs" w={88} value={fn.iconTintMode ?? "original"}
-                          data={[{ value: "original", label: "Original" }, { value: "tint", label: "Tint" }]}
-                          onChange={mode => onUpdateFunction(fn.id, { iconTintMode: mode === "tint" ? "tint" : "original" })}/>
-                        {fn.iconTintMode === "tint" && <ColorInput size="xs" w={90} format="hex" withEyeDropper={false}
-                          value={fn.iconColor ?? "#ffffff"} onChange={color => onUpdateFunction(fn.id, { iconColor: color })}/>}
-                      </>}
                     </Group>
                   </Table.Td>
 
@@ -606,7 +593,7 @@ export default function LocoFunctionsTab({
       </ScrollArea>
       <FunctionIconPicker opened={iconFunction !== undefined} value={iconFunction?.icon ?? ""}
         onClose={() => setIconFunctionId(null)}
-        onSelect={icon => { if (iconFunction) onUpdateFunction(iconFunction.id, { icon }); }} />
+        onSelect={(icon, mode, color) => { if (iconFunction) onUpdateFunction(iconFunction.id, { icon, iconTintMode: mode, iconColor: color }); }} />
       <FunctionBindingsDialog
         opened={
           bindingFunction !==
