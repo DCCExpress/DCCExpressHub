@@ -944,6 +944,15 @@ export default function TrackCanvas({
         persistView,
         invalidate,
       });
+      if (blockSelectionRef.current) {
+        const rect = canvas.getBoundingClientRect();
+        const grid = screenToGrid(ev.clientX - rect.left, ev.clientY - rect.top,
+          viewRef.current, layoutRef.current.gridSize);
+        const hit = getTrackCanvasHitElement(layoutRef.current, grid.x, grid.y, false);
+        canvas.style.cursor = hit instanceof BlockElement &&
+          blockSelectionRef.current.routes.some(route => route.toBlockId === hit.id)
+          ? "pointer" : "default";
+      }
     };
 
     const stopInteraction = () => {
