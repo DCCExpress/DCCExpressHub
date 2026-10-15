@@ -2,7 +2,7 @@ import { showNotification } from "@mantine/notifications";
 import i18next from "i18next";
 import { useTranslation } from "react-i18next";
 import { useEffect, useState } from "react";
-import { ActionIcon, Box, Group, Popover, Tooltip } from "@mantine/core";
+import { Box, Group, Popover, Tooltip } from "@mantine/core";
 import { IconRoute, IconTrash, IconTrain } from "@tabler/icons-react";
 
 import type { Loco } from "@domain/types";
@@ -118,23 +118,27 @@ export function TrackCanvasBlockLocoPicker({
       <Popover.Target>
         <Box style={{ position: "fixed", left: popupX, top: popupY, width: 0, height: 0, pointerEvents: "none" }}/>
       </Popover.Target>
-      <Popover.Dropdown p={6} onPointerDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()}>
-        <Group gap={5} wrap="nowrap">
-          <Tooltip label="Remove locomotive from block">
-            <ActionIcon color="red" variant="light" size={40} disabled={!canRemoveLoco}
-              aria-label="Remove locomotive" onClick={removeBlockLoco}><IconTrash size={24}/></ActionIcon>
-          </Tooltip>
-          <Tooltip label="Select locomotive">
-            <ActionIcon color="blue" variant="light" size={40} aria-label="Select locomotive"
-              onClick={() => setPickerOpen(true)}><IconTrain size={24}/></ActionIcon>
-          </Tooltip>
-          <Tooltip label="Drive to Block">
-            <ActionIcon color="teal" variant="light" size={40} aria-label="Drive to Block"
-              disabled={!routeLoco || !onBeginBlockSelection}
-              onClick={() => { if (routeLoco && onBeginBlockSelection) { onBeginBlockSelection(routeLoco); onClose(); } }}>
-              <IconRoute size={24}/>
-            </ActionIcon>
-          </Tooltip>
+      <Popover.Dropdown p={4} style={{ background: "var(--mantine-color-dark-7)", touchAction: "manipulation" }} onPointerDown={event => event.stopPropagation()} onMouseDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()}>
+        <Group gap={4} wrap="nowrap">
+          {([
+            { key: "remove", label: "Remove locomotive", disabled: !canRemoveLoco, icon: <IconTrash size={28} />, action: removeBlockLoco },
+            { key: "select", label: "Select locomotive", disabled: false, icon: <IconTrain size={28} />, action: () => setPickerOpen(true) },
+            { key: "route", label: "Drive to Block", disabled: !routeLoco || !onBeginBlockSelection, icon: <IconRoute size={28} />,
+              action: () => { if (routeLoco && onBeginBlockSelection) { onBeginBlockSelection(routeLoco); onClose(); } } },
+          ] as const).map(button => (
+            <Tooltip key={button.key} label={button.label}>
+              <Box component="button" type="button" className="signal-aspect-button"
+                aria-label={button.label} disabled={button.disabled}
+                onPointerDown={event => event.stopPropagation()}
+                onClick={button.action}
+                style={{ width: 48, height: 48, padding: 4, border: 0, borderRadius: 4,
+                  display: "grid", placeItems: "center", color: "var(--mantine-color-gray-2)",
+                  background: "transparent", cursor: button.disabled ? "not-allowed" : "pointer",
+                  opacity: button.disabled ? 0.35 : 1, touchAction: "manipulation" }}>
+                {button.icon}
+              </Box>
+            </Tooltip>
+          ))}
         </Group>
       </Popover.Dropdown>
     </Popover>
