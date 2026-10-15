@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, Badge, Button, Card, Group, ScrollArea, SimpleGrid, Stack, Text } from "@mantine/core";
+import { Alert, Badge, Button, Card, Group, ScrollArea, SimpleGrid, Stack, Table, Text } from "@mantine/core";
 import { IconCpu, IconPlugConnected, IconActivityHeartbeat, IconRefresh } from "@tabler/icons-react";
 import SemiCircleGauge from "@/components/common/SemiCircleGauge";
 import { getCommandCenterInfo, type CommandCenterInfo } from "@/api/commandCenterInfo";
@@ -141,19 +141,28 @@ export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
             <IconActivityHeartbeat size={17} color="var(--mantine-color-indigo-7)" />
             <Text fw={700} c="var(--mantine-color-indigo-light-color)">Message types (live, msg/s)</Text>
           </Group>
-          <Stack gap={0} p="md">
-          {traffic.messageTypes.length === 0
-            ? <Text size="sm" c="dimmed">No messages in the last second</Text>
-            : traffic.messageTypes.map(item => (
-              <Group key={item.type} justify="space-between" gap="xs" py={3}>
-                <Text size="sm" ff="monospace">{item.type}</Text>
-                <Group gap="xs" wrap="nowrap">
-                  <Badge color={item.count > 0 ? "violet" : "gray"} variant="light" size="md" style={{ fontVariantNumeric: "tabular-nums" }}>{item.count} msg/s</Badge>
-                  <Badge color="orange" variant="light" size="md" style={{ fontVariantNumeric: "tabular-nums" }}>Peak {item.peak} msg/s</Badge>
-                </Group>
-              </Group>
-            ))}
-          </Stack>
+          <Table.ScrollContainer minWidth={450}>
+            <Table striped highlightOnHover verticalSpacing="xs" horizontalSpacing="md">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Message type</Table.Th>
+                  <Table.Th ta="right">Current (msg/s)</Table.Th>
+                  <Table.Th ta="right">Peak (msg/s)</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {traffic.messageTypes.length === 0 ? (
+                  <Table.Tr><Table.Td colSpan={3}><Text size="sm" c="dimmed">No messages measured yet</Text></Table.Td></Table.Tr>
+                ) : traffic.messageTypes.map(item => (
+                  <Table.Tr key={item.type}>
+                    <Table.Td><Text size="sm" ff="monospace">{item.type}</Text></Table.Td>
+                    <Table.Td ta="right"><Badge color={item.count > 0 ? "violet" : "gray"} variant="light" size="md" style={{ fontVariantNumeric: "tabular-nums" }}>{item.count}</Badge></Table.Td>
+                    <Table.Td ta="right"><Badge color="orange" variant="light" size="md" style={{ fontVariantNumeric: "tabular-nums" }}>{item.peak}</Badge></Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
         </Card>
         <Text size="xs" c="dimmed">Message rates are measured in this browser while the diagnostics tab is open. Sensor messages include snapshots; they are not individual occupancy transitions. Protocol-specific R-BUS/LocoNet packet counters and backend queue statistics are not available in this view.</Text>
       </Stack>
