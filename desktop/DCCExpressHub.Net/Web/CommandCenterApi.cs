@@ -632,6 +632,17 @@ public sealed class CommandCenterApi
                     x.IsSerial
                         ? CommandCenterSettings.DccExSerialBaudRate
                         : 0,
+                hostDiagnostics = new
+                {
+                    machine = Environment.MachineName,
+                    os = System.Runtime.InteropServices.RuntimeInformation.OSDescription,
+                    processorCount = Environment.ProcessorCount,
+                    uptimeSeconds = (long)(Environment.TickCount64 / 1000),
+                    workingSetBytes = Environment.WorkingSet,
+                    managedHeapBytes = GC.GetTotalMemory(false),
+                    cpuTimeMs = (long)System.Diagnostics.Process.GetCurrentProcess().TotalProcessorTime.TotalMilliseconds,
+                    sampledAtMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+                },
                 locoNetDiagnostics = _physical.GetLocoNetDiagnostics(),
                 locoNetStandardTelemetry = _physical.GetLocoNetStandardTelemetry(),
                 locoNetSerialDiagnostics = _physical.GetLocoNetSerialDiagnostics(),
