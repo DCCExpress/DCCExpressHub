@@ -43,6 +43,7 @@ import type {
 
 export type TrackCanvasProps = {
   editMode?: boolean;
+  onBlockSelectionChange?: (active: boolean) => void;
   tool: EditorTool;
   onToolChange?: Dispatch<SetStateAction<EditorTool>>;
   layout: LayoutView;
