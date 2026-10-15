@@ -632,6 +632,7 @@ public sealed class CommandCenterApi
                     x.IsSerial
                         ? CommandCenterSettings.DccExSerialBaudRate
                         : 0,
+                locoNetDiagnostics = _physical.GetLocoNetDiagnostics(),
                 capabilities =
                     new
                     {
