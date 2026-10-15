@@ -55,11 +55,13 @@ export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
     const ticker = window.setInterval(() => {
       const c = counters.current;
       c.peak = Math.max(c.peak, c.incoming);
-      setTraffic({ incoming: c.incoming, outgoing: c.outgoing, sensor: c.sensor, peakIncoming: c.peak, lastMessage: c.last, messageTypes: [...c.types.entries()].map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count) });
+      setTraffic({ incoming: c.incoming, outgoing: c.outgoing, sensor: c.sensor, peakIncoming: c.peak, lastMessage: c.last, messageTypes: [...c.types.entries()].map(([type, count]) => ({ type, count })) });
       c.incoming = 0;
       c.outgoing = 0;
       c.sensor = 0;
-      c.types.clear();
+      // Preserve the discovered message types and their insertion order.
+      // Reset only the per-second values, so idle types remain visible as 0.
+      c.types.forEach((_count, type) => c.types.set(type, 0));
     }, 1000);
     const polling = window.setInterval(refresh, 5000);
     return () => { live = false; offStatus(); offIn(); offOut(); window.clearInterval(ticker); window.clearInterval(polling); };
