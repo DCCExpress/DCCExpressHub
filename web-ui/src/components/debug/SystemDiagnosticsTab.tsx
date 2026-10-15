@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Alert, Badge, Button, Card, Group, ScrollArea, SimpleGrid, Stack, Text } from "@mantine/core";
-import { IconRefresh } from "@tabler/icons-react";
+import { IconCpu, IconPlugConnected, IconActivityHeartbeat, IconRefresh } from "@tabler/icons-react";
 import SemiCircleGauge from "@/components/common/SemiCircleGauge";
 import { getCommandCenterInfo, type CommandCenterInfo } from "@/api/commandCenterInfo";
 import { wsClient, type WsConnectionStatus } from "@/services/wsClient";
@@ -74,8 +74,8 @@ export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
         </Group>
         {error && <Alert color="red">{error}</Alert>}
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="sm">
-          <Card withBorder>
-            <Text fw={600} mb="xs">PC · Host</Text>
+          <Card withBorder padding="md">
+            <Group gap="xs" mb="sm" px="sm" py={8} bg="blue.1" style={{ borderRadius: 8, borderLeft: "3px solid var(--mantine-color-blue-6)" }}><IconCpu size={17} color="var(--mantine-color-blue-7)" /><Text fw={700} c="blue.9">PC · Host</Text></Group>
             {info?.hostDiagnostics ? (
               <Stack gap={5}>
                 <Text size="sm">Machine: {info.hostDiagnostics.machine}</Text>
@@ -88,8 +88,8 @@ export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
               </Stack>
             ) : <Text size="sm" c="dimmed">Host diagnostics unavailable</Text>}
           </Card>
-          <Card withBorder>
-            <Text fw={600} mb="xs">{info?.type === "loconet" ? "LocoNet " + (info?.transport?.toLowerCase() === "tcp" ? "TCP" : "Serial") : info?.name ?? "Command center"}</Text>
+          <Card withBorder padding="md">
+            <Group gap="xs" mb="sm" px="sm" py={8} bg="teal.1" style={{ borderRadius: 8, borderLeft: "3px solid var(--mantine-color-teal-6)" }}><IconPlugConnected size={17} color="var(--mantine-color-teal-7)" /><Text fw={700} c="teal.9">{info?.type === "loconet" ? "LocoNet " + (info?.transport?.toLowerCase() === "tcp" ? "TCP" : "Serial") : info?.name ?? "Command center"}</Text></Group>
             <Badge color={info?.connected ? "green" : "red"}>{info?.connected ? "CONNECTED" : "DISCONNECTED"}</Badge>
             <Stack gap={5} mt="xs">
               <Text size="sm">Protocol: {info?.type ?? "—"} · {info?.transport ?? "—"}</Text>
@@ -112,10 +112,10 @@ export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
               {info?.feedbackLinkName && <Text size="sm">Feedback: {info.feedbackLinkName}</Text>}
             </Stack>
           </Card>
-          <Card withBorder>
+          <Card withBorder padding="md">
+            <Group gap="xs" mb="sm" px="sm" py={8} bg="violet.1" style={{ borderRadius: 8, borderLeft: "3px solid var(--mantine-color-violet-6)" }}><IconActivityHeartbeat size={17} color="var(--mantine-color-violet-7)" /><Text fw={700} c="violet.9">WebSocket</Text></Group>
             <Group align="flex-start" justify="space-between" gap="xs" wrap="nowrap">
               <Stack gap="xs" style={{ minWidth: 0, flex: 1 }}>
-                <Text fw={600}>WebSocket</Text>
                 <Badge style={{ alignSelf: "flex-start" }} color={status === "connected" ? "green" : status === "connecting" || status === "reconnecting" ? "yellow" : "red"}>{status.toUpperCase()}</Badge>
                 <Text size="sm">Received: {traffic.incoming} msg/s</Text>
               </Stack>
