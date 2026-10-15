@@ -8,9 +8,13 @@ export function subscribeIconStyles(cb: () => void): () => void { listeners.add(
 function notify() { for (const listener of listeners) listener(); }
 export async function loadIconStyles(): Promise<void> {
   if (loaded) return;
-  const response = await fetch(FILE, { cache: "no-store" });
+  const response = await fetch(`/api/files/text?path=${encodeURIComponent(FILE)}`, { cache: "no-store" });
   if (response.ok) {
-    const data: unknown = await response.json();
+    const raw = await response.text();
+    if (/^\s*<!doctype\s+html|^\s*<html/i.test(raw)) throw Error("Icon styles endpoint returned HTML instead of JSON");
+    const payload: unknown = JSON.parse(raw);
+    const data: unknown = typeof payload === "object" && payload !== null && "content" in payload
+      ? JSON.parse(String((payload as { content: unknown }).content)) : payload;
     if (data && typeof data === "object" && !Array.isArray(data)) {
       for (const [key, entry] of Object.entries(data)) {
         if (entry && typeof entry === "object" && "mode" in entry && "color" in entry) {
