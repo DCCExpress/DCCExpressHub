@@ -15,7 +15,7 @@ import { getTrainTrackingState } from "../services/trainTrackingRuntime";
 import { loadAutomationMovement } from "../services/automationApi";
 import { loadMovementRouteCandidates, applyMovementRouteCandidate, type MovementRouteCandidate } from "../services/movementRouteCatalog";
 import { createMovementPage } from "../domain/movement";
-import { startTransientMovement } from "../services/movementEngine";
+
 import { registerDriveToBlockCanvas, setDriveToBlockSelectionActive } from "../services/driveToBlockSelection";
 import { showNotification } from "@mantine/notifications";
 import { getTrackCanvasHitElement } from "./track-canvas/trackCanvasRuntimeHitTest";
@@ -199,7 +199,14 @@ export default function TrackCanvas({
     } catch { /* storage may be unavailable */ }
     page.speed = Math.max(1, Math.min(preferredSpeed,
       state.loco.maxSpeed > 0 ? state.loco.maxSpeed : 126));
-    void startTransientMovement(page).then(() => {
+    const requestId = `driver-start-${Date.now()}-${state.loco.address}`;
+    const taskId = `driver-${state.loco.address}-${Date.now()}`;
+    void wsApi.request("trainDriverCommand",
+      { requestId, action: "start", taskId, page },
+      "trainDriverResponse", response => response.requestId === requestId, 10000
+    ).then(response => {
+      if (!response.ok) throw new Error(response.error || "Train Driver rejected the task");
+
       exitBlockSelection();
     }).catch(error => {
       showNotification({ color: "red", message: error instanceof Error ? error.message : String(error) });
