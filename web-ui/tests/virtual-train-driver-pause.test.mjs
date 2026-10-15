@@ -36,7 +36,7 @@ test("LocoPanel controls switch without altering their fixed-height row", () => 
 test("Canvas Drive to Block uses TrainDriver start rather than an unmanaged Movement", () => {
   const canvas = read("web-ui/src/components/TrackCanvas.tsx");
   assert.match(canvas, /wsApi\.request\("trainDriverCommand"/);
-  assert.match(canvas, /action: "start", taskId, page/);
+  assert.match(canvas, /action: "startAuto", taskId, candidates: pages/);
   assert.doesNotMatch(canvas, /startTransientMovement\(page\)/);
 });
 
@@ -48,4 +48,18 @@ test("Drive to Block uses the locomotive's configured starting speed", () => {
   assert.doesNotMatch(canvas, /localStorage\.getItem\("dccexpresshub\.loco-target-block\.speed"\)/);
   assert.match(tab, /loco\.cruisingSpeed \?\? 20/);
   assert.match(helpers, /cruisingSpeed: 20/);
+});
+
+test("AUTO Drive to Block sends alternatives and rejects blocked route candidates", () => {
+  const canvas = read("web-ui/src/components/TrackCanvas.tsx");
+  const driver = read("desktop/DCCExpressHub.Net/Web/TrainDriverRuntime.cs");
+  const movement = read("desktop/DCCExpressHub.Net/Web/MovementRuntime.cs");
+  const ws = read("desktop/DCCExpressHub.Net/Web/WsHub.cs");
+  assert.match(canvas, /state\.routes\.filter\(route => route\.toBlockId === hit\.id\)/);
+  assert.match(canvas, /candidates\.map\(route =>/);
+  assert.match(driver, /EvaluateAutoRoute\(page\)/);
+  assert.match(driver, /OrderBy\(item => item\.Check\.Cost\)/);
+  assert.match(movement, /route_sensor_unknown/);
+  assert.match(movement, /route_block_occupied_or_reserved/);
+  assert.match(ws, /case "startAuto":/);
 });
