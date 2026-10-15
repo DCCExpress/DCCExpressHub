@@ -11,7 +11,6 @@ import {
   Button,
   Checkbox,
   Group,
-  NumberInput,
   SegmentedControl,
   ScrollArea,
   Stack,
@@ -23,8 +22,6 @@ import {
 
 import {
   IconDots,
-  IconPlus,
-  IconTrash,
 } from "@tabler/icons-react";
 
 import type {
@@ -44,13 +41,9 @@ type LocoFunctionsTabProps = {
   onFunctionBindingsChange: (
     bindings: FunctionBinding[]
   ) => void;
-  onAddFunction: () => void;
   onUpdateFunction: (
     fnId: string,
     patch: Partial<LocoFunction>
-  ) => void;
-  onDeleteFunction: (
-    fnId: string
   ) => void;
   onFunctionTest: (
     fn: LocoFunction,
@@ -63,9 +56,7 @@ export default function LocoFunctionsTab({
   functions,
   functionBindings,
   onFunctionBindingsChange,
-  onAddFunction,
   onUpdateFunction,
-  onDeleteFunction,
   onFunctionTest,
   t,
 }: LocoFunctionsTabProps) {
@@ -204,19 +195,7 @@ export default function LocoFunctionsTab({
           )}
         </Text>
 
-        <Button
-          size="xs"
-          leftSection={
-            <IconPlus size={14} />
-          }
-          onClick={
-            onAddFunction
-          }
-        >
-          {t(
-            "locodialog.new_function"
-          )}
-        </Button>
+
       </Group>
 
       <ScrollArea
@@ -313,23 +292,7 @@ export default function LocoFunctionsTab({
                   key={fn.id}
                 >
                   <Table.Td>
-                    <NumberInput
-                      size="xs"
-                      value={fn.number}
-                      min={0}
-                      onChange={
-                        value =>
-                          onUpdateFunction(
-                            fn.id,
-                            {
-                              number:
-                                Number(
-                                  value
-                                ) || 0,
-                            }
-                          )
-                      }
-                    />
+                    <Text size="sm" fw={600}>F{fn.number}</Text>
                   </Table.Td>
 
                   <Table.Td>
@@ -602,32 +565,7 @@ export default function LocoFunctionsTab({
                       justify="center"
                       wrap="nowrap"
                     >
-                      <ActionIcon
-                        size="sm"
-                        color="red"
-                        variant="light"
-                        aria-label={t(
-                          "locodialog.delete"
-                        )}
-                        onClick={() => {
-                          if (
-                            testActive
-                          ) {
-                            setTestState(
-                              fn,
-                              false
-                            );
-                          }
 
-                          onDeleteFunction(
-                            fn.id
-                          );
-                        }}
-                      >
-                        <IconTrash
-                          size={15}
-                        />
-                      </ActionIcon>
                     </Group>
                   </Table.Td>
                 </Table.Tr>
