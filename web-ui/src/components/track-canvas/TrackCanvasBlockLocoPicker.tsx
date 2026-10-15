@@ -3,7 +3,7 @@ import i18next from "i18next";
 import { useTranslation } from "react-i18next";
 import { useEffect, useState } from "react";
 import { ActionIcon, Box, Group, Popover, Tooltip } from "@mantine/core";
-import { IconRoute, IconTrash, IconUserPlus } from "@tabler/icons-react";
+import { IconRoute, IconTrash, IconTrain } from "@tabler/icons-react";
 
 import type { Loco } from "@domain/types";
 import type { BlockElement } from "../../models/editor/elements/BlockElement";
@@ -114,7 +114,7 @@ export function TrackCanvasBlockLocoPicker({
   return (
     <>
     <Popover opened={opened && !pickerOpen && !blockSelectionActive} onChange={value => { if (!value) onClose(); }}
-      withinPortal withArrow shadow="xl" zIndex={2100} position="top" offset={14} closeOnClickOutside closeOnEscape>
+      withinPortal withArrow shadow="xl" zIndex={2100} position="bottom" offset={14} closeOnClickOutside closeOnEscape>
       <Popover.Target>
         <Box style={{ position: "fixed", left: popupX, top: popupY, width: 0, height: 0, pointerEvents: "none" }}/>
       </Popover.Target>
@@ -126,7 +126,7 @@ export function TrackCanvasBlockLocoPicker({
           </Tooltip>
           <Tooltip label="Select locomotive">
             <ActionIcon color="blue" variant="light" size="lg" aria-label="Select locomotive"
-              onClick={() => setPickerOpen(true)}><IconUserPlus size={20}/></ActionIcon>
+              onClick={() => setPickerOpen(true)}><IconTrain size={20}/></ActionIcon>
           </Tooltip>
           <Tooltip label="Drive to Block">
             <ActionIcon color="teal" variant="light" size="lg" aria-label="Drive to Block"
