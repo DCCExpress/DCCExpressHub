@@ -50,7 +50,7 @@ export default function SensorDebugTab({
               return (
                 <Tooltip
                   key={address}
-                  label={`#${address} · ${isUnknown ? "UNKNOWN" : state.value ? "OCCUPIED" : "FREE"}${owners.length ? " · " + owners.map(owner => owner.name).join(", ") : ""}`}
+                  label={`#${address} · ${isUnknown ? "UNKNOWN" : state?.value ? "OCCUPIED" : "FREE"}${owners.length ? " · " + owners.map(owner => owner.name).join(", ") : ""}`}
                   withArrow
                   multiline
                 >
@@ -59,10 +59,10 @@ export default function SensorDebugTab({
                       textAlign: "center",
                       padding: "6px 3px",
                       borderRadius: 7,
-                      border: `1px solid var(--mantine-color-${isUnknown ? "red" : state.value ? "green" : "gray"}-6)`,
+                      border: `1px solid var(--mantine-color-${isUnknown ? "red" : state?.value ? "green" : "gray"}-6)`,
                       background: isUnknown
                         ? "var(--mantine-color-red-light)"
-                        : state.value ? "var(--mantine-color-green-light)" : "var(--mantine-color-default-hover)",
+                        : state?.value ? "var(--mantine-color-green-light)" : "var(--mantine-color-default-hover)",
                       fontVariantNumeric: "tabular-nums",
                     }}
                   >
@@ -75,8 +75,8 @@ export default function SensorDebugTab({
                             width: 10,
                             height: 10,
                             borderRadius: "50%",
-                            background: state.value ? "var(--mantine-color-green-6)" : "var(--mantine-color-gray-5)",
-                            boxShadow: state.value ? "0 0 6px var(--mantine-color-green-6)" : "none",
+                            background: state?.value ? "var(--mantine-color-green-6)" : "var(--mantine-color-gray-5)",
+                            boxShadow: state?.value ? "0 0 6px var(--mantine-color-green-6)" : "none",
                           }}
                         />
                       )}
