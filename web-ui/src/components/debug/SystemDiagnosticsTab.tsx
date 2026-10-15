@@ -142,7 +142,7 @@ export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
             : traffic.messageTypes.map(item => (
               <Group key={item.type} justify="space-between" gap="xs" py={3}>
                 <Text size="sm" ff="monospace">{item.type}</Text>
-                <Text size="sm" fw={600} style={{ fontVariantNumeric: "tabular-nums" }}>{item.count}</Text>
+                <Badge color={item.count > 0 ? "violet" : "gray"} variant="light" size="md" style={{ fontVariantNumeric: "tabular-nums" }}>{item.count} msg/s</Badge>
               </Group>
             ))}
         </Card>
