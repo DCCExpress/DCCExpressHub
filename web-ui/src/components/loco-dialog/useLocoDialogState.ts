@@ -151,6 +151,10 @@ export function useLocoDialogState(
     patch: Partial<LocoFunction>
   ): void => {
     if (!selectedLoco) return;
+    if (patch.showOnLocoCard === true) {
+      const selected = selectedLoco.functions.filter(fn => fn.showOnLocoCard ?? fn.number < 5);
+      if (!selected.some(fn => fn.id === fnId) && selected.length >= 5) return;
+    }
 
     updateSelectedLoco({
       functions: selectedLoco.functions.map(fn =>
