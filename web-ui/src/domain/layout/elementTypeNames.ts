@@ -24,6 +24,7 @@ export const ELEMENT_TYPE_NAMES: Record<ElementType, string> = {
   [ELEMENT_TYPES.BUTTON]: "Button",
   [ELEMENT_TYPES.BUTTON_SCRIPT]: "Script Button",
   [ELEMENT_TYPES.BUTTON_AUDIO]: "Audio Button",
+  [ELEMENT_TYPES.BUTTON_EMERGENCY]: "Emergency Stop",
   [ELEMENT_TYPES.BUTTON_AUDIO_LIST]: "Audio List Button",
   [ELEMENT_TYPES.BUTTON_ROUTE]: "Route Button",
   [ELEMENT_TYPES.BUTTON_ROUTE_EXTENDED]: "Extended Route Button",
