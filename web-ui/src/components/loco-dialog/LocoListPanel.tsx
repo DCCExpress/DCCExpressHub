@@ -69,7 +69,7 @@ export default function LocoListPanel({
 
                 <Stack gap={0} style={{ minWidth: 0 }}>
                   <Text fw={600} truncate>{loco.name || t("locodialog.unknownloco")}</Text>
-                  <Text size="sm" c="dimmed">{t("locodialog.locoaddress")}: {loco.address}</Text>
+                  <Text size="sm" c={loco.active === false ? "orange" : "dimmed"}>{t("locodialog.locoaddress")}: {loco.address}{loco.active === false ? " · Inactive" : ""}</Text>
                   <Text size="sm" c="dimmed">{t("locodialog.loco_speed_max")}: {loco.maxSpeed}</Text>
                 </Stack>
               </Group>
