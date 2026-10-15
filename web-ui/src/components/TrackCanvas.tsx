@@ -831,17 +831,20 @@ export default function TrackCanvas({
       turnoutSelectionMode,
       locos || []
     );
-    if (blockSelection?.routes.length) {
+    if (blockSelection) {
       ctx.save();
       ctx.setTransform(
         dpr * viewRef.current.scale, 0, 0, dpr * viewRef.current.scale,
         dpr * viewRef.current.offsetX, dpr * viewRef.current.offsetY
       );
-      ctx.strokeStyle = "#ffd43b";
       ctx.lineWidth = 3 / viewRef.current.scale;
       for (const block of layout.blocks.elements) {
-        if (!(block instanceof BlockElement) || !block.visible ||
-            !blockSelection.routes.some(route => route.toBlockId === block.id)) continue;
+        if (!(block instanceof BlockElement) || !block.visible) continue;
+        const isSource = block.id === blockSelection.sourceId;
+        const isDestination = blockSelection.routes.some(route => route.toBlockId === block.id);
+        if (!isSource && !isDestination) continue;
+        // FROM is yellow; reachable destination blocks are lime.
+        ctx.strokeStyle = isSource ? "#ffd43b" : "#82c91e";
         const bounds = block.getBounds();
         ctx.strokeRect(bounds.x * layout.gridSize, bounds.y * layout.gridSize,
           bounds.width * layout.gridSize, bounds.height * layout.gridSize);
