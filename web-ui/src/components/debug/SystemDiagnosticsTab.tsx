@@ -25,7 +25,7 @@ export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
       });
     };
     counters.current = { incoming: 0, outgoing: 0, sensor: 0, peak: 0, last: "—", types: new Map<string, number>() };
-    setTraffic({ incoming: 0, outgoing: 0, sensor: 0, peakIncoming: 0, lastMessage: "—" });
+    setTraffic({ incoming: 0, outgoing: 0, sensor: 0, peakIncoming: 0, lastMessage: "—", messageTypes: [] });
     refresh();
     const offStatus = wsClient.subscribeStatus(setStatus);
     const offIn = wsClient.subscribeMessages(message => {
