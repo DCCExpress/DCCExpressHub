@@ -9,6 +9,7 @@ import TrackTurnoutDoubleElement from "../models/editor/elements/TrackTurnoutDou
 import {
   TrackTurnoutThreeWayElement,
 } from "../models/editor/elements/TrackTurnoutThreeWayElement";
+import { EmergencyButtonElement } from "../models/editor/elements/EmergencyButtonElement";
 import { AudioButtonElement } from "../models/editor/elements/AudioButtonElement";
 import type { Loco } from "@domain/types";
 import { BlockElement } from "../models/editor/elements/BlockElement";
@@ -1110,6 +1111,10 @@ export default function TrackCanvas({
       if (!editModeRef.current) {
         if (blockSelectionRef.current) {
           selectDestinationRef.current(hitElement);
+          return;
+        }
+        if (hitElement instanceof EmergencyButtonElement) {
+          hitElement.press();
           return;
         }
         if (hitElement instanceof AudioButtonElement) {
