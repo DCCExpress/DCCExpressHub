@@ -615,6 +615,7 @@ export default function TrackCanvas({
         );
 
       const needsBlinkRedraw =
+        EmergencyButtonElement.emergencyActive && elements.some(element => element instanceof EmergencyButtonElement) ||
         hasMovingMovementBlockRuntime() ||
         hasTrainTrackingPredictions() ||
         liveLocoMoving ||
