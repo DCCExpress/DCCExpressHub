@@ -89,12 +89,12 @@ export default function LocoGeneralTab({
         />
 
         <NumberInput
-          label={t("locodialog.loco_starting_speed")}
-          description={t("locodialog.loco_starting_speed_description")}
-          value={loco.startingSpeed ?? 20}
+          label={t("locodialog.loco_cruising_speed")}
+          description={t("locodialog.loco_cruising_speed_description")}
+          value={loco.cruisingSpeed ?? 20}
           min={1}
           max={Math.min(126, Math.max(1, loco.maxSpeed))}
-          onChange={value => onPatch({ startingSpeed: Math.max(1, Math.min(Number(value) || 1, 126, loco.maxSpeed)) })}
+          onChange={value => onPatch({ cruisingSpeed: Math.max(1, Math.min(Number(value) || 1, 126, loco.maxSpeed)) })}
         />
 
         <Checkbox
