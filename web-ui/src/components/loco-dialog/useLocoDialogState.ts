@@ -17,6 +17,7 @@ import {
 } from "../../api/domainApi";
 import { uploadLocoImage } from "../../api/imageApi";
 import { wsApi } from "../../services/wsApi";
+import { ensureLocoFunctions } from "@domain/locoFunctions";
 import {
   createDefaultFunction,
   createEmptyLoco,
@@ -56,7 +57,7 @@ export function useLocoDialogState(
           getFunctionBindings(),
         ]);
 
-        setLocos(data);
+        setLocos(data.map(ensureLocoFunctions));
         setFunctionBindings(bindings);
         setSelectedId(data[0]?.id ?? "");
       } catch (error) {
@@ -153,7 +154,7 @@ export function useLocoDialogState(
 
     updateSelectedLoco({
       functions: selectedLoco.functions.map(fn =>
-        fn.id === fnId ? { ...fn, ...patch } : fn
+        fn.id === fnId ? { ...fn, ...patch, number: fn.number } : fn
       ),
     });
   };
@@ -228,7 +229,7 @@ export function useLocoDialogState(
       setSaving(true);
       setMessage("");
       await Promise.all([
-        persistLocos(locos),
+        persistLocos(locos.map(ensureLocoFunctions)),
         saveFunctionBindings(
           functionBindings
         ),
