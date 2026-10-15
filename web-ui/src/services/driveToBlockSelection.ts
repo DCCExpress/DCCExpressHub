@@ -5,6 +5,16 @@ import type { Loco } from "@domain/types";
 let handler: ((loco: Loco) => void) | null = null;
 let selecting = false;
 const listeners = new Set<() => void>();
+const selectedLocoListeners = new Set<(locoId: string) => void>();
+
+export function activateDriveToBlockLoco(locoId: string): void {
+  for (const listener of selectedLocoListeners) listener(locoId);
+}
+
+export function subscribeDriveToBlockLoco(listener: (locoId: string) => void): () => void {
+  selectedLocoListeners.add(listener);
+  return () => { selectedLocoListeners.delete(listener); };
+}
 
 const notify = () => { for (const listener of listeners) listener(); };
 
