@@ -30,6 +30,7 @@ export const ELEMENT_TYPES = {
   BUTTON: "button",
   BUTTON_SCRIPT: "buttonscript",
   BUTTON_AUDIO: "audiobutton",
+  BUTTON_EMERGENCY: "emergencybutton",
   BUTTON_AUDIO_LIST: "audiolistbutton",
   BUTTON_ROUTE: "routebutton",
   BUTTON_ROUTE_EXTENDED: "extendedroutebutton",
