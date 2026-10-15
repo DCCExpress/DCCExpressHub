@@ -135,8 +135,12 @@ export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
             </Stack>
           </Card>
         </SimpleGrid>
-        <Card withBorder>
-          <Text fw={600} mb="xs">Message types (live, msg/s)</Text>
+        <Card withBorder padding={0} style={{ overflow: "hidden" }}>
+          <Group gap="xs" px="md" py={10} bg="var(--mantine-color-indigo-light)" style={{ borderBottom: "2px solid var(--mantine-color-indigo-6)" }}>
+            <IconActivityHeartbeat size={17} color="var(--mantine-color-indigo-7)" />
+            <Text fw={700} c="var(--mantine-color-indigo-light-color)">Message types (live, msg/s)</Text>
+          </Group>
+          <Stack gap={0} p="md">
           {traffic.messageTypes.length === 0
             ? <Text size="sm" c="dimmed">No messages in the last second</Text>
             : traffic.messageTypes.map(item => (
@@ -145,6 +149,7 @@ export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
                 <Badge color={item.count > 0 ? "violet" : "gray"} variant="light" size="md" style={{ fontVariantNumeric: "tabular-nums" }}>{item.count} msg/s</Badge>
               </Group>
             ))}
+          </Stack>
         </Card>
         <Text size="xs" c="dimmed">Message rates are measured in this browser while the diagnostics tab is open. Sensor messages include snapshots; they are not individual occupancy transitions. Protocol-specific R-BUS/LocoNet packet counters and backend queue statistics are not available in this view.</Text>
       </Stack>
