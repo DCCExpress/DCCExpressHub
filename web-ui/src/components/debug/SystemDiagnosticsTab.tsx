@@ -74,29 +74,33 @@ export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
         </Group>
         {error && <Alert color="red">{error}</Alert>}
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="sm">
-          <Card withBorder padding="md">
-            <Group gap="xs" mb="sm" px="sm" py={8} bg="var(--mantine-color-blue-light)" style={{ borderRadius: 8, borderLeft: "3px solid var(--mantine-color-blue-6)" }}><IconCpu size={17} color="var(--mantine-color-blue-7)" /><Text fw={700} c="var(--mantine-color-blue-light-color)">PC · Host</Text></Group>
+          <Card withBorder padding={0} style={{ overflow: "hidden" }}>
+            <Group gap="xs" px="md" py={10} bg="var(--mantine-color-blue-light)" style={{ borderBottom: "2px solid var(--mantine-color-blue-6)" }}><IconCpu size={17} color="var(--mantine-color-blue-7)" /><Text fw={700} c="var(--mantine-color-blue-light-color)">PC · Host</Text></Group>
+            <Stack p="md" gap="xs">
             {info?.hostDiagnostics ? (
               <Stack gap={5}>
                 <Text size="sm">Machine: {info.hostDiagnostics.machine}</Text>
                 <Text size="xs" c="dimmed" lineClamp={2}>{info.hostDiagnostics.os}</Text>
-                <Text size="sm">CPU: {cpuPercent === null ? "Measuring…" : cpuPercent.toFixed(1) + "%"} ({info.hostDiagnostics.processorCount} cores)</Text>
-                <Text size="sm">Process RAM: {(info.hostDiagnostics.workingSetBytes / 1048576).toFixed(1)} MB</Text>
-                <Text size="sm">Managed heap: {(info.hostDiagnostics.managedHeapBytes / 1048576).toFixed(1)} MB</Text>
+                <Text size="sm">CPU: <Badge color="blue" variant="light">{cpuPercent === null ? "Measuring…" : cpuPercent.toFixed(1) + "%"}</Badge> ({info.hostDiagnostics.processorCount} cores)</Text>
+                <Text size="sm">Process RAM: <Badge color="blue" variant="light">{(info.hostDiagnostics.workingSetBytes / 1048576).toFixed(1)} MB</Badge></Text>
+                <Text size="sm">Managed heap: <Badge color="gray" variant="light">{(info.hostDiagnostics.managedHeapBytes / 1048576).toFixed(1)} MB</Badge></Text>
                 <Text size="sm">System uptime: {Math.floor(info.hostDiagnostics.uptimeSeconds / 3600)}h {Math.floor(info.hostDiagnostics.uptimeSeconds % 3600 / 60)}m</Text>
                 <Text size="xs" c="dimmed">CPU and RAM measure the Hub process</Text>
               </Stack>
             ) : <Text size="sm" c="dimmed">Host diagnostics unavailable</Text>}
+            </Stack>
+            </Stack>
           </Card>
-          <Card withBorder padding="md">
-            <Group gap="xs" mb="sm" px="sm" py={8} bg="var(--mantine-color-teal-light)" style={{ borderRadius: 8, borderLeft: "3px solid var(--mantine-color-teal-6)" }}><IconPlugConnected size={17} color="var(--mantine-color-teal-7)" /><Text fw={700} c="var(--mantine-color-teal-light-color)">{info?.type === "loconet" ? "LocoNet " + (info?.transport?.toLowerCase() === "tcp" ? "TCP" : "Serial") : info?.name ?? "Command center"}</Text></Group>
+          <Card withBorder padding={0} style={{ overflow: "hidden" }}>
+            <Group gap="xs" px="md" py={10} bg="var(--mantine-color-teal-light)" style={{ borderBottom: "2px solid var(--mantine-color-teal-6)" }}><IconPlugConnected size={17} color="var(--mantine-color-teal-7)" /><Text fw={700} c="var(--mantine-color-teal-light-color)">{info?.type === "loconet" ? "LocoNet " + (info?.transport?.toLowerCase() === "tcp" ? "TCP" : "Serial") : info?.name ?? "Command center"}</Text></Group>
+            <Stack p="md" gap="xs">
             <Badge color={info?.connected ? "green" : "red"}>{info?.connected ? "CONNECTED" : "DISCONNECTED"}</Badge>
             <Stack gap={5} mt="xs">
               <Text size="sm">Protocol: {info?.type ?? "—"} · {info?.transport ?? "—"}</Text>
               <Text size="sm">Endpoint: {info?.host ? info.host + (info.port ? ":" + info.port : "") : info?.serialPort || "—"}</Text>
               {info?.locoNetStandardTelemetry && (
                 <>
-                  <Text size="sm">RX / TX: {info.locoNetStandardTelemetry.rxFrames} / {info.locoNetStandardTelemetry.txFrames} frames</Text>
+                  <Text size="sm">RX / TX: <Badge color="teal" variant="light">{info.locoNetStandardTelemetry.rxFrames}</Badge> / <Badge color="cyan" variant="light">{info.locoNetStandardTelemetry.txFrames}</Badge> frames</Text>
                   <Text size="sm">Sensors: {info.locoNetStandardTelemetry.sensorReports} · Turnouts: {info.locoNetStandardTelemetry.turnoutReports}</Text>
                   <Text size="sm">Power reports: {info.locoNetStandardTelemetry.powerReports}</Text>
                   <Text size="sm">Last RX: {info.locoNetStandardTelemetry.lastRxAgeMs >= 0 ? info.locoNetStandardTelemetry.lastRxAgeMs + " ms ago" : "—"}</Text>
@@ -112,19 +116,21 @@ export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
               {info?.feedbackLinkName && <Text size="sm">Feedback: {info.feedbackLinkName}</Text>}
             </Stack>
           </Card>
-          <Card withBorder padding="md">
-            <Group gap="xs" mb="sm" px="sm" py={8} bg="var(--mantine-color-violet-light)" style={{ borderRadius: 8, borderLeft: "3px solid var(--mantine-color-violet-6)" }}><IconActivityHeartbeat size={17} color="var(--mantine-color-violet-7)" /><Text fw={700} c="var(--mantine-color-violet-light-color)">WebSocket</Text></Group>
+          <Card withBorder padding={0} style={{ overflow: "hidden" }}>
+            <Group gap="xs" px="md" py={10} bg="var(--mantine-color-violet-light)" style={{ borderBottom: "2px solid var(--mantine-color-violet-6)" }}><IconActivityHeartbeat size={17} color="var(--mantine-color-violet-7)" /><Text fw={700} c="var(--mantine-color-violet-light-color)">WebSocket</Text></Group>
+            <Stack p="md" gap="xs">
             <Group align="flex-start" justify="space-between" gap="xs" wrap="nowrap">
               <Stack gap="xs" style={{ minWidth: 0, flex: 1 }}>
                 <Badge style={{ alignSelf: "flex-start" }} color={status === "connected" ? "green" : status === "connecting" || status === "reconnecting" ? "yellow" : "red"}>{status.toUpperCase()}</Badge>
-                <Text size="sm">Received: {traffic.incoming} msg/s</Text>
+                <Text size="sm">Received: <Badge color="violet" variant="light">{traffic.incoming} msg/s</Badge></Text>
               </Stack>
               <SemiCircleGauge compact width={80} value={traffic.incoming} max={traffic.peakIncoming} label="Current received" maxLabel="Session peak" unit="msg/s" />
             </Group>
-            <Text size="sm">Sent: {traffic.outgoing} msg/s</Text>
+            <Text size="sm">Sent: <Badge color="violet" variant="light">{traffic.outgoing} msg/s</Badge></Text>
             <Text size="sm">Sensor messages: {traffic.sensor} msg/s</Text>
-            <Text size="sm">Peak received (this session): {traffic.peakIncoming} msg/s</Text>
+            <Text size="sm">Peak received (this session): <Badge color="grape" variant="light">{traffic.peakIncoming} msg/s</Badge></Text>
             <Text size="sm">Last message type: {traffic.lastMessage}</Text>
+            </Stack>
           </Card>
         </SimpleGrid>
         <Card withBorder>
