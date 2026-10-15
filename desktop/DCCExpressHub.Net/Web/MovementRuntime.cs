@@ -1177,8 +1177,10 @@ public sealed class MovementRuntime
         bool force,
         CancellationToken? cancellationToken = null)
     {
+        // An externally held train must NEVER receive a non-zero throttle
+        // command, even if a concurrent Movement action changes DesiredSpeed.
         var speed =
-            execution.Moving
+            execution.Moving && !IsHeld(execution)
                 ? Math.Clamp(execution.DesiredSpeed, 0, 126)
                 : 0;
 
