@@ -194,7 +194,7 @@ export default function TrackCanvas({
     page.expectedLocoAddress = state.loco.address;
     // Drive to Block takes its initial speed from this locomotive's settings.
     // Older locomotive entries default to step 20.
-    const preferredSpeed = state.loco.startingSpeed ?? 20;
+    const preferredSpeed = state.loco.cruisingSpeed ?? 20;
     page.speed = Math.max(1, Math.min(Math.round(preferredSpeed),
       state.loco.maxSpeed > 0 ? state.loco.maxSpeed : 126, 126));
     const requestId = `driver-start-${Date.now()}-${state.loco.address}`;
