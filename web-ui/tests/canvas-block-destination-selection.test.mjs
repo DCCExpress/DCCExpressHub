@@ -37,3 +37,17 @@ test("Edit toolbar and E shortcut are locked until selection ends", () => {
   assert.match(page, /blockSelectionActive,\n  \}\)/);
   assert.match(shortcuts, /!blockSelectionActive/);
 });
+
+test("the throttle card Drive to Block button uses canvas selection, not the old dialog", () => {
+  const card = read("layout/loco-panel/LocoControlCard.tsx");
+  const canvas = read("components/TrackCanvas.tsx");
+  const bridge = read("services/driveToBlockSelection.ts");
+  assert.match(card, /requestDriveToBlockSelection\(loco\)/);
+  assert.doesNotMatch(card, /onClick=\{\(\) => setTargetDialogOpened\(true\)\}/);
+  assert.match(card, /driveSelection\.active/);
+  assert.match(card, /<LocoTargetBlockDialog/);
+  assert.match(canvas, /registerDriveToBlockCanvas\(loco =>/);
+  assert.match(canvas, /setDriveToBlockSelectionActive\(true\)/);
+  assert.match(canvas, /setDriveToBlockSelectionActive\(false\)/);
+  assert.match(bridge, /if \(!handler \|\| selecting\) return false/);
+});
