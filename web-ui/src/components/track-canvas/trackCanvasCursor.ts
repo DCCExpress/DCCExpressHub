@@ -7,6 +7,8 @@ import {
   ClickableBaseElement,
 } from "../../models/editor/core/ClickableBaseElement";
 
+import { EmergencyButtonElement } from "../../models/editor/elements/EmergencyButtonElement";
+
 import {
   AudioButtonElement,
 } from "../../models/editor/elements/AudioButtonElement";
@@ -60,6 +62,7 @@ export function isTrackCanvasPointerElement(
     element instanceof TrackLevelCrossingElement ||
     element instanceof ClickableBaseElement ||
     element instanceof AudioButtonElement ||
+    element instanceof EmergencyButtonElement ||
     element instanceof BlockElement
   );
 }
