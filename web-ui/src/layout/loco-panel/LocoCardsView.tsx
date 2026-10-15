@@ -103,7 +103,7 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
 
                   return <Tooltip key={number} label={fn?.name ? `F${number} · ${fn.name}` : `Function F${number}`}>
                     <ActionIcon size={30} radius="sm" variant={(state.functionsMask & (1 << number)) !== 0 ? "filled" : "light"}
-                      color={(state.functionsMask & (1 << number)) !== 0 ? "lime" : "gray"}
+                      color={(state.functionsMask & (1 << number)) !== 0 ? "blue" : "gray"}
                       disabled={locked} aria-label={`Function F${number}`}
                       onPointerDown={event => {
                         event.stopPropagation();
