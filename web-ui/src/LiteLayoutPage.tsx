@@ -1139,6 +1139,7 @@ export default function LiteLayoutPage({
   ] = useState(0);
   const [tool, setTool] = useState<EditorTool>({ mode: "cursor", elementType: "general" });
   const [editMode, setEditMode] = useState(false);
+  const [blockSelectionActive, setBlockSelectionActive] = useState(false);
   const [turnoutSelectionMode, setTurnoutSelectionMode] = useState(false);
   const [canvasBusy, setCanvasBusy] = useState(false);
   const [canvasBusyText, setCanvasBusyText] = useState("Loading...");
@@ -2023,6 +2024,7 @@ export default function LiteLayoutPage({
             <ActionIcon
               variant={editMode ? "filled" : "light"}
               color="violet"
+              disabled={blockSelectionActive}
               title={i18next.t("ui.editMode")}
               onClick={() => {
                 setEditMode(value => !value);
@@ -2163,6 +2165,7 @@ export default function LiteLayoutPage({
         <Card withBorder p={4} className="lite-track-card">
           <TrackCanvas
             editMode={editMode}
+            onBlockSelectionChange={setBlockSelectionActive}
             tool={tool}
             onToolChange={setTool}
             layout={layout}
