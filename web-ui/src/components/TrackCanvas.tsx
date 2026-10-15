@@ -977,6 +977,7 @@ export default function TrackCanvas({
         selectionRef,
         setSelectedBlock,
         setLocoPickerOpen,
+        setBlockPopupPoint,
         setRouteTurnoutsMarked,
         onInvalidate,
         onBeforeLayoutChange,
