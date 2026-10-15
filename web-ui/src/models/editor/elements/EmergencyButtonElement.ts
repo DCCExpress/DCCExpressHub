@@ -24,7 +24,7 @@ export class EmergencyButtonElement extends BaseElement {
   get size(): string { return String(this.w); }
   set size(value: string) {
     const size = Number(value);
-    if (size === 1 || size === 2 || size === 4) {
+    if (size === 1 || size === 2) {
       this.w = size;
       this.h = size;
     }
@@ -36,7 +36,6 @@ export class EmergencyButtonElement extends BaseElement {
       { key: "size", label: "Size", type: "select", options: [
         { value: "1", label: "1 × 1" },
         { value: "2", label: "2 × 2" },
-        { value: "4", label: "Double size (4 × 4)" },
       ] },
     ];
   }
@@ -67,7 +66,8 @@ export class EmergencyButtonElement extends BaseElement {
       ctx.shadowOffsetX = 2;
       ctx.shadowOffsetY = 2;
     }
-    ctx.fillStyle = active ? "#d90000" : "#ff5266";
+    // Reuse the canvas 225 ms animation heartbeat; blink only the red button face.
+    ctx.fillStyle = active && Math.floor(Date.now() / 450) % 2 === 0 ? "#d90000" : "#ff5266";
     ctx.beginPath();
     ctx.arc(x + w / 2, y + h / 2, r, 0, Math.PI * 2);
     ctx.fill();
@@ -93,7 +93,7 @@ export class EmergencyButtonElement extends BaseElement {
     const e = new EmergencyButtonElement(data.x, data.y);
     e.id = data.id;
     e.name = data.name;
-    e.size = String(data.w ?? 2);
+    e.size = String(data.w === 1 ? 1 : 2);
     e.rotation = data.rotation;
     return e;
   }
@@ -102,8 +102,7 @@ export class EmergencyButtonElement extends BaseElement {
     const e = new EmergencyButtonElement(this.x, this.y);
     e.id = generateId();
     e.name = this.name;
-    e.w = this.w;
-    e.h = this.h;
+    e.size = this.size;
     e.rotation = this.rotation;
     return e;
   }
