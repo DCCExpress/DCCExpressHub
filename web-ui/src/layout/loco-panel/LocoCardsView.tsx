@@ -101,7 +101,7 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
                 })}
               </Group>
             </Stack>
-            <Badge color="dark" variant="filled" radius="sm" size="lg" styles={{ root: { backgroundColor: "#111", minWidth: 40 }, label: { fontVariantNumeric: "tabular-nums" } }}>{state.speed}</Badge>
+            <Badge color="dark" variant="filled" radius="sm" size="lg" styles={{ root: { backgroundColor: "#111", minWidth: 40, transform: "translateY(-15px)" }, label: { fontVariantNumeric: "tabular-nums" } }}>{state.speed}</Badge>
           </Group>
           <Group wrap="nowrap" gap={5} mt={5} onClick={event => event.stopPropagation()}>
             <Tooltip label="Reverse"><ActionIcon size="sm" variant={state.direction === "reverse" ? "filled" : "light"}
