@@ -633,6 +633,8 @@ public sealed class CommandCenterApi
                         ? CommandCenterSettings.DccExSerialBaudRate
                         : 0,
                 locoNetDiagnostics = _physical.GetLocoNetDiagnostics(),
+                locoNetStandardTelemetry = _physical.GetLocoNetStandardTelemetry(),
+                locoNetSerialDiagnostics = _physical.GetLocoNetSerialDiagnostics(),
                 capabilities =
                     new
                     {
