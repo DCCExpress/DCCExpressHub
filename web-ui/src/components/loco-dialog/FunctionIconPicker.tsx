@@ -1,4 +1,5 @@
-import { ActionIcon, Button, FileButton, Group, Modal, ScrollArea, SegmentedControl, SimpleGrid, Stack, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, FileButton, Group, ScrollArea, SegmentedControl, SimpleGrid, Stack, Text, Tooltip } from "@mantine/core";
+import AppModal from "../common/AppModal";
 import { IconPhoto, IconUpload } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { BUILTIN_FUNCTION_ICONS, getBuiltinFunctionIcon } from "../loco/FunctionIconRegistry";
@@ -33,10 +34,11 @@ export default function FunctionIconPicker({ opened, value, onClose, onSelect }:
   };
   const Preview = getBuiltinFunctionIcon(value);
   const customUrl = customFunctionIconUrl(value);
-  return <Modal opened={opened} onClose={onClose} title="Function icon" centered zIndex={4000} size="sm">
-    <Stack gap="sm">
+  return <AppModal opened={opened} onClose={onClose} title="Function icon" centered draggable headerHeight={40} zIndex={4000} size="sm"
+    styles={{ content: { height: 450, maxHeight: "calc(100dvh - 24px)", display: "flex", flexDirection: "column" }, body: { flex: 1, minHeight: 0, overflow: "hidden" } }}>
+    <Stack gap="sm" h="100%" style={{ minHeight: 0 }}>
       <SegmentedControl fullWidth value={tab} onChange={setTab} data={[{ value: "builtin", label: "Built-in" }, { value: "custom", label: "My icons" }]}/>
-      {tab === "builtin" ? <ScrollArea.Autosize mah={300}>
+      {tab === "builtin" ? <ScrollArea style={{ flex: 1, minHeight: 0 }}>
         <SimpleGrid cols={5} spacing="xs">
           {BUILTIN_FUNCTION_ICONS.map(([id, label]) => {
             const Icon = getBuiltinFunctionIcon(`builtin:${id}`);
@@ -49,12 +51,12 @@ export default function FunctionIconPicker({ opened, value, onClose, onSelect }:
             </Tooltip>;
           })}
         </SimpleGrid>
-      </ScrollArea.Autosize> : <>
+      </ScrollArea> : <>
         <FileButton onChange={file => void upload(file)} accept="image/png,image/webp">
           {props => <Button {...props} loading={busy} variant="light" leftSection={<IconUpload size={16}/>}>Upload icon (PNG / WebP)</Button>}
         </FileButton>
         <Text size="xs" c="dimmed">Maximum 256 KB. Icons are stored on the Hub and available to all clients.</Text>
-        <ScrollArea.Autosize mah={260}>
+        <ScrollArea style={{ flex: 1, minHeight: 0 }}>
           <SimpleGrid cols={5} spacing="xs">
             {custom.map(icon => <Tooltip key={icon.value} label={icon.name}>
               <ActionIcon size={46} variant={value === icon.value ? "filled" : "light"} color={value === icon.value ? "lime" : "gray"}
@@ -64,7 +66,7 @@ export default function FunctionIconPicker({ opened, value, onClose, onSelect }:
             </Tooltip>)}
           </SimpleGrid>
           {custom.length === 0 && <Text size="sm" c="dimmed">No uploaded icons yet.</Text>}
-        </ScrollArea.Autosize>
+        </ScrollArea>
       </>}
       {error && <Text c="red" size="xs">{error}</Text>}
       <Group justify="space-between">
@@ -75,5 +77,5 @@ export default function FunctionIconPicker({ opened, value, onClose, onSelect }:
         <Button size="xs" variant="light" color="gray" onClick={() => choose("")}>Clear</Button>
       </Group>
     </Stack>
-  </Modal>;
+  </AppModal>;
 }
