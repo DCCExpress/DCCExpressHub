@@ -89,6 +89,8 @@ import {
 export default function TrackCanvas({
   editMode = false,
   onBlockSelectionChange,
+  cancelBlockSelectionCounter = 0,
+  emergencyStopActive = false,
   tool,
   onToolChange,
   layout,
@@ -205,6 +207,12 @@ export default function TrackCanvas({
     }).finally(() => { blockSelectionBusyRef.current = false; });
     return true;
   };
+  // A local or externally reported E-STOP always leaves target-selection mode.
+  // The counter handles repeated E-STOP commands while power is already stopped.
+  useEffect(() => {
+    if (blockSelectionRef.current) exitBlockSelection();
+  }, [cancelBlockSelectionCounter, emergencyStopActive]);
+
   const selectDestinationRef = useRef(selectDestination);
   selectDestinationRef.current = selectDestination;
   const beginBlockSelectionRef = useRef(startBlockSelection);
