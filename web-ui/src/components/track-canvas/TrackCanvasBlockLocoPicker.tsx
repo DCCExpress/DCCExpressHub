@@ -13,7 +13,6 @@ import {
 } from "../../services/blockTargetLocoRuntime";
 import { wsApi } from "../../services/wsApi";
 import LocoPicker from "../loco/LocoPicker";
-import LocoTargetBlockDialog from "../../layout/loco-panel/LocoTargetBlockDialog";
 
 export type TrackCanvasBlockLocoPickerProps = {
   opened: boolean;
@@ -47,7 +46,6 @@ export function TrackCanvasBlockLocoPicker({
   popupY = 0,
 }: TrackCanvasBlockLocoPickerProps) {
   useTranslation();
-  const [driveLoco, setDriveLoco] = useState<Loco | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   useEffect(() => { if (opened) setPickerOpen(false); }, [opened, selectedBlock?.id]);
 
@@ -141,7 +139,7 @@ export function TrackCanvasBlockLocoPicker({
       </Popover.Dropdown>
     </Popover>
     <LocoPicker
-      opened={opened && pickerOpen && driveLoco === null && !blockSelectionActive}
+      opened={opened && pickerOpen && !blockSelectionActive}
       locos={locos}
       selectedLocoId={selectedLocoId}
       title={
@@ -200,18 +198,6 @@ export function TrackCanvasBlockLocoPicker({
         onClose();
       }}
     />
-    {driveLoco && (
-      <LocoTargetBlockDialog
-        loco={driveLoco}
-        opened={opened}
-        onClose={() => {
-          // Drive-to-Block is a continuation of the picker, not a nested
-          // dialog that should return to the locomotive list on completion.
-          setDriveLoco(null);
-          onClose();
-        }}
-      />
-    )}
     </>
   );
 }
