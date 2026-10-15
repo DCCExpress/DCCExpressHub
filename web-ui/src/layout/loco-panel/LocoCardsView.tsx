@@ -141,5 +141,6 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
         </Card>;
       })}
     </Stack>
-  </ScrollArea>;
+    </ScrollArea>
+  </Stack>;
 }
