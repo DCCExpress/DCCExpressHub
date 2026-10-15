@@ -106,20 +106,87 @@ public sealed class TrainDriverRuntime
         return (true, null, state);
     }
 
-    public bool Stop(string taskId) => Control(taskId, false);
-    public bool Abort(string taskId) => Control(taskId, true);
+    const string PauseOwnerPrefix = "train-driver-pause:";
 
-    bool Control(string taskId, bool abort)
+    // Stop is a reversible pause, not MovementRuntime.Stop (which cancels the task).
+    // MovementRuntime.Hold commands speed zero and retains the current leg authority.
+    public bool Stop(string taskId)
+    {
+        DriverState current;
+        lock (_gate)
+        {
+            if (!_tasks.TryGetValue(taskId, out var state) ||
+                !_activeByLoco.TryGetValue(state.LocoAddress, out var owner) ||
+                owner != taskId)
+                return false;
+            if (state.Status == "paused")
+                return true;
+            current = state;
+        }
+
+        if (!_movement.Hold(current.MovementId, PauseOwnerPrefix + taskId))
+            return false;
+
+        DriverState updated;
+        lock (_gate)
+        {
+            updated = _tasks[taskId] with
+            {
+                Status = "paused",
+                Info = "Paused by train driver; speed zero requested",
+                Error = null
+            };
+            _tasks[taskId] = updated;
+        }
+        Changed?.Invoke(updated);
+        return true;
+    }
+
+    public bool Resume(string taskId)
+    {
+        DriverState current;
+        lock (_gate)
+        {
+            if (!_tasks.TryGetValue(taskId, out var state) ||
+                state.Status != "paused" ||
+                !_activeByLoco.TryGetValue(state.LocoAddress, out var owner) ||
+                owner != taskId)
+                return false;
+            current = state;
+        }
+
+        // Release only our own hold. Other holds remain in force.
+        // MovementRuntime revalidates held Dispatcher authority before applying speed.
+        if (!_movement.Release(current.MovementId, PauseOwnerPrefix + taskId))
+            return false;
+
+        DriverState updated;
+        lock (_gate)
+        {
+            updated = _tasks[taskId] with
+            {
+                Status = "running",
+                Info = "Resume requested; awaiting movement authority",
+                Error = null
+            };
+            _tasks[taskId] = updated;
+        }
+        Changed?.Invoke(updated);
+        return true;
+    }
+
+    public bool Abort(string taskId)
     {
         DriverState state;
         lock (_gate)
         {
             if (!_tasks.TryGetValue(taskId, out var found) ||
-                !_activeByLoco.TryGetValue(found.LocoAddress, out var current) || current != taskId)
+                !_activeByLoco.TryGetValue(found.LocoAddress, out var current) ||
+                current != taskId)
                 return false;
             state = found;
         }
-        return abort ? _movement.Abort(state.MovementId, true) : _movement.Stop(state.MovementId);
+        return _movement.Abort(state.MovementId, true);
     }
 
     void OnMovementChanged(MovementRuntimeState movement)
@@ -142,6 +209,10 @@ public sealed class TrainDriverRuntime
                 "completed" => "completed",
                 _ => movement.Status
             };
+            // Keep the driver in PAUSED while the underlying Movement reports
+            // intermediate RUNNING updates for sensor or route wait events.
+            if (current.Status == "paused" && status is "running" or "stopping")
+                return;
             updated = current with { Status = status, Info = movement.Info, Error = movement.Error };
             _tasks[current.TaskId] = updated;
             if (status is "completed" or "aborted" or "stopped" or "error")
