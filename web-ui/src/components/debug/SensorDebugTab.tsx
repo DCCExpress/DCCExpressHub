@@ -15,8 +15,11 @@ export default function SensorDebugTab({
   sensors,
   layoutOwners,
 }: Props) {
-  const items = [...sensors.entries()].sort(([a], [b]) => a - b);
-  const occupied = items.filter(([, state]) => state.value).length;
+  // A configured sensor without authoritative feedback is UNKNOWN, never FREE.
+  const addresses = [...new Set([...layoutOwners.keys(), ...sensors.keys()])].sort((a, b) => a - b);
+  const occupied = addresses.filter(address => sensors.get(address)?.value === true).length;
+  const free = addresses.filter(address => sensors.get(address)?.value === false).length;
+  const unknown = addresses.length - occupied - free;
 
   return (
     <Stack h="100%" gap="sm" style={{ minHeight: 0 }}>
@@ -24,9 +27,10 @@ export default function SensorDebugTab({
         <Group gap="xs" mb="xs" justify="space-between">
           <Group gap="xs">
             <Text size="sm" fw={700}>Sensor overview</Text>
-            <Badge color="gray" variant="light">{items.length} total</Badge>
+            <Badge color="gray" variant="light">{addresses.length} total</Badge>
             <Badge color="green" variant="light">{occupied} occupied</Badge>
-            <Badge color="gray" variant="light">{items.length - occupied} free</Badge>
+            <Badge color="gray" variant="light">{free} free</Badge>
+            <Badge color="red" variant="light">{unknown} unknown</Badge>
           </Group>
           <Text size="xs" c="dimmed">Live feedback</Text>
         </Group>
@@ -39,12 +43,14 @@ export default function SensorDebugTab({
               padding: "2px 4px 6px 2px",
             }}
           >
-            {items.map(([address, state]) => {
+            {addresses.map(address => {
+              const state = sensors.get(address);
+              const isUnknown = !state;
               const owners = layoutOwners.get(address) ?? [];
               return (
                 <Tooltip
                   key={address}
-                  label={`#${address} · ${state.value ? "OCCUPIED" : "FREE"}${owners.length ? " · " + owners.map(owner => owner.name).join(", ") : ""}`}
+                  label={`#${address} · ${isUnknown ? "UNKNOWN" : state.value ? "OCCUPIED" : "FREE"}${owners.length ? " · " + owners.map(owner => owner.name).join(", ") : ""}`}
                   withArrow
                   multiline
                 >
@@ -53,31 +59,34 @@ export default function SensorDebugTab({
                       textAlign: "center",
                       padding: "6px 3px",
                       borderRadius: 7,
-                      border: `1px solid var(--mantine-color-${state.value ? "green" : "gray"}-6)`,
-                      background: state.value
-                        ? "var(--mantine-color-green-light)"
-                        : "var(--mantine-color-default-hover)",
+                      border: `1px solid var(--mantine-color-${isUnknown ? "red" : state.value ? "green" : "gray"}-6)`,
+                      background: isUnknown
+                        ? "var(--mantine-color-red-light)"
+                        : state.value ? "var(--mantine-color-green-light)" : "var(--mantine-color-default-hover)",
                       fontVariantNumeric: "tabular-nums",
                     }}
                   >
-                    <Group gap={5} justify="center" wrap="nowrap">
-                      <Box
-                        style={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: "50%",
-                          flexShrink: 0,
-                          background: state.value ? "var(--mantine-color-green-6)" : "var(--mantine-color-gray-5)",
-                          boxShadow: state.value ? "0 0 6px var(--mantine-color-green-6)" : "none",
-                        }}
-                      />
+                    <Stack gap={3} align="center">
+                      {isUnknown ? (
+                        <Text size="xs" fw={800} c="red">NA</Text>
+                      ) : (
+                        <Box
+                          style={{
+                            width: 10,
+                            height: 10,
+                            borderRadius: "50%",
+                            background: state.value ? "var(--mantine-color-green-6)" : "var(--mantine-color-gray-5)",
+                            boxShadow: state.value ? "0 0 6px var(--mantine-color-green-6)" : "none",
+                          }}
+                        />
+                      )}
                       <Text size="xs" fw={700}>{address}</Text>
-                    </Group>
+                    </Stack>
                   </Box>
                 </Tooltip>
               );
             })}
-            {items.length === 0 && <Text size="sm" c="dimmed">No sensor feedback yet.</Text>}
+            {addresses.length === 0 && <Text size="sm" c="dimmed">No sensor feedback yet.</Text>}
           </Box>
         </ScrollArea.Autosize>
       </Box>
