@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import { loadIconStyles, readIconStyle, subscribeIconStyles } from "../../services/functionIconStyles";
 import type { LocoFunction } from "@domain/types";
 import { getBuiltinFunctionIcon } from "./FunctionIconRegistry";
 import { customFunctionIconUrl } from "../../api/functionIconApi";
@@ -5,10 +7,14 @@ import { customFunctionIconUrl } from "../../api/functionIconApi";
 type Props = { fn?: Pick<LocoFunction, "icon" | "iconTintMode" | "iconColor">; size?: number };
 export default function FunctionIconAsset({ fn, size = 20 }: Props) {
   const icon = fn?.icon ?? "";
+  const [, refresh] = useState(0);
+  useEffect(() => { void loadIconStyles().catch(() => {}); return subscribeIconStyles(() => refresh(v => v + 1)); }, []);
+  const preset = readIconStyle(icon);
   const Builtin = getBuiltinFunctionIcon(icon);
   const url = customFunctionIconUrl(icon);
-  const color = /^#[0-9a-f]{6}$/i.test(fn?.iconColor ?? "") ? fn!.iconColor! : "#ffffff";
-  const tint = fn?.iconTintMode === "tint";
+  const wanted = preset?.color ?? fn?.iconColor ?? "#ffffff";
+  const color = /^#[0-9a-f]{6}$/i.test(wanted) ? wanted : "#ffffff";
+  const tint = (preset?.mode ?? fn?.iconTintMode) === "tint";
   if (Builtin) return <span style={{ display: "inline-flex", color: tint ? color : undefined }}><Builtin size={size}/></span>;
   if (!url) return null;
   if (tint && /\.svg$/i.test(url)) return <span role="img" aria-label="Function icon"
