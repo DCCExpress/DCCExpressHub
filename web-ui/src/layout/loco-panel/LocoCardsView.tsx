@@ -78,6 +78,16 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
         const state = live[loco.address] ?? { speed: 0, direction: "forward" as Direction, functionsMask: 0 };
         // Train Driver / Movement ownership is advisory here: manual override remains available.
         const locked = disabled;
+        const movement = moving.find(item => item.state.locoAddress === loco.address &&
+          ["running", "stopping", "error"].includes(item.state.status))?.state;
+        const driver = drivers.find(item => item.locoAddress === loco.address &&
+          ["created", "running", "waiting", "paused", "stopping"].includes(item.status));
+        const movementMessage = movement
+          ? (movement.error || movement.info ||
+            (movement.status === "stopping" ? "Stopping" :
+              movement.targetBlockName ? `Moving to ${movement.targetBlockName}` : movement.status))
+          : driver ? (driver.status === "waiting" ? "Train Driver waiting" :
+              driver.status === "paused" ? "Train Driver paused" : `Train Driver: ${driver.status}`) : null;
         const cardFunctions = (loco.functions ?? []).filter(fn => fn.showOnLocoCard ?? fn.number < 5)
           .sort((a, b) => a.number - b.number).slice(0, 5);
         return <Card key={loco.id} withBorder radius="sm" padding="xs"
@@ -122,7 +132,7 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
               onChange={value => setLive(old => ({ ...old, [loco.address]: { ...old[loco.address], speed: value, direction: state.direction, functionsMask: old[loco.address]?.functionsMask ?? state.functionsMask } }))}
               onChangeEnd={value => command(loco, value, state.direction)} aria-label={`Speed ${loco.name}`} />
           </Group>
-          {blocked(loco.address) && <Text size="xs" c="dimmed">Managed by Train Driver</Text>}
+          {movementMessage && <Text size="xs" c={movement?.error ? "red" : "dimmed"} lineClamp={2} title={movementMessage}>{movementMessage}</Text>}
         </Card>;
       })}
     </Stack>
