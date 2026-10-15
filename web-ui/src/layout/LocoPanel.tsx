@@ -15,6 +15,7 @@ import { showErrorMessage } from "../helpers";
 import { wsApi } from "../services/wsApi";
 import { wsClient } from "../services/wsClient";
 import LocoControlCard from "./loco-panel/LocoControlCard";
+import { subscribeDriveToBlockLoco } from "../services/driveToBlockSelection";
 import LocoPanelSettingsDialog from "./loco-panel/LocoPanelSettingsDialog";
 import {
   getLocoPanelCounterDisplaySettings,
@@ -302,6 +303,10 @@ export default function LocoPanel({
     },
     [selectedLocoStorageKey]
   );
+
+  useEffect(() => subscribeDriveToBlockLoco(id => {
+    if (locos.some(loco => loco.id === id)) selectLocoId(id);
+  }), [locos, selectLocoId]);
 
   useEffect(() => {
     if (locos.length === 0) {
