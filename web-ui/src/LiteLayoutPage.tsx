@@ -2360,7 +2360,7 @@ export default function LiteLayoutPage({
       </div>
 
       <Card withBorder p={5} radius="sm" className="lite-status-bar">
-        <Group justify="space-between" wrap="nowrap" gap="xs">
+        <Group justify="flex-start" wrap="nowrap" gap="xs">
           <Group gap={6} wrap="nowrap" inert={blockSelectionActive} style={{ opacity: blockSelectionActive ? 0.55 : 1 }}>
             <Badge
               data-command-center-status-role="layout-ws"
@@ -2507,7 +2507,7 @@ export default function LiteLayoutPage({
               {i18next.t("ui.estop")}
             </Button>
           )}
-          <Text size="xs" c="dimmed" truncate>
+          <Text size="xs" c="dimmed" truncate style={{ marginLeft: "auto" }}>
             {layout.getAllElements().length} elements · {locos.length} locos
           </Text>
         </Group>
