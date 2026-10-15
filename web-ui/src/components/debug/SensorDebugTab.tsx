@@ -1,5 +1,4 @@
-import { Badge, Box, Button, Group, Stack, Text, Tooltip } from "@mantine/core";
-import { useState } from "react";
+import { Badge, Box, Group, Stack, Text, Tooltip } from "@mantine/core";
 
 import DebugStateTable from "./DebugStateTable";
 import type {
@@ -21,10 +20,7 @@ export default function SensorDebugTab({
   const occupied = addresses.filter(address => sensors.get(address)?.value === true).length;
   const free = addresses.filter(address => sensors.get(address)?.value === false).length;
   const unknown = addresses.length - occupied - free;
-  const [page, setPage] = useState(0);
-  const totalPages = Math.max(1, Math.ceil(addresses.length / 16));
-  const currentPage = Math.min(page, totalPages - 1);
-  const visible = addresses.slice(currentPage * 16, (currentPage + 1) * 16);
+  const rows = Array.from({ length: Math.ceil(addresses.length / 16) }, (_, i) => addresses.slice(i * 16, i * 16 + 16));
 
   return (
     <Stack h="100%" gap="sm" style={{ minHeight: 0 }}>
@@ -39,17 +35,12 @@ export default function SensorDebugTab({
           </Group>
           <Text size="xs" c="dimmed">Live feedback</Text>
         </Group>
-        <Group justify="space-between" gap="xs" mb={6}>
-          <Text size="xs" c="dimmed">16 channels · 8 + 8</Text>
-          <Group gap={6}>
-            <Button size="compact-xs" variant="light" disabled={currentPage === 0} onClick={() => setPage(p => Math.max(0, p - 1))}>◀</Button>
-            <Text size="xs" c="dimmed">{currentPage + 1} / {totalPages}</Text>
-            <Button size="compact-xs" variant="light" disabled={currentPage === totalPages - 1} onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}>▶</Button>
-          </Group>
-        </Group>
-        <Group gap={12} align="stretch" wrap="nowrap" style={{ width: "100%" }}>
-          {[visible.slice(0, 8), visible.slice(8, 16)].map((group, index) => (
-            <Box key={index} style={{ display: "grid", gridTemplateColumns: "repeat(8, minmax(0, 1fr))", gap: 3, flex: 1, minWidth: 0, paddingLeft: index === 1 ? 10 : 0, borderLeft: index === 1 ? "1px solid var(--mantine-color-default-border)" : undefined }}>
+        <Text size="xs" c="dimmed" mb={6}>16 channels per row · 8 + 8</Text>
+        <Stack gap={6}>
+          {rows.map((row, rowIndex) => (
+            <Group key={rowIndex} gap={12} align="stretch" wrap="nowrap" style={{ width: "100%" }}>
+              {[row.slice(0, 8), row.slice(8, 16)].map((group, index) => (
+                <Box key={index} style={{ display: "grid", gridTemplateColumns: "repeat(8, minmax(0, 1fr))", gap: 3, flex: 1, minWidth: 0, paddingLeft: index === 1 ? 10 : 0, borderLeft: index === 1 ? "1px solid var(--mantine-color-default-border)" : undefined }}>
             {group.map(address => {
               const state = sensors.get(address);
               const isUnknown = !state;
@@ -94,9 +85,11 @@ export default function SensorDebugTab({
               );
             })}
 
-            </Box>
+                </Box>
+              ))}
+            </Group>
           ))}
-        </Group>
+        </Stack>
         {addresses.length === 0 && <Text size="sm" c="dimmed">No sensor feedback yet.</Text>}
       </Box>
       <Box style={{ flex: 1, minHeight: 0 }}>
