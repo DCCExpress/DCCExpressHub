@@ -1007,14 +1007,14 @@ public sealed class TimetableRuntime : BackgroundService
                 "running" or
                 "stopping")
             {
-                _activeRuns[pair.Key] =
-                    run with
-                    {
-                        Status =
-                            "running",
-                        Message =
-                            state.Info
-                    };
+                var next = run with
+                {
+                    Status = "running",
+                    Message = state.Info
+                };
+                if (next == run)
+                    return;
+                _activeRuns[pair.Key] = next;
             }
             else
             {
