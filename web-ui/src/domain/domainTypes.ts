@@ -151,6 +151,8 @@ export type Loco = {
   id: string;
   name: string;
   address: number;
+  /** Whether this locomotive is currently on the layout. Legacy entries default to active. */
+  active?: boolean;
   maxSpeed: number;
   /** Default DCC speed step for Drive to Block. */
   cruisingSpeed?: number;
