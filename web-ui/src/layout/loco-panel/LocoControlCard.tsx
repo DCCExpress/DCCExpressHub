@@ -23,7 +23,6 @@ import LocoImage from "../../components/loco/LocoImage";
 import LocoDirectionControls from "./LocoDirectionControls";
 import LocoEmergencyButton from "./LocoEmergencyButton";
 import LocoTargetBlockDialog from "./LocoTargetBlockDialog";
-import { getDriveToBlockSelectionState, requestDriveToBlockSelection, subscribeDriveToBlockSelection } from "../../services/driveToBlockSelection";
 import LocoSpeedControls from "./LocoSpeedControls";
 
 type LocoControlCardProps = {
@@ -103,9 +102,6 @@ export default function LocoControlCard({
       requestId: `driver-${action}-${Date.now()}`, action, taskId: driver.taskId,
     } });
   };
-  const [driveSelection, setDriveSelection] = useState(getDriveToBlockSelectionState);
-  useEffect(() => subscribeDriveToBlockSelection(() =>
-    setDriveSelection(getDriveToBlockSelectionState())), []);
   const [
     counterSnapshot,
     setCounterSnapshot,
@@ -486,8 +482,8 @@ export default function LocoControlCard({
             </Text>
           </Stack>
         )}
-        <Group w="100%" wrap="nowrap" gap="xs" style={{ height: 42 }}>
-          {driver ? (
+        {driver && <Group w="100%" wrap="nowrap" gap="xs" style={{ height: 42 }}>
+          {(
             driver.status === "paused" ? (
               <>
                 <Button h={40} style={{ flex: 1 }} color="green" variant="light" disabled={controlsDisabled} onClick={() => driverAction("resume")}>Resume</Button>
@@ -499,14 +495,8 @@ export default function LocoControlCard({
                 <Button h={40} style={{ flex: 1 }} color="red" variant="light" onClick={() => driverAction("abort")}>Abort</Button>
               </>
             )
-          ) : (
-            <Button h={40} fullWidth variant="light" color="teal"
-              disabled={controlsDisabled || !!movement || !driveSelection.available || driveSelection.active}
-              onClick={() => { requestDriveToBlockSelection(loco); }}>
-              {movement ? "Movement already running" : "Drive to block…"}
-            </Button>
           )}
-        </Group>
+        </Group>}
         <LocoTargetBlockDialog loco={loco} opened={targetDialogOpened} onClose={() => setTargetDialogOpened(false)} />
 
         <LocoEmergencyButton
