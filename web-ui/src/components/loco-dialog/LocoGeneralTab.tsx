@@ -73,9 +73,6 @@ export default function LocoGeneralTab({
           onChange={event => onPatch({ name: event.currentTarget.value })}
         />
 
-        <Switch label="Active on layout" description="Inactive locomotives remain in this editor, but are hidden from driving lists and skipped at command-center startup."
-          checked={loco.active !== false} onChange={event => onPatch({ active: event.currentTarget.checked })} />
-
         <NumberInput
           label={t("locodialog.locoaddress")}
           value={loco.address}
