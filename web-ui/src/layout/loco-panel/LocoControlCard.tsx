@@ -20,6 +20,7 @@ import LocoImage from "../../components/loco/LocoImage";
 import LocoDirectionControls from "./LocoDirectionControls";
 import LocoEmergencyButton from "./LocoEmergencyButton";
 import LocoTargetBlockDialog from "./LocoTargetBlockDialog";
+import { getDriveToBlockSelectionState, requestDriveToBlockSelection, subscribeDriveToBlockSelection } from "../../services/driveToBlockSelection";
 import LocoSpeedControls from "./LocoSpeedControls";
 
 type LocoControlCardProps = {
@@ -61,7 +62,12 @@ export default function LocoControlCard({
   counterDisplaySettings,
 }: LocoControlCardProps) {
   const { t } = useTranslation();
+  // Keep the former dialog implementation available, but enter canvas
+  // destination selection when the throttle's Drive to Block is clicked.
   const [targetDialogOpened, setTargetDialogOpened] = useState(false);
+  const [driveSelection, setDriveSelection] = useState(getDriveToBlockSelectionState);
+  useEffect(() => subscribeDriveToBlockSelection(() =>
+    setDriveSelection(getDriveToBlockSelectionState())), []);
   const [
     counterSnapshot,
     setCounterSnapshot,
@@ -429,7 +435,7 @@ export default function LocoControlCard({
           onStop={onStop}
         />
 
-        <Button fullWidth variant="light" color="teal" disabled={controlsDisabled} onClick={() => setTargetDialogOpened(true)}>Drive to block…</Button>
+        <Button fullWidth variant="light" color="teal" disabled={controlsDisabled || !driveSelection.available || driveSelection.active} onClick={() => { requestDriveToBlockSelection(loco); }}>Drive to block…</Button>
         <LocoTargetBlockDialog loco={loco} opened={targetDialogOpened} onClose={() => setTargetDialogOpened(false)} />
 
         <LocoEmergencyButton
