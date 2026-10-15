@@ -99,6 +99,7 @@ import { TrackCrossingElement } from "./models/editor/elements/TrackCrossingElem
 import { TrackCurveElement } from "./models/editor/elements/TrackCurveElement";
 import { TrackEndElement } from "./models/editor/elements/TrackEndElement";
 import { TrackLevelCrossingElement } from "./models/editor/elements/TrackLevelCrossingElement";
+import { EmergencyButtonElement } from "./models/editor/elements/EmergencyButtonElement";
 import { AudioButtonElement } from "./models/editor/elements/AudioButtonElement";
 import { BlockElement } from "./models/editor/elements/BlockElement";
 import { ButtonElement } from "./models/editor/elements/ButtonElement";
@@ -387,6 +388,7 @@ const RAILWAY_PICKER_ITEMS: PickerItem[] = [
   { type: ELEMENT_TYPES.BUTTON_AUDIO, get label() { return i18next.t("ui.audioButton"); }, preview: new AudioButtonElement(0, 0) },
   { type: ELEMENT_TYPES.CLOCK, get label() { return i18next.t("fastClock.title"); }, preview: createClockPreview() },
   { type: ELEMENT_TYPES.LABEL, get label() { return i18next.t("ui.label"); }, preview: new LabelElement(0, 0) },
+  { type: ELEMENT_TYPES.BUTTON_EMERGENCY, label: "Emergency Stop", preview: new EmergencyButtonElement(0, 0) },
 ];
 
 const DECORATION_PICKER_ITEMS: PickerItem[] = [
