@@ -84,11 +84,11 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
               <Group gap={3} wrap="nowrap" mt={3} onClick={event => event.stopPropagation()}>
                 {[0, 1, 2, 3, 4].map(number => (
                   <Tooltip key={number} label={`Function F${number}`}>
-                    <ActionIcon size="xs" radius="sm" variant={(state.functionsMask & (1 << number)) !== 0 ? "filled" : "light"}
+                    <ActionIcon size="sm" radius="sm" variant={(state.functionsMask & (1 << number)) !== 0 ? "filled" : "light"}
                       color={(state.functionsMask & (1 << number)) !== 0 ? "lime" : "gray"}
                       disabled={locked} aria-label={`Function F${number}`}
                       onClick={event => { event.stopPropagation(); toggleFunction(loco, number); }}>
-                      <Text size="9px" fw={700}>F{number}</Text>
+                      <Text size="10px" fw={700}>F{number}</Text>
                     </ActionIcon>
                   </Tooltip>
                 ))}
