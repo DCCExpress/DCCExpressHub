@@ -44,8 +44,8 @@ test("Drive to Block uses the locomotive's configured starting speed", () => {
   const canvas = read("web-ui/src/components/TrackCanvas.tsx");
   const tab = read("web-ui/src/components/loco-dialog/LocoGeneralTab.tsx");
   const helpers = read("web-ui/src/components/loco-dialog/locoDialogHelpers.ts");
-  assert.match(canvas, /state\.loco\.startingSpeed \?\? 20/);
+  assert.match(canvas, /state\.loco\.cruisingSpeed \?\? 20/);
   assert.doesNotMatch(canvas, /localStorage\.getItem\("dccexpresshub\.loco-target-block\.speed"\)/);
-  assert.match(tab, /loco\.startingSpeed \?\? 20/);
-  assert.match(helpers, /startingSpeed: 20/);
+  assert.match(tab, /loco\.cruisingSpeed \?\? 20/);
+  assert.match(helpers, /cruisingSpeed: 20/);
 });
