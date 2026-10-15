@@ -14,17 +14,33 @@ export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
   const [traffic, setTraffic] = useState<Traffic>({ incoming: 0, outgoing: 0, sensor: 0, peakIncoming: 0, lastMessage: "—", messageTypes: [] });
   const counters = useRef({ incoming: 0, outgoing: 0, sensor: 0, peak: 0, last: "—", types: new Map<string, number>() });
   const [refreshKey, setRefreshKey] = useState(0);
+  const [cpuPercent, setCpuPercent] = useState<number | null>(null);
+  const previousCpu = useRef<{ cpu: number; at: number } | null>(null);
 
   useEffect(() => {
     if (!opened) return;
     let live = true;
     const refresh = () => {
       void getCommandCenterInfo(true).then(data => {
-        if (live) { setInfo(data); setError(""); }
+        if (live) {
+          const host = data.hostDiagnostics;
+          if (host) {
+            const previous = previousCpu.current;
+            if (previous && host.sampledAtMs > previous.at) {
+              const percent = (host.cpuTimeMs - previous.cpu) / (host.sampledAtMs - previous.at) / Math.max(1, host.processorCount) * 100;
+              setCpuPercent(Math.max(0, Math.min(100, percent)));
+            }
+            previousCpu.current = { cpu: host.cpuTimeMs, at: host.sampledAtMs };
+          }
+          setInfo(data);
+          setError("");
+        }
       }).catch(reason => {
         if (live) setError(String(reason));
       });
     };
+    previousCpu.current = null;
+    setCpuPercent(null);
     counters.current = { incoming: 0, outgoing: 0, sensor: 0, peak: 0, last: "—", types: new Map<string, number>() };
     setTraffic({ incoming: 0, outgoing: 0, sensor: 0, peakIncoming: 0, lastMessage: "—", messageTypes: [] });
     refresh();
@@ -57,14 +73,44 @@ export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
           <Button size="xs" variant="light" leftSection={<IconRefresh size={14} />} onClick={() => setRefreshKey(v => v + 1)}>Refresh</Button>
         </Group>
         {error && <Alert color="red">{error}</Alert>}
-        <SimpleGrid cols={{ base: 1, sm: 2 }}>
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="sm">
           <Card withBorder>
-            <Text fw={600}>Command center</Text>
-            <Group gap="xs" mt="xs"><Badge color={info?.connected ? "green" : "red"}>{info?.connected ? "CONNECTED" : "DISCONNECTED"}</Badge><Text size="sm">{info?.name ?? "Loading…"}</Text></Group>
-            <Text size="sm" mt="xs">Protocol: {info?.type ?? "—"}</Text>
-            <Text size="sm">Transport: {info?.transport ?? "—"}</Text>
-            <Text size="sm">Endpoint: {info?.host ? info.host + (info.port ? ":" + info.port : "") : "—"}</Text>
-            {info?.feedbackLinkName && <Text size="sm">Feedback: {info.feedbackLinkName}{info.feedbackHost ? " · " + info.feedbackHost : ""}</Text>}
+            <Text fw={600} mb="xs">PC · Host</Text>
+            {info?.hostDiagnostics ? (
+              <Stack gap={5}>
+                <Text size="sm">Machine: {info.hostDiagnostics.machine}</Text>
+                <Text size="xs" c="dimmed" lineClamp={2}>{info.hostDiagnostics.os}</Text>
+                <Text size="sm">CPU: {cpuPercent === null ? "Measuring…" : cpuPercent.toFixed(1) + "%"} ({info.hostDiagnostics.processorCount} cores)</Text>
+                <Text size="sm">Process RAM: {(info.hostDiagnostics.workingSetBytes / 1048576).toFixed(1)} MB</Text>
+                <Text size="sm">Managed heap: {(info.hostDiagnostics.managedHeapBytes / 1048576).toFixed(1)} MB</Text>
+                <Text size="sm">System uptime: {Math.floor(info.hostDiagnostics.uptimeSeconds / 3600)}h {Math.floor(info.hostDiagnostics.uptimeSeconds % 3600 / 60)}m</Text>
+                <Text size="xs" c="dimmed">CPU and RAM measure the Hub process</Text>
+              </Stack>
+            ) : <Text size="sm" c="dimmed">Host diagnostics unavailable</Text>}
+          </Card>
+          <Card withBorder>
+            <Text fw={600} mb="xs">{info?.type === "loconet" ? "LocoNet " + (info?.transport?.toLowerCase() === "tcp" ? "TCP" : "Serial") : info?.name ?? "Command center"}</Text>
+            <Badge color={info?.connected ? "green" : "red"}>{info?.connected ? "CONNECTED" : "DISCONNECTED"}</Badge>
+            <Stack gap={5} mt="xs">
+              <Text size="sm">Protocol: {info?.type ?? "—"} · {info?.transport ?? "—"}</Text>
+              <Text size="sm">Endpoint: {info?.host ? info.host + (info.port ? ":" + info.port : "") : "—"}</Text>
+              {info?.locoNetStandardTelemetry && (
+                <>
+                  <Text size="sm">RX / TX: {info.locoNetStandardTelemetry.rxFrames} / {info.locoNetStandardTelemetry.txFrames} frames</Text>
+                  <Text size="sm">Sensors: {info.locoNetStandardTelemetry.sensorReports} · Turnouts: {info.locoNetStandardTelemetry.turnoutReports}</Text>
+                  <Text size="sm">Power reports: {info.locoNetStandardTelemetry.powerReports}</Text>
+                  <Text size="sm">Last RX: {info.locoNetStandardTelemetry.lastRxAgeMs >= 0 ? info.locoNetStandardTelemetry.lastRxAgeMs + " ms ago" : "—"}</Text>
+                </>
+              )}
+              {info?.locoNetDiagnostics && (
+                <>
+                  <Text size="sm">LB server: {info.locoNetDiagnostics.lbServerConnected ? "Connected" : "Disconnected"}</Text>
+                  <Text size="sm">LB lines: {info.locoNetDiagnostics.lbServerLinesObserved}</Text>
+                  <Text size="sm">Sensor feedback: {info.locoNetDiagnostics.sensorFeedbackCount}</Text>
+                </>
+              )}
+              {info?.feedbackLinkName && <Text size="sm">Feedback: {info.feedbackLinkName}</Text>}
+            </Stack>
           </Card>
           <Card withBorder>
             <Group align="flex-start" justify="space-between" gap="xs" wrap="nowrap">
@@ -81,50 +127,6 @@ export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
             <Text size="sm">Last message type: {traffic.lastMessage}</Text>
           </Card>
         </SimpleGrid>
-        {info?.locoNetStandardTelemetry && (
-          <Card withBorder>
-            <Group justify="space-between" mb="xs">
-              <Text fw={600}>LocoNet {info.transport?.toLowerCase() === "tcp" ? "TCP" : "Serial"} · Live telemetry</Text>
-
-            </Group>
-            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
-              <Text size="sm">Valid RX frames: {info.locoNetStandardTelemetry.rxFrames}</Text>
-              <Text size="sm">TX frames: {info.locoNetStandardTelemetry.txFrames}</Text>
-              <Text size="sm">Sensor reports: {info.locoNetStandardTelemetry.sensorReports}</Text>
-              <Text size="sm">Turnout reports: {info.locoNetStandardTelemetry.turnoutReports}</Text>
-              <Text size="sm">Power reports: {info.locoNetStandardTelemetry.powerReports}</Text>
-              <Text size="sm">Reported track power: {info.locoNetStandardTelemetry.reportedTrackPowerOn === null ? "Unknown" : info.locoNetStandardTelemetry.reportedTrackPowerOn ? "ON" : "OFF"}</Text>
-              <Text size="sm">Last RX: {info.locoNetStandardTelemetry.lastRxAgeMs >= 0 ? info.locoNetStandardTelemetry.lastRxAgeMs + " ms ago" : "No data"}</Text>
-              <Text size="sm">Last power report: {info.locoNetStandardTelemetry.lastPowerReportAgeMs >= 0 ? info.locoNetStandardTelemetry.lastPowerReportAgeMs + " ms ago" : "No data"}</Text>
-            </SimpleGrid>
-            <Text size="xs" c="dimmed" mt="xs">Cumulative, checksum-validated LocoNet frames from the command-center runtime. Refreshed every 5 seconds.</Text>
-          </Card>
-        )}
-        {info?.locoNetDiagnostics && (
-          <Card withBorder>
-            <Group justify="space-between" mb="xs">
-              <Text fw={600}>LocoNet TCP</Text>
-              <Badge color={info.locoNetDiagnostics.lbServerConnected ? "green" : "red"}>
-                {info.locoNetDiagnostics.lbServerConnected ? "CONNECTED" : "DISCONNECTED"}
-              </Badge>
-            </Group>
-            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
-              <Text size="sm">Endpoint: {info.locoNetDiagnostics.host}:{info.locoNetDiagnostics.lbServerPort}</Text>
-              <Text size="sm">LB server: {info.locoNetDiagnostics.lbServerEnabled ? "Enabled" : "Disabled"}</Text>
-              <Text size="sm">LB version: {info.locoNetDiagnostics.lbServerVersion || "—"}</Text>
-              <Text size="sm">Connected for: {info.locoNetDiagnostics.lbServerUptimeMs >= 0 ? Math.floor(info.locoNetDiagnostics.lbServerUptimeMs / 1000) + " s" : "—"}</Text>
-              <Text size="sm">Last TCP RX: {info.locoNetDiagnostics.lastLbServerRxAgeMs >= 0 ? info.locoNetDiagnostics.lastLbServerRxAgeMs + " ms ago" : "No data"}</Text>
-              <Text size="sm">TCP lines observed: {info.locoNetDiagnostics.lbServerLinesObserved}</Text>
-              <Text size="sm">Sensor reports: {info.locoNetDiagnostics.sensorFeedbackCount}</Text>
-              <Text size="sm">Last sensor: {info.locoNetDiagnostics.lastSensorAddress > 0 ? "#" + info.locoNetDiagnostics.lastSensorAddress + " = " + (info.locoNetDiagnostics.lastSensorOn === null ? "Unknown" : info.locoNetDiagnostics.lastSensorOn ? "ON" : "OFF") : "—"}</Text>
-              <Text size="sm">Last sensor RX: {info.locoNetDiagnostics.lastSensorFeedbackAgeMs >= 0 ? info.locoNetDiagnostics.lastSensorFeedbackAgeMs + " ms ago" : "No data"}</Text>
-              <Text size="sm">Binary feedback: {info.locoNetDiagnostics.binaryFeedbackEnabled ? "Enabled (port " + info.locoNetDiagnostics.binaryPort + ")" : "Disabled"}</Text>
-              <Text size="sm">Interrogate: {info.locoNetDiagnostics.interrogateEnabled ? "Enabled" : "Disabled"}</Text>
-              <Text size="sm">Last interrogate: {info.locoNetDiagnostics.lastInterrogateAgeMs >= 0 ? Math.floor(info.locoNetDiagnostics.lastInterrogateAgeMs / 1000) + " s ago" : "—"}</Text>
-            </SimpleGrid>
-            <Text size="xs" c="dimmed" mt="xs">Live backend totals refresh every 5 seconds. TCP lines and sensor reports are cumulative counters, not msg/s.</Text>
-          </Card>
-        )}
         <Card withBorder>
           <Text fw={600} mb="xs">Message types (live, msg/s)</Text>
           {traffic.messageTypes.length === 0
