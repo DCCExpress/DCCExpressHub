@@ -37,6 +37,20 @@ export type LocoNetTcpDiagnostics = {
   interrogateEnabled: boolean;
 };
 
+export type LocoNetStandardTelemetry = {
+  rxFrames: number;
+  txFrames: number;
+  sensorReports: number;
+  turnoutReports: number;
+  powerReports: number;
+  reportedTrackPowerOn: boolean | null;
+  lastRxAgeMs: number;
+  lastPowerReportAgeMs: number;
+  trackCurrentMa: number | null;
+  trackVoltageV: number | null;
+  temperatureC: number | null;
+};
+
 export type CommandCenterInfo = {
   ok: boolean;
   embedded?: boolean;
@@ -47,6 +61,7 @@ export type CommandCenterInfo = {
   defaultPort: number;
   connected: boolean;
   locoNetDiagnostics?: LocoNetTcpDiagnostics | null;
+  locoNetStandardTelemetry?: LocoNetStandardTelemetry | null;
   host?: string;
   port?: number;
   feedbackLinkName?: string;
