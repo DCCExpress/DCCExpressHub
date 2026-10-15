@@ -15,6 +15,7 @@ export type SemiCircleGaugeProps = {
   colorTo?: string;
   width?: number;
   precision?: number;
+  compact?: boolean;
 };
 
 const ARC_LENGTH = Math.PI * 94;
@@ -29,6 +30,7 @@ export default function SemiCircleGauge({
   colorTo = "#775bff",
   width = 320,
   precision = 0,
+  compact = false,
 }: SemiCircleGaugeProps) {
   const gradientId = useId().replace(/:/g, "");
   const glowId = useId().replace(/:/g, "");
@@ -41,7 +43,7 @@ export default function SemiCircleGauge({
 
   return (
     <Box
-      style={{ width: "100%", maxWidth: width, marginInline: "auto" }}
+      style={{ width: "100%", maxWidth: width, marginInline: compact ? "0" : "auto", flexShrink: 0 }}
       role="meter"
       aria-label={label}
       aria-valuemin={0}
@@ -82,15 +84,15 @@ export default function SemiCircleGauge({
           strokeDashoffset={ARC_LENGTH * (1 - ratio)}
           style={{ transition: "stroke-dashoffset 650ms cubic-bezier(.2,.8,.2,1)" }}
         />
-        <text x="110" y="92" textAnchor="middle" fill="currentColor" fontSize="34" fontWeight="750" style={{ fontVariantNumeric: "tabular-nums" }}>{formattedValue}</text>
-        <text x="110" y="111" textAnchor="middle" fill="var(--mantine-color-dimmed)" fontSize="12">{unit}</text>
+        <text x="110" y="92" textAnchor="middle" fill="currentColor" fontSize={compact ? "42" : "34"} fontWeight="750" style={{ fontVariantNumeric: "tabular-nums" }}>{formattedValue}</text>
+        <text x="110" y="111" textAnchor="middle" fill="var(--mantine-color-dimmed)" fontSize={compact ? "15" : "12"}>{unit}</text>
         <text x="16" y="140" fill="var(--mantine-color-dimmed)" fontSize="10">0</text>
         <text x="204" y="140" textAnchor="end" fill="var(--mantine-color-dimmed)" fontSize="10">{formattedMax}</text>
       </svg>
-      <Stack gap={0} align="center" mt={-4}>
+      {!compact && <Stack gap={0} align="center" mt={-4}>
         <Text fw={700} size="sm">{label}</Text>
         <Text size="xs" c="dimmed">{maxLabel}: {formattedMax} {unit} · {Math.round(ratio * 100)}%</Text>
-      </Stack>
+      </Stack>}
     </Box>
   );
 }
