@@ -5,7 +5,8 @@ import type { ComponentType } from "react";
 export const BUILTIN_FUNCTION_ICONS = [
   ["light", "Headlight", "IconBulb"],
   ["cab-light", "Cab light", "IconLamp"],
-  ["engine", "Engine", "IconTrain"],
+  ["engine", "Engine", "IconEngine"],
+  ["train-engine", "Train engine", "IconTrain"],
   ["horn", "Horn", "IconSpeakerphone"],
   ["bell", "Bell", "IconBell"],
   ["sound", "Sound", "IconVolume"],
