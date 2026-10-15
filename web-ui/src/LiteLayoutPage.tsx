@@ -2011,7 +2011,7 @@ export default function LiteLayoutPage({
         }}
       />
 
-      <Card withBorder px={6} py={3} radius="sm" className="lite-layout-toolbar">
+      <Card withBorder px={6} py={3} radius="sm" className="lite-layout-toolbar" inert={blockSelectionActive} style={{ opacity: blockSelectionActive ? 0.55 : 1 }}>
         <Group justify="space-between" align="center" wrap="nowrap">
           <Group gap="xs">
             <ActionIcon variant="subtle" color="gray" onClick={onBack} aria-label={i18next.t("ui.back")} title={i18next.t("ui.home")}>
@@ -2022,7 +2022,6 @@ export default function LiteLayoutPage({
           </Group>
 
           <Group gap={6} wrap="nowrap">
-            {blockSelectionActive && <Badge color="yellow" variant="filled" size="md">Select yellow destination · Esc to cancel</Badge>}
             <ActionIcon
               variant={editMode ? "filled" : "light"}
               color="violet"
@@ -2153,12 +2152,12 @@ export default function LiteLayoutPage({
 
       <div className="lite-layout-workspace" style={workspaceStyle}>
         {!locoPanelCollapsed && (
-          <div className="lite-loco-panel">
+          <div className="lite-loco-panel" inert={blockSelectionActive} style={{ opacity: blockSelectionActive ? 0.55 : 1 }}>
             <LocoPanel locos={locos} />
           </div>
         )}
 
-        <div className="lite-panel-resizer lite-panel-resizer-left" onPointerDown={event => beginResize("left", event)}>
+        <div className="lite-panel-resizer lite-panel-resizer-left" inert={blockSelectionActive} onPointerDown={event => { if (!blockSelectionActive) beginResize("left", event); }}>
           <button type="button" onPointerDown={event => event.stopPropagation()} onClick={() => setLocoPanelCollapsed(value => !value)} title={i18next.t("ui.toggleLocomotivePanel")}>
             {locoPanelCollapsed ? <IconChevronRight size={16} /> : <IconChevronLeft size={16} />}
           </button>
@@ -2183,7 +2182,7 @@ export default function LiteLayoutPage({
           />
         </Card>
 
-        <div className="lite-panel-resizer lite-panel-resizer-right" onPointerDown={event => beginResize("right", event)}>
+        <div className="lite-panel-resizer lite-panel-resizer-right" inert={blockSelectionActive} onPointerDown={event => { if (!blockSelectionActive) beginResize("right", event); }}>
           <button type="button" onPointerDown={event => event.stopPropagation()} onClick={() => setPropertyPanelCollapsed(value => !value)} title={i18next.t("ui.togglePropertyPanel")}>
             {propertyPanelCollapsed ? <IconChevronLeft size={16} /> : <IconChevronRight size={16} />}
           </button>
@@ -2191,11 +2190,11 @@ export default function LiteLayoutPage({
 
         {!propertyPanelCollapsed && (
           rightPanelMode === "loco" ? (
-            <div className="lite-property-panel lite-right-loco-panel">
+            <div className="lite-property-panel lite-right-loco-panel" inert={blockSelectionActive} style={{ opacity: blockSelectionActive ? 0.55 : 1 }}>
               <LocoPanel locos={locos} selectedLocoStorageKey={RIGHT_LOCO_STORAGE_KEY} />
             </div>
           ) : (
-            <Card withBorder p="sm" className="lite-property-panel">
+            <Card withBorder p="sm" className="lite-property-panel" inert={blockSelectionActive} style={{ opacity: blockSelectionActive ? 0.55 : 1 }}>
               {editMode ? (
                 <>
                   <Title order={5} mb="sm">
@@ -2362,7 +2361,7 @@ export default function LiteLayoutPage({
 
       <Card withBorder p={5} radius="sm" className="lite-status-bar">
         <Group justify="space-between" wrap="nowrap" gap="xs">
-          <Group gap={6} wrap="nowrap">
+          <Group gap={6} wrap="nowrap" style={{ pointerEvents: blockSelectionActive ? "none" : undefined }}>
             <Badge
               data-command-center-status-role="layout-ws"
               size="sm"
@@ -2379,6 +2378,8 @@ export default function LiteLayoutPage({
               variant="light"
               color={commandCenter.powerInfo?.emergencyStop ? "red" : "gray"}
               onClick={() => wsApi.emergencyStop()}
+              style={{ pointerEvents: "auto" }}
+              title={i18next.t("ui.estop")}
               className={`lite-status-action${commandCenter.powerInfo?.emergencyStop
                 ? " blinkBadge"
                 : ""
@@ -2496,6 +2497,7 @@ export default function LiteLayoutPage({
             </ActionIcon>
 
           </Group>
+          {blockSelectionActive && <Badge color="yellow" variant="filled" size="md">Select yellow destination · Esc to cancel</Badge>}
           <Text size="xs" c="dimmed" truncate>
             {layout.getAllElements().length} elements · {locos.length} locos
           </Text>
