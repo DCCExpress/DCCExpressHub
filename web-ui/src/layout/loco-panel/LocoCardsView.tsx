@@ -52,14 +52,14 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
     moving.some(item => item.state.locoAddress === address && ["running", "stopping"].includes(item.state.status)) ||
     drivers.some(item => item.locoAddress === address && ["created", "running", "waiting", "paused", "stopping"].includes(item.status));
   const command = (loco: Loco, speed: number, direction: Direction) => {
-    if (disabled || blocked(loco.address)) return;
+    if (disabled) return;
     const value = Math.max(0, Math.min(126, loco.maxSpeed > 0 ? loco.maxSpeed : 126, Math.round(speed)));
     if (wsApi.setLoco(loco.address, value, direction))
       setLive(old => ({ ...old, [loco.address]: { ...old[loco.address], speed: value, direction, functionsMask: old[loco.address]?.functionsMask ?? 0 } }));
   };
 
   const toggleFunction = (loco: Loco, number: number, nextActive?: boolean) => {
-    if (disabled || blocked(loco.address)) return;
+    if (disabled) return;
     const current = live[loco.address] ?? wsClient.getLatestLocoState(loco.address);
     if (!current) return;
     const active = ((current.functionsMask ?? 0) & (1 << number)) !== 0;
@@ -76,7 +76,8 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
     <Stack gap="xs" p="xs">
       {locos.map(loco => {
         const state = live[loco.address] ?? { speed: 0, direction: "forward" as Direction, functionsMask: 0 };
-        const locked = disabled || blocked(loco.address);
+        // Train Driver / Movement ownership is advisory here: manual override remains available.
+        const locked = disabled;
         const cardFunctions = (loco.functions ?? []).filter(fn => fn.showOnLocoCard ?? fn.number < 5)
           .sort((a, b) => a.number - b.number).slice(0, 5);
         return <Card key={loco.id} withBorder radius="sm" padding="xs"
@@ -121,7 +122,7 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
               onChange={value => setLive(old => ({ ...old, [loco.address]: { ...old[loco.address], speed: value, direction: state.direction, functionsMask: old[loco.address]?.functionsMask ?? state.functionsMask } }))}
               onChangeEnd={value => command(loco, value, state.direction)} aria-label={`Speed ${loco.name}`} />
           </Group>
-          {blocked(loco.address) && <Text size="xs" c="dimmed">Managed by Train Driver / Movement</Text>}
+          {blocked(loco.address) && <Text size="xs" c="dimmed">Managed by Train Driver / Movement · manual controls available</Text>}
         </Card>;
       })}
     </Stack>
