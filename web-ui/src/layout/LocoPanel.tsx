@@ -1,7 +1,7 @@
 import { ActionIcon, Card, Text, Tooltip } from "@mantine/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { IconLayoutGrid, IconSettings, IconSliders } from "@tabler/icons-react";
+import { IconLayoutGrid, IconSettings, IconAdjustmentsHorizontal } from "@tabler/icons-react";
 
 import type {
   Direction,
@@ -880,7 +880,7 @@ export default function LocoPanel({
         <Tooltip label={panelView === "control" ? "Cards view" : "Control view"}>
           <ActionIcon aria-label="Toggle locomotive panel view" size="sm" variant="subtle" color="gray"
             onClick={togglePanelView} style={{ position: "absolute", right: 2, top: 2, zIndex: 20 }}>
-            {panelView === "control" ? <IconLayoutGrid size={15} /> : <IconSliders size={15} />}
+            {panelView === "control" ? <IconLayoutGrid size={15} /> : <IconAdjustmentsHorizontal size={15} />}
           </ActionIcon>
         </Tooltip>
 
