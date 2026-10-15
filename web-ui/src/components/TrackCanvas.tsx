@@ -358,6 +358,14 @@ export default function TrackCanvas({
     });
   }, []);
 
+  useEffect(() => wsClient.on("powerInfo", info => {
+    const active = info.emergencyStop === true;
+    if (EmergencyButtonElement.emergencyActive !== active) {
+      EmergencyButtonElement.emergencyActive = active;
+      requestDraw();
+    }
+  }), [requestDraw]);
+
   const invalidate = useCallback(() => {
     requestDraw();
   }, [requestDraw]);
