@@ -59,6 +59,8 @@
     "loco_functions": "Funkciók",
     "loco_length_mm": "Hossz (mm)",
     "loco_max_speed": "Max. sebesség",
+    "loco_starting_speed": "Indulósebesség",
+    "loco_starting_speed_description": "A Drive to Block alapértelmezett DCC sebességlépése",
     "loco_speed_max": "Max.",
     "locoaddress": "Cím",
     "locomotives": "Mozdonyok",
