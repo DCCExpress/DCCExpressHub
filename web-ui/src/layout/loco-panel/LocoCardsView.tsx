@@ -132,7 +132,7 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
               onChange={value => setLive(old => ({ ...old, [loco.address]: { ...old[loco.address], speed: value, direction: state.direction, functionsMask: old[loco.address]?.functionsMask ?? state.functionsMask } }))}
               onChangeEnd={value => command(loco, value, state.direction)} aria-label={`Speed ${loco.name}`} />
           </Group>
-          <Text size="xs" c={movement?.error ? "red" : "dimmed"} truncate="end" title={movementMessage ?? "Manual"} style={{ height: 18, lineHeight: "18px", width: "100%", minWidth: 0 }}>{movementMessage ?? "Manual"}</Text>
+          <Text size="xs" c={movement?.error ? "red" : movementMessage ? "yellow" : "dimmed"} truncate="end" title={movementMessage ?? "Manual"} style={{ height: 18, lineHeight: "18px", width: "100%", minWidth: 0 }}>{movementMessage ?? "Manual"}</Text>
         </Card>;
       })}
     </Stack>
