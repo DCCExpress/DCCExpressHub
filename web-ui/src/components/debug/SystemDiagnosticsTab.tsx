@@ -85,7 +85,7 @@ export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
           <Card withBorder>
             <Group justify="space-between" mb="xs">
               <Text fw={600}>LocoNet {info.transport?.toLowerCase() === "tcp" ? "TCP" : "Serial"} · Live telemetry</Text>
-              <Badge color={info.connected ? "green" : "red"}>{info.connected ? "CONNECTED" : "DISCONNECTED"}</Badge>
+
             </Group>
             <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
               <Text size="sm">Valid RX frames: {info.locoNetStandardTelemetry.rxFrames}</Text>
