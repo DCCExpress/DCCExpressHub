@@ -180,7 +180,10 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
           {active.map(({ pageId, state }) => {
         const page = document.pages.find(item => item.id === pageId);
         const loco = locos.find(item => item.address === state.locoAddress);
-        const driver = drivers.find(item => item.movementId === pageId);
+        const driver = [...drivers]
+          .filter(item => item.movementId === pageId)
+          .sort((a, b) => b.createdAt - a.createdAt)
+          .find(item => ["created", "running", "waiting", "paused", "stopping"].includes(item.status));
         const isQuickRoute = pageId.startsWith("quick-route-loco-");
         const fullName = state.movementName || page?.name || (isQuickRoute
           ? "Quick route"
