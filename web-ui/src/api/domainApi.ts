@@ -1,16 +1,18 @@
 import type { FunctionBinding, Loco } from "@domain/types";
+import { ensureLocoFunctions } from "@domain/locoFunctions";
 
 export async function getLocos(): Promise<Loco[]> {
   const response = await fetch("/api/locos", { cache: "no-store" });
   if (!response.ok) throw new Error(`Could not load locomotives: HTTP ${response.status}`);
-  return response.json() as Promise<Loco[]>;
+  const locos = await response.json() as Loco[];
+  return locos.map(ensureLocoFunctions);
 }
 
 export async function saveLocos(locos: Loco[]): Promise<void> {
   const response = await fetch("/api/locos", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(locos),
+    body: JSON.stringify(locos.map(ensureLocoFunctions)),
   });
   if (!response.ok) throw new Error(`Could not save locomotives: HTTP ${response.status}`);
 }
