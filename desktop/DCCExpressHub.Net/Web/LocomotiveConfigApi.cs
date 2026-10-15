@@ -11,18 +11,21 @@ public sealed class LocomotiveConfigApi
     readonly LocoCounterRuntime _counters;
     readonly ConfiguredCommandCenter _configuredCommandCenter;
     readonly LocoStorageCoordinator _locoStorage;
+    readonly WsRuntimeCoordinator _locoSyncRuntime;
 
     public LocomotiveConfigApi(
         AppPaths paths,
         LocoCounterRuntime counters,
         ConfiguredCommandCenter configuredCommandCenter,
-        LocoStorageCoordinator locoStorage)
+        LocoStorageCoordinator locoStorage,
+        WsRuntimeCoordinator locoSyncRuntime)
     {
         _paths = paths;
         _counters = counters;
         _configuredCommandCenter =
             configuredCommandCenter;
         _locoStorage = locoStorage;
+        _locoSyncRuntime = locoSyncRuntime;
     }
 
     string ConfigFile(
@@ -402,6 +405,7 @@ public sealed class LocomotiveConfigApi
 
         _counters.ReloadConfiguration(
             true);
+        _locoSyncRuntime.RefreshLocomotives();
 
         return HubApiResponse.Ok(
             new
