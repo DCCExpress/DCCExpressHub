@@ -1,7 +1,7 @@
 const DIRECTORY = "/images";
 const PREFIX = "fnicon-";
 type FileEntry = { name: string; path?: string; type?: string };
-export type CustomFunctionIcon = { name: string; value: string; url: string };
+export type CustomFunctionIcon = { name: string; value: string; url: string; path: string };
 
 export function customFunctionIconUrl(value: string): string | null {
   if (!value.startsWith("custom:")) return null;
@@ -18,7 +18,7 @@ export async function listCustomFunctionIcons(): Promise<CustomFunctionIcon[]> {
   if (!Array.isArray(entries)) throw new Error("Invalid icon directory response");
   return entries.filter(item => item.type !== "directory" &&
       /^fnicon-[a-zA-Z0-9._-]+\.(png|webp|svg)$/i.test(item.name))
-    .map(item => ({ name: item.name, value: `custom:${item.name}`, url: `/images/${item.name}` }));
+    .map(item => ({ name: item.name, value: `custom:${item.name}`, url: `/images/${item.name}`, path: item.path || `/images/${item.name}` }));
 }
 
 export async function uploadCustomFunctionIcon(file: File): Promise<CustomFunctionIcon> {
@@ -34,7 +34,7 @@ export async function uploadCustomFunctionIcon(file: File): Promise<CustomFuncti
   form.append("file", new File([payload], name, { type: isSvg ? "image/svg+xml" : file.type }), name);
   const response = await fetch(`/upload?path=${encodeURIComponent(DIRECTORY)}`, { method: "POST", body: form });
   if (!response.ok) throw new Error(`Icon upload failed (HTTP ${response.status})`);
-  return { name, value: `custom:${name}`, url: `/images/${name}` };
+  return { name, value: `custom:${name}`, url: `/images/${name}`, path: `/images/${name}` };
 }
 
 /**
