@@ -3774,6 +3774,7 @@ public sealed class MovementRuntime
 
         // Prefer fewer block transitions, then fewer turnout requirements.
         return (
+            true,
             (plan.Blocks.Length - 1) * 100 +
             plan.Legs.Sum(leg => leg.TurnoutStates.Length),
             null);
