@@ -24,17 +24,27 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
       const { address, speed, direction } = data.loco;
       setLive(old => ({ ...old, [address]: { speed, direction } }));
     });
-    const driverUnsub = wsClient.on("trainDriverState", data => {
-      // Task snapshots are authoritative; a running driver owns its throttle.
-      const item = data as unknown as { tasks?: Array<{ locoAddress: number; status: string }> };
-      if (Array.isArray(item.tasks)) setDrivers(item.tasks);
+    const driverUnsub = wsClient.subscribeMessages(message => {
+      if (message.type === "trainDriverStateChanged") {
+        const driver = message.data;
+        setDrivers(old => [...old.filter(item => item.locoAddress !== driver.locoAddress), driver]);
+      } else if (message.type === "trainDriverResponse" &&
+          message.data.action === "snapshot" && message.data.ok && Array.isArray(message.data.states)) {
+        setDrivers(message.data.states);
+      }
+    });
+    const connection = wsClient.subscribeStatus(status => {
+      if (status !== "connected") { setDrivers([]); return; }
+      wsClient.send({ type: "trainDriverCommand", data: {
+        requestId: `loco-cards-snapshot-${Date.now()}`, action: "snapshot",
+      } });
     });
     for (const loco of locos) {
       const cached = wsClient.getLatestLocoState(loco.address);
       if (cached) setLive(old => ({ ...old, [loco.address]: { speed: cached.speed, direction: cached.direction } }));
       wsApi.getLoco(loco.address);
     }
-    return () => { unsub(); driverUnsub(); };
+    return () => { unsub(); driverUnsub(); connection(); };
   }, [locos]);
   const blocked = (address: number) =>
     moving.some(item => item.state.locoAddress === address && ["running", "stopping"].includes(item.state.status)) ||
