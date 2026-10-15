@@ -64,6 +64,7 @@ export default function LocoDialogContent({
     setActiveActionHook,
     functionOptions,
     updateSelectedLoco,
+    setLocoActive,
     addLoco,
     deleteSelectedLoco,
     addFunction,
@@ -85,6 +86,7 @@ export default function LocoDialogContent({
         locos={locos}
         selectedId={selectedId}
         onSelect={setSelectedId}
+        onActiveChange={setLocoActive}
         onAdd={addLoco}
         
         onDeleteSelected={deleteSelectedLoco}
