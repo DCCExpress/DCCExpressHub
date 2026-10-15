@@ -30,6 +30,7 @@ export function getAllLayoutElements(layout: LayoutView): BaseElement[] {
     ...layout.signals.elements,
     ...layout.blocks.elements,
     ...layout.buildings.elements,
+    ...layout.buttons.elements,
   ];
 }
 
