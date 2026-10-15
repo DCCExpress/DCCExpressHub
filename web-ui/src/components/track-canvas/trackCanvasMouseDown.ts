@@ -98,6 +98,7 @@ export type TrackCanvasMouseDownContext = {
   selectionRef: MouseDownRef<SelectionState>;
   setSelectedBlock: Dispatch<SetStateAction<BlockElement | null>>;
   setLocoPickerOpen: Dispatch<SetStateAction<boolean>>;
+  setBlockPopupPoint: Dispatch<SetStateAction<{ x: number; y: number }>>;
   setRouteTurnoutsMarked: (routeButton: RouteButtonElement) => void;
   onInvalidate: () => void;
   onBeforeLayoutChange?: (() => void) | undefined;
@@ -153,6 +154,7 @@ export function handleTrackCanvasMouseDown(
     selectionRef,
     setSelectedBlock,
     setLocoPickerOpen,
+    setBlockPopupPoint,
     setRouteTurnoutsMarked,
     onInvalidate,
     onBeforeLayoutChange,
@@ -251,7 +253,9 @@ export function handleTrackCanvasMouseDown(
   if (!editModeRef.current) {
     if (hitElement instanceof BlockElement) {
       setSelectedBlock(hitElement);
-      setLocoPickerOpen(true);
+      setBlockPopupPoint({ x: event.clientX, y: event.clientY });
+      // Open after the originating mouse click; otherwise outside-click handling closes it.
+      window.setTimeout(() => setLocoPickerOpen(true), 100);
     }
 
     if (hitElement instanceof TrackSignalElement) {
