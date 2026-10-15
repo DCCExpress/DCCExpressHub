@@ -132,11 +132,15 @@ public sealed class TrainDriverRuntime
             .OrderBy(item => item.Check.Cost)
             .ThenBy(item => item.Page.RouteRef!.Direction, StringComparer.Ordinal)
             .ToArray();
-        if (viable.Length == 0)
-            return (false, "no_currently_free_auto_route", null);
+        // An occupied intermediate block or a temporary SwitchMan/Dispatcher
+        // lease must not reject the Drive to Block task. MovementRuntime starts
+        // at speed zero until AcquireLeg obtains authority, then continues.
+        // Prefer a fully clear route when possible; otherwise accept a topology
+        // candidate and let the Dispatcher wait safely for its first leg.
+        var selected = viable.Length > 0 ? viable[0].Page : candidates[0];
         // StartTransient still performs all authoritative Movement validation,
         // Dispatcher reservations and SwitchMan turnout acquisition.
-        return Start(taskId, viable[0].Page);
+        return Start(taskId, selected);
     }
 
     const string PauseOwnerPrefix = "train-driver-pause:";
