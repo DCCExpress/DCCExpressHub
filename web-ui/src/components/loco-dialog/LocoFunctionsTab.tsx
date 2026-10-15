@@ -246,14 +246,6 @@ export default function LocoFunctionsTab({
               </Table.Th>
               <Table.Th w={88} ta="center">Loco Card</Table.Th>
               <Table.Th
-                w={110}
-                ta="center"
-              >
-                {t(
-                  "locodialog.function_momentary"
-                )}
-              </Table.Th>
-              <Table.Th
                 w={120}
                 ta="center"
               >
@@ -273,6 +265,14 @@ export default function LocoFunctionsTab({
                     )}
                   </Text>
                 </Tooltip>
+              </Table.Th>
+              <Table.Th
+                w={110}
+                ta="center"
+              >
+                {t(
+                  "locodialog.function_momentary"
+                )}
               </Table.Th>
               <Table.Th
                 w={95}
@@ -387,50 +387,6 @@ export default function LocoFunctionsTab({
                       justify="center"
                       wrap="nowrap"
                     >
-                      <Checkbox
-                        checked={
-                          fn.momentary
-                        }
-                        onChange={
-                          event => {
-                            const momentary =
-                              event
-                                .currentTarget
-                                .checked;
-
-                            if (
-                              momentary &&
-                              testActive
-                            ) {
-                              setTestState(
-                                fn,
-                                false
-                              );
-                            }
-
-                            onUpdateFunction(
-                              fn.id,
-                              {
-                                momentary,
-                                ...(momentary
-                                  ? {
-                                      startupActive:
-                                        false,
-                                    }
-                                  : {}),
-                              }
-                            );
-                          }
-                        }
-                      />
-                    </Group>
-                  </Table.Td>
-
-                  <Table.Td>
-                    <Group
-                      justify="center"
-                      wrap="nowrap"
-                    >
                       <Tooltip
                         label={
                           fn.momentary
@@ -469,6 +425,50 @@ export default function LocoFunctionsTab({
                           }
                         />
                       </Tooltip>
+                    </Group>
+                  </Table.Td>
+
+                  <Table.Td>
+                    <Group
+                      justify="center"
+                      wrap="nowrap"
+                    >
+                      <Checkbox
+                        checked={
+                          fn.momentary
+                        }
+                        onChange={
+                          event => {
+                            const momentary =
+                              event
+                                .currentTarget
+                                .checked;
+
+                            if (
+                              momentary &&
+                              testActive
+                            ) {
+                              setTestState(
+                                fn,
+                                false
+                              );
+                            }
+
+                            onUpdateFunction(
+                              fn.id,
+                              {
+                                momentary,
+                                ...(momentary
+                                  ? {
+                                      startupActive:
+                                        false,
+                                    }
+                                  : {}),
+                              }
+                            );
+                          }
+                        }
+                      />
                     </Group>
                   </Table.Td>
 
