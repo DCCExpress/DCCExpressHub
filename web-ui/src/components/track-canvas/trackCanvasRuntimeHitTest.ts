@@ -13,7 +13,13 @@ export function getTrackCanvasHitElement(
   y: number,
   editMode: boolean,
 ): BaseElement | null {
-  if (editMode) return layout.getElement(x, y);
+  if (editMode) {
+    // Button artwork is commonly placed over track. Prefer its selectable layer
+    // instead of letting the track layer intercept editor dragging.
+    const button = [...layout.buttons.elements].reverse().find(element =>
+      element.visible && element.hitTest(x, y));
+    return button ?? layout.getElement(x, y);
+  }
 
   const block = layout.blocks.elements.find(
     element => element instanceof BlockElement &&
