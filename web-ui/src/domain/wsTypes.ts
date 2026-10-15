@@ -380,7 +380,7 @@ export type TrainDriverStatePayload = {
   movementId: string;
   locoAddress: number;
   name: string;
-  status: "created" | "running" | "waiting" | "stopping" | "stopped" | "completed" | "aborted" | "error";
+  status: "created" | "running" | "waiting" | "paused" | "stopping" | "stopped" | "completed" | "aborted" | "error";
   info: string | null;
   error: string | null;
   createdAt: number;
