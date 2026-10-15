@@ -72,3 +72,13 @@ test("destination selection hint moves to status bar and locks other layout surf
   assert.match(page, /wrap="nowrap" inert=\{blockSelectionActive\}/);
   assert.match(page, /color="red" variant="filled" onClick=\{\(\) => wsApi\.emergencyStop\(\)\}/);
 });
+
+test("E-STOP cancels block selection for repeated clicks and backend E-STOP state", () => {
+  const page = read("LiteLayoutPage.tsx");
+  const canvas = read("components/TrackCanvas.tsx");
+  assert.match(page, /const emergencyStopAndCancelSelection = \(\) => \{/);
+  assert.match(page, /setCancelBlockSelectionCounter\(value => value \+ 1\)/);
+  assert.match(page, /emergencyStopActive=\{commandCenter\.powerInfo\?\.emergencyStop === true\}/);
+  assert.match(canvas, /if \(blockSelectionRef\.current\) exitBlockSelection\(\)/);
+  assert.match(canvas, /\[cancelBlockSelectionCounter, emergencyStopActive\]/);
+});
