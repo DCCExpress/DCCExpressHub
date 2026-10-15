@@ -208,6 +208,11 @@ export function handleTrackCanvasMouseDown(
 
   const hitElement = getTrackCanvasHitElement(currentLayout, grid.x, grid.y, currentEditMode);
 
+  if (!editModeRef.current && hitElement instanceof EmergencyButtonElement) {
+    hitElement.press();
+    return;
+  }
+
   if (!editModeRef.current && hitElement?.type === ELEMENT_TYPES.BUTTON_AUDIO) {
     const audioButton = hitElement as AudioButtonElement;
     audioButton.press(() => {
