@@ -61,5 +61,7 @@ test("AUTO Drive to Block sends alternatives and rejects blocked route candidate
   assert.match(driver, /OrderBy\(item => item\.Check\.Cost\)/);
   assert.match(movement, /route_sensor_unknown/);
   assert.match(movement, /route_block_occupied_or_reserved/);
+  assert.match(movement, /route_safety_sensor_not_free/);
+  assert.match(movement, /route_resource_reserved/);
   assert.match(ws, /case "startAuto":/);
 });
