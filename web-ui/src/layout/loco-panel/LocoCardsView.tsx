@@ -58,16 +58,17 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
       setLive(old => ({ ...old, [loco.address]: { ...old[loco.address], speed: value, direction, functionsMask: old[loco.address]?.functionsMask ?? 0 } }));
   };
 
-  const toggleFunction = (loco: Loco, number: number) => {
+  const toggleFunction = (loco: Loco, number: number, nextActive?: boolean) => {
     if (disabled || blocked(loco.address)) return;
     const current = live[loco.address] ?? wsClient.getLatestLocoState(loco.address);
     if (!current) return;
     const active = ((current.functionsMask ?? 0) & (1 << number)) !== 0;
-    if (wsApi.setLocoFunction(loco.address, number, !active))
+    const target = nextActive ?? !active;
+    if (wsApi.setLocoFunction(loco.address, number, target))
       setLive(old => {
         const previous = old[loco.address] ?? { speed: current.speed, direction: current.direction, functionsMask: current.functionsMask ?? 0 };
         return { ...old, [loco.address]: { ...previous,
-          functionsMask: active ? previous.functionsMask & ~(1 << number) : previous.functionsMask | (1 << number) } };
+          functionsMask: target ? previous.functionsMask | (1 << number) : previous.functionsMask & ~(1 << number) } };
       });
   };
 
@@ -76,6 +77,8 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
       {locos.map(loco => {
         const state = live[loco.address] ?? { speed: 0, direction: "forward" as Direction, functionsMask: 0 };
         const locked = disabled || blocked(loco.address);
+        const cardFunctions = (loco.functions ?? []).filter(fn => fn.showOnLocoCard ?? fn.number < 5)
+          .sort((a, b) => a.number - b.number).slice(0, 5);
         return <Card key={loco.id} withBorder radius="sm" padding="xs"
           style={{ borderColor: selectedLocoId === loco.id ? "var(--mantine-color-lime-6)" : undefined }}>
           <Group gap="xs" wrap="nowrap" onClick={() => onSelect(loco)} style={{ cursor: "pointer" }}>
@@ -84,15 +87,21 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
               <Text size="sm" fw={600} truncate>{loco.name || `#${loco.address}`}</Text>
               <Text size="xs" c="dimmed">#{loco.address}</Text>
               <Group gap={3} wrap="nowrap" mt={3} onClick={event => event.stopPropagation()}>
-                {[0, 1, 2, 3, 4].map(number => {
-                  const fn = loco.functions?.find(item => item.number === number);
+                {cardFunctions.map(fn => {
+                  const number = fn.number;
                   const Icon = getBuiltinFunctionIcon(fn?.icon ?? "");
                   const customIcon = customFunctionIconUrl(fn?.icon ?? "");
                   return <Tooltip key={number} label={fn?.name ? `F${number} · ${fn.name}` : `Function F${number}`}>
                     <ActionIcon size="sm" radius="sm" variant={(state.functionsMask & (1 << number)) !== 0 ? "filled" : "light"}
                       color={(state.functionsMask & (1 << number)) !== 0 ? "lime" : "gray"}
                       disabled={locked} aria-label={`Function F${number}`}
-                      onClick={event => { event.stopPropagation(); toggleFunction(loco, number); }}>
+                      onPointerDown={event => {
+                        event.stopPropagation();
+                        if (fn.momentary) { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); toggleFunction(loco, number, true); }
+                      }}
+                      onPointerUp={event => { if (fn.momentary) { event.stopPropagation(); toggleFunction(loco, number, false); } }}
+                      onPointerCancel={() => { if (fn.momentary) toggleFunction(loco, number, false); }}
+                      onClick={event => { event.stopPropagation(); if (!fn.momentary) toggleFunction(loco, number); }}>
                       {Icon ? <Icon size={16} /> : customIcon ?
                         <img src={customIcon} alt="" style={{ width: 16, height: 16, objectFit: "contain" }} /> :
                         <Text size="10px" fw={700}>F{number}</Text>}
