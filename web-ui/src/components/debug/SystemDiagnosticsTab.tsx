@@ -84,7 +84,7 @@ export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
                 <Text size="sm">CPU: <Badge color="blue" variant="light">{cpuPercent === null ? "Measuring…" : cpuPercent.toFixed(1) + "%"}</Badge> ({info.hostDiagnostics.processorCount} cores)</Text>
                 <Text size="sm">Process RAM: <Badge color="blue" variant="light">{(info.hostDiagnostics.workingSetBytes / 1048576).toFixed(1)} MB</Badge></Text>
                 <Text size="sm">Managed heap: <Badge color="gray" variant="light">{(info.hostDiagnostics.managedHeapBytes / 1048576).toFixed(1)} MB</Badge></Text>
-                <Text size="sm">System uptime: {Math.floor(info.hostDiagnostics.uptimeSeconds / 3600)}h {Math.floor(info.hostDiagnostics.uptimeSeconds % 3600 / 60)}m</Text>
+                <Text size="sm">System uptime: <Badge color="indigo" variant="light">{Math.floor(info.hostDiagnostics.uptimeSeconds / 3600)}h {Math.floor(info.hostDiagnostics.uptimeSeconds % 3600 / 60)}m</Badge></Text>
                 <Text size="xs" c="dimmed">CPU and RAM measure the Hub process</Text>
               </Stack>
             ) : <Text size="sm" c="dimmed">Host diagnostics unavailable</Text>}
@@ -100,9 +100,9 @@ export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
               {info?.locoNetStandardTelemetry && (
                 <>
                   <Text size="sm">RX / TX: <Badge color="teal" variant="light">{info.locoNetStandardTelemetry.rxFrames}</Badge> / <Badge color="cyan" variant="light">{info.locoNetStandardTelemetry.txFrames}</Badge> frames</Text>
-                  <Text size="sm">Sensors: {info.locoNetStandardTelemetry.sensorReports} · Turnouts: {info.locoNetStandardTelemetry.turnoutReports}</Text>
-                  <Text size="sm">Power reports: {info.locoNetStandardTelemetry.powerReports}</Text>
-                  <Text size="sm">Last RX: {info.locoNetStandardTelemetry.lastRxAgeMs >= 0 ? info.locoNetStandardTelemetry.lastRxAgeMs + " ms ago" : "—"}</Text>
+                  <Text size="sm">Sensors: <Badge color="teal" variant="light">{info.locoNetStandardTelemetry.sensorReports}</Badge> · Turnouts: <Badge color="cyan" variant="light">{info.locoNetStandardTelemetry.turnoutReports}</Badge></Text>
+                  <Text size="sm">Power reports: <Badge color="orange" variant="light">{info.locoNetStandardTelemetry.powerReports}</Badge></Text>
+                  <Text size="sm">Last RX: <Badge color="gray" variant="light">{info.locoNetStandardTelemetry.lastRxAgeMs >= 0 ? info.locoNetStandardTelemetry.lastRxAgeMs + " ms ago" : "—"}</Badge></Text>
                 </>
               )}
               {info?.locoNetDiagnostics && (
@@ -127,7 +127,7 @@ export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
               <SemiCircleGauge compact width={80} value={traffic.incoming} max={traffic.peakIncoming} label="Current received" maxLabel="Session peak" unit="msg/s" />
             </Group>
             <Text size="sm">Sent: <Badge color="violet" variant="light">{traffic.outgoing} msg/s</Badge></Text>
-            <Text size="sm">Sensor messages: {traffic.sensor} msg/s</Text>
+            <Text size="sm">Sensor messages: <Badge color="cyan" variant="light">{traffic.sensor} msg/s</Badge></Text>
             <Text size="sm">Peak received (this session): <Badge color="grape" variant="light">{traffic.peakIncoming} msg/s</Badge></Text>
             <Text size="sm">Last message type: {traffic.lastMessage}</Text>
             </Stack>
