@@ -19,12 +19,14 @@ export type UseLayoutPageShortcutsParams = {
   saveLayoutToServer: () => Promise<void>;
   setTool: EditorToolSetter;
   setEditMode: BooleanSetter;
+  blockSelectionActive?: boolean;
 };
 
 export function useLayoutPageShortcuts({
   saveLayoutToServer,
   setTool,
   setEditMode,
+  blockSelectionActive = false,
 }: UseLayoutPageShortcutsParams): void {
   useEffect(() => {
     const onKeyDown = (
@@ -70,7 +72,8 @@ export function useLayoutPageShortcuts({
         ev.key.toLowerCase() === "e" &&
         !ev.ctrlKey &&
         !ev.altKey &&
-        !ev.metaKey
+        !ev.metaKey &&
+        !blockSelectionActive
       ) {
         ev.preventDefault();
         setEditMode(prev => !prev);
@@ -92,5 +95,6 @@ export function useLayoutPageShortcuts({
     saveLayoutToServer,
     setEditMode,
     setTool,
+    blockSelectionActive,
   ]);
 }
