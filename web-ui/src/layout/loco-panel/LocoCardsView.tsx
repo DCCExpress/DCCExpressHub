@@ -8,11 +8,12 @@ import FunctionIconAsset from "../../components/loco/FunctionIconAsset";
 import { wsApi } from "../../services/wsApi";
 import { wsClient } from "../../services/wsClient";
 import { getMovementTaskStates, subscribeMovementTaskStates } from "../../services/movementEngine";
+import LocoEmergencyButton from "./LocoEmergencyButton";
 
 type LiveState = { speed: number; direction: Direction; functionsMask: number };
-type Props = { locos: Loco[]; selectedLocoId: string; onSelect: (loco: Loco) => void; disabled: boolean };
+type Props = { locos: Loco[]; selectedLocoId: string; onSelect: (loco: Loco) => void; disabled: boolean; emergencyStop: boolean; onEmergencyToggle: () => void };
 
-export default function LocoCardsView({ locos, selectedLocoId, onSelect, disabled }: Props) {
+export default function LocoCardsView({ locos, selectedLocoId, onSelect, disabled, emergencyStop, onEmergencyToggle }: Props) {
   const [live, setLive] = useState<Record<number, LiveState>>({});
   const [moving, setMoving] = useState(() => getMovementTaskStates());
   const [drivers, setDrivers] = useState<Array<{ locoAddress: number; status: string }>>([]);
@@ -72,7 +73,11 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
       });
   };
 
-  return <ScrollArea h="100%" type="auto" offsetScrollbars>
+  return <Stack h="100%" gap={0} style={{ minHeight: 0 }}>
+    <div style={{ padding: 8, flexShrink: 0 }}>
+      <LocoEmergencyButton emergencyStop={emergencyStop} onToggle={onEmergencyToggle} />
+    </div>
+    <ScrollArea style={{ flex: 1, minHeight: 0 }} type="auto" offsetScrollbars>
     <Stack gap="xs" p="xs">
       {locos.map(loco => {
         const state = live[loco.address] ?? { speed: 0, direction: "forward" as Direction, functionsMask: 0 };
