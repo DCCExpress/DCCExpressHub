@@ -3719,6 +3719,45 @@ public sealed class MovementRuntime
             false);
     }
 
+    // Advisory AUTO routing preflight. No authority is granted here:
+    // Dispatcher.AcquireLegAsync remains the final fail-closed arbiter.
+    // Unknown sensor state, occupied intermediate/destination blocks and
+    // another locomotive's target reservations are never treated as free.
+    public (bool Available, int Cost, string? Reason) EvaluateAutoRoute(
+        MovementPageModel page)
+    {
+        MovementPlanModel plan;
+        try { plan = _planBuilder.Build(page); }
+        catch (Exception ex) { return (false, int.MaxValue, ex.Message); }
+        if (plan.Direction is not ("forward" or "reverse") ||
+            plan.Blocks.Length < 2 ||
+            page.ExpectedLocoAddress is not > 0)
+            return (false, int.MaxValue, "invalid_auto_route");
+        var source = plan.Blocks[0];
+        if (source.BlockId is not > 0)
+            return (false, int.MaxValue, "missing_source");
+        var liveSource = Block(source.BlockId.Value);
+        if (liveSource is null || liveSource.LocoAddress != page.ExpectedLocoAddress)
+            return (false, int.MaxValue, "source_loco_mismatch");
+        foreach (var block in plan.Blocks.Skip(1))
+        {
+            if (block.BlockId is not > 0)
+                return (false, int.MaxValue, "missing_route_block");
+            var live = Block(block.BlockId.Value);
+            if (live is null || live.SensorAddress == 0 ||
+                !_layout.TryGetSensorState(live.SensorAddress, out var occupied))
+                return (false, int.MaxValue, "route_sensor_unknown");
+            if (occupied || live.Occupied || live.LocoAddress > 0 ||
+                live.TargetLocoAddress > 0)
+                return (false, int.MaxValue, "route_block_occupied_or_reserved");
+        }
+        // Prefer fewer block transitions, then fewer turnout requirements.
+        return (true,
+            (plan.Blocks.Length - 1) * 100 +
+            plan.Legs.Sum(leg => leg.TurnoutStates.Length),
+            null);
+    }
+
     public (bool Ok, string? Error) StartTransient(
         MovementPageModel page,
         bool calibrationBypass = true) =>
