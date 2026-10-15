@@ -18,6 +18,8 @@ export type TrackCanvasBlockLocoPickerProps = {
   locos: Loco[];
   selectedBlock: BlockElement | null;
   onClose: () => void;
+  onBeginBlockSelection?: (loco: Loco) => void;
+  blockSelectionActive?: boolean;
 };
 
 function showDisconnectedNotification(): void {
@@ -35,6 +37,8 @@ export function TrackCanvasBlockLocoPicker({
   locos,
   selectedBlock,
   onClose,
+  onBeginBlockSelection,
+  blockSelectionActive = false,
 }: TrackCanvasBlockLocoPickerProps) {
   useTranslation();
   const [driveLoco, setDriveLoco] = useState<Loco | null>(null);
@@ -89,7 +93,7 @@ export function TrackCanvasBlockLocoPicker({
   return (
     <>
     <LocoPicker
-      opened={opened && driveLoco === null}
+      opened={opened && driveLoco === null && !blockSelectionActive}
       locos={locos}
       selectedLocoId={selectedLocoId}
       removeEnabled={canRemoveLoco}
@@ -117,7 +121,12 @@ export function TrackCanvasBlockLocoPicker({
         // to this block and must never enable this shortcut.
         if (!selectedBlock || selectedBlock.locoAddress <= 0 ||
             selectedBlock.locoAddress !== loco.address) return;
-        setDriveLoco(loco);
+        if (onBeginBlockSelection) {
+          onBeginBlockSelection(loco);
+          onClose();
+        } else {
+          setDriveLoco(loco);
+        }
       }}
       onSelect={loco => {
         if (!selectedBlock) {
