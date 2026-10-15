@@ -211,7 +211,7 @@ public sealed class TrainDriverRuntime
             };
             // Keep the driver in PAUSED while the underlying Movement reports
             // intermediate RUNNING updates for sensor or route wait events.
-            if (current.Status == "paused" && status is "running" or "stopping")
+            if (current.Status == "paused" && (status is "running" or "stopping"))
                 return;
             updated = current with { Status = status, Info = movement.Info, Error = movement.Error };
             _tasks[current.TaskId] = updated;
