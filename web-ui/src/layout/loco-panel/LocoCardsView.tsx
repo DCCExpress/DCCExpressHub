@@ -91,7 +91,7 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
                   const number = fn.number;
 
                   return <Tooltip key={number} label={fn?.name ? `F${number} · ${fn.name}` : `Function F${number}`}>
-                    <ActionIcon size="sm" radius="sm" variant={(state.functionsMask & (1 << number)) !== 0 ? "filled" : "light"}
+                    <ActionIcon size={30} radius="sm" variant={(state.functionsMask & (1 << number)) !== 0 ? "filled" : "light"}
                       color={(state.functionsMask & (1 << number)) !== 0 ? "lime" : "gray"}
                       disabled={locked} aria-label={`Function F${number}`}
                       onPointerDown={event => {
@@ -101,7 +101,7 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
                       onPointerUp={event => { if (fn.momentary) { event.stopPropagation(); toggleFunction(loco, number, false); } }}
                       onPointerCancel={() => { if (fn.momentary) toggleFunction(loco, number, false); }}
                       onClick={event => { event.stopPropagation(); if (!fn.momentary) toggleFunction(loco, number); }}>
-                      {fn.icon ? <FunctionIconAsset fn={fn} size={16} /> : <Text size="10px" fw={700}>F{number}</Text>}
+                      {fn.icon ? <FunctionIconAsset fn={fn} size={20} /> : <Text size="10px" fw={700}>F{number}</Text>}
                     </ActionIcon>
                   </Tooltip>;
                 })}
