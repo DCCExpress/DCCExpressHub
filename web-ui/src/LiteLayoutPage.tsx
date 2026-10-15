@@ -2495,15 +2495,17 @@ export default function LiteLayoutPage({
             >
               <IconTrain size={15} />
             </ActionIcon>
-
+            {blockSelectionActive && (
+              <>
+                <Divider orientation="vertical" />
+                <Badge color="yellow" variant="filled" size="sm">Select yellow destination · Esc to cancel</Badge>
+              </>
+            )}
           </Group>
           {blockSelectionActive && (
-            <Group gap="xs" wrap="nowrap">
-              <Badge color="yellow" variant="filled" size="md">Select yellow destination · Esc to cancel</Badge>
-              <Button size="compact-xs" color="red" variant="filled" onClick={() => wsApi.emergencyStop()}>
-                {i18next.t("ui.estop")}
-              </Button>
-            </Group>
+            <Button size="compact-xs" color="red" variant="filled" onClick={() => wsApi.emergencyStop()}>
+              {i18next.t("ui.estop")}
+            </Button>
           )}
           <Text size="xs" c="dimmed" truncate>
             {layout.getAllElements().length} elements · {locos.length} locos
