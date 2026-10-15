@@ -5,13 +5,13 @@ import type { ComponentType } from "react";
 export const BUILTIN_FUNCTION_ICONS = [
   ["light", "Headlight", "IconBulb"],
   ["cab-light", "Cab light", "IconLamp"],
-  ["engine", "Engine", "IconEngine"],
-  ["horn", "Horn", "IconHorn"],
+  ["engine", "Engine", "IconTrain"],
+  ["horn", "Horn", "IconSpeakerphone"],
   ["bell", "Bell", "IconBell"],
   ["sound", "Sound", "IconVolume"],
-  ["speaker", "Announcement", "IconSpeakerphone"],
+  ["speaker", "Announcement", "IconMicrophone"],
   ["music", "Music", "IconMusic"],
-  ["fan", "Fan", "IconCarFan"],
+  ["fan", "Fan", "IconPropeller"],
   ["brake", "Brake", "IconGauge"],
   ["door", "Door", "IconDoor"],
   ["power", "Power", "IconPower"],
@@ -27,7 +27,8 @@ export const BUILTIN_FUNCTION_ICONS = [
 
 export type FunctionIconComponent = ComponentType<{ size?: number }>;
 const iconExports = TablerIcons as unknown as Record<string, FunctionIconComponent | undefined>;
-const fallback = TablerIcons.IconSettings as FunctionIconComponent;
+// Avoid silently showing a gear whenever a renamed Tabler icon is unavailable.
+const fallback = TablerIcons.IconQuestionMark as FunctionIconComponent;
 
 export function getBuiltinFunctionIcon(value: string): FunctionIconComponent | null {
   const id = value.startsWith("builtin:") ? value.slice(8) : value;
