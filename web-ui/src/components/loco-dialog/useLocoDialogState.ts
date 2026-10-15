@@ -116,6 +116,10 @@ export function useLocoDialogState(
     );
   };
 
+  const setLocoActive = (id: string, active: boolean): void => {
+    setLocos(previous => previous.map(loco => loco.id === id ? { ...loco, active } : loco));
+  };
+
   const addLoco = (): void => {
     const loco = createEmptyLoco();
     setLocos(previous => [...previous, loco]);
@@ -262,6 +266,7 @@ export function useLocoDialogState(
     selectedLoco,
     functionOptions,
     updateSelectedLoco,
+    setLocoActive,
     addLoco,
     deleteSelectedLoco,
     addFunction,
