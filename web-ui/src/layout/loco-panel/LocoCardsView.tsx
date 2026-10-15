@@ -3,8 +3,8 @@ import { IconArrowBigLeft, IconArrowBigRight, IconPlayerStopFilled } from "@tabl
 import { useEffect, useState } from "react";
 import type { Direction, Loco } from "@domain/types";
 import LocoImage from "../../components/loco/LocoImage";
-import { getBuiltinFunctionIcon } from "../../components/loco/FunctionIconRegistry";
-import { customFunctionIconUrl } from "../../api/functionIconApi";
+import FunctionIconAsset from "../../components/loco/FunctionIconAsset";
+
 import { wsApi } from "../../services/wsApi";
 import { wsClient } from "../../services/wsClient";
 import { getMovementTaskStates, subscribeMovementTaskStates } from "../../services/movementEngine";
@@ -89,8 +89,7 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
               <Group gap={3} wrap="nowrap" mt={3} onClick={event => event.stopPropagation()}>
                 {cardFunctions.map(fn => {
                   const number = fn.number;
-                  const Icon = getBuiltinFunctionIcon(fn?.icon ?? "");
-                  const customIcon = customFunctionIconUrl(fn?.icon ?? "");
+
                   return <Tooltip key={number} label={fn?.name ? `F${number} · ${fn.name}` : `Function F${number}`}>
                     <ActionIcon size="sm" radius="sm" variant={(state.functionsMask & (1 << number)) !== 0 ? "filled" : "light"}
                       color={(state.functionsMask & (1 << number)) !== 0 ? "lime" : "gray"}
@@ -102,9 +101,7 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
                       onPointerUp={event => { if (fn.momentary) { event.stopPropagation(); toggleFunction(loco, number, false); } }}
                       onPointerCancel={() => { if (fn.momentary) toggleFunction(loco, number, false); }}
                       onClick={event => { event.stopPropagation(); if (!fn.momentary) toggleFunction(loco, number); }}>
-                      {Icon ? <Icon size={16} /> : customIcon ?
-                        <img src={customIcon} alt="" style={{ width: 16, height: 16, objectFit: "contain" }} /> :
-                        <Text size="10px" fw={700}>F{number}</Text>}
+                      {fn.icon ? <FunctionIconAsset fn={fn} size={16} /> : <Text size="10px" fw={700}>F{number}</Text>}
                     </ActionIcon>
                   </Tooltip>;
                 })}
