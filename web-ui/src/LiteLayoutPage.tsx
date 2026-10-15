@@ -1960,6 +1960,7 @@ export default function LiteLayoutPage({
     saveLayoutToServer: saveLayout,
     setTool,
     setEditMode,
+    blockSelectionActive,
   });
 
   const removeSelected = () => {
