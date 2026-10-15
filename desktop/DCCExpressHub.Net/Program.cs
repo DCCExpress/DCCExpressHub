@@ -213,7 +213,8 @@ builder.Services.AddSingleton<CalibrationRuntime>();
 builder.Services.AddSingleton<PrecisionBrakingRuntime>();
 builder.Services.AddSingleton<WsHub>();
 
-builder.Services.AddHostedService<WsRuntimeCoordinator>();
+builder.Services.AddSingleton<WsRuntimeCoordinator>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<WsRuntimeCoordinator>());
 
 // Register the HTTP/WebSocket host last so command-center and automation
 // hosted services start before clients can connect.
