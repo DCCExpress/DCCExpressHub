@@ -32,6 +32,7 @@ import type {
 } from "@domain/types";
 
 import FunctionBindingsDialog from "./FunctionBindingsDialog";
+import FunctionIconPicker from "./FunctionIconPicker";
 
 type LocoFunctionsTabProps = {
   functions: LocoFunction[];
@@ -65,6 +66,8 @@ export default function LocoFunctionsTab({
   t,
 }: LocoFunctionsTabProps) {
   useTranslation();
+  const [iconFunctionId, setIconFunctionId] = useState<string | null>(null);
+  const iconFunction = functions.find(fn => fn.id === iconFunctionId);
   const [
     activeTestFunctions,
     setActiveTestFunctions,
@@ -377,22 +380,14 @@ export default function LocoFunctionsTab({
                   </Table.Td>
 
                   <Table.Td>
-                    <TextInput
-                      size="xs"
-                      value={fn.icon}
-                      onChange={
-                        event =>
-                          onUpdateFunction(
-                            fn.id,
-                            {
-                              icon:
-                                event
-                                  .currentTarget
-                                  .value,
-                            }
-                          )
-                      }
-                    />
+                    <Group gap={4} wrap="nowrap">
+                      <TextInput size="xs" value={fn.icon} style={{ flex: 1, minWidth: 70 }}
+                        onChange={event => onUpdateFunction(fn.id, { icon: event.currentTarget.value })} />
+                      <ActionIcon size="sm" variant="light" aria-label="Select function icon"
+                        onClick={() => setIconFunctionId(fn.id)}>
+                        <IconDots size={16} />
+                      </ActionIcon>
+                    </Group>
                   </Table.Td>
 
                   <Table.Td>
@@ -645,6 +640,9 @@ export default function LocoFunctionsTab({
           </Table.Tbody>
         </Table>
       </ScrollArea>
+      <FunctionIconPicker opened={iconFunction !== undefined} value={iconFunction?.icon ?? ""}
+        onClose={() => setIconFunctionId(null)}
+        onSelect={icon => { if (iconFunction) onUpdateFunction(iconFunction.id, { icon }); }} />
       <FunctionBindingsDialog
         opened={
           bindingFunction !==
