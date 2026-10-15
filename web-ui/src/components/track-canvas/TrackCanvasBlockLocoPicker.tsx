@@ -2,7 +2,7 @@ import { showNotification } from "@mantine/notifications";
 import i18next from "i18next";
 import { useTranslation } from "react-i18next";
 import { useEffect, useState } from "react";
-import { Box, Group, Popover, Tooltip } from "@mantine/core";
+import { Box, Group, Popover, Tooltip, useMantineColorScheme } from "@mantine/core";
 import { IconRoute, IconTrash, IconTrain } from "@tabler/icons-react";
 
 import type { Loco } from "@domain/types";
@@ -46,6 +46,7 @@ export function TrackCanvasBlockLocoPicker({
   popupY = 0,
 }: TrackCanvasBlockLocoPickerProps) {
   useTranslation();
+  const { colorScheme } = useMantineColorScheme();
   const [pickerOpen, setPickerOpen] = useState(false);
   useEffect(() => { if (opened) setPickerOpen(false); }, [opened, selectedBlock?.id]);
 
@@ -131,9 +132,11 @@ export function TrackCanvasBlockLocoPicker({
                 aria-label={button.label} disabled={button.disabled}
                 onPointerDown={event => event.stopPropagation()}
                 onClick={button.action}
-                style={{ width: 48, height: 48, padding: 4, border: 0, borderRadius: 4,
-                  display: "grid", placeItems: "center", color: "var(--mantine-color-gray-2)",
-                  background: "transparent", cursor: button.disabled ? "not-allowed" : "pointer",
+                style={{ width: 76, height: 76, padding: 0, boxSizing: "border-box",
+                  border: `1px solid ${colorScheme === "dark" ? "#666" : "black"}`, borderRadius: 4,
+                  display: "grid", placeItems: "center", color: "var(--mantine-color-text)",
+                  background: colorScheme === "dark" ? "var(--mantine-color-dark-7)" : "var(--mantine-color-gray-4)",
+                  cursor: button.disabled ? "not-allowed" : "pointer",
                   opacity: button.disabled ? 0.35 : 1, touchAction: "manipulation" }}>
                 {button.icon}
               </Box>
