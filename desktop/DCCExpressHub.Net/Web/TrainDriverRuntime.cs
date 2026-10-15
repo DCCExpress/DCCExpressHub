@@ -277,6 +277,8 @@ public sealed class TrainDriverRuntime
             {
                 Status = status, Info = movement.Info, Error = movement.Error
             };
+            if (updated == current)
+                return;
             _tasks[current.TaskId] = updated;
             if (status is "completed" or "aborted" or "stopped" or "error")
                 _activeByLoco.Remove(address);
