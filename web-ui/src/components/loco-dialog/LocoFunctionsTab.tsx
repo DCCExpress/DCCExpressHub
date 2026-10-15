@@ -279,7 +279,6 @@ export default function LocoFunctionsTab({
                   "locodialog.function_test"
                 )}
               </Table.Th>
-              <Table.Th w={52} />
             </Table.Tr>
           </Table.Thead>
 
@@ -563,14 +562,6 @@ export default function LocoFunctionsTab({
                     </Group>
                   </Table.Td>
 
-                  <Table.Td>
-                    <Group
-                      justify="center"
-                      wrap="nowrap"
-                    >
-
-                    </Group>
-                  </Table.Td>
                 </Table.Tr>
               );
             })}
@@ -579,7 +570,7 @@ export default function LocoFunctionsTab({
               0 && (
               <Table.Tr>
                 <Table.Td
-                  colSpan={8}
+                  colSpan={7}
                 >
                   <Text
                     size="sm"
