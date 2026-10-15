@@ -352,7 +352,7 @@ export function handleTrackCanvasMouseDown(
   }
 
   if (currentTool.mode === "delete") {
-    const element = currentLayout.getElement(grid.x, grid.y);
+    const element = getTrackCanvasHitElement(currentLayout, grid.x, grid.y, true);
 
     if (element) {
       onBeforeLayoutChange?.();
