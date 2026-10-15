@@ -75,6 +75,31 @@ export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
             <Text size="sm">Last message type: {traffic.lastMessage}</Text>
           </Card>
         </SimpleGrid>
+        {info?.locoNetDiagnostics && (
+          <Card withBorder>
+            <Group justify="space-between" mb="xs">
+              <Text fw={600}>LocoNet TCP</Text>
+              <Badge color={info.locoNetDiagnostics.lbServerConnected ? "green" : "red"}>
+                {info.locoNetDiagnostics.lbServerConnected ? "CONNECTED" : "DISCONNECTED"}
+              </Badge>
+            </Group>
+            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
+              <Text size="sm">Endpoint: {info.locoNetDiagnostics.host}:{info.locoNetDiagnostics.lbServerPort}</Text>
+              <Text size="sm">LB server: {info.locoNetDiagnostics.lbServerEnabled ? "Enabled" : "Disabled"}</Text>
+              <Text size="sm">LB version: {info.locoNetDiagnostics.lbServerVersion || "—"}</Text>
+              <Text size="sm">Connected for: {info.locoNetDiagnostics.lbServerUptimeMs >= 0 ? Math.floor(info.locoNetDiagnostics.lbServerUptimeMs / 1000) + " s" : "—"}</Text>
+              <Text size="sm">Last TCP RX: {info.locoNetDiagnostics.lastLbServerRxAgeMs >= 0 ? info.locoNetDiagnostics.lastLbServerRxAgeMs + " ms ago" : "No data"}</Text>
+              <Text size="sm">TCP lines observed: {info.locoNetDiagnostics.lbServerLinesObserved}</Text>
+              <Text size="sm">Sensor reports: {info.locoNetDiagnostics.sensorFeedbackCount}</Text>
+              <Text size="sm">Last sensor: {info.locoNetDiagnostics.lastSensorAddress > 0 ? "#" + info.locoNetDiagnostics.lastSensorAddress + " = " + (info.locoNetDiagnostics.lastSensorOn === null ? "Unknown" : info.locoNetDiagnostics.lastSensorOn ? "ON" : "OFF") : "—"}</Text>
+              <Text size="sm">Last sensor RX: {info.locoNetDiagnostics.lastSensorFeedbackAgeMs >= 0 ? info.locoNetDiagnostics.lastSensorFeedbackAgeMs + " ms ago" : "No data"}</Text>
+              <Text size="sm">Binary feedback: {info.locoNetDiagnostics.binaryFeedbackEnabled ? "Enabled (port " + info.locoNetDiagnostics.binaryPort + ")" : "Disabled"}</Text>
+              <Text size="sm">Interrogate: {info.locoNetDiagnostics.interrogateEnabled ? "Enabled" : "Disabled"}</Text>
+              <Text size="sm">Last interrogate: {info.locoNetDiagnostics.lastInterrogateAgeMs >= 0 ? Math.floor(info.locoNetDiagnostics.lastInterrogateAgeMs / 1000) + " s ago" : "—"}</Text>
+            </SimpleGrid>
+            <Text size="xs" c="dimmed" mt="xs">Live backend totals refresh every 5 seconds. TCP lines and sensor reports are cumulative counters, not msg/s.</Text>
+          </Card>
+        )}
         <Card withBorder>
           <Text fw={600} mb="xs">Message types (live, msg/s)</Text>
           {traffic.messageTypes.length === 0
