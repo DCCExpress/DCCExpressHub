@@ -117,10 +117,10 @@ export default function FunctionIconPicker({ opened, value, onClose, onSelect }:
             {rows.map(row => {
               const style = styles[row.key] ?? DEFAULT_STYLE;
               const canTint = !row.custom || /\.svg$/i.test(row.key);
-              return <Table.Tr key={row.key} style={{ backgroundColor: selection === row.key ? "var(--mantine-color-lime-light)" : undefined }}>
+              return <Table.Tr key={row.key} style={{ backgroundColor: selection === row.key ? "var(--mantine-color-blue-light)" : undefined }}>
                 <Table.Td>
                   <Group gap="xs" wrap="nowrap">
-                    <ActionIcon size={38} variant={selection === row.key ? "filled" : "light"} color={selection === row.key ? "lime" : "gray"}
+                    <ActionIcon size={38} variant="filled" color="dark"
                       onClick={() => setSelection(row.key)} aria-label={`Select ${row.label}`}>
                       {brokenIcons.has(row.key) ? <IconX size={22} color="red"/> :
                         <span style={{ display: "inline-flex", pointerEvents: "none" }}>
