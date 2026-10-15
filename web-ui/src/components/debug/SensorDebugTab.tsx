@@ -1,4 +1,5 @@
-import { Badge, Box, Group, ScrollArea, Stack, Text, Tooltip } from "@mantine/core";
+import { Badge, Box, Button, Group, Stack, Text, Tooltip } from "@mantine/core";
+import { useState } from "react";
 
 import DebugStateTable from "./DebugStateTable";
 import type {
@@ -20,6 +21,10 @@ export default function SensorDebugTab({
   const occupied = addresses.filter(address => sensors.get(address)?.value === true).length;
   const free = addresses.filter(address => sensors.get(address)?.value === false).length;
   const unknown = addresses.length - occupied - free;
+  const [page, setPage] = useState(0);
+  const totalPages = Math.max(1, Math.ceil(addresses.length / 16));
+  const currentPage = Math.min(page, totalPages - 1);
+  const visible = addresses.slice(currentPage * 16, (currentPage + 1) * 16);
 
   return (
     <Stack h="100%" gap="sm" style={{ minHeight: 0 }}>
@@ -34,16 +39,18 @@ export default function SensorDebugTab({
           </Group>
           <Text size="xs" c="dimmed">Live feedback</Text>
         </Group>
-        <ScrollArea.Autosize mah={156} type="auto" offsetScrollbars>
-          <Box
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(60px, 1fr))",
-              gap: 6,
-              padding: "2px 4px 6px 2px",
-            }}
-          >
-            {addresses.map(address => {
+        <Group justify="space-between" gap="xs" mb={6}>
+          <Text size="xs" c="dimmed">16 channels · 8 + 8</Text>
+          <Group gap={6}>
+            <Button size="compact-xs" variant="light" disabled={currentPage === 0} onClick={() => setPage(p => Math.max(0, p - 1))}>◀</Button>
+            <Text size="xs" c="dimmed">{currentPage + 1} / {totalPages}</Text>
+            <Button size="compact-xs" variant="light" disabled={currentPage === totalPages - 1} onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}>▶</Button>
+          </Group>
+        </Group>
+        <Group gap={12} align="stretch" wrap="nowrap" style={{ width: "100%" }}>
+          {[visible.slice(0, 8), visible.slice(8, 16)].map((group, index) => (
+            <Box key={index} style={{ display: "grid", gridTemplateColumns: "repeat(8, minmax(0, 1fr))", gap: 3, flex: 1, minWidth: 0, paddingLeft: index === 1 ? 10 : 0, borderLeft: index === 1 ? "1px solid var(--mantine-color-default-border)" : undefined }}>
+            {group.map(address => {
               const state = sensors.get(address);
               const isUnknown = !state;
               const owners = layoutOwners.get(address) ?? [];
@@ -57,8 +64,8 @@ export default function SensorDebugTab({
                   <Box
                     style={{
                       textAlign: "center",
-                      padding: "6px 3px",
-                      borderRadius: 7,
+                      padding: "4px 2px",
+                      borderRadius: 5,
                       border: `1px solid var(--mantine-color-${isUnknown ? "red" : state?.value ? "green" : "gray"}-6)`,
                       background: isUnknown
                         ? "var(--mantine-color-red-light)"
@@ -66,14 +73,14 @@ export default function SensorDebugTab({
                       fontVariantNumeric: "tabular-nums",
                     }}
                   >
-                    <Stack gap={3} align="center">
+                    <Stack gap={2} align="center">
                       {isUnknown ? (
                         <Text size="xs" fw={800} c="red">NA</Text>
                       ) : (
                         <Box
                           style={{
-                            width: 10,
-                            height: 10,
+                            width: 8,
+                            height: 8,
                             borderRadius: "50%",
                             background: state?.value ? "var(--mantine-color-green-6)" : "var(--mantine-color-gray-5)",
                             boxShadow: state?.value ? "0 0 6px var(--mantine-color-green-6)" : "none",
@@ -86,9 +93,11 @@ export default function SensorDebugTab({
                 </Tooltip>
               );
             })}
-            {addresses.length === 0 && <Text size="sm" c="dimmed">No sensor feedback yet.</Text>}
-          </Box>
-        </ScrollArea.Autosize>
+
+            </Box>
+          ))}
+        </Group>
+        {addresses.length === 0 && <Text size="sm" c="dimmed">No sensor feedback yet.</Text>}
       </Box>
       <Box style={{ flex: 1, minHeight: 0 }}>
         <DebugStateTable
