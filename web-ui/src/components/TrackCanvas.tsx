@@ -178,7 +178,7 @@ export default function TrackCanvas({
       exitBlockSelection();
       return true;
     }
-    const route = state.routes.find(route => route.toBlockId === hit.id)!;
+    const candidates = state.routes.filter(route => route.toBlockId === hit.id);
     const live = getTrainTrackingState();
     const current = live.locos.find(item => item.locoAddress === state.loco.address);
     if (!live.enabled || !live.active || !live.ready || current?.confidence !== "certain" ||
@@ -188,19 +188,23 @@ export default function TrackCanvas({
       return true;
     }
     blockSelectionBusyRef.current = true;
-    const page = applyMovementRouteCandidate(createMovementPage(), route);
-    page.id = `quick-route-loco-${state.loco.address}`;
-    page.name = `Quick route · #${state.loco.address} · ${route.blockPath.map(block => block.name).join(" → ")}`;
-    page.expectedLocoAddress = state.loco.address;
+    const pages = candidates.map(route => {
+      const page = applyMovementRouteCandidate(createMovementPage(), route);
+      page.id = `quick-route-loco-${state.loco.address}`;
+      page.name = `Quick route · #${state.loco.address} · ${route.blockPath.map(block => block.name).join(" → ")}`;
+      page.expectedLocoAddress = state.loco.address;
+      return page;
+    });
     // Drive to Block takes its initial speed from this locomotive's settings.
     // Older locomotive entries default to step 20.
     const preferredSpeed = state.loco.cruisingSpeed ?? 20;
-    page.speed = Math.max(1, Math.min(Math.round(preferredSpeed),
-      state.loco.maxSpeed > 0 ? state.loco.maxSpeed : 126, 126));
+    for (const page of pages)
+      page.speed = Math.max(1, Math.min(Math.round(preferredSpeed),
+        state.loco.maxSpeed > 0 ? state.loco.maxSpeed : 126, 126));
     const requestId = `driver-start-${Date.now()}-${state.loco.address}`;
     const taskId = `driver-${state.loco.address}-${Date.now()}`;
     void wsApi.request("trainDriverCommand",
-      { requestId, action: "start", taskId, page },
+      { requestId, action: "startAuto", taskId, candidates: pages },
       "trainDriverResponse", response => response.requestId === requestId, 10000
     ).then(response => {
       if (!response.ok) throw new Error(response.error || "Train Driver rejected the task");
