@@ -2505,7 +2505,7 @@ export default function LiteLayoutPage({
             {blockSelectionActive && (
               <>
                 <Divider orientation="vertical" />
-                <Badge color="yellow" variant="filled" size="sm">Select yellow destination · Esc to cancel</Badge>
+                <Badge color="lime" variant="filled" size="sm">Yellow: FROM · Lime: destination · Esc to cancel</Badge>
               </>
             )}
           </Group>
