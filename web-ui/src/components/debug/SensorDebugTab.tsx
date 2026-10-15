@@ -35,7 +35,6 @@ export default function SensorDebugTab({
           </Group>
           <Text size="xs" c="dimmed">Live feedback</Text>
         </Group>
-        <Text size="xs" c="dimmed" mb={6}>16 channels per row · 8 + 8</Text>
         <Stack gap={6}>
           {rows.map((row, rowIndex) => (
             <Group key={rowIndex} gap={12} align="stretch" wrap="nowrap" style={{ width: "100%" }}>
