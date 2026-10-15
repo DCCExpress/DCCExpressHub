@@ -123,7 +123,7 @@ export default function FunctionIconPicker({ opened, value, onClose, onSelect }:
                     <ActionIcon size={38} variant={selection === row.key ? "filled" : "light"} color={selection === row.key ? "lime" : "gray"}
                       onClick={() => setSelection(row.key)} aria-label={`Select ${row.label}`}>
                       {brokenIcons.has(row.key) ? <IconX size={22} color="red"/> :
-                        <span onClick={event => event.stopPropagation()}>
+                        <span style={{ display: "inline-flex", pointerEvents: "none" }}>
                           <FunctionIconAsset fn={{ icon: row.key, iconTintMode: style.mode, iconColor: style.color }} size={23} preview/>
                         </span>}
                     </ActionIcon>
