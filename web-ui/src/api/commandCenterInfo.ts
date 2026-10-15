@@ -75,6 +75,7 @@ export type CommandCenterInfo = {
   locoNetDiagnostics?: LocoNetTcpDiagnostics | null;
   locoNetStandardTelemetry?: LocoNetStandardTelemetry | null;
   host?: string;
+  serialPort?: string;
   port?: number;
   feedbackLinkName?: string;
   feedbackHost?: string;
