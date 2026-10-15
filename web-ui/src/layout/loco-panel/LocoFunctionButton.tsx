@@ -7,8 +7,8 @@ import type {
   LocoFunction,
 } from "@domain/types";
 import { wsApi } from "../../services/wsApi";
-import { getBuiltinFunctionIcon } from "../../components/loco/FunctionIconRegistry";
-import { customFunctionIconUrl } from "../../api/functionIconApi";
+import FunctionIconAsset from "../../components/loco/FunctionIconAsset";
+
 import { useFunctionButtonDisplayMode } from "../../services/functionButtonDisplayMode";
 
 type LocoFunctionButtonProps = {
@@ -32,9 +32,7 @@ export default function LocoFunctionButton({
   onActiveFunctionsChange,
 }: LocoFunctionButtonProps) {
   const displayMode = useFunctionButtonDisplayMode();
-  const Icon = getBuiltinFunctionIcon(fn?.icon ?? "");
-  const customIcon = customFunctionIconUrl(fn?.icon ?? "");
-  const hasIcon = !!Icon || !!customIcon;
+  const hasIcon = !!fn?.icon && (fn.icon.startsWith("builtin:") || fn.icon.startsWith("custom:"));
   const showIcon = displayMode !== "default" && displayMode !== "text" && hasIcon;
   const showNumber = displayMode === "default" || (displayMode === "icon" && !hasIcon);
   const showName = displayMode === "text" || displayMode === "icon-text";
@@ -149,7 +147,7 @@ export default function LocoFunctionButton({
           lineHeight: 1.15,
         }}
       >
-        {showIcon && (Icon ? <Icon size={20} /> : <img src={customIcon!} alt="" width={20} height={20} style={{ objectFit: "contain" }} />)}
+        {showIcon && <FunctionIconAsset fn={fn} size={20} />}
         {showNumber && <span
           style={{
             display: "block",
