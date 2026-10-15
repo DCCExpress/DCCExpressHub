@@ -14,6 +14,9 @@ public sealed class WsRuntimeCoordinator : BackgroundService
     readonly ILogger<WsRuntimeCoordinator> _log;
     volatile bool _connected;
     volatile bool _connectionChanged;
+    volatile bool _locomotiveConfigurationChanged;
+
+    public void RefreshLocomotives() => _locomotiveConfigurationChanged = true;
     readonly Queue<int> _locoSync=new();
     readonly Queue<(int Address,int Function)> _startupFunctions=new();
     bool _startupFunctionsApplied;
@@ -158,6 +161,14 @@ public sealed class WsRuntimeCoordinator : BackgroundService
                     _startupFunctionsApplied=false;
                     nextCurrent=DateTimeOffset.MinValue;
                 }
+            }
+
+            if (_locomotiveConfigurationChanged)
+            {
+                _locomotiveConfigurationChanged = false;
+                LoadConfiguredLocos();
+                LoadStartupFunctions();
+                _startupFunctionsApplied = false;
             }
 
             var now=DateTimeOffset.UtcNow;
@@ -313,7 +324,9 @@ public sealed class WsRuntimeCoordinator : BackgroundService
 
             foreach(var loco in doc.RootElement.EnumerateArray())
             {
-                if(
+                if (loco.TryGetProperty("active", out var activeFlag) && activeFlag.ValueKind == JsonValueKind.False)
+                    continue;
+                if (
                     !loco.TryGetProperty("address",out var addressElement) ||
                     !addressElement.TryGetInt32(out var address) ||
                     address is <1 or >10239 ||
@@ -391,6 +404,8 @@ public sealed class WsRuntimeCoordinator : BackgroundService
 
             foreach(var item in doc.RootElement.EnumerateArray())
             {
+                if (item.TryGetProperty("active", out var activeFlag) && activeFlag.ValueKind == JsonValueKind.False)
+                    continue;
                 if(!item.TryGetProperty("address",out var a) ||
                    !a.TryGetInt32(out var address) ||
                    address is <1 or >10239 ||
