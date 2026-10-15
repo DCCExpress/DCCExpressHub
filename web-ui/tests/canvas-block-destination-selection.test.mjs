@@ -20,7 +20,7 @@ test("destinations derive from tracked source and route topology", () => {
   assert.match(canvas, /"#ffd43b"/);
   assert.match(canvas, /block\.getBounds\(\)/);
 });
-test("yellow blocks start an authorized transient Movement; any other click cancels", () => {
+test("lime destinations submit candidate Movements to the TrainDriver; other clicks cancel", () => {
   const canvas = read("components/TrackCanvas.tsx");
   assert.match(canvas, /!state\.routes\.some\(route => route\.toBlockId === hit\.id\)/);
   assert.match(canvas, /exitBlockSelection\(\)/);
@@ -55,7 +55,7 @@ test("the throttle card Drive to Block button uses canvas selection, not the old
 test("destination selection hint moves to status bar and locks other layout surfaces", () => {
   const page = read("LiteLayoutPage.tsx");
   const statusIndex = page.indexOf('className="lite-status-bar"');
-  const hintIndex = page.indexOf("Select yellow destination · Esc to cancel");
+  const hintIndex = page.indexOf("Yellow: FROM · Lime: destination · Esc to cancel");
   assert.ok(statusIndex >= 0 && hintIndex > statusIndex);
   assert.doesNotMatch(page.slice(page.indexOf('className="lite-layout-toolbar"'), statusIndex), /Select yellow destination/);
   for (const className of [
@@ -70,7 +70,7 @@ test("destination selection hint moves to status bar and locks other layout surf
     assert.ok(line?.includes("inert={blockSelectionActive}"), className + " must be inert while selecting");
   }
   assert.match(page, /wrap="nowrap" inert=\{blockSelectionActive\}/);
-  assert.match(page, /color="red" variant="filled" onClick=\{\(\) => wsApi\.emergencyStop\(\)\}/);
+  assert.match(page, /onClick=\{emergencyStopAndCancelSelection\}/);
 });
 
 test("E-STOP cancels block selection for repeated clicks and backend E-STOP state", () => {
