@@ -9,6 +9,8 @@ test("Train Driver Stop pauses rather than cancelling the Movement", () => {
   assert.match(driver, /public bool Stop\(string taskId\)/);
   assert.match(driver, /_movement\.Hold\(current\.MovementId, PauseOwnerPrefix \+ taskId\)/);
   assert.match(driver, /Status = "paused"/);
+  const movement = read("desktop/DCCExpressHub.Net/Web/MovementRuntime.cs");
+  assert.match(movement, /execution\.Moving && !IsHeld\(execution\)/);
   assert.doesNotMatch(driver, /public bool Stop\(string taskId\) => Control/);
 });
 
