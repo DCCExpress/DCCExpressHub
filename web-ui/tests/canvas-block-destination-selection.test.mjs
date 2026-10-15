@@ -25,7 +25,7 @@ test("yellow blocks start an authorized transient Movement; any other click canc
   assert.match(canvas, /!state\.routes\.some\(route => route\.toBlockId === hit\.id\)/);
   assert.match(canvas, /exitBlockSelection\(\)/);
   assert.match(canvas, /applyMovementRouteCandidate\(createMovementPage\(\), route\)/);
-  assert.match(canvas, /startTransientMovement\(page\)/);
+  assert.match(canvas, /wsApi\.request\("trainDriverCommand"/);
   assert.match(canvas, /page\.expectedLocoAddress = state\.loco\.address/);
   assert.match(canvas, /blockSelectionRef\.current && ev\.button === 0/);
 });
