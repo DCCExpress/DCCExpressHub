@@ -154,6 +154,7 @@ export default function FunctionIconPicker({ opened, value, onClose, onSelect }:
       {error && <Text c="red" size="xs">{error}</Text>}
       <Group justify="flex-end" gap="xs">
         <Button size="xs" color="gray" variant="light" onClick={onClose}>Cancel</Button>
+        <Button size="xs" color="red" variant="light" disabled={busy || !value} onClick={() => { onSelect("", "original", "#ffffff"); onClose(); }}>Clear icon</Button>
         <Button size="xs" loading={busy} onClick={() => void commit()}>OK</Button>
       </Group>
     </Stack>
