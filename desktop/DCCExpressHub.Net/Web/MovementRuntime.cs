@@ -3751,8 +3751,29 @@ public sealed class MovementRuntime
                 live.TargetLocoAddress > 0)
                 return (false, int.MaxValue, "route_block_occupied_or_reserved");
         }
+        // Check the same turnout/segment detectors which Dispatcher later
+        // checks when acquiring each leg. These must be known and FREE.
+        foreach (var leg in plan.Legs)
+            foreach (var sensor in EffectiveSafetySensors(page, leg))
+                if (!_layout.TryGetSensorState(sensor, out var occupied) || occupied)
+                    return (false, int.MaxValue, "route_safety_sensor_not_free");
+
+        // Avoid an already-reserved first leg. This is advisory only; the
+        // Dispatcher always rechecks under its own locks at acquisition.
+        var firstLeg = plan.Legs[0];
+        var firstTokens = firstLeg.Resources
+            .Where(resource => resource.Kind == "segment")
+            .Select(resource => DispatcherRuntime.ResourceToken(
+                "segment:" + resource.Name))
+            .ToHashSet();
+        if (_dispatcher.Snapshot().Any(lease =>
+                lease.LocoAddress != page.ExpectedLocoAddress &&
+                (lease.ToBlockId == firstLeg.To.BlockId ||
+                 lease.ResourceTokens.Any(firstTokens.Contains))))
+            return (false, int.MaxValue, "route_resource_reserved");
+
         // Prefer fewer block transitions, then fewer turnout requirements.
-        return (true,
+        return (
             (plan.Blocks.Length - 1) * 100 +
             plan.Legs.Sum(leg => leg.TurnoutStates.Length),
             null);
