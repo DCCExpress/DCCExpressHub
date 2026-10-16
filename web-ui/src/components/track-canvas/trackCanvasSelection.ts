@@ -37,7 +37,8 @@ export function getAllLayoutElements(layout: LayoutView): BaseElement[] {
 export function applySelectionRect(
   layout: LayoutView,
   rect: SelectionRect,
-  additive = false
+  additive = false,
+  showBuildings = true
 ): BaseElement[] {
   const normalized = normalizeSelectionRect(rect);
   const all = getAllLayoutElements(layout);
@@ -48,7 +49,7 @@ export function applySelectionRect(
 
   const selected = all.filter(element => {
     const layer = layout.findLayerOfElement(element);
-    if (!layer?.visible || !element.visible) return false;
+    if (!layer?.visible || !element.visible || (!showBuildings && layer.id === "buildings")) return false;
     const bounds = element.getBounds();
     const left = bounds.x;
     const right = bounds.x + bounds.width - 1;
@@ -65,5 +66,9 @@ export function applySelectionRect(
     element.selected = true;
   }
 
-  return all.filter(element => element.selected);
+  return all.filter(element => {
+    const layer = layout.findLayerOfElement(element);
+    return element.selected && element.visible && layer?.visible === true &&
+      (showBuildings || layer.id !== "buildings");
+  });
 }
