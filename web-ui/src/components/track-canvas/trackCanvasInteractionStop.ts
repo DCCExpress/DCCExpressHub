@@ -30,6 +30,7 @@ export type TrackCanvasMutableRef<T> = {
 
 export type StopTrackCanvasInteractionContext = {
   canvas: HTMLCanvasElement;
+  showBuildings: boolean;
   layoutRef: TrackCanvasMutableRef<LayoutView>;
   dragRef: TrackCanvasMutableRef<DragState>;
   panRef: TrackCanvasMutableRef<PanState>;
@@ -47,6 +48,7 @@ export function stopTrackCanvasInteraction(
 ): void {
   const {
     canvas,
+    showBuildings,
     layoutRef,
     dragRef,
     panRef,
@@ -70,7 +72,8 @@ export function stopTrackCanvasInteraction(
       const selected = applySelectionRect(
         layoutRef.current,
         rect,
-        selectionRef.current.additive
+        selectionRef.current.additive,
+        showBuildings
       );
 
       if (selected.length === 1) {
