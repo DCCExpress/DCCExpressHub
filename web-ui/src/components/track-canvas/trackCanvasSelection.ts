@@ -47,6 +47,8 @@ export function applySelectionRect(
   }
 
   const selected = all.filter(element => {
+    const layer = layout.findLayerOfElement(element);
+    if (!layer?.visible || !element.visible) return false;
     const bounds = element.getBounds();
     const left = bounds.x;
     const right = bounds.x + bounds.width - 1;
