@@ -709,6 +709,67 @@ export class LayoutView
     );
   }
 
+  /**
+   * A RouteButton may command just one turnout while its selected rail line
+   * passes through arbitrarily many *other* turnouts.
+   *
+   * Before painting an unconfigured turnout, follow only its ACTUAL active
+   * inlet/outlet pair and the active pairs of any following turnouts. The
+   * continuation is valid only when that chain reaches a connected ordinary
+   * track element. A turnout leading into a wrong-facing or disconnected
+   * turnout is not itself a confirmed continuation, and must remain unmarked.
+   *
+   * Check without painting; a failed lookahead must not leave yellow turnouts.
+   * Visiting (turnout, entry port) rather than just a turnout ID handles
+   * crossings and prevents turnout-only cycles from looping forever.
+   */
+  private hasTrackBeyondTurnouts(
+    turnout: TrackElement,
+    enteredFrom: Point,
+    routeStates?: RouteStateMap
+  ): boolean {
+    const pending: Array<{ turnout: TrackElement; enteredFrom: Point }> = [
+      { turnout, enteredFrom },
+    ];
+    const visited = new Set<string>();
+
+    while (pending.length > 0) {
+      const current = pending.pop()!;
+      const key = `${current.turnout.id}:${current.enteredFrom.x}:${current.enteredFrom.y}`;
+      if (visited.has(key)) continue;
+      visited.add(key);
+
+      const exits = getExitPointsForEntry(
+        current.turnout,
+        current.enteredFrom,
+        routeStates
+      );
+
+      for (const exit of exits) {
+        const neighbor = this.track.elements.find(element =>
+          element instanceof TrackElement &&
+          element !== current.turnout &&
+          element.x === exit.x &&
+          element.y === exit.y &&
+          acceptsConnectionFrom(element, current.turnout.pos, routeStates)
+        );
+
+        if (!(neighbor instanceof TrackElement)) continue;
+
+        // A real, reciprocally connected ordinary rail is a valid end to
+        // the turnout chain; its length is not limited by the switch count.
+        if (!isRouteButtonTurnout(neighbor)) return true;
+
+        // Another turnout is valid only if its active passage can continue.
+        pending.push({
+          turnout: neighbor,
+          enteredFrom: current.turnout.pos,
+        });
+      }
+    }
+    return false;
+  }
+
   private walkActiveRoute(
     obj: TrackElement,
     enteredFrom:
@@ -795,6 +856,18 @@ export class LayoutView
           obj.pos,
           routeStates
         )
+      ) {
+        continue;
+      }
+
+      // Do not colour an unconfigured turnout merely because we can
+      // enter it. The selected exit must also connect through any number of
+      // subsequent turnouts to real track. A dead turnout chain is not a route.
+      if (
+        routeStates &&
+        isRouteButtonTurnout(next) &&
+        !routeStates.has(next.id) &&
+        !this.hasTrackBeyondTurnouts(next, obj.pos, routeStates)
       ) {
         continue;
       }
