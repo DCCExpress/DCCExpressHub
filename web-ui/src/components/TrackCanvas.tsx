@@ -114,6 +114,9 @@ export default function TrackCanvas({
   const { colorScheme } = useMantineColorScheme();
   const commandCenter = useCommandCenter();
   const { settings } = useEditorSettings();
+  // Event listeners are installed once; read current visibility from a ref.
+  const showBuildingsRef = useRef(settings.showBuildings);
+  showBuildingsRef.current = settings.showBuildings;
 
   const [mouseGrid, setMouseGrid] = useState({ x: 0, y: 0 });
   const [hoverGrid, setHoverGrid] = useState<{ x: number; y: number } | null>(null);
@@ -967,7 +970,7 @@ export default function TrackCanvas({
         const rect = canvas.getBoundingClientRect();
         const grid = screenToGrid(ev.clientX - rect.left, ev.clientY - rect.top,
           viewRef.current, layoutRef.current.gridSize);
-        selectDestinationRef.current(getTrackCanvasHitElement(layoutRef.current, grid.x, grid.y, false, settings.showBuildings));
+        selectDestinationRef.current(getTrackCanvasHitElement(layoutRef.current, grid.x, grid.y, false, showBuildingsRef.current));
         ev.preventDefault();
         return;
       }
@@ -979,7 +982,7 @@ export default function TrackCanvas({
         editModeRef,
         turnoutSelectionModeRef,
         selectedElementRef,
-        showBuildings: settings.showBuildings,
+        showBuildings: showBuildingsRef.current,
         currentCursorRef,
         signalAspectPopoverRef,
         doubleTurnoutPopoverRef,
@@ -1037,7 +1040,7 @@ export default function TrackCanvas({
     const stopInteraction = () => {
       stopTrackCanvasInteraction({
         canvas,
-        showBuildings: settings.showBuildings,
+        showBuildings: showBuildingsRef.current,
         layoutRef,
         dragRef,
         panRef,
