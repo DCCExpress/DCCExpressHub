@@ -381,40 +381,22 @@ export class LayoutView
 
   getSelected(): BaseElement | null {
     for (const layer of [
-      this.track,
-      this.blocks,
-      this.signals,
-      this.sensors,
-      this.buildings,
-      this.buttons,
+      this.track, this.blocks, this.signals, this.sensors,
+      this.buildings, this.buttons,
     ]) {
+      if (!layer.visible) continue;
       for (const element of layer.elements) {
-        if (element.selected) {
-          return element;
-        }
+        if (element.visible && element.selected) return element;
       }
     }
-
     return null;
   }
 
   setSelected(element: BaseElement): void {
     this.unselectAll();
-
-    for (const layer of [
-      this.track,
-      this.blocks,
-      this.signals,
-      this.sensors,
-      this.buildings,
-      this.buttons,
-    ]) {
-      for (const current of layer.elements) {
-        if (current.id === element.id) {
-          current.selected = true;
-        }
-      }
-    }
+    const layer = this.findLayerOfElement(element);
+    if (!layer?.visible || !element.visible) return;
+    element.selected = true;
   }
 
   unselectAll(): void {
