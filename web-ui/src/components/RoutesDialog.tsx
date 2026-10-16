@@ -78,7 +78,7 @@ import {
 // Enable this only while diagnosing route topology; keep the viewer available for debugging.
 const SHOW_DEBUG_GRAPH_VISUALIZATION = false;
 // Temporarily hide Station Routes without removing its editor or saved data.
-const SHOW_STATION_ROUTES_TAB = false;
+const SHOW_STATION_ROUTES_TAB = true;
 
 type RoutesDialogProps = {
   opened: boolean;
