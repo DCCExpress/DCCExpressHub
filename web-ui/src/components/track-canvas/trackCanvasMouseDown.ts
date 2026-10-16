@@ -425,7 +425,10 @@ export function handleTrackCanvasMouseDown(
       hitElement.selected = !hitElement.selected;
 
       const allSelected = getAllLayoutElements(currentLayout)
-        .filter(element => element.selected);
+        .filter(element =>
+          element.selected &&
+          element.visible &&
+          currentLayout.findLayerOfElement(element)?.visible === true);
 
       if (allSelected.length === 1) {
         onSelectedElementChange(allSelected[0]!);
@@ -447,7 +450,10 @@ export function handleTrackCanvasMouseDown(
     }
 
     const dragged = getAllLayoutElements(currentLayout)
-      .filter(element => element.selected)
+      .filter(element =>
+          element.selected &&
+          element.visible &&
+          currentLayout.findLayerOfElement(element)?.visible === true)
       .map(element => ({
         id: element.id,
         startX: element.x,
