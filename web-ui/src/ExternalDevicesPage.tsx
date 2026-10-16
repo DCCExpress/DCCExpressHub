@@ -1,6 +1,6 @@
 import {
   Alert, Badge, Button, Card, Group, NumberInput, Select, Stack,
-  Switch, Text, TextInput, Title, Table, ScrollArea, SimpleGrid
+  Switch, Text, TextInput, Title, SimpleGrid, Divider
 } from "@mantine/core";
 import { useCallback, useEffect, useState } from "react";
 import { S88SensorIndicator } from "./components/S88SensorIndicator";
@@ -175,52 +175,60 @@ export default function ExternalDevicesPage({
 
     {devices.length === 0 && !editing &&
       <Text c="dimmed">No external devices configured. Select Add device to connect an S88 adapter.</Text>}
-    {devices.length > 0 && <Card withBorder p="md" radius="md">
-      <ScrollArea>
-        <Table striped highlightOnHover withColumnBorders miw={760}>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Name</Table.Th>
-              <Table.Th>Device</Table.Th>
-              <Table.Th>Port</Table.Th>
-              <Table.Th>Groups</Table.Th>
-              <Table.Th>Sensor addresses</Table.Th>
-              <Table.Th>Status</Table.Th>
-              <Table.Th>Actions</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {devices.map(device => {
-              const live = status.find(x => x.id === device.id);
-              const online = !!(device.enabled && live?.connected);
-              return <Table.Tr key={device.id}>
-                <Table.Td><Text fw={600} size="sm">{device.name}</Text></Table.Td>
-                <Table.Td><Text size="xs">DCCExpressS88Adapter</Text></Table.Td>
-                <Table.Td><Text size="sm">{device.serialPort}</Text></Table.Td>
-                <Table.Td><Text size="sm">{device.s88Bytes} bytes / {device.sensorCount} inputs</Text></Table.Td>
-                <Table.Td><Text size="sm">{device.sensorOffset + 1}–{device.sensorOffset + device.sensorCount}</Text></Table.Td>
-                <Table.Td>
-                  <Badge size="sm" color={online ? "green" : device.enabled ? "yellow" : "gray"}>
-                    {online ? "Connected" : device.enabled ? "Disconnected" : "Disabled"}
-                  </Badge>
-                  <Text size="xs" c="dimmed">{live?.message ?? "Not started"}</Text>
-                </Table.Td>
-                <Table.Td>
-                  <Group gap={5} wrap="nowrap">
-                    <Button size="compact-xs" variant="light" onClick={() => { setMonitorId(device.id); setEditing(false); }}>Monitor</Button>
-                    <Button size="compact-xs" variant="light" disabled={!device.enabled || busy} onClick={() => void test(device.id)}>Test</Button>
-                    <Button size="compact-xs" variant="light" disabled={busy} onClick={() => { setDraft({ ...device }); setEditing(true); setMessage(""); }}>Edit</Button>
-                    <Button size="compact-xs" variant="light" color={device.enabled ? "orange" : "teal"} disabled={busy}
-                      onClick={() => void setEnabled(device, !device.enabled)}>{device.enabled ? "Stop" : "Start"}</Button>
-                    <Button size="compact-xs" variant="light" color="red" disabled={busy} onClick={() => void remove(device.id)}>Delete</Button>
-                  </Group>
-                </Table.Td>
-              </Table.Tr>;
-            })}
-          </Table.Tbody>
-        </Table>
-      </ScrollArea>
-    </Card>}
+    {devices.length > 0 && <Stack gap="sm">
+      {devices.map(device => {
+        const live = status.find(x => x.id === device.id);
+        const online = !!(device.enabled && live?.connected);
+        return <Card key={device.id} withBorder radius="md" p="md">
+          <Stack gap="md">
+            <Group justify="space-between" align="flex-start" gap="sm" wrap="wrap">
+              <Stack gap={3} style={{ minWidth: 0, flex: "1 1 220px" }}>
+                <Text fw={700} size="md" style={{ overflowWrap: "anywhere" }}>{device.name}</Text>
+                <Text size="xs" c="dimmed">DCCExpressS88Adapter</Text>
+              </Stack>
+              <Stack gap={3} align="flex-end" style={{ minWidth: 0, flex: "0 1 220px" }}>
+                <Badge size="sm" color={online ? "green" : device.enabled ? "yellow" : "gray"}>
+                  {online ? "Connected" : device.enabled ? "Disconnected" : "Disabled"}
+                </Badge>
+                <Text size="xs" c="dimmed" ta="right" style={{ overflowWrap: "anywhere" }}>
+                  {live?.message ?? "Not started"}
+                </Text>
+              </Stack>
+            </Group>
+
+            <SimpleGrid cols={{ base: 1, xs: 2, md: 3 }} spacing="md">
+              <Stack gap={2} style={{ minWidth: 0 }}>
+                <Text size="xs" c="dimmed">Serial port</Text>
+                <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>{device.serialPort || "—"}</Text>
+              </Stack>
+              <Stack gap={2} style={{ minWidth: 0 }}>
+                <Text size="xs" c="dimmed">Groups / inputs</Text>
+                <Text size="sm" fw={600}>{device.s88Bytes} bytes / {device.sensorCount} inputs</Text>
+              </Stack>
+              <Stack gap={2} style={{ minWidth: 0 }}>
+                <Text size="xs" c="dimmed">Sensor addresses</Text>
+                <Text size="sm" fw={600}>{device.sensorOffset + 1}–{device.sensorOffset + device.sensorCount}</Text>
+              </Stack>
+            </SimpleGrid>
+
+            <Divider />
+
+            <Group gap="xs" wrap="wrap">
+              <Button size="xs" variant="light"
+                onClick={() => { setMonitorId(device.id); setEditing(false); }}>Monitor</Button>
+              <Button size="xs" variant="light" disabled={!device.enabled || busy}
+                onClick={() => void test(device.id)}>Test</Button>
+              <Button size="xs" variant="light" disabled={busy}
+                onClick={() => { setDraft({ ...device }); setEditing(true); setMessage(""); }}>Edit</Button>
+              <Button size="xs" variant="light" color={device.enabled ? "orange" : "teal"} disabled={busy}
+                onClick={() => void setEnabled(device, !device.enabled)}>{device.enabled ? "Stop" : "Start"}</Button>
+              <Button size="xs" variant="light" color="red" disabled={busy}
+                onClick={() => void remove(device.id)}>Delete</Button>
+            </Group>
+          </Stack>
+        </Card>;
+      })}
+    </Stack>}
 
     {selected && <Card withBorder radius="md" p="lg">
       <Stack gap="sm">
