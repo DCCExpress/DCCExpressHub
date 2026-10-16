@@ -967,7 +967,7 @@ export default function TrackCanvas({
         const rect = canvas.getBoundingClientRect();
         const grid = screenToGrid(ev.clientX - rect.left, ev.clientY - rect.top,
           viewRef.current, layoutRef.current.gridSize);
-        selectDestinationRef.current(getTrackCanvasHitElement(layoutRef.current, grid.x, grid.y, false));
+        selectDestinationRef.current(getTrackCanvasHitElement(layoutRef.current, grid.x, grid.y, false, settings.showBuildings));
         ev.preventDefault();
         return;
       }
@@ -979,6 +979,7 @@ export default function TrackCanvas({
         editModeRef,
         turnoutSelectionModeRef,
         selectedElementRef,
+        showBuildings: settings.showBuildings,
         currentCursorRef,
         signalAspectPopoverRef,
         doubleTurnoutPopoverRef,
@@ -1025,7 +1026,7 @@ export default function TrackCanvas({
         const rect = canvas.getBoundingClientRect();
         const grid = screenToGrid(ev.clientX - rect.left, ev.clientY - rect.top,
           viewRef.current, layoutRef.current.gridSize);
-        const hit = getTrackCanvasHitElement(layoutRef.current, grid.x, grid.y, false);
+        const hit = getTrackCanvasHitElement(layoutRef.current, grid.x, grid.y, false, settings.showBuildings);
         canvas.style.cursor = hit instanceof BlockElement &&
           driveDestinationAvailable(hit.id) &&
           blockSelectionRef.current.routes.some(route => route.toBlockId === hit.id)
@@ -1036,6 +1037,7 @@ export default function TrackCanvas({
     const stopInteraction = () => {
       stopTrackCanvasInteraction({
         canvas,
+        showBuildings: settings.showBuildings,
         layoutRef,
         dragRef,
         panRef,
@@ -1066,7 +1068,7 @@ export default function TrackCanvas({
           viewRef.current,
           layoutRef.current.gridSize
         );
-        const hitElement = getTrackCanvasHitElement(layoutRef.current, grid.x, grid.y, editModeRef.current);
+        const hitElement = getTrackCanvasHitElement(layoutRef.current, grid.x, grid.y, editModeRef.current, settings.showBuildings);
         handleClickableUp(hitElement, ev);
         return;
       }
@@ -1115,7 +1117,7 @@ export default function TrackCanvas({
         currentLayout.gridSize
       );
 
-      const hitElement = getTrackCanvasHitElement(currentLayout, grid.x, grid.y, editModeRef.current);
+      const hitElement = getTrackCanvasHitElement(currentLayout, grid.x, grid.y, editModeRef.current, settings.showBuildings);
 
       if (!editModeRef.current) {
         if (blockSelectionRef.current) {
@@ -1473,7 +1475,7 @@ export default function TrackCanvas({
           viewRef.current,
           layoutRef.current.gridSize
         );
-        const hitElement = getTrackCanvasHitElement(layoutRef.current, grid.x, grid.y, editModeRef.current);
+        const hitElement = getTrackCanvasHitElement(layoutRef.current, grid.x, grid.y, editModeRef.current, settings.showBuildings);
         handleClickableUp(hitElement, ev);
       }
 
