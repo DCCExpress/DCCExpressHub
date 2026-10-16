@@ -54,6 +54,88 @@ test("all configured turnout components are highlighted regardless of list order
   assert.ok(layout.getTrackElements().every(element => !element.isRoute));
 });
 
+test("unconfigured turnout chain lights only when its active ports lead to ordinary track", () => {
+  // Tillig #9 opens towards #8. If #8 does not accept that inlet, #9 must
+  // not turn yellow, even though the configured #7 can reach its entry.
+  const seven = new Left(47, 5);
+  seven.rotation = 270;
+  seven.turnoutAddress = 7;
+
+  const nine = new Right(47, 7);
+  nine.rotation = 90;
+  nine.turnoutAddress = 9;
+
+  const eight = new Right(46, 8);
+  eight.rotation = 270;
+  eight.turnoutAddress = 8;
+
+  const ten = new Left(46, 9);
+  ten.rotation = 90;
+  ten.turnoutAddress = 10;
+
+  const rail = (x, y) => {
+    const element = new Straight(x, y);
+    element.rotation = 90;
+    return element;
+  };
+  const upstream = rail(47, 4);
+  const between = rail(47, 6);
+  const straightAfterNine = rail(47, 8);
+  const afterTen = rail(46, 10);
+
+  const layout = layoutWith(
+    seven, nine, eight, ten, upstream, between,
+    straightAfterNine, afterTen
+  );
+  const route = button(layout, seven);
+
+  // #7 alone is configured. None of the other switches is controlled
+  // by the RouteButton and all must be evaluated in their live state.
+  assert.deepEqual(route.routeTurnouts.map(item => item.turnoutId), [seven.id]);
+
+  // #9 closed: continues directly to a straight rail, thus is highlighted.
+  nine.turnoutClosed = false;
+  eight.turnoutClosed = false;
+  ten.turnoutClosed = false;
+  layout.checkRoutes();
+  assert.equal(route.active, true);
+  assert.equal(seven.isRoute, true);
+  assert.equal(between.isRoute, true);
+  assert.equal(nine.isRoute, true);
+  assert.equal(straightAfterNine.isRoute, true);
+  assert.equal(eight.isRoute, false);
+
+  // #9 thrown: leads into #8's DIV port, but #8 is closed so it cannot
+  // be traversed. Do not mark #9 just because the approach rail touches it.
+  nine.turnoutClosed = true;
+  layout.checkRoutes();
+  assert.equal(seven.isRoute, true);
+  assert.equal(between.isRoute, true);
+  assert.equal(nine.isRoute, false);
+  assert.equal(eight.isRoute, false);
+  assert.equal(ten.isRoute, false);
+  assert.equal(straightAfterNine.isRoute, false);
+
+  // #8 thrown accepts #9; #10 closed connects the chain to real rail.
+  // Both *unconfigured* switches are now valid physical continuations.
+  eight.turnoutClosed = true;
+  layout.checkRoutes();
+  assert.equal(nine.isRoute, true);
+  assert.equal(eight.isRoute, true);
+  assert.equal(ten.isRoute, true);
+  assert.equal(afterTen.isRoute, true);
+
+  // #10 thrown rejects the entry from #8. All preceding unconfigured
+  // turnouts must lose their yellow colour, not just the last one.
+  ten.turnoutClosed = true;
+  layout.checkRoutes();
+  assert.equal(seven.isRoute, true);
+  assert.equal(nine.isRoute, false);
+  assert.equal(eight.isRoute, false);
+  assert.equal(ten.isRoute, false);
+  assert.equal(afterTen.isRoute, false);
+});
+
 test("block and sensor overlays inherit the physical rail route", () => {
   const turnout = new Left(0, 0);
   const rail = new Straight(1, 0), next = new Straight(2, 0);
