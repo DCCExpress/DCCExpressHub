@@ -77,6 +77,8 @@ import {
 
 // Enable this only while diagnosing route topology; keep the viewer available for debugging.
 const SHOW_DEBUG_GRAPH_VISUALIZATION = false;
+// Temporarily hide Station Routes without removing its editor or saved data.
+const SHOW_STATION_ROUTES_TAB = false;
 
 type RoutesDialogProps = {
   opened: boolean;
@@ -1128,7 +1130,7 @@ export default function RoutesDialog({
 
         {!error && result && (
           <Tabs
-            defaultValue={onSelectRoute ? "selectRoute" : "stationRoutes"}
+            defaultValue="selectRoute"
             keepMounted={false}
             style={{
               flex: 1,
@@ -1138,7 +1140,7 @@ export default function RoutesDialog({
             }}
           >
             <Tabs.List>
-              {!onSelectRoute && <Tabs.Tab value="stationRoutes">Station Routes</Tabs.Tab>}
+              {SHOW_STATION_ROUTES_TAB && !onSelectRoute && <Tabs.Tab value="stationRoutes">Station Routes</Tabs.Tab>}
               <Tabs.Tab value="selectRoute">
                 {t("ui.movementSelectRouteTitle")}
               </Tabs.Tab>
@@ -1158,7 +1160,7 @@ export default function RoutesDialog({
               </Tabs.Tab>
             </Tabs.List>
 
-            {!onSelectRoute && <Tabs.Panel value="stationRoutes" pt="sm" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+            {SHOW_STATION_ROUTES_TAB && !onSelectRoute && <Tabs.Panel value="stationRoutes" pt="sm" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
               <StationRoutesTab
                 layout={layout}
                 editingRouteId={editingStationRouteId ?? null}
