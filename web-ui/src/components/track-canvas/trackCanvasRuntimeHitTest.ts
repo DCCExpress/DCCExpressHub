@@ -13,21 +13,29 @@ export function getTrackCanvasHitElement(
   y: number,
   editMode: boolean,
 ): BaseElement | null {
+  // Hidden layers must never participate in canvas hit-testing.
+  const visibleLayers = layout.layers.filter(layer => layer.visible);
+  const visibleElements = visibleLayers.flatMap(layer =>
+    layer.elements.filter(element => element.visible)
+  );
+
   if (editMode) {
     // Button artwork is commonly placed over track. Prefer its selectable layer
     // instead of letting the track layer intercept editor dragging.
-    const button = [...layout.buttons.elements].reverse().find(element =>
-      element.visible && element.hitTest(x, y));
-    return button ?? layout.getElement(x, y);
+    const button = layout.buttons.visible
+      ? [...layout.buttons.elements].reverse().find(element =>
+          element.visible && element.hitTest(x, y))
+      : undefined;
+    return button ?? visibleElements.find(element => element.hitTest(x, y)) ?? null;
   }
 
-  const block = layout.blocks.elements.find(
+  const block = layout.blocks.visible && layout.blocks.elements.find(
     element => element instanceof BlockElement &&
       element.visible && element.hitTest(x, y),
   );
   if (block) return block;
 
-  return layout.getElements(x, y).find(
-    element => !(element instanceof LabelElement),
+  return visibleElements.find(
+    element => !(element instanceof LabelElement) && element.hitTest(x, y),
   ) ?? null;
 }
