@@ -92,6 +92,7 @@ export type TrackCanvasMouseDownContext = {
   editModeRef: MouseDownRef<boolean>;
   turnoutSelectionModeRef: MouseDownRef<boolean>;
   selectedElementRef: MouseDownRef<BaseElement | null>;
+  showBuildings: boolean;
   currentCursorRef: MouseDownRef<BaseElement | null>;
   signalAspectPopoverRef: MouseDownRef<SignalAspectPopoverState>;
   doubleTurnoutPopoverRef: MouseDownRef<DoubleTurnoutPopoverState>;
@@ -148,6 +149,7 @@ export function handleTrackCanvasMouseDown(
     editModeRef,
     turnoutSelectionModeRef,
     selectedElementRef,
+    showBuildings,
     currentCursorRef,
     signalAspectPopoverRef,
     doubleTurnoutPopoverRef,
@@ -208,7 +210,7 @@ export function handleTrackCanvasMouseDown(
     currentLayout.gridSize
   );
 
-  const hitElement = getTrackCanvasHitElement(currentLayout, grid.x, grid.y, currentEditMode);
+  const hitElement = getTrackCanvasHitElement(currentLayout, grid.x, grid.y, currentEditMode, showBuildings);
 
   if (!editModeRef.current && hitElement instanceof EmergencyButtonElement) {
     hitElement.press();
