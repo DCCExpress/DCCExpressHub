@@ -14,10 +14,7 @@ export function getTrackCanvasHitElement(
   editMode: boolean,
 ): BaseElement | null {
   // Hidden layers must never participate in canvas hit-testing.
-  const visibleLayers = layout.layers.filter(layer => layer.visible);
-  const visibleElements = visibleLayers.flatMap(layer =>
-    layer.elements.filter(element => element.visible)
-  );
+  const visibleElements = layout.getAllVisibleElements().filter(element => element.visible);
 
   if (editMode) {
     // Button artwork is commonly placed over track. Prefer its selectable layer
