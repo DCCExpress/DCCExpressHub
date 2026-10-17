@@ -35,12 +35,11 @@ export default function PrecisionBrakingPanel({
   const [speedStep, setSpeedStep] = useState<number | string>(20);
   const [distance, setDistance] = useState<number | string>(200);
   const [sensorToTail, setSensorToTail] = useState<number | string>(50);
-  const [returnSpeed, setReturnSpeed] = useState<number | string>(30);
   const [confirmed, setConfirmed] = useState(false);
   // Braking trial UI preferences are local to this browser and locomotive.
   // They do not change decoder CVs, speed calibration or saved trial data.
   const prefsKey = `dcc-express-hub:precision-braking:${loco.id}`;
-  const savePreference = (key: "speedStep" | "returnSpeed" | "distance", value: number | string) => {
+  const savePreference = (key: "speedStep" | "distance", value: number | string) => {
     try {
       const previous = JSON.parse(window.localStorage.getItem(prefsKey) ?? "{}") as Record<string, unknown>;
       window.localStorage.setItem(prefsKey, JSON.stringify({ ...previous, [key]: value }));
@@ -52,15 +51,11 @@ export default function PrecisionBrakingPanel({
       if (typeof prefs.speedStep === "number" && prefs.speedStep >= 1 && prefs.speedStep <= 126)
         setSpeedStep(prefs.speedStep);
       else setSpeedStep(20);
-      if (typeof prefs.returnSpeed === "number" && prefs.returnSpeed >= 1 && prefs.returnSpeed <= 126)
-        setReturnSpeed(prefs.returnSpeed);
-      else setReturnSpeed(30);
       if (typeof prefs.distance === "number" && prefs.distance >= 10 && prefs.distance <= 10000)
         setDistance(prefs.distance);
       else setDistance(200);
     } catch {
       setSpeedStep(20);
-      setReturnSpeed(30);
       setDistance(200);
     }
   }, [prefsKey]);
@@ -104,8 +99,6 @@ export default function PrecisionBrakingPanel({
     startBlockers.push(`Block C: ${blockLength || "unknown"} mm. Train ${trainLength} mm + front clearance ${desiredFrontGap} mm does not fit (or the block length is missing).`);
   if (!Number.isInteger(Number(speedStep)) || Number(speedStep) < 1 || Number(speedStep) > 126)
     startBlockers.push("Approach speed must be a DCC step between 1 and 126.");
-  if (!Number.isInteger(Number(returnSpeed)) || Number(returnSpeed) < 1 || Number(returnSpeed) > 126)
-    startBlockers.push("Return speed must be a DCC step between 1 and 126.");
   if (other) startBlockers.push("Another locomotive has an active braking trial.");
   if (active) startBlockers.push("This locomotive already has an active braking trial.");
   if (busy) startBlockers.push("A braking request is being processed.");
@@ -182,13 +175,9 @@ export default function PrecisionBrakingPanel({
             });
           }}
         />
-        <NumberInput label="Approach speed (DCC step)" value={speedStep}
+        <NumberInput label="Cruise speed (DCC step)" value={speedStep}
           onChange={v => { setSpeedStep(v); savePreference("speedStep", v); }}
           min={1} max={126} disabled={!!active} />
-        <NumberInput label="Return speed (DCC step)" value={returnSpeed}
-          onChange={v => { setReturnSpeed(v); savePreference("returnSpeed", v); }}
-          min={1} max={126} disabled={!!active}
-          description="Speed for returning to the starting block; stops on the starting-block sensor." />
         <Text size="xs">A block: {sourceBlockLength || "—"} mm · C block: {blockLength || "—"} mm · Train: {trainLength} mm</Text>
         <NumberInput label="Desired front clearance to block end (mm)" value={distance}
           onChange={v => { setDistance(v); savePreference("distance", v); }}
@@ -206,7 +195,7 @@ export default function PrecisionBrakingPanel({
           <Button disabled={startBlockers.length > 0}
             loading={busy} onClick={() => void action("/start", {
               locoId: loco.id, locoAddress: loco.address, routeRef: selectedRoute?.routeRef,
-              speedStep: Number(speedStep), returnSpeedStep: Number(returnSpeed),
+              speedStep: Number(speedStep), returnSpeedStep: Number(speedStep),
               targetDistanceMm: targetDistance,
               targetFrontClearanceMm: desiredFrontGap,
               isolatedTestTrackConfirmed: confirmed,
