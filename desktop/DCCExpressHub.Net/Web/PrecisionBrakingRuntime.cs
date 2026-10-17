@@ -624,7 +624,22 @@ public sealed class PrecisionBrakingRuntime
 
     public async Task<(bool Ok, string Error)> RecordAsync(TrialMeasurement measurement)
     {
-        if (measurement.FrontClearanceMm.HasValue || measurement.RearClearanceMm.HasValue)
+        // One physical measurement: distance from the entry sensor to the
+        // rear of the entire consist. The front is rear + whole train length.
+        // Keep the old two-clearance API compatible with older clients.
+        if (measurement.RearClearanceMm.HasValue && !measurement.FrontClearanceMm.HasValue)
+        {
+            double? trainLength;
+            lock (_sync) trainLength = _trainLengthMm;
+            if (trainLength is null || !double.IsFinite(measurement.RearClearanceMm.Value) ||
+                measurement.RearClearanceMm.Value < 0)
+                return (false, "braking_invalid_sensor_to_tail_distance");
+            measurement = measurement with
+            {
+                ActualDistanceMm = measurement.RearClearanceMm.Value + trainLength.Value
+            };
+        }
+        else if (measurement.FrontClearanceMm.HasValue || measurement.RearClearanceMm.HasValue)
         {
             double? blockLength, trainLength;
             lock (_sync) { blockLength = _targetBlockLengthMm; trainLength = _trainLengthMm; }
@@ -635,11 +650,9 @@ public sealed class PrecisionBrakingRuntime
                 !double.IsFinite(measurement.RearClearanceMm.Value) ||
                 measurement.FrontClearanceMm.Value < 0)
                 return (false, "braking_invalid_train_clearances");
-            // Distance from the entrance sensor to the front of the train.
             var fromFront = blockLength.Value - measurement.FrontClearanceMm.Value;
             var fromRear = measurement.RearClearanceMm.Value + trainLength.Value;
-            if (fromFront < 0 ||
-                fromFront > blockLength.Value ||
+            if (fromFront < 0 || fromFront > blockLength.Value ||
                 Math.Abs(fromFront - fromRear) > 10)
                 return (false, "braking_train_geometry_inconsistent");
             measurement = measurement with { ActualDistanceMm = fromFront };
