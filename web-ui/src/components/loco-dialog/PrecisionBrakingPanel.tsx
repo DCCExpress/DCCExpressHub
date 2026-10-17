@@ -238,7 +238,7 @@ export default function PrecisionBrakingPanel({
             <Table.Td>{point.direction}</Table.Td><Table.Td>{point.dccStep}</Table.Td>
             <Table.Td>{point.millimetersPerSecond.toFixed(1)}</Table.Td>
             <Table.Td>{point.baselineStoppingDistanceMm != null && point.baselineStoppingDistanceMm > 0
-              ? (-point.millimetersPerSecond ** 2 / (2 * point.baselineStoppingDistanceMm)).toFixed(2)
+              ? (-(point.millimetersPerSecond * point.millimetersPerSecond) / (2 * point.baselineStoppingDistanceMm)).toFixed(2)
               : "—"}</Table.Td>
             <Table.Td>{point.baselineStoppingDistanceMm != null ? point.baselineStoppingDistanceMm.toFixed(1) : "—"}</Table.Td>
             <Table.Td>{point.estimatedStoppingDistanceMm.toFixed(1)}</Table.Td>
