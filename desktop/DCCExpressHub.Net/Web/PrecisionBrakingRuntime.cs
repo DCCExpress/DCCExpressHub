@@ -176,6 +176,32 @@ public sealed class PrecisionBrakingRuntime
         return null;
     }
 
+    // Route plans carry logical Closed/Open; command stations expect the
+    // physical output value configured on the layout accessory. Match Dispatcher.
+    async Task<bool> CommandRouteTurnoutAsync(
+        ushort address, bool closed, CancellationToken token)
+    {
+        var turnout = _layout.FindAccessory(RuntimeAccessoryKind.Turnout, address);
+        if (turnout is null) return false;
+        var physicalValue = closed ? turnout.ClosedValue : !turnout.ClosedValue;
+        if (turnout.TurnoutExtended)
+        {
+            var aspect = closed ? turnout.TurnoutClosedAspect : turnout.TurnoutOpenedAspect;
+            var ok = await _commandCenter.SetSignalAspectAsync(address, aspect, token);
+            if (ok) _layout.SetSignal(address, aspect);
+            return ok;
+        }
+        if (turnout.TurnoutVPin)
+        {
+            var ok = await _commandCenter.SetVPinAsync(address, physicalValue, token);
+            if (ok) _layout.SetVPin(address, physicalValue);
+            return ok;
+        }
+        var success = await _commandCenter.SetTurnoutAsync(address, physicalValue, token);
+        if (success) _layout.SetTurnout(address, physicalValue);
+        return success;
+    }
+
     // Feedback can arrive asynchronously after the command acknowledgement.
     // Never mistake the first 250 ms without feedback for a verified mismatch.
     async Task<(bool Verified, string Reason)> WaitForTurnoutAsync(
@@ -433,7 +459,7 @@ public sealed class PrecisionBrakingRuntime
                 preparingToken.ThrowIfCancellationRequested();
                 if (!_commandCenter.Connected)
                     return (false, "command_center_disconnected");
-                if (!await _commandCenter.SetTurnoutAsync(turnout.Key, turnout.Value, preparingToken))
+                if (!await CommandRouteTurnoutAsync(turnout.Key, turnout.Value, preparingToken))
                     return (false, "braking_turnout_command_failed");
                 var verification = await WaitForTurnoutAsync(
                     turnout.Key, turnout.Value, preparingToken);
@@ -726,7 +752,7 @@ public sealed class PrecisionBrakingRuntime
             foreach (var turnout in turnouts)
             {
                 token.ThrowIfCancellationRequested();
-                if (!await _commandCenter.SetTurnoutAsync(
+                if (!await CommandRouteTurnoutAsync(
                     turnout.Key, turnout.Value, token))
                     throw new InvalidOperationException("braking_return_turnout_command_failed");
                 var verification = await WaitForTurnoutAsync(
