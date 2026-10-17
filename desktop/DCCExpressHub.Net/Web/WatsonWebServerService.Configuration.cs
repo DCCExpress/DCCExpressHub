@@ -210,6 +210,22 @@ public sealed partial class WatsonWebServerService
                 }
             });
 
+        Add(server, WatsonHttpMethod.POST, "/api/precision-braking/approve",
+            async ctx =>
+            {
+                var result = await Service<PrecisionBrakingRuntime>().ApproveAsync();
+                await SendAsync(ctx, result.Ok
+                    ? HubApiResponse.Ok(Service<PrecisionBrakingRuntime>().Snapshot())
+                    : HubApiResponse.Error(409, new { ok = false, message = result.Error }));
+            });
+
+        Add(server, WatsonHttpMethod.POST, "/api/precision-braking/abort",
+            async ctx =>
+            {
+                await Service<PrecisionBrakingRuntime>().AbortTrainingAsync();
+                await SendAsync(ctx, HubApiResponse.Ok(Service<PrecisionBrakingRuntime>().Snapshot()));
+            });
+
         Add(server, WatsonHttpMethod.POST, "/api/precision-braking/reset",
             async ctx =>
             {
