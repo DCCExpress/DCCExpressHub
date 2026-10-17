@@ -22,8 +22,8 @@ export default function PrecisionBrakingDiagram({
     { name: "C", x: 438, fill: "#f59e0b", tint: "#f59e0b", label: "#fcd34d" },
   ];
   const blockWidth = 194;
-  const trainStartA = blocks[0].x + 4;
-  const trainStartC = blocks[2].x + 4;
+  const trainStartA = 18 + 4;
+  const trainStartC = 438 + 4;
   const trackY = 106;
 
   const train = (x: number, key: string) => {
