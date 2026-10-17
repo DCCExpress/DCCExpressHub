@@ -34,8 +34,7 @@ export default function PrecisionBrakingPanel({
   const [selectedRoute, setSelectedRoute] = useState<BrakingRouteSelection | null>(null);
   const [speedStep, setSpeedStep] = useState<number | string>(20);
   const [distance, setDistance] = useState<number | string>(200);
-  const [frontClearance, setFrontClearance] = useState<number | string>(50);
-  const [rearClearance, setRearClearance] = useState<number | string>(50);
+  const [sensorToTail, setSensorToTail] = useState<number | string>(50);
   const [returnSpeed, setReturnSpeed] = useState<number | string>(30);
   const [confirmed, setConfirmed] = useState(false);
   // Braking trial UI preferences are local to this browser and locomotive.
@@ -114,12 +113,11 @@ export default function PrecisionBrakingPanel({
     state.direction !== null && state.direction !== undefined &&
     state.direction !== selectedRoute.routeRef.direction;
   const measuredBlockLength = arrivingAtA ? sourceBlockLength : blockLength;
-  const frontGap = Number(frontClearance);
-  const rearGap = Number(rearClearance);
-  const measurementConsistent = measuredBlockLength > 0 && frontClearance !== "" && rearClearance !== "" &&
-    frontGap >= 0 &&
-    Number.isFinite(frontGap) && Number.isFinite(rearGap) &&
-    Math.abs(measuredBlockLength - frontGap - rearGap - trainLength) <= 10;
+  const rearGap = sensorToTail === "" ? NaN : Number(sensorToTail);
+  const frontGap = measuredBlockLength - rearGap - trainLength;
+  const measurementConsistent = measuredBlockLength > 0 && sensorToTail !== "" &&
+    Number.isFinite(rearGap) && rearGap >= 0 &&
+    rearGap + trainLength <= 20000;
   return <Stack gap="md">
     <Group justify="flex-end">
       <Button component="a" variant="subtle" size="xs"
@@ -206,15 +204,13 @@ export default function PrecisionBrakingPanel({
         {state?.status === "armed" && active && <Alert color="blue">Locomotive moving. Braking begins on sensor ON.</Alert>}
         {state?.status === "braking" && active && <Alert color="blue">Applying braking ramp. Do not measure yet.</Alert>}
         {state?.status === "measure" && active && <>
-          <Alert color="blue">Speed 0 commanded. Once stopped, measure the train front from the block exit boundary and the train rear from the block entry boundary. A negative rear clearance means the tail is still outside the block; you can still record that early training result.</Alert>
-          <NumberInput label="Front clearance to block end (mm)" min={0} max={20000}
-            value={frontClearance} onChange={setFrontClearance} />
-          <NumberInput label="Train tail from dashed block entry boundary (mm; negative = tail outside)" min={-20000} max={20000}
-            value={rearClearance} onChange={setRearClearance} />
-          {rearGap < 0 && <Alert color="orange">Train tail is outside the destination block by {Math.abs(rearGap)} mm. The train is not fully inside.</Alert>}
-          <Text size="xs" c="dimmed">Block {measuredBlockLength} − front {frontClearance} − rear {rearClearance} − train {trainLength} = {(measuredBlockLength - frontGap - rearGap - trainLength).toFixed(1)} mm difference (tolerance 10 mm).</Text>
+          <Alert color="blue">After the train stops, measure only the distance from the dashed entry boundary (reference sensor) to the REAR of the whole train, in millimetres. The train's front is calculated from its saved total length. Measure in the current direction of travel, whether the locomotive is pulling or pushing.</Alert>
+          <NumberInput label="Sensor to train tail (mm)" min={0} max={20000}
+            value={sensorToTail} onChange={setSensorToTail} />
+          {measurementConsistent && <Text size="xs" c="dimmed">Train rear: {rearGap} mm · Front: {rearGap + trainLength} mm · Clearance to block exit: {frontGap.toFixed(1)} mm.</Text>}
+          {measurementConsistent && frontGap < 0 && <Alert color="orange">The train front extends beyond the block by {Math.abs(frontGap).toFixed(1)} mm.</Alert>}
           <Button loading={busy} disabled={busy || !measurementConsistent}
-            onClick={() => void action("/measure", {actualDistanceMm: measuredBlockLength - frontGap, frontClearanceMm: frontGap, rearClearanceMm: rearGap})}>OK — save and return to start</Button>
+            onClick={() => void action("/measure", {actualDistanceMm: rearGap + trainLength, rearClearanceMm: rearGap})}>OK — save and return to start</Button>
         </>}
         {active && state?.status === "return_preparing" &&
           <Alert color="blue">Measurement saved. Setting and checking turnouts for the return trip.</Alert>}
