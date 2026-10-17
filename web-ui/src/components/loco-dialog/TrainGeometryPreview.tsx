@@ -1,7 +1,7 @@
 import { Card, Group, SegmentedControl, Stack, Text } from "@mantine/core";
 import { useState } from "react";
 
-type Direction = "forward" | "reverse";
+type ConsistMode = "pull" | "push";
 
 type Props = {
   trainLengthMm: number;
@@ -9,69 +9,85 @@ type Props = {
   clearanceMarginMm: number;
 };
 
-export default function TrainGeometryPreview({
-  trainLengthMm,
-  entireTrainDetectable,
-  clearanceMarginMm,
-}: Props) {
-  const [direction, setDirection] = useState<Direction>("forward");
-  const length = Math.max(1, trainLengthMm);
-  const margin = Math.max(0, clearanceMarginMm);
-  const left = 54;
-  const width = 540;
-  const locoAtLeft = direction === "reverse";
-  const locoWidth = 112;
-  const locoX = locoAtLeft ? left : left + width - locoWidth;
-  const reserveWidth = Math.min(36, Math.max(6, margin / length * width));
-  const blockStart = 140;
-  const blockEnd = 510;
-  // Fit the example consist and its margin inside the illustrative block.
-  // This does not imply the actual layout block is long enough.
-  const exampleWidth = 255;
-  const exampleStart = (blockStart + blockEnd - exampleWidth) / 2;
-  const exampleMargin = Math.min(38, Math.max(0, margin / length * exampleWidth));
-  const exampleLocoWidth = exampleWidth * locoWidth / width;
-  const exampleLocoX = locoAtLeft ? exampleStart : exampleStart + exampleWidth - exampleLocoWidth;
+/**
+ * Forward is rightwards. The locomotive leads when pulling and remains
+ * behind the wagon when pushing. Images are served from wwwroot/images.
+ * This is a visual preview only; it does not change locomotive direction.
+ */
+export default function TrainGeometryPreview(_props: Props) {
+  const [mode, setMode] = useState<ConsistMode>("pull");
+  const locomotiveX = mode === "pull" ? 352 : 94;
+  const wagonX = mode === "pull" ? 94 : 352;
 
   return (
     <Stack gap="sm">
       <Group justify="space-between" align="center" wrap="wrap">
-        <Text fw={600}>Train geometry preview</Text>
-        <SegmentedControl size="xs" value={direction} onChange={value => setDirection(value as Direction)}
-          data={[{ label: "Forward", value: "forward" }, { label: "Reverse", value: "reverse" }]} />
+        <Text fw={600}>Train geometry</Text>
+        <SegmentedControl
+          size="xs"
+          value={mode}
+          onChange={value => setMode(value as ConsistMode)}
+          data={[
+            { label: "Pull", value: "pull" },
+            { label: "Push", value: "push" },
+          ]}
+        />
       </Group>
-      <Text size="xs" c="dimmed">The entire block detects current consumption, not a point sensor. Forward/Reverse changes the direction of travel.</Text>
-      <Card withBorder p="xs">
-        <svg viewBox="0 0 650 180" width="100%" role="img" aria-label="Schematic train footprint and locomotive in the clearance envelope">
-          <rect x={left - reserveWidth} y="56" width={width + reserveWidth * 2} height="70" rx="6" fill="#f59e0b" fillOpacity=".11" stroke="#d97706" strokeDasharray="5 4" />
-          <path d="M30 114 H622" stroke="#64748b" strokeWidth="3" />
-          {Array.from({ length: 28 }, (_, i) => <path key={i} d={`M${34 + i * 22} 109 v10`} stroke="#64748b" strokeWidth="2" />)}
-          <rect x={left} y="72" width={width} height="35" rx="3" fill="#60a5fa" fillOpacity=".4" stroke="#2563eb" />
-          <rect x={locoX} y="72" width={locoWidth} height="35" rx="3" fill="#f97316" fillOpacity=".7" stroke="#c2410c" />
-          <text x={locoX + locoWidth / 2} y="92" fill="#431407" fontSize="11" textAnchor="middle">LOCO</text>
-
-          <text x={left} y="149" fill="currentColor" fontSize="12">{direction === "forward" ? "Reverse end" : "Forward end"}</text>
-          <text x={left + width} y="149" fill="currentColor" fontSize="12" textAnchor="end">{direction === "forward" ? "Forward end" : "Reverse end"}</text>
-          <text x="325" y="17" textAnchor="middle" fill="currentColor" fontSize="13">Train length: {length} mm · Margin: {margin} mm/side</text>
-          <text x="325" y="171" textAnchor="middle" fill="currentColor" fontSize="12">Motion: {direction === "forward" ? "→" : "←"} (preview only)</text>
+      <Card withBorder p="sm">
+        <svg
+          viewBox="0 0 650 210"
+          width="100%"
+          role="img"
+          aria-label={mode === "pull"
+            ? "Forward direction: wagon followed by locomotive, locomotive pulling"
+            : "Forward direction: locomotive followed by wagon, locomotive pushing"}
+        >
+          <defs>
+            <marker
+              id="train-geometry-forward-arrow"
+              markerWidth="9"
+              markerHeight="9"
+              refX="8"
+              refY="4"
+              orient="auto"
+            >
+              <path d="M0 0 L8 4 L0 8 Z" fill="currentColor" />
+            </marker>
+          </defs>
+          <text x="325" y="17" textAnchor="middle" fill="currentColor" fontSize="14">
+            Forward
+          </text>
+          <path
+            d="M110 34 H540"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3"
+            markerEnd="url(#train-geometry-forward-arrow)"
+          />
+          <image
+            href="/images/bobo.png"
+            x={locomotiveX}
+            y="52"
+            width="204"
+            height="128"
+            preserveAspectRatio="xMidYMid meet"
+          />
+          <image
+            href="/images/vagon.png"
+            x={wagonX}
+            y="52"
+            width="204"
+            height="128"
+            preserveAspectRatio="xMidYMid meet"
+          />
+          <text x={locomotiveX + 102} y="199" textAnchor="middle" fontSize="13" fill="currentColor">
+            Locomotive
+          </text>
+          <text x={wagonX + 102} y="199" textAnchor="middle" fontSize="13" fill="currentColor">
+            Wagon
+          </text>
         </svg>
       </Card>
-      <Text fw={600} size="sm">Block occupancy example</Text>
-      <Card withBorder p="xs">
-        <svg viewBox="0 0 650 115" width="100%" role="img" aria-label="Example block and schematic train footprint">
-          <rect x={blockStart} y="12" width={blockEnd - blockStart} height="75" fill="#22c55e" fillOpacity=".10" stroke="#16a34a" strokeDasharray="5 4" />
-          <text x={blockStart + 6} y="25" fontSize="12" fill="currentColor">Example block</text>
-          <path d="M22 66 H625" stroke="#64748b" strokeWidth="3" />
-          <rect x={exampleStart - exampleMargin} y="36" width={exampleWidth + 2 * exampleMargin} height="51" rx="4" fill="#f59e0b" fillOpacity=".12" stroke="#d97706" strokeDasharray="4 3" />
-          <rect x={exampleStart} y="44" width={exampleWidth} height="35" rx="3" fill="#60a5fa" fillOpacity=".4" stroke="#2563eb" />
-          <rect x={exampleLocoX} y="44" width={exampleLocoWidth} height="35" rx="3" fill="#f97316" fillOpacity=".7" stroke="#c2410c" />
-          <text x={exampleLocoX + exampleLocoWidth / 2} y="64" fill="#431407" fontSize="11" textAnchor="middle">LOCO</text>
-          <text x="325" y="105" fontSize="12" fill="currentColor" textAnchor="middle">Illustration only — not a measured block or clearance authorization</text>
-        </svg>
-      </Card>
-      <Text size="xs" c="dimmed">{entireTrainDetectable
-        ? "Entire train detectable: the block may remain ON until the final detectable vehicle leaves. This still requires verified sensor coverage and a stable OFF transition before release."
-        : "Locomotive-only detection: the block can show OFF while undetected wagons remain inside. Retain rear-block reservations until the train tail is independently proven clear."}</Text>
     </Stack>
   );
 }
