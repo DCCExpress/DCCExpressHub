@@ -161,6 +161,7 @@ export type Loco = {
   length: number;
   locomotiveLengthMm?: number;
   wagonsLengthMm?: number;
+  trainConsistMode?: "pull" | "push";
   trainType?: LocoTrainType;
   occupancyDetectionPosition?: LocoOccupancyDetectionPosition;
   /** Detector reference measured from train's physical forward end, in mm. */
