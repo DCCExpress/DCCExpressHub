@@ -93,7 +93,7 @@ export default function PrecisionBrakingPanel({
   const frontGap = Number(frontClearance);
   const rearGap = Number(rearClearance);
   const measurementConsistent = blockLength > 0 && frontClearance !== "" && rearClearance !== "" &&
-    frontGap >= 0 && rearGap >= 0 &&
+    frontGap >= 0 &&
     Number.isFinite(frontGap) && Number.isFinite(rearGap) &&
     Math.abs(blockLength - frontGap - rearGap - trainLength) <= 10;
   return <Stack gap="md">
@@ -169,11 +169,12 @@ export default function PrecisionBrakingPanel({
         {state?.status === "armed" && active && <Alert color="blue">Locomotive moving. Braking begins on sensor ON.</Alert>}
         {state?.status === "braking" && active && <Alert color="blue">Applying braking ramp. Do not measure yet.</Alert>}
         {state?.status === "measure" && active && <>
-          <Alert color="blue">Speed 0 commanded. Once stopped, measure the train front from the block exit boundary and the train rear from the block entry boundary. Both must fit entirely within the block.</Alert>
+          <Alert color="blue">Speed 0 commanded. Once stopped, measure the train front from the block exit boundary and the train rear from the block entry boundary. A negative rear clearance means the tail is still outside the block; you can still record that early training result.</Alert>
           <NumberInput label="Front clearance to block end (mm)" min={0} max={20000}
             value={frontClearance} onChange={setFrontClearance} />
-          <NumberInput label="Rear clearance to block start (mm)" min={0} max={20000}
+          <NumberInput label="Rear clearance to block start (mm; negative = tail outside)" min={-20000} max={20000}
             value={rearClearance} onChange={setRearClearance} />
+          {rearGap < 0 && <Alert color="orange">Train tail is outside the destination block by {Math.abs(rearGap)} mm. The train is not fully inside.</Alert>}
           <Text size="xs" c="dimmed">Block {blockLength} − front {frontClearance} − rear {rearClearance} − train {trainLength} = {(blockLength - frontGap - rearGap - trainLength).toFixed(1)} mm difference (tolerance 10 mm).</Text>
           <Button loading={busy} disabled={busy || !measurementConsistent}
             onClick={() => void action("/measure", {actualDistanceMm: blockLength - frontGap, frontClearanceMm: frontGap, rearClearanceMm: rearGap})}>OK — save and return to start</Button>
