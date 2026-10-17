@@ -625,18 +625,18 @@
   },
   "precisionBrakingMeasurement": {
     "title": "Precision Braking — Blockpositionen",
-    "diagramAria": "Zielblöcke A und C; die Maßpfeile reichen von der gestrichelten Einfahrgrenze bis zum Zugende",
+    "diagramAria": "Bremsblöcke A und C. Der Pfeil misst den positiven Einfahrweg von der gestrichelten Blockgrenze zur Zugspitze.",
     "forward": "Vorwärts",
     "distance": "Abstand (mm)",
     "pull": "Ziehen",
     "push": "Schieben",
     "locomotive": "Lok",
     "wagons": "Wagen",
-    "diagramHelp": "Miss von der gestrichelten Einfahrgrenze bis zum Zugende: bei A von der rechten, bei C von der linken Grenze. Die Zugspitze wird aus der Zuglänge berechnet. Nicht maßstabsgetreu.",
-    "measureHelp": "Miss nur einen Abstand von der gestrichelten Einfahrgrenze des Zielblocks bis zum Zugende. Bei A ist es die rechte, bei C die linke Grenze. Positiv: Zugende im Block; negativ: Zugende ragt noch heraus.",
-    "fieldHint": "Blockeinfahrt → Zugende (+ im Block, − außerhalb)",
-    "rearReport": "Zugende: {{rear}} mm · berechnete Spitze: {{front}} mm · Platz bis zum Blockende: {{clearance}} mm",
-    "rearOutside": "Das Zugende ragt an der Einfahrt um {{distance}} mm aus dem Block.",
+    "diagramHelp": "Miss, wie weit die ZUGSPITZE in den Zielblock eingefahren ist. Vorwärts (rechts): rechte Zugkante; rückwärts (links): linke Zugkante. Bei A von der rechten gestrichelten Grenze, bei C von der linken. Immer einen positiven Wert eingeben. Nicht maßstabsgetreu.",
+    "measureHelp": "Gib nur EINEN POSITIVEN Abstand in mm ein: wie weit die ZUGSPITZE über die gestrichelte Einfahrgrenze in den Zielblock gefahren ist. Vorwärts nach rechts: rechte Zugkante. Rückwärts nach links: linke Zugkante. Das Zugende wird aus der Zuglänge berechnet.",
+    "fieldHint": "Blockeinfahrtssensor → führende Zugkante IM Block (> 0 mm)",
+    "positionReport": "Einfahrt der Zugspitze: {{front}} mm · Berechnetes Zugende: {{rear}} mm · Platz bis zum Blockende: {{clearance}} mm",
+    "rearOutside": "Das berechnete Zugende ragt um {{distance}} mm über die Einfahrgrenze hinaus.",
     "frontOutside": "Die Zugspitze ragt um {{distance}} mm über das Blockende hinaus."
   }
 }
