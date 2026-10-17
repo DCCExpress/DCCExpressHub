@@ -263,6 +263,9 @@ public sealed class PrecisionBrakingRuntime
             _active = request;
             _status = "preparing";
             _error = null;
+            _returnTrial = false;
+            _returnSensor = null;
+            _returnArrival = null;
             _referenceSensor = null;
         }
         var started = false;
