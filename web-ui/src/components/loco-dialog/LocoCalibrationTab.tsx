@@ -901,7 +901,7 @@ export default function LocoCalibrationTab({
               </Group>
 
               <Text size="xs" c="orange">
-                Single fixed-route pass. Turnouts are prepared and locked before departure. Intermediate sensors do not control the run. Reposition the locomotive before another speed point.
+                Automatic outbound and return measurements at each speed step until Max Speed. Each direction reserves the full route and locks turnouts before departure. Intermediate sensors do not control the run.
               </Text>
               <Group
                 grow
@@ -1020,7 +1020,7 @@ export default function LocoCalibrationTab({
                         return;
                       }
 
-                      if (!window.confirm("I confirm the entire fixed route is clear. Turnouts will be locked before departure. Intermediate sensors do not control the locomotive. One one-way measurement will run. Is the route safe?")) return;
+                      if (!window.confirm("I confirm the entire fixed route is clear. Turnouts will be locked before departure. Intermediate sensors do not control the locomotive. The train will run outbound and return automatically through all speed steps. Is the entire route safe in both directions?")) return;
                       void runCommand(
                         () =>
                           startCalibration({
