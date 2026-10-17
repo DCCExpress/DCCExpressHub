@@ -488,6 +488,11 @@ public sealed class PrecisionBrakingRuntime
                 _status = "armed";
             }
 
+            // Starting fresh training immediately invalidates the old profile.
+            // No previous approved profile may remain available if training
+            // stops early or the process crashes before operator approval.
+            await InvalidateProfileAsync();
+
             // The operator must place the locomotive BEFORE the reference sensor.
             // Stop immediately if issuing the initial speed command fails.
             preparingToken.ThrowIfCancellationRequested();
@@ -677,6 +682,8 @@ public sealed class PrecisionBrakingRuntime
                 return (false, "braking_trial_not_ready_for_measurement");
             trial = _active;
             speed = _currentSpeedMmS;
+            if (!double.IsFinite(speed) || speed <= 0)
+                return (false, "braking_sensor_timing_missing_or_invalid");
             _status = "saving";
         }
         try
