@@ -366,6 +366,8 @@ public sealed class CalibrationRuntime
             while (Environment.TickCount64 < deadline)
             {
                 token.ThrowIfCancellationRequested();
+                if (!_dispatcher.RouteSnapshot().Any(lease => lease.OwnerId == owner))
+                    throw new InvalidOperationException("calibration_route_authority_lost");
                 if (!_layout.TryGetSensorState(startSensor, out sourceOn) ||
                     !_layout.TryGetSensorState(endSensor, out endOn))
                     throw new InvalidOperationException("calibration_endpoint_sensor_unknown");
