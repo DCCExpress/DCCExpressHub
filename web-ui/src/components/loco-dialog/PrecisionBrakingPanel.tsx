@@ -163,6 +163,25 @@ export default function PrecisionBrakingPanel({
               });
             }
           }} />
+        <NumberInput
+          label="Distance between start and destination sensors (mm)"
+          description="Physical travel distance from start sensor OFF to destination sensor ON. Initially uses the value entered in Speed Calibration; saved separately with Precision Braking."
+          min={1}
+          max={100000}
+          value={loco.precisionBraking?.sensorDistanceMm ?? loco.calibration?.routeLengthMm ?? 1000}
+          disabled={!!active || !!other || busy}
+          onChange={value => {
+            const sensorDistanceMm = Number(value);
+            if (!Number.isFinite(sensorDistanceMm) || sensorDistanceMm <= 0) return;
+            onPatch({
+              precisionBraking: {
+                ...loco.precisionBraking,
+                sensorDistanceMm,
+                updatedAt: new Date().toISOString(),
+              },
+            });
+          }}
+        />
         <NumberInput label="Approach speed (DCC step)" value={speedStep}
           onChange={v => { setSpeedStep(v); savePreference("speedStep", v); }}
           min={1} max={126} disabled={!!active} />
