@@ -479,12 +479,19 @@ public sealed partial class WatsonWebServerService
                 StringComparison.OrdinalIgnoreCase)
         )
         {
+            // Built-in UI illustrations live in wwwroot/images, while
+            // uploaded locomotive images live in data/images.
+            // Prefer the bundled static asset when it exists.
+            var imagePath = requestPath["/images/".Length..];
+            var bundled = ResolveUnderRoot(
+                Path.Combine(_paths.WebRootPath, "images"),
+                imagePath);
+            if (bundled is not null && File.Exists(bundled))
+                return bundled;
+
             return ResolveUnderRoot(
-                Path.Combine(
-                    _paths.DataRootPath,
-                    "images"),
-                requestPath[
-                    "/images/".Length..]);
+                Path.Combine(_paths.DataRootPath, "images"),
+                imagePath);
         }
 
         return ResolveUnderRoot(
