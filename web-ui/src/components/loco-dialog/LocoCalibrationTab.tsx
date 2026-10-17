@@ -635,31 +635,10 @@ export default function LocoCalibrationTab({
       candidate:
         MovementRouteCandidate
     ): void => {
-      const reverse =
-        reverseFor(
-          candidate,
-          candidates
-        );
-
-      setSelectedRoute(
-        candidate
-      );
-
-      setReverseRoute(
-        reverse
-      );
-
-      setRouteError(
-        reverse
-          ? null
-          : t("locodialog.calibration.reverseMissingLong")
-      );
-
-      if (reverse) {
-        setPickerOpened(
-          false
-        );
-      }
+      setSelectedRoute(candidate);
+      setReverseRoute(null);
+      setRouteError(null);
+      setPickerOpened(false);
     };
 
   const routeLabel =
@@ -711,8 +690,6 @@ export default function LocoCalibrationTab({
     !activeForOtherLoco &&
     !activeForThisLoco &&
     selectedRoute !==
-      null &&
-    reverseRoute !==
       null &&
     routeLengthMm >
       0 &&
@@ -909,6 +886,7 @@ export default function LocoCalibrationTab({
                   </Text>
 
                   {
+                    false &&
                     selectedRoute &&
                     !reverseRoute && (
                       <Text
@@ -1046,12 +1024,12 @@ export default function LocoCalibrationTab({
                   onClick={
                     () => {
                       if (
-                        !selectedRoute ||
-                        !reverseRoute
+                        !selectedRoute
                       ) {
                         return;
                       }
 
+                      if (!window.confirm("I confirm the entire fixed route is clear. Turnouts will be locked before departure. Intermediate sensors do not control the locomotive. One one-way measurement will run. Is the route safe?")) return;
                       void runCommand(
                         () =>
                           startCalibration({
@@ -1070,6 +1048,7 @@ export default function LocoCalibrationTab({
                             routeLengthMm,
                             maxSpeed,
                             speedStep,
+                            routeConfirmed: true,
                           })
                       );
                     }
