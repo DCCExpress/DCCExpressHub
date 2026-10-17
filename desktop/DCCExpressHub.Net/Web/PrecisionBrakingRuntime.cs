@@ -13,7 +13,7 @@ public sealed class PrecisionBrakingRuntime
     public sealed record TrialRequest(string LocoId, int LocoAddress,
         MovementRouteRefModel RouteRef, int SpeedStep,
         double TargetDistanceMm, bool IsolatedTestTrackConfirmed, int ReturnSpeedStep = 20,
-        double? TargetFrontClearanceMm = null);
+        double? TargetFrontClearanceMm = null, double SensorDistanceMm = 0);
     public sealed record TrialMeasurement(double ActualDistanceMm,
         double? FrontClearanceMm = null, double? RearClearanceMm = null);
     public sealed record TrialState(string Status, string? Error,
@@ -49,6 +49,9 @@ public sealed class PrecisionBrakingRuntime
     string? _error;
     double? _actual;
     double _commandedRampSeconds;
+    int? _startSensor;
+    long? _startOffTicks;
+    double _sensorDistanceMm;
     List<PrecisionBrakingProfile.Trial> _trials = new();
     List<PrecisionBrakingProfile.SpeedPoint> _speedPoints = new();
 
@@ -418,35 +421,12 @@ public sealed class PrecisionBrakingRuntime
                 return (false, $"reference_sensor_occupied_{referenceSensor}");
             }
 
-            var rows = loco["calibration"]?["results"] as JsonArray;
-            if (rows is null || rows.Count == 0)
-                return (false, "speed_calibration_required");
-
-            // The selected Precision Braking route alone supplies the physical
-            // direction. Speed Calibration measurements are a separate speed
-            // table, not an authority for this route or its direction.
-            // For each DCC step, use the higher measured speed of the two
-            // calibration passes (conservative when their paths differ).
-            var measuredPoints = new List<PrecisionBrakingProfile.SpeedPoint>();
-            foreach (var row in rows.OfType<JsonObject>())
-            {
-                var step = row["speedStep"]?.GetValue<int>() ?? 0;
-                var mmS = row["millimetersPerSecond"]?.GetValue<double>() ?? 0;
-                var point = new PrecisionBrakingProfile.SpeedPoint(step, mmS);
-                if (PrecisionBrakingProfile.ValidSpeedPoint(point))
-                    measuredPoints.Add(point);
-            }
-
-            var points = measuredPoints
-                .GroupBy(point => point.DccStep)
-                .Select(group => new PrecisionBrakingProfile.SpeedPoint(
-                    group.Key, group.Max(point => point.MillimetersPerSecond)))
-                .OrderBy(point => point.DccStep)
-                .ToList();
-
-            var speed = PrecisionBrakingProfile.SpeedAtStep(points, request.SpeedStep);
-            if (!speed.HasValue || speed.Value <= 0)
-                return (false, "matching_speed_calibration_required");
+            // Each training run measures its own speed between sensor OFF and ON.
+            // No Speed Calibration dependency and no guessed fallback velocity.
+            if (!double.IsFinite(request.SensorDistanceMm) || request.SensorDistanceMm <= 0)
+                return (false, "braking_sensor_distance_required");
+            var speed = (double?)null;
+            var points = new List<PrecisionBrakingProfile.SpeedPoint>();
 
             var turnoutStates = new Dictionary<ushort, bool>();
             foreach (var turnout in plan.Legs.SelectMany(leg => leg.TurnoutStates))
@@ -490,23 +470,16 @@ public sealed class PrecisionBrakingRuntime
             }
 
             var learned = new List<PrecisionBrakingProfile.Trial>();
-            if (loco["precisionBraking"]?["trials"] is JsonArray saved)
-                foreach (var node in saved.OfType<JsonObject>())
-                    try
-                    {
-                        var trial = node.Deserialize<PrecisionBrakingProfile.Trial>(
-                            new JsonSerializerOptions(JsonSerializerDefaults.Web));
-                        if (trial is not null && PrecisionBrakingProfile.ValidTrial(trial))
-                            learned.Add(trial);
-                    }
-                    catch (JsonException) { }
 
             preparingToken.ThrowIfCancellationRequested();
             lock (_sync)
             {
                 preparingToken.ThrowIfCancellationRequested();
                 _referenceSensor = referenceSensor;
-                _currentSpeedMmS = speed.Value;
+                _currentSpeedMmS = 0;
+                _sensorDistanceMm = request.SensorDistanceMm;
+                _startSensor = startBlock.SensorAddress;
+                _startOffTicks = null;
                 _trials = learned;
                 _speedPoints = points;
                 _actual = null;
@@ -560,7 +533,24 @@ public sealed class PrecisionBrakingRuntime
 
     void OnSensor(int address, bool active)
     {
-        if (!active) return;
+        if (!active)
+        {
+            lock (_sync)
+                if (_status is "armed" or "returning" &&
+                    _startSensor == address && _startOffTicks is null)
+                    _startOffTicks = System.Diagnostics.Stopwatch.GetTimestamp();
+            return;
+        }
+        lock (_sync)
+        {
+            if ((_status == "armed" || _status == "returning") &&
+                _referenceSensor == address && _startOffTicks.HasValue)
+            {
+                var elapsed = System.Diagnostics.Stopwatch.GetElapsedTime(_startOffTicks.Value).TotalSeconds;
+                if (elapsed > 0.05 && elapsed < 600)
+                    _currentSpeedMmS = _sensorDistanceMm / elapsed;
+            }
+        }
         TaskCompletionSource<bool>? returnArrival = null;
         lock (_sync)
             if (_status == "returning" && _returnSensor == address)
@@ -608,9 +598,11 @@ public sealed class PrecisionBrakingRuntime
             double seconds;
             lock (_sync)
             {
-                seconds = PrecisionBrakingProfile.NextRampSeconds(
-                    _trials, trial.SpeedStep, trial.RouteRef.Direction,
-                    _currentSpeedMmS, trial.TargetDistanceMm);
+                seconds = _currentSpeedMmS > 0
+                    ? PrecisionBrakingProfile.NextRampSeconds(
+                        _trials, trial.SpeedStep, trial.RouteRef.Direction,
+                        _currentSpeedMmS, trial.TargetDistanceMm)
+                    : 0;
                 _commandedRampSeconds = seconds;
             }
             _log.LogInformation(
