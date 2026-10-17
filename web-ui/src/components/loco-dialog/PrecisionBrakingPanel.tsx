@@ -96,12 +96,16 @@ export default function PrecisionBrakingPanel({
     length - desiredFrontGap >= trainLength &&
     length - desiredFrontGap >= 10 && length - desiredFrontGap <= 10000;
   const fitsBlock = fitsDestination(blockLength) && fitsDestination(sourceBlockLength);
+  const arrivingAtA = state?.locoId === loco.id && !!selectedRoute &&
+    state.direction !== null && state.direction !== undefined &&
+    state.direction !== selectedRoute.routeRef.direction;
+  const measuredBlockLength = arrivingAtA ? sourceBlockLength : blockLength;
   const frontGap = Number(frontClearance);
   const rearGap = Number(rearClearance);
-  const measurementConsistent = blockLength > 0 && frontClearance !== "" && rearClearance !== "" &&
+  const measurementConsistent = measuredBlockLength > 0 && frontClearance !== "" && rearClearance !== "" &&
     frontGap >= 0 &&
     Number.isFinite(frontGap) && Number.isFinite(rearGap) &&
-    Math.abs(blockLength - frontGap - rearGap - trainLength) <= 10;
+    Math.abs(measuredBlockLength - frontGap - rearGap - trainLength) <= 10;
   return <Stack gap="md">
     <Group justify="flex-end">
       <Button component="a" variant="subtle" size="xs"
@@ -192,9 +196,9 @@ export default function PrecisionBrakingPanel({
           <NumberInput label="Train tail from dashed block entry boundary (mm; negative = tail outside)" min={-20000} max={20000}
             value={rearClearance} onChange={setRearClearance} />
           {rearGap < 0 && <Alert color="orange">Train tail is outside the destination block by {Math.abs(rearGap)} mm. The train is not fully inside.</Alert>}
-          <Text size="xs" c="dimmed">Block {blockLength} − front {frontClearance} − rear {rearClearance} − train {trainLength} = {(blockLength - frontGap - rearGap - trainLength).toFixed(1)} mm difference (tolerance 10 mm).</Text>
+          <Text size="xs" c="dimmed">Block {measuredBlockLength} − front {frontClearance} − rear {rearClearance} − train {trainLength} = {(measuredBlockLength - frontGap - rearGap - trainLength).toFixed(1)} mm difference (tolerance 10 mm).</Text>
           <Button loading={busy} disabled={busy || !measurementConsistent}
-            onClick={() => void action("/measure", {actualDistanceMm: blockLength - frontGap, frontClearanceMm: frontGap, rearClearanceMm: rearGap})}>OK — save and return to start</Button>
+            onClick={() => void action("/measure", {actualDistanceMm: measuredBlockLength - frontGap, frontClearanceMm: frontGap, rearClearanceMm: rearGap})}>OK — save and return to start</Button>
         </>}
         {active && state?.status === "return_preparing" &&
           <Alert color="blue">Measurement saved. Setting and checking turnouts for the return trip.</Alert>}
