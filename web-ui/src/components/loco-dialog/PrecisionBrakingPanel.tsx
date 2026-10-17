@@ -34,6 +34,8 @@ export default function PrecisionBrakingPanel({
   const [speedStep, setSpeedStep] = useState<number | string>(20);
   const [distance, setDistance] = useState<number | string>(200);
   const [measured, setMeasured] = useState<number | string>(200);
+  const [frontClearance, setFrontClearance] = useState<number | string>(50);
+  const [rearClearance, setRearClearance] = useState<number | string>(50);
   const [returnSpeed, setReturnSpeed] = useState<number | string>(30);
   const [confirmed, setConfirmed] = useState(false);
   // Braking trial UI preferences are local to this browser and locomotive.
@@ -83,6 +85,17 @@ export default function PrecisionBrakingPanel({
     ["preparing", "armed", "braking", "measure", "saving", "return_preparing", "returning"].includes(state.status);
   const other = state && ["preparing", "armed", "braking", "measure", "saving", "return_preparing", "returning"].includes(state.status) && state.locoId !== loco.id;
   const hasSpeedProfile = (loco.calibration?.results.length ?? 0) > 0;
+  const trainLength = (loco.locomotiveLengthMm ?? loco.length) + (loco.wagonsLengthMm ?? 0);
+  const blockLength = selectedRoute?.blockLengthMm ?? 0;
+  const desiredFrontGap = Number(distance);
+  const targetDistance = blockLength - desiredFrontGap;
+  const fitsBlock = blockLength > 0 && trainLength > 0 && Number.isFinite(desiredFrontGap) &&
+    desiredFrontGap >= 0 && targetDistance >= trainLength && targetDistance >= 10 && targetDistance <= 10000;
+  const frontGap = Number(frontClearance);
+  const rearGap = Number(rearClearance);
+  const measurementConsistent = blockLength > 0 && frontClearance !== "" && rearClearance !== "" &&
+    frontGap >= 0 && rearGap >= 0 &&
+    Math.abs(blockLength - frontGap - rearGap - trainLength) <= 10;
   return <Stack gap="md">
     <Group justify="flex-end">
       <Button component="a" variant="subtle" size="xs"
@@ -126,19 +139,22 @@ export default function PrecisionBrakingPanel({
           onChange={v => { setReturnSpeed(v); savePreference("returnSpeed", v); }}
           min={1} max={126} disabled={!!active}
           description="Speed for returning to the starting block; stops on the starting-block sensor." />
-        <NumberInput label="Target stopping distance after sensor (mm)" value={distance}
+        <Text size="xs">Destination block: {blockLength || "—"} mm · Train: {trainLength} mm</Text>
+        <NumberInput label="Desired front clearance to block end (mm)" value={distance}
           onChange={v => { setDistance(v); savePreference("distance", v); }}
-          min={10} max={10000} disabled={!!active} />
+          min={0} max={10000} disabled={!!active} />
+        {selectedRoute && !fitsBlock && <Alert color="red">The train and requested front clearance must fit within the measured destination block. Check the block and train lengths.</Alert>}
         <Checkbox checked={confirmed} onChange={event => setConfirmed(event.currentTarget.checked)}
           label="I confirm the track is physically isolated, clear and supervised." disabled={!!active} />
         <Group>
           <Button disabled={!confirmed || !hasSpeedProfile || !!active || !!other || busy ||
-            !selectedRoute || !Number(speedStep) || !Number(returnSpeed) || !Number(distance) ||
+            !selectedRoute || !fitsBlock || !Number(speedStep) || !Number(returnSpeed) ||
             Number(returnSpeed) > 126 || Number(returnSpeed) < 1}
             loading={busy} onClick={() => void action("/start", {
               locoId: loco.id, locoAddress: loco.address, routeRef: selectedRoute?.routeRef,
               speedStep: Number(speedStep), returnSpeedStep: Number(returnSpeed),
-              targetDistanceMm: Number(distance),
+              targetDistanceMm: targetDistance,
+              targetFrontClearanceMm: desiredFrontGap,
               isolatedTestTrackConfirmed: confirmed,
             })}>Start trial</Button>
           <Button color="orange" variant="outline" disabled={busy || !active}
@@ -153,11 +169,14 @@ export default function PrecisionBrakingPanel({
         {state?.status === "armed" && active && <Alert color="blue">Locomotive moving. Braking begins on sensor ON.</Alert>}
         {state?.status === "braking" && active && <Alert color="blue">Applying braking ramp. Do not measure yet.</Alert>}
         {state?.status === "measure" && active && <>
-          <Alert color="blue">Speed 0 commanded. After the locomotive has physically stopped, measure from the sensor to the actual stopping point.</Alert>
-          <NumberInput label="Actual stopping distance after sensor (mm)" min={0} max={20000}
-            value={measured} onChange={setMeasured} />
-          <Button loading={busy} disabled={busy || measured === "" || Number(measured) < 0}
-            onClick={() => void action("/measure", {actualDistanceMm: Number(measured)})}>OK — save and return to start</Button>
+          <Alert color="blue">Speed 0 commanded. Once stopped, measure the train front from the block exit boundary and the train rear from the block entry boundary. Both must fit entirely within the block.</Alert>
+          <NumberInput label="Front clearance to block end (mm)" min={0} max={20000}
+            value={frontClearance} onChange={setFrontClearance} />
+          <NumberInput label="Rear clearance to block start (mm)" min={0} max={20000}
+            value={rearClearance} onChange={setRearClearance} />
+          <Text size="xs" c="dimmed">Block {blockLength} − front {frontClearance} − rear {rearClearance} − train {trainLength} = {(blockLength - frontGap - rearGap - trainLength).toFixed(1)} mm difference (tolerance 10 mm).</Text>
+          <Button loading={busy} disabled={busy || !measurementConsistent}
+            onClick={() => void action("/measure", {actualDistanceMm: blockLength - frontGap, frontClearanceMm: frontGap, rearClearanceMm: rearGap})}>OK — save and return to start</Button>
         </>}
         {active && state?.status === "return_preparing" &&
           <Alert color="blue">Measurement saved. Setting and checking turnouts for the return trip.</Alert>}
