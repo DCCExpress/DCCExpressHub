@@ -624,18 +624,18 @@
   },
   "precisionBrakingMeasurement": {
     "title": "Precision Braking — blokkpozíciók",
-    "diagramAria": "A és C célblokk; a mérőnyilak a szaggatott belépési határtól a szerelvény végéig tartanak",
+    "diagramAria": "Az A és C fékezőblokk. A nyíl a szaggatott belépési határtól a menetirány szerinti vonatelejéig mért pozitív befutási távolság.",
     "forward": "Előre",
     "distance": "Távolság (mm)",
     "pull": "Húzás",
     "push": "Tolás",
     "locomotive": "Mozdony",
     "wagons": "Vagonok",
-    "diagramHelp": "A szaggatott belépési vonaltól mérj a vonat legvégéig. A felé: jobb oldali vonal, C felé: bal oldali vonal. Az elejét a vonathosszból számoljuk. Nem méretarányos.",
-    "measureHelp": "Csak egy távolságot mérj a célblokk belépési szaggatott vonalától a vonat legvégéig! A felé: jobb oldali, C felé: bal oldali vonaltól. Pozitív, ha a vége már bent van; negatív, ha még kilóg.",
-    "fieldHint": "Belépési vonal → vonat vége (+ bent, − kilóg)",
-    "rearReport": "Vonat vége: {{rear}} mm · számított eleje: {{front}} mm · szabad hely a blokk végéig: {{clearance}} mm",
-    "rearOutside": "A szerelvény vége {{distance}} mm-rel kilóg a blokk elején.",
-    "frontOutside": "A szerelvény eleje {{distance}} mm-rel túllóg a blokk végén."
+    "diagramHelp": "Azt mérd, mennyire futott BE a vonat ELEJE a célblokkba. Forward (jobbra): a vonat jobb széle az eleje. Reverse (balra): a bal széle. A-ban a jobb oldali szaggatott vonaltól, C-ben a bal oldalitól mérj. Mindig pozitív értéket adj meg. Az ábra nem méretarányos.",
+    "measureHelp": "Egyetlen POZITÍV értéket adj meg mm-ben: mennyivel haladt át a vonat ELEJE a célblokk szaggatott belépési vonalán. Forward (jobbra): a jobb szélső pont az eleje, reverse (balra): a bal szélső. A vonat végét a szerelvényhosszból számoljuk.",
+    "fieldHint": "Belépési szenzor → menetirány szerinti vonat ELEJE, a blokkon belül (> 0 mm)",
+    "positionReport": "Vonat elejének befutása: {{front}} mm · Számított vonatvég: {{rear}} mm · Szabad hely a blokk végéig: {{clearance}} mm",
+    "rearOutside": "A számított vonatvég {{distance}} mm-rel kilóg a belépési oldalon.",
+    "frontOutside": "A vonat eleje {{distance}} mm-rel túllóg a blokk végén."
   }
 }
