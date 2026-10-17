@@ -72,16 +72,25 @@ export default function PrecisionBrakingDiagram({
           stroke="#64748b" strokeWidth="2.5" fill="none" />
         {[220, 430].map(x => <path key={x} d={`M${x} 49 V155`}
           stroke="currentColor" strokeWidth="2" strokeDasharray="5 5" />)}
-        {/* A: train travels left, rear is its rightmost point. */}
-        <path d={`M220 62 H${trainStartA + engineWidth + wagonWidth}`}
-          stroke="#dc2626" strokeWidth="2.5" fill="none"
+        {/* A: moving left. Front is the leftmost point; rear the rightmost. */}
+        <path d={`M220 58 H${trainStartA}`} stroke="#2563eb" strokeWidth="2.5"
           markerStart="url(#braking-measure-head)" markerEnd="url(#braking-measure-head)" />
-        <text x="185" y="51" fontSize="11" fill="#dc2626" textAnchor="middle">A: mérd itt</text>
-        {/* C: train travels right, rear is its leftmost point. */}
-        <path d={`M430 62 H${trainStartC}`}
-          stroke="#dc2626" strokeWidth="2.5" fill="none"
-          markerStart="url(#braking-measure-head)" markerEnd="url(#braking-measure-head)" />
-        <text x="459" y="51" fontSize="11" fill="#dc2626" textAnchor="middle">C: mérd itt</text>
+        <text x="98" y="48" fontSize="11" fill="#2563eb" textAnchor="middle">A: ELEJE</text>
+        <text x={trainStartA + 10} y="76" fontSize="10" fill="#2563eb">ELEJE</text>
+        <text x={trainStartA + engineWidth + wagonWidth - 40} y="76" fontSize="10" fill="#dc2626">VÉGE</text>
+        <text x="185" y="48" fontSize="11" fill="#dc2626" textAnchor="middle">A: VÉGE</text>
+        <path d={`M220 66 H${trainStartA + engineWidth + wagonWidth}`}
+          stroke="#dc2626" strokeWidth="2.5" markerStart="url(#braking-measure-head)"
+          markerEnd="url(#braking-measure-head)" />
+        {/* C: moving right. Front is the rightmost point; rear the leftmost. */}
+        <path d={`M430 58 H${trainStartC + engineWidth + wagonWidth}`}
+          stroke="#2563eb" strokeWidth="2.5" markerStart="url(#braking-measure-head)"
+          markerEnd="url(#braking-measure-head)" />
+        <path d={`M430 66 H${trainStartC}`}
+          stroke="#dc2626" strokeWidth="2.5" markerStart="url(#braking-measure-head)"
+          markerEnd="url(#braking-measure-head)" />
+        <text x="568" y="48" fontSize="11" fill="#2563eb" textAnchor="middle">C: ELEJE</text>
+        <text x="462" y="48" fontSize="11" fill="#dc2626" textAnchor="middle">C: VÉGE</text>
         {train(trainStartA, "origin")}
         {train(trainStartC, "destination")}
         <text x="325" y="176" textAnchor="middle" fill="currentColor" fontSize="11">
@@ -93,7 +102,7 @@ export default function PrecisionBrakingDiagram({
       </svg>
       <Text size="xs" c="dimmed">
         A: starting block ({sourceBlockLengthMm || "unknown"} mm) · B: travel ·
-        C: stopping block ({blockLengthMm || "unknown"} mm). A felé: az A jobb oldali szaggatott vonalától mérj a vonat végéig. C felé: a C bal oldali vonalától. Pozitív = bent van; negatív = kilóg. Nem méretarányos.
+        C: stopping block ({blockLengthMm || "unknown"} mm). Mindkét irányban a belépési vonaltól mérd az ELEJE (kék) és a VÉGE (piros) pozícióját. Az eleje pozitív, a vége lehet negatív, ha kilóg. Nem méretarányos.
       </Text>
     </Card>
   );
