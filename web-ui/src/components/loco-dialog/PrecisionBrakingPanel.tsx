@@ -78,7 +78,6 @@ export default function PrecisionBrakingPanel({
   const active = state?.locoId === loco.id &&
     ["preparing", "armed", "braking", "measure", "saving", "return_preparing", "returning"].includes(state.status);
   const other = state && ["preparing", "armed", "braking", "measure", "saving", "return_preparing", "returning"].includes(state.status) && state.locoId !== loco.id;
-  const hasSpeedProfile = (loco.calibration?.results.length ?? 0) > 0;
   const trainLength = (loco.locomotiveLengthMm ?? loco.length) + (loco.wagonsLengthMm ?? 0);
   const blockLength = selectedRoute?.blockLengthMm ?? 0;
   const desiredFrontGap = Number(distance);
@@ -91,7 +90,9 @@ export default function PrecisionBrakingPanel({
     length - desiredFrontGap >= 10 && length - desiredFrontGap <= 10000;
   const startBlockers: string[] = [];
   if (!confirmed) startBlockers.push("Confirm that the test track is isolated and supervised.");
-  if (!hasSpeedProfile) startBlockers.push("No Speed Calibration results are saved for this locomotive.");
+  const sensorDistanceMm = loco.precisionBraking?.sensorDistanceMm ?? loco.calibration?.routeLengthMm ?? 0;
+  if (!Number.isFinite(sensorDistanceMm) || sensorDistanceMm <= 0)
+    startBlockers.push("Enter the physical start OFF → destination ON sensor distance.");
   if (!selectedRoute) startBlockers.push("Select a valid A–C braking route (including its return route).");
   if (selectedRoute && !fitsDestination(sourceBlockLength))
     startBlockers.push(`Block A: ${sourceBlockLength || "unknown"} mm. Train ${trainLength} mm + front clearance ${desiredFrontGap} mm does not fit (or the block length is missing).`);
@@ -131,7 +132,6 @@ export default function PrecisionBrakingPanel({
           <Text fw={700}>Precision Braking trial</Text>
           <Badge color={active ? "orange" : "gray"}>{state?.status ?? "offline"}</Badge>
         </Group>
-        {!hasSpeedProfile && <Alert color="orange">Complete Speed Calibration for this locomotive first.</Alert>}
         {other && <Alert color="orange">Another locomotive is being calibrated.</Alert>}
         <PrecisionBrakingDiagram
           mode={loco.trainConsistMode ?? "pull"}
@@ -182,7 +182,6 @@ export default function PrecisionBrakingPanel({
         <NumberInput label="Desired front clearance to block end (mm)" value={distance}
           onChange={v => { setDistance(v); savePreference("distance", v); }}
           min={0} max={10000} disabled={!!active} />
-        {!hasSpeedProfile && <Text size="xs" c="orange">Start Trial is disabled until Speed Calibration results are saved for this locomotive.</Text>}
         {selectedRoute && fitsDestination(sourceBlockLength) && fitsDestination(blockLength) && <Text size="xs" c="dimmed">The backend detects whether the locomotive is in A or C, selects the corresponding travel direction and learned braking curve, and measures toward the opposite block.</Text>}
         <Checkbox checked={confirmed} onChange={event => setConfirmed(event.currentTarget.checked)}
           label="I confirm the track is physically isolated, clear and supervised." disabled={!!active} />
@@ -198,10 +197,15 @@ export default function PrecisionBrakingPanel({
               speedStep: Number(speedStep), returnSpeedStep: Number(speedStep),
               targetDistanceMm: targetDistance,
               targetFrontClearanceMm: desiredFrontGap,
+              sensorDistanceMm,
               isolatedTestTrackConfirmed: confirmed,
             })}>Start trial</Button>
           <Button color="orange" variant="outline" disabled={busy || !active}
             onClick={() => void action("/stop")}>Stop (speed 0)</Button>
+          <Button color="green" disabled={busy || state?.status !== "measure" || state?.locoId !== loco.id}
+            onClick={() => void action("/approve")}>OK — approve learned braking</Button>
+          <Button color="red" variant="outline" disabled={busy || (!active && state?.status !== "stopped")}
+            onClick={() => void action("/abort")}>Abort — discard training</Button>
           <Button color="red" onClick={() => void action("/estop")}>E-STOP</Button>
         </Group>
         {active && <Text size="sm">Reference sensor: {state?.sensorAddress} ·
@@ -218,14 +222,14 @@ export default function PrecisionBrakingPanel({
           {measurementConsistent && <Text size="xs" c="dimmed">Train rear: {rearGap} mm · Front: {rearGap + trainLength} mm · Clearance to block exit: {frontGap.toFixed(1)} mm.</Text>}
           {measurementConsistent && frontGap < 0 && <Alert color="orange">The train front extends beyond the block by {Math.abs(frontGap).toFixed(1)} mm.</Alert>}
           <Button loading={busy} disabled={busy || !measurementConsistent}
-            onClick={() => void action("/measure", {actualDistanceMm: rearGap + trainLength, rearClearanceMm: rearGap})}>OK — save and return to start</Button>
+            onClick={() => void action("/measure", {actualDistanceMm: rearGap + trainLength, rearClearanceMm: rearGap})}>Save measurement — continue training</Button>
         </>}
         {active && state?.status === "return_preparing" &&
           <Alert color="blue">Measurement saved. Setting and checking turnouts for the return trip.</Alert>}
         {active && state?.status === "returning" &&
           <Alert color="blue">Returning toward the starting block. The entry sensor starts adaptive braking; after the train stops, measure the sensor-to-tail distance again.</Alert>}
         {state?.status === "completed" && state.locoId === loco.id &&
-          <Alert color="green">Both directions measured and saved. Ready for the next adaptive braking trial.</Alert>}
+          <Alert color="green">Operator approved braking profile is saved.</Alert>}
         {(error || state?.error) && <Alert color="red">{error || state?.error}</Alert>}
       </Stack>
     </Card>
