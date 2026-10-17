@@ -110,7 +110,7 @@ export default function PrecisionBrakingPanel({
   const rearGap = sensorToTail === "" ? NaN : Number(sensorToTail);
   const frontGap = measuredBlockLength - rearGap - trainLength;
   const measurementConsistent = measuredBlockLength > 0 && sensorToTail !== "" &&
-    Number.isFinite(rearGap) && rearGap >= 0 &&
+    Number.isFinite(rearGap) && rearGap >= -20000 &&
     rearGap + trainLength <= 20000;
   return <Stack gap="md">
     <Group justify="flex-end">
@@ -216,10 +216,11 @@ export default function PrecisionBrakingPanel({
         {state?.status === "armed" && active && <Alert color="blue">Locomotive moving. Braking begins on sensor ON.</Alert>}
         {state?.status === "braking" && active && <Alert color="blue">Applying braking ramp. Do not measure yet.</Alert>}
         {state?.status === "measure" && active && <>
-          <Alert color="blue">After the train stops in either direction, measure only the distance from the dashed entry boundary (reference sensor) to the REAR of the whole train, in millimetres. The train's front is calculated from its saved total length. Measure in the current direction of travel, whether the locomotive is pulling or pushing.</Alert>
-          <NumberInput label="Sensor to train tail (mm)" min={0} max={20000}
+          <Alert color="blue">Mérd a vonat legvégének távolságát a célblokk belépési szaggatott vonalától. A felé: az A blokk jobb szélétől, C felé: a C blokk bal szélétől. Pozitív: a teljes vonat már bent van. Negatív: a vonat hátulja még kilóg.</Alert>
+          <NumberInput label="Train rear vs entry boundary (mm; + inside, − outside)" min={-20000} max={20000}
             value={sensorToTail} onChange={setSensorToTail} />
           {measurementConsistent && <Text size="xs" c="dimmed">Train rear: {rearGap} mm · Front: {rearGap + trainLength} mm · Clearance to block exit: {frontGap.toFixed(1)} mm.</Text>}
+          {measurementConsistent && rearGap < 0 && <Alert color="orange">Train rear protrudes by {Math.abs(rearGap).toFixed(1)} mm before the block entry.</Alert>}
           {measurementConsistent && frontGap < 0 && <Alert color="orange">The train front extends beyond the block by {Math.abs(frontGap).toFixed(1)} mm.</Alert>}
           <Button loading={busy} disabled={busy || !measurementConsistent}
             onClick={() => void action("/measure", {actualDistanceMm: rearGap + trainLength, rearClearanceMm: rearGap})}>Save measurement — continue training</Button>
