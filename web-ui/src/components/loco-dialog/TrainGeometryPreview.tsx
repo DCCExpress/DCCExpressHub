@@ -1,5 +1,4 @@
 import { Card, Group, SegmentedControl, Stack, Text } from "@mantine/core";
-import { useState } from "react";
 
 type ConsistMode = "pull" | "push";
 
@@ -9,6 +8,8 @@ type Props = {
   wagonsLengthMm: number;
   entireTrainDetectable: boolean;
   clearanceMarginMm: number;
+  mode: ConsistMode;
+  onModeChange: (mode: ConsistMode) => void;
 };
 
 export default function TrainGeometryPreview({
@@ -17,8 +18,9 @@ export default function TrainGeometryPreview({
   wagonsLengthMm,
   entireTrainDetectable,
   clearanceMarginMm,
+  mode,
+  onModeChange,
 }: Props) {
-  const [mode, setMode] = useState<ConsistMode>("pull");
   const height = 40;
   const locomotiveWidth = 113 * height / 44;
   const wagonWidth = 264;
@@ -36,7 +38,7 @@ export default function TrainGeometryPreview({
         <SegmentedControl
           size="xs"
           value={mode}
-          onChange={value => setMode(value as ConsistMode)}
+          onChange={value => onModeChange(value as ConsistMode)}
           data={[{ label: "Pull", value: "pull" }, { label: "Push", value: "push" }]}
         />
       </Group>
