@@ -536,7 +536,7 @@ public sealed class PrecisionBrakingRuntime
         if (!active)
         {
             lock (_sync)
-                if (_status is "armed" or "returning" &&
+                if ((_status is "armed" or "returning") &&
                     _startSensor == address && _startOffTicks is null)
                     _startOffTicks = System.Diagnostics.Stopwatch.GetTimestamp();
             return;
@@ -685,48 +685,15 @@ public sealed class PrecisionBrakingRuntime
                 trial.RouteRef.Direction, speed, trial.TargetDistanceMm,
                 measurement.ActualDistanceMm, DateTimeOffset.UtcNow,
                 _commandedRampSeconds);
-            await _storage.ExecuteAsync(async () =>
-            {
-                var root = JsonNode.Parse(await File.ReadAllTextAsync(LocoFile)) as JsonArray
-                    ?? throw new InvalidOperationException("invalid_locomotive_data");
-                var loco = FindLoco(root, trial.LocoId)
-                    ?? throw new InvalidOperationException("locomotive_not_found");
-                var data = loco["precisionBraking"] as JsonObject ?? new JsonObject();
-                var trials = data["trials"] as JsonArray;
-                if (trials is null)
-                {
-                    trials = new JsonArray();
-                    data["trials"] = trials;
-                }
-                trials.Add(JsonSerializer.SerializeToNode(row,
-                    new JsonSerializerOptions(JsonSerializerDefaults.Web)));
-                data["routeRef"] = JsonSerializer.SerializeToNode(
-                    trial.RouteRef, new JsonSerializerOptions(JsonSerializerDefaults.Web));
-                data["updatedAt"] = DateTimeOffset.UtcNow.ToString("O");
-                if (loco["precisionBraking"] is null)
-                    loco["precisionBraking"] = data;
-                var temp = LocoFile + ".precisionbraking.tmp";
-                await File.WriteAllTextAsync(temp, root.ToJsonString());
-                File.Move(temp, LocoFile, true);
-                return true;
-            });
             lock (_sync)
             {
                 _trials.Add(row);
                 _actual = measurement.ActualDistanceMm;
-                _status = _returnTrial ? "completed" : "return_preparing";
+                _status = "return_preparing";
             }
-            if (_returnTrial)
-            {
-                // Both directions have now been physically measured and saved.
-                ReleaseGate();
-            }
-            else
-            {
-                // First measurement authorizes the reverse trial, not an
-                // uncontrolled sensor-triggered stop.
-                _ = Task.Run(() => ReturnToStartAsync(trial));
-            }
+            // Every measurement is provisional until operator approval.
+            // Continue alternating directions with the newly learned values.
+            _ = Task.Run(() => ReturnToStartAsync(trial));
             return (true, "");
         }
         catch (Exception ex)
@@ -800,7 +767,7 @@ public sealed class PrecisionBrakingRuntime
                 token.ThrowIfCancellationRequested();
                 _returnSensor = origin.SensorAddress;
                 _returnArrival = arrival;
-                _returnTrial = true;
+                _returnTrial = !_returnTrial;
                 var reverseTargetLength = ReadBlockLengthMm(reverseRoute.ToBlockId);
                 if (reverseTargetLength is null || _trainLengthMm is null ||
                     !trial.TargetFrontClearanceMm.HasValue ||
@@ -813,6 +780,11 @@ public sealed class PrecisionBrakingRuntime
                     SpeedStep = trial.SpeedStep
                 };
                 _actual = null;
+                _startSensor = forwardRoute.ToBlockId == reverseRoute.FromBlockId
+                    ? _layout.BlocksForPersistence().FirstOrDefault(b => b.Id == reverseRoute.FromBlockId)?.SensorAddress
+                    : null;
+                _startOffTicks = null;
+                _referenceSensor = origin.SensorAddress;
                 _status = "returning";
             }
 
@@ -906,6 +878,82 @@ public sealed class PrecisionBrakingRuntime
         // releasing its gate here would let a second Start overlap it.
         if (!startStillPreparing)
             ReleaseGate();
+    }
+
+    public async Task<(bool Ok, string Error)> ApproveAsync()
+    {
+        TrialRequest? trial;
+        PrecisionBrakingProfile.Trial[] samples;
+        lock (_sync)
+        {
+            if (_status != "measure" || _active is null || _trials.Count == 0)
+                return (false, "braking_training_not_ready_for_approval");
+            trial = _active;
+            samples = _trials.ToArray();
+            _status = "saving";
+        }
+        try
+        {
+            await _storage.ExecuteAsync(async () =>
+            {
+                var root = JsonNode.Parse(await File.ReadAllTextAsync(LocoFile)) as JsonArray
+                    ?? throw new InvalidOperationException("invalid_locomotive_data");
+                var loco = FindLoco(root, trial.LocoId)
+                    ?? throw new InvalidOperationException("locomotive_not_found");
+                var data = loco["precisionBraking"] as JsonObject ?? new JsonObject();
+                data["trials"] = JsonSerializer.SerializeToNode(samples,
+                    new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                data["validated"] = true;
+                data["updatedAt"] = DateTimeOffset.UtcNow.ToString("O");
+                loco["precisionBraking"] = data;
+                var temp = LocoFile + ".braking-approve.tmp";
+                await File.WriteAllTextAsync(temp, root.ToJsonString());
+                File.Move(temp, LocoFile, true);
+                return true;
+            });
+            lock (_sync) _status = "completed";
+            ReleaseGate();
+            return (true, "");
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Braking profile approval failed");
+            lock (_sync) { _status = "error"; _error = "braking_approval_failed"; }
+            ReleaseGate();
+            return (false, "braking_approval_failed");
+        }
+    }
+
+    public async Task AbortTrainingAsync()
+    {
+        await StopAsync();
+        lock (_sync)
+        {
+            _trials.Clear();
+            _status = "aborted";
+        }
+        await InvalidateProfileAsync();
+    }
+
+    async Task InvalidateProfileAsync()
+    {
+        TrialRequest? trial;
+        lock (_sync) trial = _active;
+        if (trial is null) return;
+        await _storage.ExecuteAsync(async () =>
+        {
+            var root = JsonNode.Parse(await File.ReadAllTextAsync(LocoFile)) as JsonArray;
+            var loco = root is null ? null : FindLoco(root, trial.LocoId);
+            if (loco is null) return false;
+            var data = loco["precisionBraking"] as JsonObject ?? new JsonObject();
+            data["validated"] = false;
+            data["trials"] = new JsonArray();
+            loco["precisionBraking"] = data;
+            var temp = LocoFile + ".braking-abort.tmp";
+            await File.WriteAllTextAsync(temp, root!.ToJsonString());
+            File.Move(temp, LocoFile, true);
+            return true;
+        });
     }
 
     public async Task EmergencyStopAsync()
