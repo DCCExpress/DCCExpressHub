@@ -1,5 +1,6 @@
 import { Alert, Badge, Button, Card, Checkbox, Group, NumberInput, Stack, Table, Text } from "@mantine/core";
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { Loco } from "@domain/types";
 import PrecisionBrakingRouteSelector, { type BrakingRouteSelection } from "./PrecisionBrakingRouteSelector";
 import PrecisionBrakingDiagram from "./PrecisionBrakingDiagram";
@@ -28,6 +29,7 @@ export default function PrecisionBrakingPanel({
   loco: Loco;
   onPatch: (patch: Partial<Loco>) => void;
 }) {
+  const { t } = useTranslation();
   const [state, setState] = useState<State | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -141,8 +143,6 @@ export default function PrecisionBrakingPanel({
           wagonsLengthMm={loco.wagonsLengthMm ?? 0}
           blockLengthMm={blockLength}
           sourceBlockLengthMm={selectedRoute?.sourceBlockLengthMm ?? 0}
-          frontClearanceMm={frontGap}
-          rearClearanceMm={rearGap}
         />
         <PrecisionBrakingRouteSelector locoId={loco.id} savedRouteRef={loco.precisionBraking?.routeRef}
           selected={selectedRoute} disabled={!!active || !!other || busy}
@@ -218,12 +218,13 @@ export default function PrecisionBrakingPanel({
         {state?.status === "armed" && active && <Alert color="blue">Locomotive moving. Braking begins on sensor ON.</Alert>}
         {state?.status === "braking" && active && <Alert color="blue">Applying braking ramp. Do not measure yet.</Alert>}
         {state?.status === "measure" && active && <>
-          <Alert color="blue">Egyetlen távolságot mérj a célblokk belépési vonalától a vonat legvégéig! A felé az A blokk jobb oldali, C felé a C blokk bal oldali vonalától. Pozitív, ha a vonat vége már a blokkban van; negatív, ha még kilóg. Az eleje helyzetét a szerelvényhosszból számoljuk.</Alert>
-          <NumberInput label="Távolság (mm)" description="Belépési szenzor → vonat vége (+ bent, − kilóg)" min={-trainLength} max={20000}
+          <Alert color="blue">{t("precisionBrakingMeasurement.measureHelp")}</Alert>
+          <NumberInput label={t("precisionBrakingMeasurement.distance")}
+            description={t("precisionBrakingMeasurement.fieldHint")} min={-trainLength} max={20000}
             value={measuredRear} onChange={setMeasuredRear} />
-          {measurementConsistent && <Text size="xs" c="dimmed">Vonat vége: {rearPosition.toFixed(1)} mm · Számított eleje: {frontPosition.toFixed(1)} mm · Szabad hely a blokk végéig: {frontGap.toFixed(1)} mm</Text>}
-          {measurementConsistent && rearGap < 0 && <Alert color="orange">A szerelvény vége {Math.abs(rearGap).toFixed(1)} mm-rel kilóg a blokk elején.</Alert>}
-          {measurementConsistent && frontGap < 0 && <Alert color="orange">A szerelvény eleje {Math.abs(frontGap).toFixed(1)} mm-rel túllóg a blokk végén.</Alert>}
+          {measurementConsistent && <Text size="xs" c="dimmed">{t("precisionBrakingMeasurement.rearReport", {rear: rearPosition.toFixed(1), front: frontPosition.toFixed(1), clearance: frontGap.toFixed(1)})}</Text>}
+          {measurementConsistent && rearGap < 0 && <Alert color="orange">{t("precisionBrakingMeasurement.rearOutside", {distance: Math.abs(rearGap).toFixed(1)})}</Alert>}
+          {measurementConsistent && frontGap < 0 && <Alert color="orange">{t("precisionBrakingMeasurement.frontOutside", {distance: Math.abs(frontGap).toFixed(1)})}</Alert>}
           <Button loading={busy} disabled={busy || !measurementConsistent}
             onClick={() => void action("/measure", {actualDistanceMm: frontPosition, rearFromSensorMm: rearPosition})}>Save measurement — continue training</Button>
         </>}
