@@ -127,6 +127,8 @@ export type LocoCalibrationProfile = {
 };
 
 export type LocoPrecisionBrakingProfile = {
+  /** Physical distance between start-OFF and destination-ON sensor reference points. */
+  sensorDistanceMm?: number;
   routeRef?: MovementRouteRef;
   updatedAt?: string;
   trials?: Array<{
