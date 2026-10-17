@@ -426,7 +426,6 @@ public sealed class PrecisionBrakingRuntime
             // No Speed Calibration dependency and no guessed fallback velocity.
             if (!double.IsFinite(request.SensorDistanceMm) || request.SensorDistanceMm <= 0)
                 return (false, "braking_sensor_distance_required");
-            var speed = (double?)null;
             var points = new List<PrecisionBrakingProfile.SpeedPoint>();
 
             var turnoutStates = new Dictionary<ushort, bool>();
