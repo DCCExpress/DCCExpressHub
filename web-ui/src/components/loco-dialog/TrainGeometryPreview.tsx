@@ -16,8 +16,8 @@ type Props = {
  */
 export default function TrainGeometryPreview(_props: Props) {
   const [mode, setMode] = useState<ConsistMode>("pull");
-  const locomotiveX = mode === "pull" ? 325 : 169;
-  const wagonX = mode === "pull" ? 169 : 325;
+  const locomotiveX = mode === "pull" ? 325 : 185;
+  const wagonX = mode === "pull" ? 185 : 325;
 
   return (
     <Stack gap="sm">
@@ -35,7 +35,7 @@ export default function TrainGeometryPreview(_props: Props) {
       </Group>
       <Card withBorder p="sm">
         <svg
-          viewBox="0 0 650 105"
+          viewBox="0 0 650 95"
           width="100%"
           role="img"
           aria-label={mode === "pull"
@@ -68,16 +68,16 @@ export default function TrainGeometryPreview(_props: Props) {
             href="/images/bobo.png"
             x={locomotiveX}
             y="45"
-            width="156"
-            height="48"
+            width="140"
+            height="40"
             preserveAspectRatio="xMidYMid meet"
           />
           <image
             href="/images/vagon.png"
             x={wagonX}
             y="45"
-            width="156"
-            height="48"
+            width="140"
+            height="40"
             preserveAspectRatio="xMidYMid meet"
           />
         </svg>
