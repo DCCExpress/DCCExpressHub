@@ -36,7 +36,7 @@ export default function PrecisionBrakingPanel({
   const [selectedRoute, setSelectedRoute] = useState<BrakingRouteSelection | null>(null);
   const [speedStep, setSpeedStep] = useState<number | string>(20);
   const [distance, setDistance] = useState<number | string>(200);
-  const [measuredRear, setMeasuredRear] = useState<number | string>("");
+  const [measuredOverlap, setMeasuredOverlap] = useState<number | string>("");
   const [confirmed, setConfirmed] = useState(false);
   // Braking trial UI preferences are local to this browser and locomotive.
   // They do not change decoder CVs, speed calibration or saved trial data.
@@ -109,13 +109,13 @@ export default function PrecisionBrakingPanel({
     state.direction !== null && state.direction !== undefined &&
     state.direction !== selectedRoute.routeRef.direction;
   const measuredBlockLength = arrivingAtA ? sourceBlockLength : blockLength;
-  const rearPosition = measuredRear === "" ? NaN : Number(measuredRear);
-  const frontPosition = rearPosition + trainLength;
+  // The single measurement is the train FRONT's positive penetration into the destination block.
+  const frontPosition = measuredOverlap === "" ? NaN : Number(measuredOverlap);
+  const rearPosition = frontPosition - trainLength;
   const frontGap = measuredBlockLength - frontPosition;
   const rearGap = rearPosition;
   const measurementConsistent = measuredBlockLength > 0 && trainLength > 0 &&
-    Number.isFinite(rearPosition) && rearPosition >= -trainLength &&
-    frontPosition >= 0 && frontPosition <= 20000;
+    Number.isFinite(frontPosition) && frontPosition > 0 && frontPosition <= 20000;
   return <Stack gap="md">
     <Group justify="flex-end">
       <Button component="a" variant="subtle" size="xs"
@@ -205,7 +205,7 @@ export default function PrecisionBrakingPanel({
           <Button color="orange" variant="outline" disabled={busy || !active}
             onClick={() => void action("/stop")}>Stop (speed 0)</Button>
           <Button color="green" disabled={busy || !measurementConsistent || state?.status !== "measure" || state?.locoId !== loco.id}
-            onClick={() => void action("/measure", { actualDistanceMm: frontPosition, rearFromSensorMm: rearPosition, approve: true })}>OK — approve measured braking</Button>
+            onClick={() => void action("/measure", { actualDistanceMm: frontPosition, frontFromSensorMm: frontPosition, approve: true })}>OK — approve measured braking</Button>
           <Button color="red" variant="outline" disabled={busy || (!active && state?.status !== "stopped")}
             onClick={() => void action("/abort")}>Abort — discard training</Button>
           <Button color="red" onClick={() => void action("/estop")}>E-STOP</Button>
@@ -220,18 +220,18 @@ export default function PrecisionBrakingPanel({
         {state?.status === "measure" && active && <>
           <Alert color="blue">{t("precisionBrakingMeasurement.measureHelp")}</Alert>
           <NumberInput label={t("precisionBrakingMeasurement.distance")}
-            description={t("precisionBrakingMeasurement.fieldHint")} min={-trainLength} max={20000}
-            value={measuredRear} onChange={setMeasuredRear} />
+            description={t("precisionBrakingMeasurement.fieldHint")} min={1} max={20000}
+            value={measuredOverlap} onChange={setMeasuredOverlap} />
           {measurementConsistent && <Text size="xs" c="dimmed">{t("precisionBrakingMeasurement.rearReport", {rear: rearPosition.toFixed(1), front: frontPosition.toFixed(1), clearance: frontGap.toFixed(1)})}</Text>}
           {measurementConsistent && rearGap < 0 && <Alert color="orange">{t("precisionBrakingMeasurement.rearOutside", {distance: Math.abs(rearGap).toFixed(1)})}</Alert>}
           {measurementConsistent && frontGap < 0 && <Alert color="orange">{t("precisionBrakingMeasurement.frontOutside", {distance: Math.abs(frontGap).toFixed(1)})}</Alert>}
           <Button loading={busy} disabled={busy || !measurementConsistent}
-            onClick={() => void action("/measure", {actualDistanceMm: frontPosition, rearFromSensorMm: rearPosition})}>Save measurement — continue training</Button>
+            onClick={() => void action("/measure", {actualDistanceMm: frontPosition, frontFromSensorMm: frontPosition})}>Save measurement — continue training</Button>
         </>}
         {active && state?.status === "return_preparing" &&
           <Alert color="blue">Measurement saved. Setting and checking turnouts for the return trip.</Alert>}
         {active && state?.status === "returning" &&
-          <Alert color="blue">Returning toward the starting block. The entry sensor starts adaptive braking; after the train stops, measure the sensor-to-tail distance again.</Alert>}
+          <Alert color="blue">Returning toward the starting block. The entry sensor starts adaptive braking; after stopping, measure how far the train front entered the block again.</Alert>}
         {state?.status === "completed" && state.locoId === loco.id &&
           <Alert color="green">Operator approved braking profile is saved.</Alert>}
         {(error || state?.error) && <Alert color="red">{error || state?.error}</Alert>}
