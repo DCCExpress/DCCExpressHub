@@ -15,7 +15,8 @@ public sealed class PrecisionBrakingRuntime
         double TargetDistanceMm, bool IsolatedTestTrackConfirmed, int ReturnSpeedStep = 20,
         double? TargetFrontClearanceMm = null, double SensorDistanceMm = 0);
     public sealed record TrialMeasurement(double ActualDistanceMm,
-        double? FrontClearanceMm = null, double? RearClearanceMm = null);
+        double? FrontClearanceMm = null, double? RearClearanceMm = null,
+        bool Approve = false);
     public sealed record TrialState(string Status, string? Error,
         string? LocoId, int? LocoAddress, int? SensorAddress,
         string? Direction, int? SpeedStep, double? SpeedMmPerSecond,
@@ -696,10 +697,11 @@ public sealed class PrecisionBrakingRuntime
             {
                 _trials.Add(row);
                 _actual = measurement.ActualDistanceMm;
-                _status = "return_preparing";
+                _status = measurement.Approve ? "measure" : "return_preparing";
             }
-            // Every measurement is provisional until operator approval.
-            // Continue alternating directions with the newly learned values.
+            // Approval includes the just-recorded physical measurement.
+            if (measurement.Approve)
+                return await ApproveAsync();
             _ = Task.Run(() => ReturnToStartAsync(trial));
             return (true, "");
         }
@@ -791,6 +793,7 @@ public sealed class PrecisionBrakingRuntime
                     ? _layout.BlocksForPersistence().FirstOrDefault(b => b.Id == reverseRoute.FromBlockId)?.SensorAddress
                     : null;
                 _startOffTicks = null;
+                _currentSpeedMmS = 0;
                 _referenceSensor = origin.SensorAddress;
                 _status = "returning";
             }
