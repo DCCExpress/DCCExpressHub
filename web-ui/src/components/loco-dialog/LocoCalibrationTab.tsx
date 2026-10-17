@@ -6,6 +6,7 @@ import {
   Group,
   NumberInput,
   ScrollArea,
+  Select,
   TextInput,
   Stack,
   Table,
@@ -292,6 +293,12 @@ export default function LocoCalibrationTab({
         ?.routeLengthMm ??
       1000
     );
+
+  const [scale, setScale] = useState<"H0" | "TT" | "N">("H0");
+
+  const scaleRatio = { H0: 87, TT: 120, N: 160 }[scale];
+  const prototypeKmh = (mmPerSecond: number): number =>
+    mmPerSecond * scaleRatio * 0.0036;
 
   const [
     maxSpeed,
@@ -956,6 +963,19 @@ export default function LocoCalibrationTab({
                   }
                 />
 
+                <Select
+                  label="Scale"
+                  value={scale}
+                  onChange={value => {
+                    if (value === "H0" || value === "TT" || value === "N") setScale(value);
+                  }}
+                  data={[
+                    { value: "H0", label: "H0 (1:87)" },
+                    { value: "TT", label: "TT (1:120)" },
+                    { value: "N", label: "N (1:160)" },
+                  ]}
+                />
+
                 <NumberInput
                   label={t("locodialog.calibration.maxSpeed")}
                   value={
@@ -1303,7 +1323,7 @@ export default function LocoCalibrationTab({
                                     row.millimetersPerSecond.toFixed(
                                       2
                                     )
-                                  } mm/s
+                                  } mm/s ({prototypeKmh(row.millimetersPerSecond).toFixed(1)} km/h)
                                 </Table.Td>
                               </Table.Tr>
                             )
