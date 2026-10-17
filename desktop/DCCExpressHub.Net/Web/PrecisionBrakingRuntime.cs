@@ -42,6 +42,7 @@ public sealed class PrecisionBrakingRuntime
     int? _referenceSensor;
     int? _returnSensor;
     TaskCompletionSource<bool>? _returnArrival;
+    bool _returnTrial;
     TrialRequest? _active;
     double _currentSpeedMmS;
     string _status = "idle";
@@ -563,7 +564,20 @@ public sealed class PrecisionBrakingRuntime
                 returnArrival = _returnArrival;
         if (returnArrival is not null)
         {
+            TrialRequest? reverseTrial;
+            CancellationToken reverseToken;
+            lock (_sync)
+            {
+                reverseTrial = _active;
+                reverseToken = _cts?.Token ?? CancellationToken.None;
+                _returnSensor = null;
+                _returnArrival = null;
+                _referenceSensor = address;
+                _status = "braking";
+            }
             returnArrival.TrySetResult(true);
+            if (reverseTrial is not null && !reverseToken.IsCancellationRequested)
+                _ = Task.Run(() => BrakeAsync(reverseTrial, reverseToken));
             return;
         }
         TrialRequest? trial;
@@ -705,11 +719,19 @@ public sealed class PrecisionBrakingRuntime
             {
                 _trials.Add(row);
                 _actual = measurement.ActualDistanceMm;
-                _status = "return_preparing";
+                _status = _returnTrial ? "completed" : "return_preparing";
             }
-            // Save/OK is the operator's permission to restore the test position.
-            // The gate stays held until the return has stopped.
-            _ = Task.Run(() => ReturnToStartAsync(trial));
+            if (_returnTrial)
+            {
+                // Both directions have now been physically measured and saved.
+                ReleaseGate();
+            }
+            else
+            {
+                // First measurement authorizes the reverse trial, not an
+                // uncontrolled sensor-triggered stop.
+                _ = Task.Run(() => ReturnToStartAsync(trial));
+            }
             return (true, "");
         }
         catch (Exception ex)
@@ -783,26 +805,32 @@ public sealed class PrecisionBrakingRuntime
                 token.ThrowIfCancellationRequested();
                 _returnSensor = origin.SensorAddress;
                 _returnArrival = arrival;
+                _returnTrial = true;
+                var reverseTargetLength = ReadBlockLengthMm(reverseRoute.ToBlockId);
+                if (reverseTargetLength is null || _trainLengthMm is null ||
+                    !trial.TargetFrontClearanceMm.HasValue ||
+                    reverseTargetLength.Value < _trainLengthMm.Value + trial.TargetFrontClearanceMm.Value)
+                    throw new InvalidOperationException("braking_return_block_geometry_invalid");
+                _targetBlockLengthMm = reverseTargetLength;
+                _active = trial with {
+                    RouteRef = reverseRoute,
+                    TargetDistanceMm = reverseTargetLength.Value - trial.TargetFrontClearanceMm.Value,
+                    SpeedStep = trial.SpeedStep
+                };
+                _actual = null;
                 _status = "returning";
             }
 
-            // Operator-selected return speed, validated at trial start.
-            var speed = trial.ReturnSpeedStep;
+            // Same cruise speed in both directions; braking profile is direction-specific.
+            var speed = trial.SpeedStep;
             if (!await _commandCenter.SetLocoAsync(
                 trial.LocoAddress, speed, trial.RouteRef.Direction != "forward", token))
                 throw new InvalidOperationException("braking_return_command_failed");
 
-            // Operator-supervised return; Stop and E-STOP remain available.
+            // The return sensor triggers BrakeAsync, including the learned
+            // speed-zero delay. The resulting stop must be measured by the
+            // operator; never mark the return as completed on sensor ON.
             await arrival.Task.WaitAsync(token);
-            if (!await _commandCenter.SetLocoAsync(
-                trial.LocoAddress, 0, trial.RouteRef.Direction != "forward"))
-                throw new InvalidOperationException("braking_return_stop_failed");
-
-            lock (_sync)
-            {
-                _status = "completed";
-                _error = null;
-            }
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -826,7 +854,9 @@ public sealed class PrecisionBrakingRuntime
                 _returnArrival = null;
                 _returnSensor = null;
             }
-            ReleaseGate();
+            // Preserve exclusive calibration ownership until the reverse
+            // physical stopping measurement is recorded (or Stop/E-STOP).
+            if (_status == "error") ReleaseGate();
         }
     }
 
