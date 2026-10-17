@@ -33,7 +33,6 @@ export default function PrecisionBrakingPanel({
   const [selectedRoute, setSelectedRoute] = useState<BrakingRouteSelection | null>(null);
   const [speedStep, setSpeedStep] = useState<number | string>(20);
   const [distance, setDistance] = useState<number | string>(200);
-  const [measured, setMeasured] = useState<number | string>(200);
   const [frontClearance, setFrontClearance] = useState<number | string>(50);
   const [rearClearance, setRearClearance] = useState<number | string>(50);
   const [returnSpeed, setReturnSpeed] = useState<number | string>(30);
@@ -95,6 +94,7 @@ export default function PrecisionBrakingPanel({
   const rearGap = Number(rearClearance);
   const measurementConsistent = blockLength > 0 && frontClearance !== "" && rearClearance !== "" &&
     frontGap >= 0 && rearGap >= 0 &&
+    Number.isFinite(frontGap) && Number.isFinite(rearGap) &&
     Math.abs(blockLength - frontGap - rearGap - trainLength) <= 10;
   return <Stack gap="md">
     <Group justify="flex-end">
