@@ -34,7 +34,8 @@ export default function PrecisionBrakingPanel({
   const [selectedRoute, setSelectedRoute] = useState<BrakingRouteSelection | null>(null);
   const [speedStep, setSpeedStep] = useState<number | string>(20);
   const [distance, setDistance] = useState<number | string>(200);
-  const [sensorToTail, setSensorToTail] = useState<number | string>(50);
+  const [measuredFront, setMeasuredFront] = useState<number | string>("");
+  const [measuredRear, setMeasuredRear] = useState<number | string>("");
   const [confirmed, setConfirmed] = useState(false);
   // Braking trial UI preferences are local to this browser and locomotive.
   // They do not change decoder CVs, speed calibration or saved trial data.
@@ -107,11 +108,15 @@ export default function PrecisionBrakingPanel({
     state.direction !== null && state.direction !== undefined &&
     state.direction !== selectedRoute.routeRef.direction;
   const measuredBlockLength = arrivingAtA ? sourceBlockLength : blockLength;
-  const rearGap = sensorToTail === "" ? NaN : Number(sensorToTail);
-  const frontGap = measuredBlockLength - rearGap - trainLength;
-  const measurementConsistent = measuredBlockLength > 0 && sensorToTail !== "" &&
-    Number.isFinite(rearGap) && rearGap >= -20000 &&
-    rearGap + trainLength <= 20000;
+  const frontPosition = measuredFront === "" ? NaN : Number(measuredFront);
+  const rearPosition = measuredRear === "" ? NaN : Number(measuredRear);
+  const frontGap = measuredBlockLength - frontPosition;
+  const rearGap = rearPosition;
+  const geometryDifference = frontPosition - rearPosition - trainLength;
+  const measurementConsistent = measuredBlockLength > 0 && trainLength > 0 &&
+    Number.isFinite(frontPosition) && frontPosition >= 0 && frontPosition <= 20000 &&
+    Number.isFinite(rearPosition) && rearPosition >= -20000 &&
+    Math.abs(geometryDifference) <= 10;
   return <Stack gap="md">
     <Group justify="flex-end">
       <Button component="a" variant="subtle" size="xs"
@@ -203,7 +208,7 @@ export default function PrecisionBrakingPanel({
           <Button color="orange" variant="outline" disabled={busy || !active}
             onClick={() => void action("/stop")}>Stop (speed 0)</Button>
           <Button color="green" disabled={busy || !measurementConsistent || state?.status !== "measure" || state?.locoId !== loco.id}
-            onClick={() => void action("/measure", { actualDistanceMm: rearGap + trainLength, rearClearanceMm: rearGap, approve: true })}>OK — approve measured braking</Button>
+            onClick={() => void action("/measure", { actualDistanceMm: frontPosition, frontFromSensorMm: frontPosition, rearFromSensorMm: rearPosition, approve: true })}>OK — approve measured braking</Button>
           <Button color="red" variant="outline" disabled={busy || (!active && state?.status !== "stopped")}
             onClick={() => void action("/abort")}>Abort — discard training</Button>
           <Button color="red" onClick={() => void action("/estop")}>E-STOP</Button>
@@ -216,14 +221,18 @@ export default function PrecisionBrakingPanel({
         {state?.status === "armed" && active && <Alert color="blue">Locomotive moving. Braking begins on sensor ON.</Alert>}
         {state?.status === "braking" && active && <Alert color="blue">Applying braking ramp. Do not measure yet.</Alert>}
         {state?.status === "measure" && active && <>
-          <Alert color="blue">Mérd a vonat legvégének távolságát a célblokk belépési szaggatott vonalától. A felé: az A blokk jobb szélétől, C felé: a C blokk bal szélétől. Pozitív: a teljes vonat már bent van. Negatív: a vonat hátulja még kilóg.</Alert>
-          <NumberInput label="Train rear vs entry boundary (mm; + inside, − outside)" min={-20000} max={20000}
-            value={sensorToTail} onChange={setSensorToTail} />
-          {measurementConsistent && <Text size="xs" c="dimmed">Train rear: {rearGap} mm · Front: {rearGap + trainLength} mm · Clearance to block exit: {frontGap.toFixed(1)} mm.</Text>}
-          {measurementConsistent && rearGap < 0 && <Alert color="orange">Train rear protrudes by {Math.abs(rearGap).toFixed(1)} mm before the block entry.</Alert>}
-          {measurementConsistent && frontGap < 0 && <Alert color="orange">The train front extends beyond the block by {Math.abs(frontGap).toFixed(1)} mm.</Alert>}
+          <Alert color="blue">Mindkét pontot a célblokk belépési szaggatott vonalától mérd, a menetirány szerint! Vonat eleje: hány mm-re jutott be a blokkba (pozitív). Vonat vége: hol áll a szerelvény legutolsó pontja (+ bent / − még kilóg). A felé az A jobb oldalától, C felé a C bal oldalától mérj.</Alert>
+          <NumberInput label="Vonat ELEJE a belépési szenzortól (mm)" min={0} max={20000}
+            value={measuredFront} onChange={setMeasuredFront} />
+          <NumberInput label="Vonat VÉGE a belépési szenzortól (mm; − kilóg)" min={-20000} max={20000}
+            value={measuredRear} onChange={setMeasuredRear} />
+          {Number.isFinite(geometryDifference) && Math.abs(geometryDifference) > 10 &&
+            <Alert color="orange">A két mérés közötti távolság nem egyezik a {trainLength} mm szerelvényhosszal (eltérés: {geometryDifference.toFixed(1)} mm).</Alert>}
+          {measurementConsistent && <Text size="xs" c="dimmed">Eleje: {frontPosition.toFixed(1)} mm · Vége: {rearPosition.toFixed(1)} mm · Hely a blokk végéig: {frontGap.toFixed(1)} mm</Text>}
+          {measurementConsistent && rearGap < 0 && <Alert color="orange">A szerelvény vége {Math.abs(rearGap).toFixed(1)} mm-rel kilóg a belépési oldalon.</Alert>}
+          {measurementConsistent && frontGap < 0 && <Alert color="orange">A szerelvény eleje {Math.abs(frontGap).toFixed(1)} mm-rel túllóg a blokk végén.</Alert>}
           <Button loading={busy} disabled={busy || !measurementConsistent}
-            onClick={() => void action("/measure", {actualDistanceMm: rearGap + trainLength, rearClearanceMm: rearGap})}>Save measurement — continue training</Button>
+            onClick={() => void action("/measure", {actualDistanceMm: frontPosition, frontFromSensorMm: frontPosition, rearFromSensorMm: rearPosition})}>Save measurement — continue training</Button>
         </>}
         {active && state?.status === "return_preparing" &&
           <Alert color="blue">Measurement saved. Setting and checking turnouts for the return trip.</Alert>}
