@@ -117,6 +117,7 @@ export default function PrecisionBrakingRouteSelector({
             fromName: found.fromBlockName,
             toName: found.toBlockName,
             sensorAddress: sensors.get(found.toBlockId)!,
+            blockLengthMm: lengths.get(found.toBlockId) ?? 0,
           });
         } else {
           onSelect(null);
