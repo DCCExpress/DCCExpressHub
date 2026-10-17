@@ -885,18 +885,6 @@ export default function LocoCalibrationTab({
                     {routeLabel}
                   </Text>
 
-                  {
-                    false &&
-                    selectedRoute &&
-                    !reverseRoute && (
-                      <Text
-                        size="xs"
-                        c="red"
-                      >
-                        {t("locodialog.calibration.reverseMissing")}
-                      </Text>
-                    )
-                  }
                 </Stack>
 
                 <Button
@@ -912,6 +900,9 @@ export default function LocoCalibrationTab({
                 </Button>
               </Group>
 
+              <Text size="xs" c="orange">
+                Single fixed-route pass. Turnouts are prepared and locked before departure. Intermediate sensors do not control the run. Reposition the locomotive before another speed point.
+              </Text>
               <Group
                 grow
                 align="flex-end"
