@@ -159,6 +159,8 @@ export type Loco = {
   invert: boolean;
   image?: string;
   length: number;
+  locomotiveLengthMm?: number;
+  wagonsLengthMm?: number;
   trainType?: LocoTrainType;
   occupancyDetectionPosition?: LocoOccupancyDetectionPosition;
   /** Detector reference measured from train's physical forward end, in mm. */
