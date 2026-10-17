@@ -621,5 +621,21 @@
     "allStarted": "All tasks started.",
     "allFinishing": "All tasks marked for finish.",
     "allAborted": "All active tasks aborted."
+  },
+  "precisionBrakingMeasurement": {
+    "title": "Precision Braking — block positions",
+    "diagramAria": "A and C stopping blocks, with a dimension arrow from each dashed entry boundary to the end of the train",
+    "forward": "Forward",
+    "distance": "Distance (mm)",
+    "pull": "Pull",
+    "push": "Push",
+    "locomotive": "Loco",
+    "wagons": "Wagons",
+    "diagramHelp": "Measure from the dashed entry boundary to the end of the train: A uses the right-hand boundary, C the left-hand boundary. The front position is calculated from the train length. Not to scale.",
+    "measureHelp": "Measure just one distance from the target block's dashed entry line to the end of the train. A: right-hand line; C: left-hand line. Positive means the rear is inside; negative means it is still outside.",
+    "fieldHint": "Block entry line → train rear (+ inside, − outside)",
+    "rearReport": "Rear: {{rear}} mm · calculated front: {{front}} mm · space to block exit: {{clearance}} mm",
+    "rearOutside": "The train rear extends {{distance}} mm outside the block at its entry.",
+    "frontOutside": "The train front extends {{distance}} mm beyond the block exit."
   }
 }
