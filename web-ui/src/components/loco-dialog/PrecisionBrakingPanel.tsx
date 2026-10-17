@@ -222,7 +222,7 @@ export default function PrecisionBrakingPanel({
           <NumberInput label={t("precisionBrakingMeasurement.distance")}
             description={t("precisionBrakingMeasurement.fieldHint")} min={1} max={20000}
             value={measuredOverlap} onChange={setMeasuredOverlap} />
-          {measurementConsistent && <Text size="xs" c="dimmed">{t("precisionBrakingMeasurement.rearReport", {rear: rearPosition.toFixed(1), front: frontPosition.toFixed(1), clearance: frontGap.toFixed(1)})}</Text>}
+          {measurementConsistent && <Text size="xs" c="dimmed">{t("precisionBrakingMeasurement.positionReport", {rear: rearPosition.toFixed(1), front: frontPosition.toFixed(1), clearance: frontGap.toFixed(1)})}</Text>}
           {measurementConsistent && rearGap < 0 && <Alert color="orange">{t("precisionBrakingMeasurement.rearOutside", {distance: Math.abs(rearGap).toFixed(1)})}</Alert>}
           {measurementConsistent && frontGap < 0 && <Alert color="orange">{t("precisionBrakingMeasurement.frontOutside", {distance: Math.abs(frontGap).toFixed(1)})}</Alert>}
           <Button loading={busy} disabled={busy || !measurementConsistent}
