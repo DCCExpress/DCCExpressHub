@@ -16,8 +16,12 @@ type Props = {
  */
 export default function TrainGeometryPreview(_props: Props) {
   const [mode, setMode] = useState<ConsistMode>("pull");
-  const locomotiveX = mode === "pull" ? 325 : 185;
-  const wagonX = mode === "pull" ? 185 : 325;
+  const imageHeight = 40;
+  const locomotiveWidth = 113 * imageHeight / 44;
+  const wagonWidth = 264;
+  const trainStartX = (650 - locomotiveWidth - wagonWidth) / 2;
+  const locomotiveX = mode === "pull" ? trainStartX + wagonWidth : trainStartX;
+  const wagonX = mode === "pull" ? trainStartX : trainStartX + locomotiveWidth;
 
   return (
     <Stack gap="sm">
@@ -68,16 +72,16 @@ export default function TrainGeometryPreview(_props: Props) {
             href="/images/bobo.png"
             x={locomotiveX}
             y="45"
-            width="140"
-            height="40"
+            width={locomotiveWidth}
+            height={imageHeight}
             preserveAspectRatio="xMidYMid meet"
           />
           <image
             href="/images/vagon.png"
             x={wagonX}
             y="45"
-            width="140"
-            height="40"
+            width={wagonWidth}
+            height={imageHeight}
             preserveAspectRatio="xMidYMid meet"
           />
         </svg>
