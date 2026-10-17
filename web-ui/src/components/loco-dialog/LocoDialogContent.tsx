@@ -167,11 +167,26 @@ export default function LocoDialogContent({
                 />
 
                 <NumberInput
-                  label="Train length (mm)"
-                  value={selectedLoco.length}
+                  label="Locomotive length (mm)"
+                  value={selectedLoco.locomotiveLengthMm ?? selectedLoco.length}
                   min={1}
-                  onChange={value => updateSelectedLoco({ length: Math.max(1, Number(value) || 1) })}
+                  onChange={value => {
+                    const locomotiveLengthMm = Math.max(1, Number(value) || 1);
+                    const wagonsLengthMm = selectedLoco.wagonsLengthMm ?? 0;
+                    updateSelectedLoco({ locomotiveLengthMm, wagonsLengthMm, length: locomotiveLengthMm + wagonsLengthMm });
+                  }}
                 />
+                <NumberInput
+                  label="Total wagon length (mm)"
+                  value={selectedLoco.wagonsLengthMm ?? 0}
+                  min={0}
+                  onChange={value => {
+                    const wagonsLengthMm = Math.max(0, Number(value) || 0);
+                    const locomotiveLengthMm = selectedLoco.locomotiveLengthMm ?? selectedLoco.length;
+                    updateSelectedLoco({ locomotiveLengthMm, wagonsLengthMm, length: locomotiveLengthMm + wagonsLengthMm });
+                  }}
+                />
+                <Text size="xs" c="dimmed">Total train length: {selectedLoco.length} mm</Text>
 
                 <Checkbox
                   label="Entire train electrically detectable"
@@ -195,6 +210,8 @@ export default function LocoDialogContent({
                   </Stack>
                   <TrainGeometryPreview
                     trainLengthMm={selectedLoco.length}
+                    locomotiveLengthMm={selectedLoco.locomotiveLengthMm ?? selectedLoco.length}
+                    wagonsLengthMm={selectedLoco.wagonsLengthMm ?? 0}
                     entireTrainDetectable={selectedLoco.entireTrainDetectable ?? false}
                     clearanceMarginMm={selectedLoco.trainClearanceMarginMm ?? 30}
                   />
