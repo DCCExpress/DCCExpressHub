@@ -5,21 +5,22 @@ type Props = {
   locomotiveLengthMm: number;
   wagonsLengthMm: number;
   blockLengthMm: number;
+  sourceBlockLengthMm: number;
   frontClearanceMm: number;
   rearClearanceMm: number;
 };
 
 /** Dynamic SVG: the two train positions explain A -> B -> C, not live tracking. */
 export default function PrecisionBrakingDiagram({
-  mode, locomotiveLengthMm, wagonsLengthMm, blockLengthMm,
+  mode, locomotiveLengthMm, wagonsLengthMm, blockLengthMm, sourceBlockLengthMm,
   frontClearanceMm, rearClearanceMm,
 }: Props) {
   const engineWidth = 113 * 20 / 44;
   const wagonWidth = 264 * 20 / 40;
   const blocks = [
-    { name: "A", x: 18, fill: "#60a5fa", tint: "#60a5fa", label: "#93c5fd" },
-    { name: "B", x: 228, fill: "#22c55e", tint: "#22c55e", label: "#86efac" },
-    { name: "C", x: 438, fill: "#f59e0b", tint: "#f59e0b", label: "#fcd34d" },
+    { name: "A", x: 18 },
+    { name: "B", x: 228 },
+    { name: "C", x: 438 },
   ];
   const blockWidth = 194;
   const trainStartA = 18 + 4;
@@ -52,9 +53,6 @@ export default function PrecisionBrakingDiagram({
         </defs>
         {blocks.map(block => (
           <g key={block.name}>
-            <rect x={block.x} y="49" width={blockWidth} height="106" rx="10"
-              fill={block.tint} fillOpacity=".09"
-              stroke={block.fill} strokeWidth="1.5" />
             <text x={block.x + blockWidth / 2} y="144"
               fontSize="17" fontWeight="700" textAnchor="middle"
               fill="currentColor">{block.name}</text>
@@ -76,13 +74,15 @@ export default function PrecisionBrakingDiagram({
         <text x="325" y="176" textAnchor="middle" fill="currentColor" fontSize="11">
           {mode === "pull" ? "Pull" : "Push"} · Loco {locomotiveLengthMm} mm
           {" · "}Wagons {wagonsLengthMm} mm
-          {blockLengthMm > 0 ? ` · Block C ${blockLengthMm} mm` : ""}
+          {sourceBlockLengthMm > 0 ? ` · A ${sourceBlockLengthMm} mm` : ""}
+          {blockLengthMm > 0 ? ` · C ${blockLengthMm} mm` : ""}
         </text>
       </svg>
       <Text size="xs" c="dimmed">
-        A: start · B: travel · C: target stopping block. Illustration only,
-        not a physical scale drawing. Front: {frontClearanceMm} mm;
-        rear: {rearClearanceMm} mm from block boundaries.
+        A: starting block ({sourceBlockLengthMm || "unknown"} mm) · B: travel ·
+        C: stopping block ({blockLengthMm || "unknown"} mm). Distances are measured from
+        the dashed entry boundary to the train tail: {rearClearanceMm} mm in C.
+        Front clearance: {frontClearanceMm} mm. Illustration, not to scale.
       </Text>
     </Card>
   );
