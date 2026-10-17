@@ -639,6 +639,20 @@ public sealed class PrecisionBrakingRuntime
 
     public async Task<(bool Ok, string Error)> RecordAsync(TrialMeasurement measurement)
     {
+        // UI sends ONE positive measurement: entry-sensor line to the
+        // LEADING end of the consist. This is already the travelled distance
+        // inside the destination block; do not add the train length.
+        if (measurement.FrontFromSensorMm.HasValue &&
+            !measurement.RearFromSensorMm.HasValue)
+        {
+            var overlap = measurement.FrontFromSensorMm.Value;
+            if (!double.IsFinite(overlap) || overlap <= 0 || overlap > 20000)
+                return (false, "braking_invalid_front_overlap");
+            measurement = measurement with {
+                ActualDistanceMm = overlap,
+                FrontFromSensorMm = null
+            };
+        }
         if (measurement.RearFromSensorMm.HasValue &&
             !measurement.FrontFromSensorMm.HasValue)
         {
