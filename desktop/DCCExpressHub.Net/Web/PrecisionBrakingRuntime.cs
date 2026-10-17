@@ -906,13 +906,9 @@ public sealed class PrecisionBrakingRuntime
         }
         if (trial is not null)
         {
-            var reverse = false;
-            lock (_sync) reverse = _returnSensor.HasValue;
-            if (reverse)
-                await _commandCenter.SetLocoAsync(trial.LocoAddress, 0,
-                    trial.RouteRef.Direction != "forward");
-            else
-                await StopPowerOnlyAsync(trial);
+            // _active always contains the actual travel direction, including
+            // the return trip. Never invert it a second time during Stop.
+            await StopPowerOnlyAsync(trial);
         }
         // The starting task owns final cleanup while it is still preparing;
         // releasing its gate here would let a second Start overlap it.
