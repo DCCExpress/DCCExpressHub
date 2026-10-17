@@ -2,6 +2,7 @@ import { Alert, Badge, Button, Card, Checkbox, Group, NumberInput, Stack, Table,
 import { useCallback, useEffect, useState } from "react";
 import type { Loco } from "@domain/types";
 import PrecisionBrakingRouteSelector, { type BrakingRouteSelection } from "./PrecisionBrakingRouteSelector";
+import PrecisionBrakingDiagram from "./PrecisionBrakingDiagram";
 
 type Point = { dccStep: number; direction: string; millimetersPerSecond: number; estimatedStoppingDistanceMm: number; samples: number; baselineStoppingDistanceMm?: number | null };
 type State = { status: string; error: string | null; locoId: string | null; locoAddress: number | null; sensorAddress: number | null; direction: string | null; speedStep: number | null; speedMmPerSecond: number | null; targetDistanceMm: number | null; actualDistanceMm: number | null; profile: Point[]; commandedRampSeconds?: number };
@@ -118,6 +119,14 @@ export default function PrecisionBrakingPanel({
         </Group>
         {!hasSpeedProfile && <Alert color="orange">Complete Speed Calibration for this locomotive first.</Alert>}
         {other && <Alert color="orange">Another locomotive is being calibrated.</Alert>}
+        <PrecisionBrakingDiagram
+          mode={loco.trainConsistMode ?? "pull"}
+          locomotiveLengthMm={loco.locomotiveLengthMm ?? loco.length}
+          wagonsLengthMm={loco.wagonsLengthMm ?? 0}
+          blockLengthMm={blockLength}
+          frontClearanceMm={frontGap}
+          rearClearanceMm={rearGap}
+        />
         <PrecisionBrakingRouteSelector locoId={loco.id} savedRouteRef={loco.precisionBraking?.routeRef}
           selected={selectedRoute} disabled={!!active || !!other || busy}
           onSelect={route => {
