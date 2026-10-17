@@ -222,7 +222,33 @@ public sealed class PrecisionBrakingRuntime
             // Route is selected explicitly in Precision Braking. Only the
             // authoritative persisted route graph determines its physical path.
             // Speed Calibration's saved route is not used for route authority.
-            var actualRoute = request.RouteRef;
+            // Identify the physical starting end of the selected A-C route.
+            // The trial direction follows the occupied block, never a stale UI direction.
+            var currentBlocks = _layout.BlocksForPersistence();
+            bool HasSelectedLoco(int blockId) => currentBlocks.Any(block =>
+                block.Id == blockId && !block.TargetOnly &&
+                block.LocoAddress == request.LocoAddress &&
+                string.Equals(block.LocoId, request.LocoId, StringComparison.Ordinal));
+            var atA = HasSelectedLoco(request.RouteRef.FromBlockId);
+            var atC = HasSelectedLoco(request.RouteRef.ToBlockId);
+            if (atA == atC)
+                return (false, atA ? "braking_locomotive_in_both_end_blocks"
+                    : "braking_locomotive_not_in_selected_end_blocks");
+            var actualRoute = atA ? request.RouteRef : Reverse(request.RouteRef);
+            var destinationLength = ReadBlockLengthMm(actualRoute.ToBlockId);
+            if (request.TargetFrontClearanceMm.HasValue)
+            {
+                var clearance = request.TargetFrontClearanceMm.Value;
+                if (destinationLength is null || !double.IsFinite(clearance) ||
+                    clearance < 0 || destinationLength.Value - clearance is < 10 or > 10000)
+                    return (false, "braking_invalid_destination_geometry");
+                request = request with {
+                    RouteRef = actualRoute,
+                    TargetDistanceMm = destinationLength.Value - clearance
+                };
+            }
+            else request = request with { RouteRef = actualRoute };
+            lock (_sync) _active = request;
             var plan = _planBuilder.Build(new MovementPageModel
             {
                 Id = "precision-braking-route-validation",
