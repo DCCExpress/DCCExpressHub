@@ -12,8 +12,10 @@ public sealed class PrecisionBrakingRuntime
 {
     public sealed record TrialRequest(string LocoId, int LocoAddress,
         MovementRouteRefModel RouteRef, int SpeedStep,
-        double TargetDistanceMm, bool IsolatedTestTrackConfirmed, int ReturnSpeedStep = 20);
-    public sealed record TrialMeasurement(double ActualDistanceMm);
+        double TargetDistanceMm, bool IsolatedTestTrackConfirmed, int ReturnSpeedStep = 20,
+        double? TargetFrontClearanceMm = null);
+    public sealed record TrialMeasurement(double ActualDistanceMm,
+        double? FrontClearanceMm = null, double? RearClearanceMm = null);
     public sealed record TrialState(string Status, string? Error,
         string? LocoId, int? LocoAddress, int? SensorAddress,
         string? Direction, int? SpeedStep, double? SpeedMmPerSecond,
@@ -32,6 +34,8 @@ public sealed class PrecisionBrakingRuntime
     readonly AppPaths _paths;
     readonly MovementPlanBuilder _planBuilder;
     readonly LayoutRuntime _layout;
+    double? _targetBlockLengthMm;
+    double? _trainLengthMm;
     readonly ILogger<PrecisionBrakingRuntime> _log;
     CancellationTokenSource? _cts;
     bool _ownsGate;
@@ -149,6 +153,29 @@ public sealed class PrecisionBrakingRuntime
         }
     }
 
+    // Physical length belongs to the selected destination block in layout.json.
+    // Never use screen pixel dimensions as a substitute for millimetres.
+    double? ReadBlockLengthMm(int blockId)
+    {
+        var path = Path.Combine(_paths.ConfigRootPath, "layout.json");
+        if (!File.Exists(path)) return null;
+        var root = JsonNode.Parse(File.ReadAllText(path));
+        if (root?["layers"] is not JsonArray layers) return null;
+        foreach (var layer in layers.OfType<JsonObject>())
+            if (layer["elements"] is JsonArray elements)
+                foreach (var element in elements.OfType<JsonObject>())
+                {
+                    if (element["type"]?.ToString() != "trackblock" ||
+                        !int.TryParse(element["id"]?.ToString(), out var id) || id != blockId)
+                        continue;
+                    return double.TryParse(element["length"]?.ToString(),
+                        System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out var length) &&
+                        double.IsFinite(length) && length > 0 ? length : null;
+                }
+        return null;
+    }
+
     public async Task<(bool Ok, string Error)> StartAsync(TrialRequest request)
     {
         if (!request.IsolatedTestTrackConfirmed)
@@ -235,6 +262,33 @@ public sealed class PrecisionBrakingRuntime
             if (targetBlock is null || targetBlock.SensorAddress == 0)
                 return (false, "braking_target_block_sensor_missing");
             var referenceSensor = targetBlock.SensorAddress;
+            var blockLengthMm = ReadBlockLengthMm(actualRoute.ToBlockId);
+            var locomotiveLengthMm = double.TryParse(loco["locomotiveLengthMm"]?.ToString(),
+                System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var locomotiveLength)
+                ? locomotiveLength : 0;
+            var wagonLengthMm = double.TryParse(loco["wagonsLengthMm"]?.ToString(),
+                System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var wagonLength)
+                ? wagonLength : 0;
+            var trainLengthMm = locomotiveLengthMm + wagonLengthMm;
+            if (request.TargetFrontClearanceMm.HasValue)
+            {
+                if (blockLengthMm is null || locomotiveLengthMm <= 0 || wagonLengthMm < 0 ||
+                    !double.IsFinite(trainLengthMm) ||
+                    !double.IsFinite(request.TargetFrontClearanceMm.Value) ||
+                    request.TargetFrontClearanceMm.Value < 0 ||
+                    blockLengthMm.Value <= trainLengthMm + request.TargetFrontClearanceMm.Value)
+                    return (false, "braking_train_does_not_fit_block");
+                var expected = blockLengthMm.Value - request.TargetFrontClearanceMm.Value;
+                if (Math.Abs(expected - request.TargetDistanceMm) > 1)
+                    return (false, "braking_target_geometry_mismatch");
+            }
+            lock (_sync)
+            {
+                _targetBlockLengthMm = blockLengthMm;
+                _trainLengthMm = trainLengthMm > 0 ? trainLengthMm : null;
+            }
 
             // Reject missing feedback before touching any turnouts. The same
             // state is rechecked below immediately before sending throttle.
@@ -463,6 +517,27 @@ public sealed class PrecisionBrakingRuntime
 
     public async Task<(bool Ok, string Error)> RecordAsync(TrialMeasurement measurement)
     {
+        if (measurement.FrontClearanceMm.HasValue || measurement.RearClearanceMm.HasValue)
+        {
+            double? blockLength, trainLength;
+            lock (_sync) { blockLength = _targetBlockLengthMm; trainLength = _trainLengthMm; }
+            if (!measurement.FrontClearanceMm.HasValue ||
+                !measurement.RearClearanceMm.HasValue ||
+                blockLength is null || trainLength is null ||
+                !double.IsFinite(measurement.FrontClearanceMm.Value) ||
+                !double.IsFinite(measurement.RearClearanceMm.Value) ||
+                measurement.FrontClearanceMm.Value < 0 ||
+                measurement.RearClearanceMm.Value < 0)
+                return (false, "braking_invalid_train_clearances");
+            // Distance from the entrance sensor to the front of the train.
+            var fromFront = blockLength.Value - measurement.FrontClearanceMm.Value;
+            var fromRear = measurement.RearClearanceMm.Value + trainLength.Value;
+            if (fromFront < trainLength.Value ||
+                fromFront > blockLength.Value ||
+                Math.Abs(fromFront - fromRear) > 10)
+                return (false, "braking_train_geometry_inconsistent");
+            measurement = measurement with { ActualDistanceMm = fromFront };
+        }
         if (!double.IsFinite(measurement.ActualDistanceMm) ||
             measurement.ActualDistanceMm is < 0 or > 20000)
             return (false, "invalid_measured_distance");
