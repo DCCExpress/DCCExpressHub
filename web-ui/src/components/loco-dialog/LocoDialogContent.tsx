@@ -214,6 +214,8 @@ export default function LocoDialogContent({
                     wagonsLengthMm={selectedLoco.wagonsLengthMm ?? 0}
                     entireTrainDetectable={selectedLoco.entireTrainDetectable ?? false}
                     clearanceMarginMm={selectedLoco.trainClearanceMarginMm ?? 30}
+                    mode={selectedLoco.trainConsistMode ?? "pull"}
+                    onModeChange={trainConsistMode => updateSelectedLoco({ trainConsistMode })}
                   />
                 </SimpleGrid>
               </ScrollArea>
