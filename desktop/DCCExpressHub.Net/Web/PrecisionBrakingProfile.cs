@@ -45,8 +45,10 @@ public static class PrecisionBrakingProfile
         if (Math.Abs(errorMm) <= 5) return lastTime;
         // Adjust the physically observed delay, not a predicted braking distance.
         // Limit each increase to avoid large untested overshoots.
-        var delta = 0.65 * errorMm / speedMmS;
-        delta = Math.Clamp(delta, -1.25, 0.75);
+        var delta = 0.9 * errorMm / speedMmS;
+        delta = Math.Clamp(delta, -1.5, 1.0);
+        // A zero-delay baseline cannot be shortened further. Overshoot at
+        // this point requires lower cruise speed or an earlier braking trigger.
         return Math.Clamp(lastTime + delta, 0, maxRamp);
     }
 
