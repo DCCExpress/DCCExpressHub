@@ -212,7 +212,7 @@ export default function PrecisionBrakingPanel({
         {state?.status === "armed" && active && <Alert color="blue">Locomotive moving. Braking begins on sensor ON.</Alert>}
         {state?.status === "braking" && active && <Alert color="blue">Applying braking ramp. Do not measure yet.</Alert>}
         {state?.status === "measure" && active && <>
-          <Alert color="blue">After the train stops, measure only the distance from the dashed entry boundary (reference sensor) to the REAR of the whole train, in millimetres. The train's front is calculated from its saved total length. Measure in the current direction of travel, whether the locomotive is pulling or pushing.</Alert>
+          <Alert color="blue">After the train stops in either direction, measure only the distance from the dashed entry boundary (reference sensor) to the REAR of the whole train, in millimetres. The train's front is calculated from its saved total length. Measure in the current direction of travel, whether the locomotive is pulling or pushing.</Alert>
           <NumberInput label="Sensor to train tail (mm)" min={0} max={20000}
             value={sensorToTail} onChange={setSensorToTail} />
           {measurementConsistent && <Text size="xs" c="dimmed">Train rear: {rearGap} mm · Front: {rearGap + trainLength} mm · Clearance to block exit: {frontGap.toFixed(1)} mm.</Text>}
@@ -223,9 +223,9 @@ export default function PrecisionBrakingPanel({
         {active && state?.status === "return_preparing" &&
           <Alert color="blue">Measurement saved. Setting and checking turnouts for the return trip.</Alert>}
         {active && state?.status === "returning" &&
-          <Alert color="blue">Returning to the starting block. The locomotive will stop on its starting-block sensor.</Alert>}
+          <Alert color="blue">Returning toward the starting block. The entry sensor starts adaptive braking; after the train stops, measure the sensor-to-tail distance again.</Alert>}
         {state?.status === "completed" && state.locoId === loco.id &&
-          <Alert color="green">Returned to the starting block. Ready for the next braking trial.</Alert>}
+          <Alert color="green">Both directions measured and saved. Ready for the next adaptive braking trial.</Alert>}
         {(error || state?.error) && <Alert color="red">{error || state?.error}</Alert>}
       </Stack>
     </Card>
