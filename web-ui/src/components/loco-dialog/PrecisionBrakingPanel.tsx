@@ -89,8 +89,13 @@ export default function PrecisionBrakingPanel({
   const blockLength = selectedRoute?.blockLengthMm ?? 0;
   const desiredFrontGap = Number(distance);
   const targetDistance = blockLength - desiredFrontGap;
-  const fitsBlock = blockLength > 0 && trainLength > 0 && Number.isFinite(desiredFrontGap) &&
-    desiredFrontGap >= 0 && targetDistance >= trainLength && targetDistance >= 10 && targetDistance <= 10000;
+  const sourceBlockLength = selectedRoute?.sourceBlockLengthMm ?? 0;
+  // The train may start in either endpoint. Both must accommodate the consist.
+  const fitsDestination = (length: number) => length > 0 && trainLength > 0 &&
+    Number.isFinite(desiredFrontGap) && desiredFrontGap >= 0 &&
+    length - desiredFrontGap >= trainLength &&
+    length - desiredFrontGap >= 10 && length - desiredFrontGap <= 10000;
+  const fitsBlock = fitsDestination(blockLength) && fitsDestination(sourceBlockLength);
   const frontGap = Number(frontClearance);
   const rearGap = Number(rearClearance);
   const measurementConsistent = blockLength > 0 && frontClearance !== "" && rearClearance !== "" &&
@@ -149,11 +154,13 @@ export default function PrecisionBrakingPanel({
           onChange={v => { setReturnSpeed(v); savePreference("returnSpeed", v); }}
           min={1} max={126} disabled={!!active}
           description="Speed for returning to the starting block; stops on the starting-block sensor." />
-        <Text size="xs">Destination block: {blockLength || "—"} mm · Train: {trainLength} mm</Text>
+        <Text size="xs">A block: {sourceBlockLength || "—"} mm · C block: {blockLength || "—"} mm · Train: {trainLength} mm</Text>
         <NumberInput label="Desired front clearance to block end (mm)" value={distance}
           onChange={v => { setDistance(v); savePreference("distance", v); }}
           min={0} max={10000} disabled={!!active} />
-        {selectedRoute && !fitsBlock && <Alert color="red">The train and requested front clearance must fit within the measured destination block. Check the block and train lengths.</Alert>}
+        {selectedRoute && !fitsBlock && <Alert color="red">Both A and C must be long enough for the train and selected front clearance. Check the block and consist lengths.</Alert>}
+        {!hasSpeedProfile && <Text size="xs" c="orange">Start Trial is disabled until Speed Calibration results are saved for this locomotive.</Text>}
+        {selectedRoute && fitsBlock && <Text size="xs" c="dimmed">The backend detects whether the locomotive is in A or C, selects the corresponding travel direction and learned braking curve, and measures toward the opposite block.</Text>}
         <Checkbox checked={confirmed} onChange={event => setConfirmed(event.currentTarget.checked)}
           label="I confirm the track is physically isolated, clear and supervised." disabled={!!active} />
         <Group>
