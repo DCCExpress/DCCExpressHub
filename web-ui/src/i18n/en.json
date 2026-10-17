@@ -624,18 +624,18 @@
   },
   "precisionBrakingMeasurement": {
     "title": "Precision Braking — block positions",
-    "diagramAria": "A and C stopping blocks, with a dimension arrow from each dashed entry boundary to the end of the train",
+    "diagramAria": "A and C braking blocks. The arrow measures positive distance travelled INTO the block, from its dashed entry boundary to the leading end of the train.",
     "forward": "Forward",
     "distance": "Distance (mm)",
     "pull": "Pull",
     "push": "Push",
     "locomotive": "Loco",
     "wagons": "Wagons",
-    "diagramHelp": "Measure from the dashed entry boundary to the end of the train: A uses the right-hand boundary, C the left-hand boundary. The front position is calculated from the train length. Not to scale.",
-    "measureHelp": "Measure just one distance from the target block's dashed entry line to the end of the train. A: right-hand line; C: left-hand line. Positive means the rear is inside; negative means it is still outside.",
-    "fieldHint": "Block entry line → train rear (+ inside, − outside)",
-    "rearReport": "Rear: {{rear}} mm · calculated front: {{front}} mm · space to block exit: {{clearance}} mm",
-    "rearOutside": "The train rear extends {{distance}} mm outside the block at its entry.",
+    "diagramHelp": "Measure how far the TRAIN FRONT has entered the destination block. In forward travel (right), the right edge is the front; in reverse travel (left), the left edge is the front. A: from the right dashed boundary; C: from the left. Always enter a positive distance. Not to scale.",
+    "measureHelp": "Enter one POSITIVE distance in mm: how far the train FRONT has travelled past the target block's dashed entry line. Forward (right): measure to the train's rightmost edge. Reverse (left): measure to its leftmost edge. The rear position is calculated from the train length.",
+    "fieldHint": "Distance from target entry sensor to the leading edge INSIDE the block (> 0 mm)",
+    "positionReport": "Measured front penetration: {{front}} mm · Calculated rear: {{rear}} mm · Room before block exit: {{clearance}} mm",
+    "rearOutside": "The calculated train rear still protrudes {{distance}} mm beyond the entry.",
     "frontOutside": "The train front extends {{distance}} mm beyond the block exit."
   }
 }
