@@ -279,12 +279,84 @@ public sealed class CalibrationRuntime
             null);
     }
 
-    // One fixed route, one speed measurement, no implicit return journey.
+    static MovementRouteRefModel ReverseRouteRef(MovementRouteRefModel route) =>
+        new()
+        {
+            FromBlockId = route.ToBlockId,
+            ToBlockId = route.FromBlockId,
+            Direction = route.Direction == "forward" ? "reverse" : "forward",
+            ViaBlockIds = (route.ViaBlockIds ?? []).Reverse().ToArray()
+        };
+
     async Task RunCalibration(
         CalibrationStartRequest request,
         CancellationTokenSource cancellation)
     {
-        var token = cancellation.Token;
+        try
+        {
+            // Each step gets a full outbound and return measurement. No leg
+            // handover during measurement; reservations are reacquired before
+            // the direction is reversed.
+            for (var speed = request.SpeedStep; speed <= request.MaxSpeed;
+                 speed += request.SpeedStep)
+            {
+                cancellation.Token.ThrowIfCancellationRequested();
+                await RunCalibrationPass(request, request.RouteRef,
+                    speed, "outbound", cancellation.Token);
+                cancellation.Token.ThrowIfCancellationRequested();
+                await Task.Delay(350, cancellation.Token);
+                await RunCalibrationPass(request, ReverseRouteRef(request.RouteRef),
+                    speed, "return", cancellation.Token);
+                await PersistResults(request);
+                await Task.Delay(350, cancellation.Token);
+            }
+            lock (_gate)
+                _state = Snapshot() with {
+                    Status = "completed", CurrentSpeed = null,
+                    CurrentDirection = null, Info = "Calibration completed",
+                    Error = null
+                };
+        }
+        catch (OperationCanceledException)
+        {
+            lock (_gate)
+                _state = Snapshot() with {
+                    Status = "idle", CurrentSpeed = null,
+                    CurrentDirection = null, Info = "Calibration stopped"
+                };
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Calibration failed");
+            lock (_gate)
+                _state = Snapshot() with {
+                    Status = "error", CurrentSpeed = null,
+                    CurrentDirection = null, Error = ex.Message,
+                    Info = "Calibration failed"
+                };
+        }
+        finally
+        {
+            try { await PersistResults(request); }
+            catch (Exception ex) {
+                _log.LogWarning(ex, "Calibration persistence failed");
+            }
+            lock (_gate)
+            {
+                _cancellation?.Dispose();
+                _cancellation = null;
+            }
+            _exclusiveGate.ExitCalibration();
+        }
+    }
+
+    async Task RunCalibrationPass(
+        CalibrationStartRequest request,
+        MovementRouteRefModel routeRef,
+        int speed,
+        string direction,
+        CancellationToken token)
+    {
         string? owner = null;
         bool moving = false;
         try
@@ -294,8 +366,8 @@ public sealed class CalibrationRuntime
                 Id = "calibration:" + Guid.NewGuid().ToString("N"),
                 Name = "Speed Calibration",
                 Enabled = true,
-                Speed = request.SpeedStep,
-                RouteRef = request.RouteRef,
+                Speed = speed,
+                RouteRef = routeRef,
                 ExpectedLocoAddress = request.LocoAddress,
                 BlockRules = [],
                 ResourceEventRules = [],
@@ -350,11 +422,10 @@ public sealed class CalibrationRuntime
                 !_layout.TryGetSensorState(endSensor, out var endOn) || endOn)
                 throw new InvalidOperationException("calibration_endpoint_sensors_not_ready");
 
-            var speed = request.SpeedStep;
             lock (_gate)
                 _state = Snapshot() with {
-                    CurrentSpeed = speed, CurrentDirection = "outbound",
-                    Info = "Full route locked: one-way calibration running"
+                    CurrentSpeed = speed, CurrentDirection = direction,
+                    Info = "Full route locked: " + direction + " at speed " + speed
                 };
             if (!await _commandCenter.SetLocoAsync(
                     request.LocoAddress, speed, _forward, token))
@@ -390,34 +461,17 @@ public sealed class CalibrationRuntime
                     request.LocoAddress, 0, _forward, CancellationToken.None))
                 throw new InvalidOperationException("calibration_loco_stop_failed");
             moving = false;
-            var row = new CalibrationResultRow(speed, "outbound", elapsed.Value,
+            var row = new CalibrationResultRow(speed, direction, elapsed.Value,
                 Math.Round(request.RouteLengthMm * 1000d / elapsed.Value, 3));
             lock (_gate)
             {
                 _results.Add(row);
                 _state = Snapshot() with {
-                    Status = "completed", CurrentSpeed = null, CurrentDirection = null,
+                    Status = "running", CurrentSpeed = null, CurrentDirection = null,
                     Info = "Measured " + row.MillimetersPerSecond.ToString("0.###") + " mm/s",
                     Error = null
                 };
             }
-        }
-        catch (OperationCanceledException)
-        {
-            lock (_gate)
-                _state = Snapshot() with {
-                    Status = "idle", CurrentSpeed = null,
-                    CurrentDirection = null, Info = "Calibration stopped"
-                };
-        }
-        catch (Exception ex)
-        {
-            _log.LogError(ex, "Calibration failed");
-            lock (_gate)
-                _state = Snapshot() with {
-                    Status = "error", CurrentSpeed = null,
-                    CurrentDirection = null, Error = ex.Message, Info = "Calibration failed"
-                };
         }
         finally
         {
@@ -426,7 +480,7 @@ public sealed class CalibrationRuntime
                 try
                 {
                     if (!await _commandCenter.SetLocoAsync(
-                            request.LocoAddress, 0, _forward, CancellationToken.None))
+                        request.LocoAddress, 0, _forward, CancellationToken.None))
                         _movement.EmergencyStop();
                 }
                 catch (Exception ex)
@@ -435,15 +489,7 @@ public sealed class CalibrationRuntime
                     _movement.EmergencyStop();
                 }
             }
-            try { await PersistResults(request); }
-            catch (Exception ex) { _log.LogWarning(ex, "Calibration persistence failed"); }
             if (owner is not null) _dispatcher.ReleaseRoute(owner);
-            lock (_gate)
-            {
-                _cancellation?.Dispose();
-                _cancellation = null;
-            }
-            _exclusiveGate.ExitCalibration();
         }
     }
 
