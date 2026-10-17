@@ -622,5 +622,21 @@
     "allStarted": "Alle Aufgaben gestartet.",
     "allFinishing": "Alle Aufgaben zum Beenden markiert.",
     "allAborted": "Alle aktiven Aufgaben abgebrochen."
+  },
+  "precisionBrakingMeasurement": {
+    "title": "Precision Braking — Blockpositionen",
+    "diagramAria": "Zielblöcke A und C; die Maßpfeile reichen von der gestrichelten Einfahrgrenze bis zum Zugende",
+    "forward": "Vorwärts",
+    "distance": "Abstand (mm)",
+    "pull": "Ziehen",
+    "push": "Schieben",
+    "locomotive": "Lok",
+    "wagons": "Wagen",
+    "diagramHelp": "Miss von der gestrichelten Einfahrgrenze bis zum Zugende: bei A von der rechten, bei C von der linken Grenze. Die Zugspitze wird aus der Zuglänge berechnet. Nicht maßstabsgetreu.",
+    "measureHelp": "Miss nur einen Abstand von der gestrichelten Einfahrgrenze des Zielblocks bis zum Zugende. Bei A ist es die rechte, bei C die linke Grenze. Positiv: Zugende im Block; negativ: Zugende ragt noch heraus.",
+    "fieldHint": "Blockeinfahrt → Zugende (+ im Block, − außerhalb)",
+    "rearReport": "Zugende: {{rear}} mm · berechnete Spitze: {{front}} mm · Platz bis zum Blockende: {{clearance}} mm",
+    "rearOutside": "Das Zugende ragt an der Einfahrt um {{distance}} mm aus dem Block.",
+    "frontOutside": "Die Zugspitze ragt um {{distance}} mm über das Blockende hinaus."
   }
 }
