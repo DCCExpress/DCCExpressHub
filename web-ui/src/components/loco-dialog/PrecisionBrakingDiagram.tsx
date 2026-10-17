@@ -50,6 +50,9 @@ export default function PrecisionBrakingDiagram({
             refX="7" refY="4" orient="auto">
             <path d="M0 0 L8 4 L0 8 Z" fill="#3b82f6" />
           </marker>
+          <marker id="braking-measure-head" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto-start-reverse">
+            <path d="M0 0 L7 3.5 L0 7 Z" fill="#dc2626" />
+          </marker>
         </defs>
         {blocks.map(block => (
           <g key={block.name}>
@@ -69,6 +72,16 @@ export default function PrecisionBrakingDiagram({
           stroke="#64748b" strokeWidth="2.5" fill="none" />
         {[220, 430].map(x => <path key={x} d={`M${x} 49 V155`}
           stroke="currentColor" strokeWidth="2" strokeDasharray="5 5" />)}
+        {/* A: train travels left, rear is its rightmost point. */}
+        <path d={`M220 62 H${trainStartA + engineWidth + wagonWidth}`}
+          stroke="#dc2626" strokeWidth="2.5" fill="none"
+          markerStart="url(#braking-measure-head)" markerEnd="url(#braking-measure-head)" />
+        <text x="185" y="51" fontSize="11" fill="#dc2626" textAnchor="middle">A: mérd itt</text>
+        {/* C: train travels right, rear is its leftmost point. */}
+        <path d={`M430 62 H${trainStartC}`}
+          stroke="#dc2626" strokeWidth="2.5" fill="none"
+          markerStart="url(#braking-measure-head)" markerEnd="url(#braking-measure-head)" />
+        <text x="459" y="51" fontSize="11" fill="#dc2626" textAnchor="middle">C: mérd itt</text>
         {train(trainStartA, "origin")}
         {train(trainStartC, "destination")}
         <text x="325" y="176" textAnchor="middle" fill="currentColor" fontSize="11">
@@ -80,9 +93,7 @@ export default function PrecisionBrakingDiagram({
       </svg>
       <Text size="xs" c="dimmed">
         A: starting block ({sourceBlockLengthMm || "unknown"} mm) · B: travel ·
-        C: stopping block ({blockLengthMm || "unknown"} mm). Distances are measured from
-        the dashed entry boundary to the train tail: {rearClearanceMm} mm in C.
-        Front clearance: {frontClearanceMm} mm. Illustration, not to scale.
+        C: stopping block ({blockLengthMm || "unknown"} mm). A felé: az A jobb oldali szaggatott vonalától mérj a vonat végéig. C felé: a C bal oldali vonalától. Pozitív = bent van; negatív = kilóg. Nem méretarányos.
       </Text>
     </Card>
   );
