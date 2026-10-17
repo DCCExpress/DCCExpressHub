@@ -176,6 +176,35 @@ public sealed class PrecisionBrakingRuntime
         return null;
     }
 
+    // Feedback can arrive asynchronously after the command acknowledgement.
+    // Never mistake the first 250 ms without feedback for a verified mismatch.
+    async Task<(bool Verified, string Reason)> WaitForTurnoutAsync(
+        ushort address, bool expectedClosed, CancellationToken token)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(3);
+        bool hadFeedback = false;
+        bool lastClosed = false;
+        while (DateTime.UtcNow < deadline)
+        {
+            token.ThrowIfCancellationRequested();
+            if (!_commandCenter.Connected)
+                return (false, $"braking_turnout_{address}_disconnected");
+            if (_layout.TryGetTurnoutClosed(address, out var closed))
+            {
+                hadFeedback = true;
+                lastClosed = closed;
+                if (closed == expectedClosed) return (true, "");
+            }
+            await Task.Delay(100, token);
+        }
+        _log.LogWarning(
+            "Precision Braking turnout #{Address}: expected closed={Expected}, feedbackKnown={Known}, lastClosed={Actual}",
+            address, expectedClosed, hadFeedback, lastClosed);
+        return (false, hadFeedback
+            ? $"braking_turnout_{address}_position_mismatch_expected_{(expectedClosed ? "closed" : "open")}"
+            : $"braking_turnout_{address}_feedback_unknown");
+    }
+
     public async Task<(bool Ok, string Error)> StartAsync(TrialRequest request)
     {
         if (!request.IsolatedTestTrackConfirmed)
@@ -406,10 +435,10 @@ public sealed class PrecisionBrakingRuntime
                     return (false, "command_center_disconnected");
                 if (!await _commandCenter.SetTurnoutAsync(turnout.Key, turnout.Value, preparingToken))
                     return (false, "braking_turnout_command_failed");
-                await Task.Delay(250, preparingToken);
-                if (!_layout.TryGetTurnoutClosed(turnout.Key, out var closed)
-                    || closed != turnout.Value)
-                    return (false, "braking_turnout_unverified");
+                var verification = await WaitForTurnoutAsync(
+                    turnout.Key, turnout.Value, preparingToken);
+                if (!verification.Verified)
+                    return (false, verification.Reason);
             }
             if (Busy() || !_commandCenter.Connected || _commandCenter.EmergencyPaused)
                 return (false, "braking_start_interlock_failed");
@@ -700,10 +729,10 @@ public sealed class PrecisionBrakingRuntime
                 if (!await _commandCenter.SetTurnoutAsync(
                     turnout.Key, turnout.Value, token))
                     throw new InvalidOperationException("braking_return_turnout_command_failed");
-                await Task.Delay(250, token);
-                if (!_layout.TryGetTurnoutClosed(turnout.Key, out var closed) ||
-                    closed != turnout.Value)
-                    throw new InvalidOperationException("braking_return_turnout_unverified");
+                var verification = await WaitForTurnoutAsync(
+                    turnout.Key, turnout.Value, token);
+                if (!verification.Verified)
+                    throw new InvalidOperationException(verification.Reason);
             }
             if (!_commandCenter.Connected || _commandCenter.EmergencyPaused)
                 throw new InvalidOperationException("braking_return_command_center_not_ready");
