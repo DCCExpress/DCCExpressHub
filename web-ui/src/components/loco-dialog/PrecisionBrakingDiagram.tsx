@@ -16,15 +16,14 @@ export default function PrecisionBrakingDiagram({
 }: Props) {
   const engineWidth = 113 * 20 / 44;
   const wagonWidth = 264 * 20 / 40;
-  const consistWidth = engineWidth + wagonWidth;
   const blocks = [
     { name: "A", x: 18, fill: "#60a5fa", tint: "#60a5fa", label: "#93c5fd" },
     { name: "B", x: 228, fill: "#22c55e", tint: "#22c55e", label: "#86efac" },
     { name: "C", x: 438, fill: "#f59e0b", tint: "#f59e0b", label: "#fcd34d" },
   ];
   const blockWidth = 194;
-  const trainStartA = blocks[0].x + 30;
-  const trainStartC = blocks[2].x + 30;
+  const trainStartA = blocks[0].x + 4;
+  const trainStartC = blocks[2].x + 4;
   const trackY = 106;
 
   const train = (x: number, key: string) => {
