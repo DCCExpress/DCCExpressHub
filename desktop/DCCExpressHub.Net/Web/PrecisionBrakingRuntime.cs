@@ -16,7 +16,8 @@ public sealed class PrecisionBrakingRuntime
         double? TargetFrontClearanceMm = null, double SensorDistanceMm = 0);
     public sealed record TrialMeasurement(double ActualDistanceMm,
         double? FrontClearanceMm = null, double? RearClearanceMm = null,
-        bool Approve = false);
+        bool Approve = false, double? FrontFromSensorMm = null,
+        double? RearFromSensorMm = null);
     public sealed record TrialState(string Status, string? Error,
         string? LocoId, int? LocoAddress, int? SensorAddress,
         string? Direction, int? SpeedStep, double? SpeedMmPerSecond,
@@ -638,6 +639,24 @@ public sealed class PrecisionBrakingRuntime
 
     public async Task<(bool Ok, string Error)> RecordAsync(TrialMeasurement measurement)
     {
+        if (measurement.FrontFromSensorMm.HasValue || measurement.RearFromSensorMm.HasValue)
+        {
+            double? trainLength;
+            lock (_sync) trainLength = _trainLengthMm;
+            if (trainLength is null ||
+                !measurement.FrontFromSensorMm.HasValue || !measurement.RearFromSensorMm.HasValue ||
+                !double.IsFinite(measurement.FrontFromSensorMm.Value) ||
+                !double.IsFinite(measurement.RearFromSensorMm.Value) ||
+                measurement.FrontFromSensorMm.Value < 0 ||
+                Math.Abs(measurement.FrontFromSensorMm.Value -
+                    measurement.RearFromSensorMm.Value - trainLength.Value) > 10)
+                return (false, "braking_front_rear_geometry_inconsistent");
+            measurement = measurement with {
+                ActualDistanceMm = measurement.FrontFromSensorMm.Value,
+                FrontClearanceMm = null,
+                RearClearanceMm = null
+            };
+        }
         // One physical measurement: distance from the entry sensor to the
         // rear of the entire consist. The front is rear + whole train length.
         // Keep the old two-clearance API compatible with older clients.
