@@ -18,6 +18,7 @@ export type BrakingRouteSelection = {
   toName: string;
   sensorAddress: number;
   blockLengthMm: number;
+  sourceBlockLengthMm: number;
 };
 
 type Props = {
@@ -118,6 +119,7 @@ export default function PrecisionBrakingRouteSelector({
             toName: found.toBlockName,
             sensorAddress: sensors.get(found.toBlockId)!,
             blockLengthMm: lengths.get(found.toBlockId) ?? 0,
+            sourceBlockLengthMm: lengths.get(found.fromBlockId) ?? 0,
           });
         } else {
           onSelect(null);
@@ -153,6 +155,7 @@ export default function PrecisionBrakingRouteSelector({
       toName: candidate.toBlockName,
       sensorAddress: sensor,
       blockLengthMm: lengthByBlock.get(candidate.toBlockId) ?? 0,
+      sourceBlockLengthMm: lengthByBlock.get(candidate.fromBlockId) ?? 0,
     });
     setOpened(false);
     setError(null);
