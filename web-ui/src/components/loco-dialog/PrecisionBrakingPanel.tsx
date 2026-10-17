@@ -95,7 +95,21 @@ export default function PrecisionBrakingPanel({
     Number.isFinite(desiredFrontGap) && desiredFrontGap >= 0 &&
     length - desiredFrontGap >= trainLength &&
     length - desiredFrontGap >= 10 && length - desiredFrontGap <= 10000;
-  const fitsBlock = fitsDestination(blockLength) && fitsDestination(sourceBlockLength);
+  const startBlockers: string[] = [];
+  if (!confirmed) startBlockers.push("Confirm that the test track is isolated and supervised.");
+  if (!hasSpeedProfile) startBlockers.push("No Speed Calibration results are saved for this locomotive.");
+  if (!selectedRoute) startBlockers.push("Select a valid A–C braking route (including its return route).");
+  if (selectedRoute && !fitsDestination(sourceBlockLength))
+    startBlockers.push(`Block A: ${sourceBlockLength || "unknown"} mm. Train ${trainLength} mm + front clearance ${desiredFrontGap} mm does not fit (or the block length is missing).`);
+  if (selectedRoute && !fitsDestination(blockLength))
+    startBlockers.push(`Block C: ${blockLength || "unknown"} mm. Train ${trainLength} mm + front clearance ${desiredFrontGap} mm does not fit (or the block length is missing).`);
+  if (!Number.isInteger(Number(speedStep)) || Number(speedStep) < 1 || Number(speedStep) > 126)
+    startBlockers.push("Approach speed must be a DCC step between 1 and 126.");
+  if (!Number.isInteger(Number(returnSpeed)) || Number(returnSpeed) < 1 || Number(returnSpeed) > 126)
+    startBlockers.push("Return speed must be a DCC step between 1 and 126.");
+  if (other) startBlockers.push("Another locomotive has an active braking trial.");
+  if (active) startBlockers.push("This locomotive already has an active braking trial.");
+  if (busy) startBlockers.push("A braking request is being processed.");
   const arrivingAtA = state?.locoId === loco.id && !!selectedRoute &&
     state.direction !== null && state.direction !== undefined &&
     state.direction !== selectedRoute.routeRef.direction;
@@ -162,15 +176,17 @@ export default function PrecisionBrakingPanel({
         <NumberInput label="Desired front clearance to block end (mm)" value={distance}
           onChange={v => { setDistance(v); savePreference("distance", v); }}
           min={0} max={10000} disabled={!!active} />
-        {selectedRoute && !fitsBlock && <Alert color="red">Both A and C must be long enough for the train and selected front clearance. Check the block and consist lengths.</Alert>}
         {!hasSpeedProfile && <Text size="xs" c="orange">Start Trial is disabled until Speed Calibration results are saved for this locomotive.</Text>}
         {selectedRoute && fitsBlock && <Text size="xs" c="dimmed">The backend detects whether the locomotive is in A or C, selects the corresponding travel direction and learned braking curve, and measures toward the opposite block.</Text>}
         <Checkbox checked={confirmed} onChange={event => setConfirmed(event.currentTarget.checked)}
           label="I confirm the track is physically isolated, clear and supervised." disabled={!!active} />
+        {startBlockers.length > 0 && <Alert color="orange" title="Why Start Trial is disabled">
+          <Stack gap={4}>
+            {startBlockers.map(reason => <Text size="sm" key={reason}>• {reason}</Text>)}
+          </Stack>
+        </Alert>}
         <Group>
-          <Button disabled={!confirmed || !hasSpeedProfile || !!active || !!other || busy ||
-            !selectedRoute || !fitsBlock || !Number(speedStep) || !Number(returnSpeed) ||
-            Number(returnSpeed) > 126 || Number(returnSpeed) < 1}
+          <Button disabled={startBlockers.length > 0}
             loading={busy} onClick={() => void action("/start", {
               locoId: loco.id, locoAddress: loco.address, routeRef: selectedRoute?.routeRef,
               speedStep: Number(speedStep), returnSpeedStep: Number(returnSpeed),
