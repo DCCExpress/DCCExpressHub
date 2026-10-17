@@ -124,6 +124,7 @@ export default function PrecisionBrakingPanel({
           locomotiveLengthMm={loco.locomotiveLengthMm ?? loco.length}
           wagonsLengthMm={loco.wagonsLengthMm ?? 0}
           blockLengthMm={blockLength}
+          sourceBlockLengthMm={selectedRoute?.sourceBlockLengthMm ?? 0}
           frontClearanceMm={frontGap}
           rearClearanceMm={rearGap}
         />
@@ -181,7 +182,7 @@ export default function PrecisionBrakingPanel({
           <Alert color="blue">Speed 0 commanded. Once stopped, measure the train front from the block exit boundary and the train rear from the block entry boundary. A negative rear clearance means the tail is still outside the block; you can still record that early training result.</Alert>
           <NumberInput label="Front clearance to block end (mm)" min={0} max={20000}
             value={frontClearance} onChange={setFrontClearance} />
-          <NumberInput label="Rear clearance to block start (mm; negative = tail outside)" min={-20000} max={20000}
+          <NumberInput label="Train tail from dashed block entry boundary (mm; negative = tail outside)" min={-20000} max={20000}
             value={rearClearance} onChange={setRearClearance} />
           {rearGap < 0 && <Alert color="orange">Train tail is outside the destination block by {Math.abs(rearGap)} mm. The train is not fully inside.</Alert>}
           <Text size="xs" c="dimmed">Block {blockLength} − front {frontClearance} − rear {rearClearance} − train {trainLength} = {(blockLength - frontGap - rearGap - trainLength).toFixed(1)} mm difference (tolerance 10 mm).</Text>
