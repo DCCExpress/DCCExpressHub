@@ -177,7 +177,7 @@ export default function PrecisionBrakingPanel({
           onChange={v => { setDistance(v); savePreference("distance", v); }}
           min={0} max={10000} disabled={!!active} />
         {!hasSpeedProfile && <Text size="xs" c="orange">Start Trial is disabled until Speed Calibration results are saved for this locomotive.</Text>}
-        {selectedRoute && fitsBlock && <Text size="xs" c="dimmed">The backend detects whether the locomotive is in A or C, selects the corresponding travel direction and learned braking curve, and measures toward the opposite block.</Text>}
+        {selectedRoute && fitsDestination(sourceBlockLength) && fitsDestination(blockLength) && <Text size="xs" c="dimmed">The backend detects whether the locomotive is in A or C, selects the corresponding travel direction and learned braking curve, and measures toward the opposite block.</Text>}
         <Checkbox checked={confirmed} onChange={event => setConfirmed(event.currentTarget.checked)}
           label="I confirm the track is physically isolated, clear and supervised." disabled={!!active} />
         {startBlockers.length > 0 && <Alert color="orange" title="Why Start Trial is disabled">
