@@ -646,7 +646,7 @@ public sealed class PrecisionBrakingRuntime
             double? trainLength;
             lock (_sync) trainLength = _trainLengthMm;
             if (trainLength is null || !double.IsFinite(measurement.RearClearanceMm.Value) ||
-                measurement.RearClearanceMm.Value < 0)
+                measurement.RearClearanceMm.Value < -20000)
                 return (false, "braking_invalid_sensor_to_tail_distance");
             measurement = measurement with
             {
