@@ -225,16 +225,41 @@ public sealed class PrecisionBrakingRuntime
             // Identify the physical starting end of the selected A-C route.
             // The trial direction follows the occupied block, never a stale UI direction.
             var currentBlocks = _layout.BlocksForPersistence();
-            bool HasSelectedLoco(int blockId) => currentBlocks.Any(block =>
-                block.Id == blockId && !block.TargetOnly &&
-                block.LocoAddress == request.LocoAddress &&
-                string.Equals(block.LocoId, request.LocoId, StringComparison.Ordinal));
-            var atA = HasSelectedLoco(request.RouteRef.FromBlockId);
-            var atC = HasSelectedLoco(request.RouteRef.ToBlockId);
-            if (atA == atC)
-                return (false, atA ? "braking_locomotive_in_both_end_blocks"
-                    : "braking_locomotive_not_in_selected_end_blocks");
-            var actualRoute = atA ? request.RouteRef : Reverse(request.RouteRef);
+            var occupiedByLoco = currentBlocks.Where(block =>
+                !block.TargetOnly && block.LocoAddress == request.LocoAddress)
+                .ToArray();
+            // Some layouts track by address but have no persistent LocoId binding.
+            // A matching, nonempty different LocoId is still a conflict.
+            var matching = occupiedByLoco.Where(block =>
+                string.IsNullOrWhiteSpace(block.LocoId) ||
+                string.Equals(block.LocoId, request.LocoId, StringComparison.Ordinal))
+                .ToArray();
+            if (matching.Length != 1 || occupiedByLoco.Length != 1)
+                return (false, matching.Length == 0
+                    ? "braking_locomotive_block_unknown_assign_locomotive_to_layout"
+                    : "braking_locomotive_block_ambiguous");
+
+            var pathBlocks = new[] { request.RouteRef.FromBlockId }
+                .Concat(request.RouteRef.ViaBlockIds ?? [])
+                .Append(request.RouteRef.ToBlockId).ToArray();
+            var position = Array.IndexOf(pathBlocks, (int)matching[0].Id);
+            if (position < 0)
+                return (false, "braking_locomotive_outside_selected_route");
+
+            // For a middle block (B), continue toward the selected route's
+            // destination. At C, reverse the complete route toward A.
+            MovementRouteRefModel actualRoute;
+            if (position == pathBlocks.Length - 1)
+                actualRoute = Reverse(request.RouteRef);
+            else
+                actualRoute = new MovementRouteRefModel
+                {
+                    FromBlockId = pathBlocks[position],
+                    ToBlockId = request.RouteRef.ToBlockId,
+                    Direction = request.RouteRef.Direction,
+                    ViaBlockIds = pathBlocks.Skip(position + 1)
+                        .Take(pathBlocks.Length - position - 2).ToArray()
+                };
             var destinationLength = ReadBlockLengthMm(actualRoute.ToBlockId);
             if (request.TargetFrontClearanceMm.HasValue)
             {
@@ -277,8 +302,9 @@ public sealed class PrecisionBrakingRuntime
             if (startBlock is null ||
                 startBlock.TargetOnly ||
                 startBlock.LocoAddress != request.LocoAddress ||
-                !string.Equals(startBlock.LocoId, request.LocoId,
-                    StringComparison.Ordinal))
+                (!string.IsNullOrWhiteSpace(startBlock.LocoId) &&
+                 !string.Equals(startBlock.LocoId, request.LocoId,
+                    StringComparison.Ordinal)))
                 return (false, "braking_start_block_locomotive_mismatch");
 
             // ARRIVED reference is derived from the selected route's target
