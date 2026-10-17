@@ -639,6 +639,22 @@ public sealed class PrecisionBrakingRuntime
 
     public async Task<(bool Ok, string Error)> RecordAsync(TrialMeasurement measurement)
     {
+        if (measurement.RearFromSensorMm.HasValue &&
+            !measurement.FrontFromSensorMm.HasValue)
+        {
+            double? trainLength;
+            lock (_sync) trainLength = _trainLengthMm;
+            var rear = measurement.RearFromSensorMm.Value;
+            if (trainLength is null || !double.IsFinite(rear) ||
+                rear < -trainLength.Value ||
+                !double.IsFinite(rear + trainLength.Value) ||
+                rear + trainLength.Value < 0)
+                return (false, "braking_invalid_rear_distance");
+            measurement = measurement with {
+                ActualDistanceMm = rear + trainLength.Value,
+                RearFromSensorMm = null
+            };
+        }
         if (measurement.FrontFromSensorMm.HasValue || measurement.RearFromSensorMm.HasValue)
         {
             double? trainLength;
