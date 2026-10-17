@@ -526,13 +526,12 @@ public sealed class PrecisionBrakingRuntime
                 blockLength is null || trainLength is null ||
                 !double.IsFinite(measurement.FrontClearanceMm.Value) ||
                 !double.IsFinite(measurement.RearClearanceMm.Value) ||
-                measurement.FrontClearanceMm.Value < 0 ||
-                measurement.RearClearanceMm.Value < 0)
+                measurement.FrontClearanceMm.Value < 0)
                 return (false, "braking_invalid_train_clearances");
             // Distance from the entrance sensor to the front of the train.
             var fromFront = blockLength.Value - measurement.FrontClearanceMm.Value;
             var fromRear = measurement.RearClearanceMm.Value + trainLength.Value;
-            if (fromFront < trainLength.Value ||
+            if (fromFront < 0 ||
                 fromFront > blockLength.Value ||
                 Math.Abs(fromFront - fromRear) > 10)
                 return (false, "braking_train_geometry_inconsistent");
