@@ -7,7 +7,7 @@ import PrecisionBrakingDiagram from "./PrecisionBrakingDiagram";
 
 type Point = { dccStep: number; direction: string; millimetersPerSecond: number; estimatedStoppingDistanceMm: number; samples: number; baselineStoppingDistanceMm?: number | null };
 type State = { status: string; error: string | null; locoId: string | null; locoAddress: number | null; sensorAddress: number | null; direction: string | null; speedStep: number | null; speedMmPerSecond: number | null; targetDistanceMm: number | null; actualDistanceMm: number | null; profile: Point[]; commandedRampSeconds?: number };
-type SavedProfile = { validated: boolean; updatedAt: string | null; samples: number; profile: Point[] };
+type SavedProfile = { validated: boolean; updatedAt: string | null; samples: number; rawSamples?: number; profile: Point[] };
 
 
 async function request(path: string, data?: unknown): Promise<State> {
@@ -165,11 +165,11 @@ export default function PrecisionBrakingPanel({
   const rearGap = rearPosition;
   const measurementConsistent = measuredBlockLength > 0 && trainLength > 0 &&
     Number.isFinite(frontPosition) && frontPosition > 0 && frontPosition <= 20000;
-  // During training use provisional samples; outside a trial show ONLY
-  // operator-approved results loaded from the locomotive's persisted profile.
+  // Show existing measurements even when they predate the approval flag.
+  // An unapproved profile is display-only, never operational braking authority.
   const displayedProfile = active && state?.locoId === loco.id
     ? state.profile
-    : savedProfile?.validated ? savedProfile.profile : [];
+    : savedProfile?.profile ?? [];
   const showingTraining = active && state?.locoId === loco.id;
 
   return <Stack gap="md">
@@ -300,13 +300,19 @@ export default function PrecisionBrakingPanel({
           ? <Badge color="orange">Training — not approved</Badge>
           : savedProfile?.validated
             ? <Badge color="green">Validated · {savedProfile.samples} trials</Badge>
-            : null}
+            : savedProfile && savedProfile.samples > 0
+              ? <Badge color="orange">Stored measurements · not validated</Badge>
+              : null
       </Group>
       <Text size="xs" c="dimmed" mb="sm">Base stop (0) is the measured stopping distance when speed 0 is commanded immediately at the sensor; it is shown separately for each speed and direction. Adaptive stop is the learned result. Deceleration is estimated as −v²/(2s) from the immediate speed-zero baseline; it is unavailable without that measurement. Not applied to normal Movement runs.</Text>
       {savedError && !showingTraining && <Alert color="red">Cannot load saved stopping profile: {savedError}</Alert>}
       {savedLoading && !showingTraining && <Text size="sm" c="dimmed">Loading saved stopping profile…</Text>}
-      {!savedLoading && !savedError && !showingTraining && !savedProfile?.validated &&
-        <Text c="dimmed" size="sm">No approved stopping profile. Start training and finish with OK to validate it.</Text>}
+      {!savedLoading && !savedError && !showingTraining && savedProfile && !savedProfile.validated &&
+        (savedProfile.samples > 0
+          ? <Alert color="orange">These measurements exist on disk, but were never approved with OK. They are shown for reference only and cannot be used for automatic braking.</Alert>
+          : (savedProfile.rawSamples ?? 0) > 0
+            ? <Alert color="orange">There are {savedProfile.rawSamples} saved measurements, but they cannot be interpreted as valid braking samples. The original data is preserved.</Alert>
+            : <Text c="dimmed" size="sm">No stored braking measurements found for this locomotive. An unfinished training session was not saved as an approved profile.</Text>)}
       {showingTraining && !displayedProfile.length && <Text c="dimmed" size="sm">No training measurements yet.</Text>}
       {displayedProfile.length > 0 &&
         <Table striped><Table.Thead><Table.Tr><Table.Th>Direction</Table.Th><Table.Th>DCC</Table.Th><Table.Th>mm/s</Table.Th><Table.Th>Deceleration (mm/s²)</Table.Th><Table.Th>Base stop (0) mm</Table.Th><Table.Th>Adaptive stop mm</Table.Th><Table.Th>Trials</Table.Th></Table.Tr></Table.Thead>
