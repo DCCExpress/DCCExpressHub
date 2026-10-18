@@ -1,4 +1,5 @@
-export interface LocoFunction { id:string; number:number; name:string; icon:string; momentary:boolean; showOnLocoCard:boolean; startupActive:boolean; iconTintMode?:'original'|'tint'; iconColor?:string; }
+export interface FunctionBinding {id:number;name:string;}
+export interface LocoFunction { bindingId?:number|null; id:string; number:number; name:string; icon:string; momentary:boolean; showOnLocoCard:boolean; startupActive:boolean; iconTintMode?:'original'|'tint'; iconColor?:string; }
 export type LocoActionHook='beforeStart'|'afterStart'|'beforeStop'|'afterStop';
 export type LocoAction={id:string;type:'setFunction'|'momentaryFunction'|'wait';functionNumber:number;active:boolean;ms:number};
 export interface Loco {
@@ -14,7 +15,7 @@ export interface Loco {
 }
 export type ElementKind = 'straight'|'curve'|'turnout'|'signal'|'station'|'block'|'text';
 export interface TrackElement { id:string; kind:ElementKind; x:number; y:number; angle:number; label:string; address?:number; }
-export interface Project { version:1; elements:TrackElement[]; locos:Loco[]; }
+export interface Project { version:1; elements:TrackElement[]; locos:Loco[]; functionBindings?:FunctionBinding[]; }
 const DB='dcc-ex-ui'; const STORE='projects'; const KEY='current';
 function open():Promise<IDBDatabase>{return new Promise((resolve,reject)=>{const request=indexedDB.open(DB,1);request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains(STORE)) request.result.createObjectStore(STORE);};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});}
 export async function loadProject():Promise<Project>{const db=await open();try{return await new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readonly');const r=tx.objectStore(STORE).get(KEY);r.onsuccess=()=>resolve(r.result ?? {version:1,elements:[],locos:[]});r.onerror=()=>reject(r.error);});}finally{db.close();}}

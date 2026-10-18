@@ -107,7 +107,7 @@ export function App() {
           </Stack>
         </Modal>
         <Modal opened={locoEditorOpen} onClose={()=>setLocoEditorOpen(false)} title="Locomotives" size="min(1480px, 95vw)" styles={{body:{height:'min(820px, calc(100dvh - 100px))',display:'flex',flexDirection:'column',overflow:'hidden'}}} closeOnEscape={false} closeOnClickOutside={false} withCloseButton={false} centered>
-          {locoEditorOpen && <LocoEditor locos={project.locos} onSave={locos=>{setProject(p=>({...p,locos}));setLocoEditorOpen(false);}} onCancel={()=>setLocoEditorOpen(false)} onDrive={value=>{if(speed===0)setAddress(value);else setError('Stop before changing locomotive.');}}/>}
+          {locoEditorOpen && <LocoEditor locos={project.locos} functionBindings={project.functionBindings??[]} onFunctionTest={(address,fn,active)=>{try{send(functionCommand(address,fn,active));}catch(e){setError(String(e));}}} onSave={(locos,functionBindings)=>{setProject(p=>({...p,locos,functionBindings}));setLocoEditorOpen(false);}} onCancel={()=>setLocoEditorOpen(false)} onDrive={value=>{if(speed===0)setAddress(value);else setError('Stop before changing locomotive.');}}/>}
         </Modal>
         {page==='home' ? (
           <Container size="lg" py="lg">

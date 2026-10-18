@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 import { ActionIcon, Button, Card, Checkbox, Divider, Group, NumberInput, ScrollArea, Select, SimpleGrid, Stack, Table, Tabs, Text, TextInput, Title } from '@mantine/core';
 import { IconTrash } from '@tabler/icons-react';
-import type { Loco, LocoAction, LocoActionHook, LocoFunction } from './storage';
+import type { Loco, LocoAction, LocoActionHook, LocoFunction, FunctionBinding } from './storage';
 import LocoListPanel from './loco-dialog/LocoListPanel';
 import LocoGeneralTab from './loco-dialog/LocoGeneralTab';
 import TrainGeometryPreview from './loco-dialog/TrainGeometryPreview';
 import LocoCounterSettingsPanel from './loco-dialog/LocoCounterSettingsPanel';
+import LocoFunctionsTab from './loco-dialog/LocoFunctionsTab';
 
 const label=(key:string):string=>({
  'locodialog.mozdonylista':'Locomotives','locodialog.newloco':'New locomotive',
@@ -28,7 +29,8 @@ const hooks: {value:LocoActionHook;label:string}[]=[
 ];
 const n=(v:number|string|undefined,otherwise=0)=>Number.isFinite(Number(v))?Number(v):otherwise;
 const makeLoco=():Loco=>({id:crypto.randomUUID(),name:'New locomotive',address:3,manufacturer:'',notes:'',active:true,maxSpeed:126,cruisingSpeed:20,invert:false,length:200,locomotiveLengthMm:200,wagonsLengthMm:0,trainType:'passenger',functions:Array.from({length:29},(_,number)=>({id:crypto.randomUUID(),number,name:number===0?'Headlight':`F${number}`,icon:'',momentary:false,showOnLocoCard:number<5,startupActive:false}))});
-export function LocoEditor({locos:originalLocos,onSave,onCancel,onDrive}:{locos:Loco[];onSave:(value:Loco[])=>void;onCancel:()=>void;onDrive:(address:number)=>void}) {
+export function LocoEditor({locos:originalLocos,functionBindings:originalBindings=[],onSave,onCancel,onDrive,onFunctionTest}:{locos:Loco[];functionBindings?:FunctionBinding[];onSave:(value:Loco[],bindings:FunctionBinding[])=>void;onCancel:()=>void;onDrive:(address:number)=>void;onFunctionTest:(address:number,fn:number,active:boolean)=>void}) {
+ const [functionBindings,setFunctionBindings]=useState<FunctionBinding[]>(()=>structuredClone(originalBindings));
  const [locos,setLocos]=useState<Loco[]>(()=>structuredClone(originalLocos));
  const onChange=setLocos;
  const [saveError,setSaveError]=useState('');
@@ -45,7 +47,7 @@ export function LocoEditor({locos:originalLocos,onSave,onCancel,onDrive}:{locos:
        used.add(fn.number);
      }
    }
-   onSave(locos);
+   onSave(locos,functionBindings);
  };
  const [selectedId,setSelectedId]=useState<string|null>(null);
  const selected=locos.find(l=>l.id===selectedId)??locos[0]??null;
@@ -85,18 +87,13 @@ export function LocoEditor({locos:originalLocos,onSave,onCancel,onDrive}:{locos:
           t={label}
         />
        </Tabs.Panel>
-       <Tabs.Panel value="functions"><Stack gap="sm">
-        <Group justify="space-between"><Text size="sm" c="dimmed">F0–F28 labels and behaviour, as in the original locomotive editor.</Text><Button size="xs" onClick={()=>{const available=Array.from({length:29},(_,i)=>i).find(i=>!functions.some(fn=>fn.number===i));if(available===undefined)return;update({functions:[...functions,{id:crypto.randomUUID(),number:available,name:`F${available}`,icon:'',momentary:false,showOnLocoCard:true,startupActive:false}]});}}>Add function</Button></Group>
-        <Table striped highlightOnHover><Table.Thead><Table.Tr><Table.Th>F</Table.Th><Table.Th>Name</Table.Th><Table.Th>Icon</Table.Th><Table.Th>Momentary</Table.Th><Table.Th>Show</Table.Th><Table.Th>On connect</Table.Th><Table.Th/></Table.Tr></Table.Thead><Table.Tbody>{functions.map(fn=><Table.Tr key={fn.id}>
-         <Table.Td><NumberInput size="xs" w={68} min={0} max={28} value={fn.number} onChange={v=>updateFunction(fn.id,{number:n(v)})}/></Table.Td>
-         <Table.Td><TextInput size="xs" value={fn.name} onChange={e=>updateFunction(fn.id,{name:e.currentTarget.value})}/></Table.Td>
-         <Table.Td><TextInput size="xs" w={70} value={fn.icon} onChange={e=>updateFunction(fn.id,{icon:e.currentTarget.value})}/></Table.Td>
-         <Table.Td><Checkbox checked={fn.momentary} onChange={e=>updateFunction(fn.id,{momentary:e.currentTarget.checked})}/></Table.Td>
-         <Table.Td><Checkbox checked={fn.showOnLocoCard} onChange={e=>updateFunction(fn.id,{showOnLocoCard:e.currentTarget.checked})}/></Table.Td>
-         <Table.Td><Checkbox checked={fn.startupActive} onChange={e=>updateFunction(fn.id,{startupActive:e.currentTarget.checked})}/></Table.Td>
-         <Table.Td><ActionIcon color="red" variant="subtle" onClick={()=>update({functions:functions.filter(item=>item.id!==fn.id)})}><IconTrash size={15}/></ActionIcon></Table.Td>
-        </Table.Tr>)}</Table.Tbody></Table>
-       </Stack></Tabs.Panel>
+       <Tabs.Panel value="functions" pt="md" style={{flex:1,minHeight:0}}>
+         <LocoFunctionsTab functions={functions} functionBindings={functionBindings}
+           onFunctionBindingsChange={setFunctionBindings} onUpdateFunction={updateFunction}
+           onFunctionTest={(fn,active)=>onFunctionTest(selected.address,fn.number,active)}
+           t={label}
+         />
+       </Tabs.Panel>
        <Tabs.Panel value="actions"><Stack gap="sm">
         <Select label="Action hook" data={hooks} value={hook} onChange={v=>setHook((v??'beforeStart') as LocoActionHook)} />
         <Text size="sm" c="dimmed">Action definitions are stored locally. No automation engine runs in Browser Edition.</Text>
