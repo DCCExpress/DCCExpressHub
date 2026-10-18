@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActionIcon, Avatar, Badge, Button, Card, Checkbox, Divider, FileButton, Group, NumberInput, ScrollArea, Select, SimpleGrid, Stack, Switch, Table, Tabs, Text, TextInput, Title } from '@mantine/core';
+import { ActionIcon, Avatar, Button, Card, Checkbox, Divider, FileButton, Group, NumberInput, ScrollArea, Select, SimpleGrid, Stack, Switch, Table, Tabs, Text, TextInput, Title } from '@mantine/core';
 import { IconPlus, IconTrash, IconTrain } from '@tabler/icons-react';
 import type { Loco, LocoAction, LocoActionHook, LocoFunction } from './storage';
 
@@ -14,13 +14,31 @@ function Picture({blob,size=56}:{blob?:Blob;size?:number}) {
  return <Avatar size={size} radius="sm" src={url}><IconTrain size={24}/></Avatar>;
 }
 const makeLoco=():Loco=>({id:crypto.randomUUID(),name:'New locomotive',address:3,manufacturer:'',notes:'',active:true,maxSpeed:126,cruisingSpeed:20,invert:false,length:200,locomotiveLengthMm:200,wagonsLengthMm:0,trainType:'passenger',functions:Array.from({length:29},(_,number)=>({id:crypto.randomUUID(),number,name:number===0?'Headlight':`F${number}`,icon:'',momentary:false,showOnLocoCard:number<5,startupActive:false}))});
-export function LocoEditor({locos,onChange,onDrive}:{locos:Loco[];onChange:(value:Loco[])=>void;onDrive:(address:number)=>void}) {
+export function LocoEditor({locos:originalLocos,onSave,onCancel,onDrive}:{locos:Loco[];onSave:(value:Loco[])=>void;onCancel:()=>void;onDrive:(address:number)=>void}) {
+ const [locos,setLocos]=useState<Loco[]>(()=>structuredClone(originalLocos));
+ const onChange=setLocos;
+ const [saveError,setSaveError]=useState('');
+ const save=()=>{
+   const addresses=new Set<number>();
+   for(const loco of locos){
+     if(!loco.name.trim()){setSaveError('Every locomotive needs a name.');return;}
+     if(!Number.isInteger(loco.address)||loco.address<1||loco.address>10239){setSaveError('Invalid DCC address.');return;}
+     if(addresses.has(loco.address)){setSaveError('Duplicate DCC address: '+loco.address);return;}
+     addresses.add(loco.address);
+     const used=new Set<number>();
+     for(const fn of loco.functions??[]){
+       if(!Number.isInteger(fn.number)||fn.number<0||fn.number>28||used.has(fn.number)){setSaveError('Invalid or duplicate function for '+loco.name);return;}
+       used.add(fn.number);
+     }
+   }
+   onSave(locos);
+ };
  const [selectedId,setSelectedId]=useState<string|null>(null);
  const selected=locos.find(l=>l.id===selectedId)??locos[0]??null;
  const [hook,setHook]=useState<LocoActionHook>('beforeStart');
  const [message,setMessage]=useState('');
  const update=(patch:Partial<Loco>)=>{if(!selected)return;onChange(locos.map(l=>l.id===selected.id?{...l,...patch}:l));};
- const add=()=>{const loco=makeLoco();onChange([...locos,loco]);setSelectedId(loco.id);setMessage('New locomotive added. Changes save automatically to IndexedDB.');};
+ const add=()=>{const loco=makeLoco();onChange([...locos,loco]);setSelectedId(loco.id);setMessage('New locomotive added; press Save to keep it.');};
  const remove=()=>{if(!selected||!window.confirm(`Delete ${selected.name}?`))return;onChange(locos.filter(l=>l.id!==selected.id));setSelectedId(null);};
  const functions=useMemo(()=>[...(selected?.functions??[])].sort((a,b)=>a.number-b.number),[selected?.functions]);
  const updateFunction=(id:string,patch:Partial<LocoFunction>)=>update({functions:functions.map(fn=>fn.id===id?{...fn,...patch}:fn)});
@@ -28,10 +46,10 @@ export function LocoEditor({locos,onChange,onDrive}:{locos:Loco[];onChange:(valu
  const changeActions=(next:LocoAction[])=>update({actions:{...selected?.actions,[hook]:next}});
  const updateAction=(id:string,patch:Partial<LocoAction>)=>changeActions(actions.map(action=>action.id===id?{...action,...patch}:action));
  return <Group wrap="nowrap" gap="md" align="stretch" style={{height:'min(710px, calc(100dvh - 190px))',minHeight:450}}>
-   <Card withBorder p="sm" style={{width:290,flexShrink:0,display:'flex',flexDirection:'column',minHeight:0}}>
+   <Card withBorder p="sm" style={{width:320,flexShrink:0,display:'flex',flexDirection:'column',minHeight:0}}>
     <Group justify="space-between" mb="sm"><Title order={5}>Locomotives</Title><Button size="xs" leftSection={<IconPlus size={15}/>} onClick={add}>Add</Button></Group>
     <ScrollArea style={{flex:1,minHeight:0}}>
-     <Stack gap={5}>{locos.map(loco=><Card withBorder p="xs" key={loco.id} bg={selected?.id===loco.id?'var(--mantine-color-dark-5)':undefined} style={{cursor:'pointer'}} onClick={()=>setSelectedId(loco.id)}><Group gap="xs" wrap="nowrap"><Picture blob={loco.image}/><Stack gap={2} style={{flex:1,minWidth:0}}><Text fw={600} size="sm" truncate>{loco.name}</Text><Group gap={5}><Text size="xs" c="dimmed">DCC {loco.address}</Text>{loco.active===false&&<Badge color="gray" size="xs">Inactive</Badge>}</Group></Stack></Group></Card>)}</Stack>
+     <Stack gap={5}>{locos.map(loco=><Card withBorder p="xs" key={loco.id} bg={selected?.id===loco.id?'var(--mantine-color-dark-5)':undefined} style={{cursor:'pointer'}} onClick={()=>setSelectedId(loco.id)}><Group gap="xs" wrap="nowrap"><Picture blob={loco.image}/><Stack gap={2} style={{flex:1,minWidth:0}}><Text fw={600} size="sm" truncate>{loco.name}</Text><Group gap={5}><Text size="xs" c="dimmed">DCC {loco.address} · Max {loco.maxSpeed??126}</Text>{loco.active===false&&<Badge color="gray" size="xs">Inactive</Badge>}</Group></Stack></Group></Card>)}</Stack>
     </ScrollArea>
     <Divider my="sm"/>
     <Group justify="space-between"><Button disabled={!selected} variant="light" size="xs" onClick={()=>selected&&onDrive(selected.address)}>Select throttle</Button><ActionIcon disabled={!selected} color="red" variant="light" onClick={remove}><IconTrash size={17}/></ActionIcon></Group>
@@ -58,7 +76,7 @@ export function LocoEditor({locos,onChange,onDrive}:{locos:Loco[];onChange:(valu
         </Stack>
         <Stack align="start"><Text fw={500} size="sm">Locomotive image</Text><Picture blob={selected.image} size={180}/>
          <FileButton accept="image/png,image/jpeg,image/webp" onChange={file=>{if(file){if(file.size>6*1024*1024){setMessage('Image must be smaller than 6 MB.');return;}update({image:file});}}}>{props=><Button variant="light" {...props}>Choose image</Button>}</FileButton>
-         <Text size="xs" c="dimmed">Image and locomotive settings are saved in browser IndexedDB.</Text>
+         <Text size="xs" c="dimmed">Changes are saved to IndexedDB when you press Save.</Text>
         </Stack>
        </SimpleGrid></Tabs.Panel>
        <Tabs.Panel value="functions"><Stack gap="sm">
@@ -112,7 +130,7 @@ export function LocoEditor({locos,onChange,onDrive}:{locos:Loco[];onChange:(valu
        <Tabs.Panel value="statistics"><Stack maw={500}><Title order={5}>Locomotive statistics</Title><Text>Odometer: {selected.odometerKm??0} km</Text><Text>Operating hours: {selected.operatingHours??0}</Text><Text>Last run: {selected.lastRunAt??'Never'}</Text><Text>Function mappings: {functions.length}</Text><Text c="dimmed" size="xs">Live statistics require runtime integration.</Text></Stack></Tabs.Panel>
       </ScrollArea>
      </Tabs>}
-    <Divider my="xs"/><Group justify="space-between"><Text size="xs" c="dimmed">{message||'Changes are saved automatically in IndexedDB.'}</Text><Badge variant="light">Browser only · No Precision Braking</Badge></Group>
+    <Divider my="xs"/><Group justify="space-between"><Text size="xs" c={saveError?'red':'dimmed'}>{saveError||message||'Changes are not applied until Save.'}</Text><Group gap="xs"><Button onClick={save}>Save</Button><Button variant="light" onClick={onCancel}>Cancel</Button></Group></Group>
    </Card>
  </Group>;
 }

@@ -106,8 +106,8 @@ export function App() {
             <Group><Button disabled={status!=='disconnected'} leftSection={<IconPlugConnected size={17}/>} onClick={connect}>Connect</Button><Button variant="outline" color="gray" disabled={status==='disconnected'} leftSection={<IconWifiOff size={17}/>} onClick={disconnect}>Disconnect</Button></Group>
           </Stack>
         </Modal>
-        <Modal opened={locoEditorOpen} onClose={()=>setLocoEditorOpen(false)} title="Locomotives" size="min(1480px, 95vw)">
-          <LocoEditor locos={project.locos} onChange={locos=>setProject(p=>({...p,locos}))} onDrive={value=>{if(speed===0)setAddress(value);else setError('Stop before changing locomotive.');}}/>
+        <Modal opened={locoEditorOpen} onClose={()=>setLocoEditorOpen(false)} title="Locomotives" size="min(1480px, 95vw)" closeOnEscape={false} closeOnClickOutside={false} withCloseButton={false} centered>
+          {locoEditorOpen && <LocoEditor locos={project.locos} onSave={locos=>{setProject(p=>({...p,locos}));setLocoEditorOpen(false);}} onCancel={()=>setLocoEditorOpen(false)} onDrive={value=>{if(speed===0)setAddress(value);else setError('Stop before changing locomotive.');}}/>}
         </Modal>
         {page==='home' ? (
           <Container size="lg" py="lg">
