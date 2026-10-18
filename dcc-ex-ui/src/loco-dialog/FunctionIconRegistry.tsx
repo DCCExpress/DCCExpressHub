@@ -26,7 +26,7 @@ export const BUILTIN_FUNCTION_ICONS = [
   ["pantograph", "Pantograph", "IconArrowUp"],
 ] as const;
 
-export type FunctionIconComponent = ComponentType<{ size?: number }>;
+export type FunctionIconComponent = ComponentType<{ size?: number; color?: string }>;
 const iconExports = TablerIcons as unknown as Record<string, FunctionIconComponent | undefined>;
 // Avoid silently showing a gear whenever a renamed Tabler icon is unavailable.
 const fallback = TablerIcons.IconQuestionMark as FunctionIconComponent;

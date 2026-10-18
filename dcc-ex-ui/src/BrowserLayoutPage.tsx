@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
-import { ActionIcon, Badge, Box, Button, Card, Divider, Group, Stack, Tabs, Text, Title, Tooltip } from '@mantine/core';
+import { ActionIcon, Badge, Button, Card, Divider, Group, Stack, Tabs, Text, Title, Tooltip } from '@mantine/core';
 import {
  IconArrowLeft,IconChevronLeft,IconChevronRight,IconDeviceFloppy,IconDownload,IconEdit,
  IconFocusCentered,IconPlus,IconPointer,IconPower,IconRefresh,IconSettings,IconShieldCheck,

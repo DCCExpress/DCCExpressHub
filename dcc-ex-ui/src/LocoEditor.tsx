@@ -33,7 +33,7 @@ const ensureBrowserFunctions=(loco:Loco):Loco=>{
  return {...loco,functions};
 };
 const makeLoco=():Loco=>({id:crypto.randomUUID(),name:'New locomotive',address:3,manufacturer:'',notes:'',active:true,maxSpeed:126,cruisingSpeed:20,invert:false,length:200,locomotiveLengthMm:200,wagonsLengthMm:0,trainType:'passenger',functions:Array.from({length:29},(_,number)=>({id:crypto.randomUUID(),number,name:number===0?'Headlight':`F${number}`,icon:'',momentary:false,showOnLocoCard:number<5,startupActive:false}))});
-export function LocoEditor({locos:originalLocos,functionBindings:originalBindings=[],onSave,onCancel,onDrive,onFunctionTest}:{locos:Loco[];functionBindings?:FunctionBinding[];onSave:(value:Loco[],bindings:FunctionBinding[])=>void;onCancel:()=>void;onDrive:(address:number)=>void;onFunctionTest:(address:number,fn:number,active:boolean)=>void}) {
+export function LocoEditor({locos:originalLocos,functionBindings:originalBindings=[],onSave,onCancel,onFunctionTest}:{locos:Loco[];functionBindings?:FunctionBinding[];onSave:(value:Loco[],bindings:FunctionBinding[])=>void;onCancel:()=>void;onDrive:(address:number)=>void;onFunctionTest:(address:number,fn:number,active:boolean)=>void}) {
  const [functionBindings,setFunctionBindings]=useState<FunctionBinding[]>(()=>structuredClone(originalBindings));
  const [locos,setLocos]=useState<Loco[]>(()=>structuredClone(originalLocos).map(ensureBrowserFunctions));
  const onChange=setLocos;

@@ -13,7 +13,6 @@ export default function BitToggleElement({
   value,
   onChange,
   onValueClick,
-  color0 = "#555",
   color1 = "#2ecc71",
   size = 32,
 }: BitToggleElementProps) {
