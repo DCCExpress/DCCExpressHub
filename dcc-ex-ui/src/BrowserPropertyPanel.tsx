@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Button, Card, Group, NumberInput, ScrollArea, SimpleGrid, Stack, Text, Paper, Box } from '@mantine/core';
+import { Button, Card, ScrollArea, SimpleGrid, Stack, Text, Paper, Box } from '@mantine/core';
 import { IconSettings, IconTrafficLights } from '@tabler/icons-react';
 import type { TrackElement } from './storage';
 import type { IEditableProperty } from './preview-webui/models/editor/elements/PropertyDescriptor';
@@ -8,7 +8,7 @@ import { getElementTypeName } from './preview-webui/domain/layout/elementTypeNam
 import type { ElementType } from './preview-webui/domain/layout/elementTypes';
 import BasicPropertyEditor from './property-panel/BasicPropertyEditor';
 import BlockTypeSelectPropertyEditor from './property-panel/BlockTypeSelectPropertyEditor';
-import BitToggleElement from './property-panel/BitToggleElement';
+import TurnoutBitPropertyEditor from './property-panel/TurnoutBitPropertyEditor';
 import EditorShortcutsHelp from './property-panel/EditorShortcutsHelp';
 import VisibilitySettings, { type BrowserVisibility } from './property-panel/VisibilitySettings';
 import { originalText } from './property-panel/originalText';
@@ -28,53 +28,7 @@ type Props={
  stations:Station[];onSaveStations:(stations:Station[],stationId:string|null)=>void;
 };
 const english=(value:string)=>originalText(value);
-const numeric=(v:unknown,fallback=0)=>typeof v==='number'&&Number.isFinite(v)?v:Number(v)||fallback;
 
-function ToggleProperty({prop,model,onChange}:{prop:IEditableProperty;model:BaseElement;onChange:(prop:IEditableProperty,value:unknown)=>void}){
- const data=model as unknown as Record<string,unknown>;
- const extended=data.outputMode==='extended',key=prop.key;
- const update=(name:string,value:boolean|number)=>onChange({...prop,key:name,type:typeof value==='number'?'number':'bittoggle'},value);
- if(key==='turnout2ClosedValue'&&'turnout1ClosedValue' in data)return null;
- if(key==='turnout1ClosedValue')return <Stack gap="xs">
-  <Text fw={500} size="sm">{prop.label}</Text>
-  {(['turnout1ClosedValue','turnout2ClosedValue'] as const).map((k,i)=>
-   <Group key={k} justify="space-between" wrap="nowrap">
-    <Text size="sm">{i===0?'Turnout 1':'Turnout 2'}</Text>
-    <BitToggleElement value={Boolean(data[k])} onChange={value=>update(k,value)}/>
-   </Group>)}
- </Stack>;
- if(key==='activeValue'&&'offValue' in data)return <Stack gap="xs">
-  <Text size="sm" fw={500}>{prop.label}</Text>
-  {([true,false] as const).map(on=>{
-   const name=extended?(on?'onAspect':'offAspect'):(on?'activeValue':'offValue');
-   return <Group key={name} justify="space-between" align="center" wrap="nowrap">
-    <Text size="sm" fw={600} w={44}>{on?'ON':'OFF'}</Text>
-    {extended?
-     <NumberInput w={110} min={0} max={255} allowDecimal={false} allowNegative={false}
-      value={numeric(data[name])} onChange={v=>update(name,Number(v)||0)}/>:
-     <BitToggleElement value={Boolean(data[name])} onChange={value=>{
-      update(name,value);
-      const opposite=on?'offValue':'activeValue';
-      if(Boolean(data[opposite])===value)update(opposite,!value);
-     }}/>}
-   </Group>;
-  })}
- </Stack>;
- if(key==='turnoutClosedValue')return <Stack gap="xs">
-  <Text size="sm" fw={500}>{prop.label}</Text>
-  {extended?
-   (['turnoutClosedAspect','turnoutOpenedAspect'] as const).map((name,i)=>
-    <NumberInput key={name} label={i===0?'Closed':'Opened'} min={0} max={255}
-     value={numeric(data[name],i)} onChange={v=>update(name,Number(v)||0)}/>)
-   :<Group justify="space-between"><Text size="sm">Closed</Text>
-     <BitToggleElement value={Boolean(data[key])} onChange={value=>onChange(prop,value)}/>
-    </Group>}
- </Stack>;
- return <Group justify="space-between" align="center" wrap="nowrap">
-  <Text size="sm" fw={500}>{prop.label}</Text>
-  <BitToggleElement value={Boolean(data[key])} onChange={value=>onChange(prop,value)}/>
- </Group>;
-}
 function createStatePreview(signal:TrackSignalElement,index:number):TrackSignalElement{
  const preview=signal instanceof TrackLevelCrossingElement
   ? new TrackLevelCrossingElement(0,0):new TrackSignalElement(0,0);
@@ -163,7 +117,7 @@ export default function BrowserPropertyPanel({selected,selectedCount,onPatch,set
     options:prop.options?.map(option=>({...option,label:english(option.label)}))};
    return <Card key={prop.key} withBorder p="xs">
     {prop.type==='bittoggle'?
-     <ToggleProperty prop={translated} model={element} onChange={update}/>:
+     <TurnoutBitPropertyEditor prop={translated} selectedElement={element} onChange={update}/>:
      prop.type==='blockTypeSelect'?
       <BlockTypeSelectPropertyEditor prop={translated} selectedElement={element} onChange={update}/>:
      prop.type==='signal2'?
