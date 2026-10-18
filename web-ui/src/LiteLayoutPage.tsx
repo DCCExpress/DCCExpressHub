@@ -2051,7 +2051,7 @@ export default function LiteLayoutPage({
                 <ActionIcon variant={tool.mode === "draw" ? "filled" : "light"} onClick={() => setPickerOpened(true)} title={i18next.t("ui.addLayoutElement")}>
                   <IconPlus size={18} />
                 </ActionIcon>
-                <ActionIcon variant="light" color="red" disabled={!selectedElement} onClick={removeSelected} title={i18next.t("ui.deleteSelected")}>
+                <ActionIcon variant={tool.mode==="delete"?"filled":"light"} color="red" onClick={()=>{setTool({mode:"delete",elementType:"general"});setSelectedElement(null);}} title="Delete mode: click elements to delete, ESC to exit">
                   <IconTrash size={18} />
                 </ActionIcon>
               </>

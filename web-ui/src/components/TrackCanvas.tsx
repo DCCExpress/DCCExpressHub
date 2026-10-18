@@ -1572,6 +1572,11 @@ export default function TrackCanvas({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && editModeRef.current && toolRef.current.mode === "delete") {
+        event.preventDefault();
+        setTool({mode:"cursor",elementType:"general"});
+        return;
+      }
       if (blockSelectionRef.current && event.key === "Escape") {
         exitBlockSelection();
         event.preventDefault();

@@ -19,12 +19,12 @@ import { fitLayoutToView } from './preview-webui/track-canvas/trackCanvasLayoutB
 import { wsClient } from './preview-webui/services/wsClient';
 import { getTrackCanvasCursor } from './preview-webui/track-canvas/trackCanvasCursor';
 
-type BrowserTool='cursor'|'draw';
+type BrowserTool='cursor'|'draw'|'delete';
 type Props={
  elements:TrackElement[];onElementsChange:(elements:TrackElement[])=>void;
  connected:boolean;onEmergencyStop:()=>void;
  editMode:boolean;tool:BrowserTool;drawingElement:BrowserPickerItem|null;
- onToolChange:(tool:BrowserTool)=>void;fitCounter?:number;deleteCounter?:number;
+ onToolChange:(tool:BrowserTool)=>void;fitCounter?:number;
  onSelectionChange?:(selected:TrackElement|null)=>void;
  onSelectionCountChange?:(count:number)=>void;visibility:BrowserVisibility;
  onSave?:()=>void;onToggleEditMode?:()=>void;
@@ -105,7 +105,7 @@ const allocateId=(models:BaseElement[])=>{
  throw new Error('Layout is full (65535 IDs)');
 };
 export default function BrowserTrackCanvas({elements,onElementsChange,connected,onEmergencyStop,editMode,tool,drawingElement,onToolChange,
- fitCounter,deleteCounter,onSelectionChange,onSelectionCountChange,visibility,onSave,onToggleEditMode}:Props){
+ fitCounter,onSelectionChange,onSelectionCountChange,visibility,onSave,onToggleEditMode}:Props){
  const canvasRef=useRef<HTMLCanvasElement>(null);
  const holderRef=useRef<HTMLDivElement>(null);
  const selectedIds=useRef(new Set<number>());
@@ -261,7 +261,6 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
   }
   redraw();
  },[tool,drawingElement,redraw]);
- const lastDelete=useRef(deleteCounter);
  useEffect(()=>{
   if(deleteCounter===undefined||deleteCounter===lastDelete.current)return;
   lastDelete.current=deleteCounter;
@@ -353,6 +352,17 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
   }
   if(!editMode)return;
   event.currentTarget.setPointerCapture(event.pointerId);
+  if(tool==='delete'&&event.button===0){
+   const elem=hit(g);
+   if(elem&&!elem.locked){
+    saveHistory();
+    modelsRef.current=modelsNow().filter(model=>model.id!==elem.id);
+    selectedIds.current.delete(elem.id);
+    notifySelection();
+    publish();
+   }
+   return;
+  }
   if(tool==='draw'&&cursorRef.current){
    const model=cursorRef.current,anchor=getCenteredElementGridAnchor(model,g);
    if(!canPlace(model,anchor.x,anchor.y)){
@@ -525,7 +535,7 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
    onPointerCancel={onPointerEnd} onPointerLeave={()=>{pointerInside.current=false;setPointerCursor('default');if(!gesture.current)hover.current=null;redraw();}}
    onWheel={onWheel} onContextMenu={event=>event.preventDefault()}
    style={{width:'100%',height:'100%',display:'block',touchAction:'none',
-    outline:'none',cursor:panActive?'grabbing':editMode?tool==='draw'?'crosshair':'default':pointerCursor}}/>
+    outline:'none',cursor:panActive?'grabbing':editMode?(tool==='draw'?'crosshair':tool==='delete'?'crosshair':'default'):pointerCursor}}/>
   <TrackCanvasDoubleTurnoutPopover state={turnoutPopover}
    onClose={()=>setTurnoutPopover({opened:false,x:0,y:0,turnout:null})}
    onChanged={()=>{publish();setMessage('');}}/>

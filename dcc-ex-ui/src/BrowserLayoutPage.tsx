@@ -49,7 +49,6 @@ function store(key:string,value:string|number|boolean){
 export function BrowserLayoutPage(props:Props){
  const [editMode,setEditMode]=useState(false);
  const [fitCounter,setFitCounter]=useState(0);
- const [deleteCounter,setDeleteCounter]=useState(0);
  const [selectedElement,setSelectedElement]=useState<TrackElement|null>(null);
  const [selectedCount,setSelectedCount]=useState(0);
  const [visibility,setVisibility]=useState<BrowserVisibility>(loadBrowserVisibility);
@@ -73,7 +72,7 @@ export function BrowserLayoutPage(props:Props){
   setSelectedElement(current=>current?{...current,...patch}:null);
  };
 
- const [tool,setTool]=useState<'cursor'|'draw'>('cursor');
+ const [tool,setTool]=useState<'cursor'|'draw'|'delete'>('cursor');
  const [leftWidth,setLeftWidth]=useState(()=>readNumber('left',380));
  const [rightWidth,setRightWidth]=useState(()=>readNumber('right',380));
  const [leftCollapsed,setLeftCollapsed]=useState(()=>readFlag('locoCollapsed'));
@@ -149,7 +148,7 @@ export function BrowserLayoutPage(props:Props){
       {editMode&&<>
        <ActionIcon variant={tool==='cursor'?'filled':'light'} onClick={()=>{setTool('cursor');setDrawingElement(null);}} title="Select"><IconPointer size={18}/></ActionIcon>
        <ActionIcon variant={tool==='draw'?'filled':'light'} onClick={()=>setPickerOpened(true)} title="Add layout element"><IconPlus size={18}/></ActionIcon>
-       <ActionIcon variant="light" color="red" disabled={!selectedElement} onClick={()=>setDeleteCounter(v=>v+1)} title="Delete selected"><IconTrash size={18}/></ActionIcon>
+       <ActionIcon variant={tool==='delete'?'filled':'light'} color="red" onClick={()=>{setTool('delete');setDrawingElement(null);setSelectedElement(null);setSelectedCount(0);}} title="Delete mode: click elements to delete, ESC to exit"><IconTrash size={18}/></ActionIcon>
       </>}
       <Divider orientation="vertical" className="lite-toolbar-divider"/>
       <ActionIcon variant="light" onClick={()=>setFitCounter(v=>v+1)} title="Fit layout"><IconFocusCentered size={19}/></ActionIcon>
@@ -194,9 +193,9 @@ export function BrowserLayoutPage(props:Props){
        onEmergencyStop={props.onEmergencyStop}
        connected={props.connected}
        editMode={editMode} tool={tool} drawingElement={drawingElement}
-       onToolChange={next=>{setTool(next);if(next==='cursor')setDrawingElement(null);}}
+       onToolChange={next=>{setTool(next);if(next!=='draw')setDrawingElement(null);}}
        onSelectionChange={setSelectedElement} onSelectionCountChange={setSelectedCount} visibility={visibility}
-       fitCounter={fitCounter} deleteCounter={deleteCounter}
+       fitCounter={fitCounter}
        onSave={props.onSave}
        onToggleEditMode={()=>{setEditMode(v=>!v);setTool('cursor');setDrawingElement(null);setSelectedElement(null);}}/>
     </Card>
