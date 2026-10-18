@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
-import { ActionIcon, Badge, Box, Button, Card, Group, SegmentedControl, Slider, Stack, Switch, Text, Title } from '@mantine/core';
-import { IconChevronLeft, IconChevronRight, IconPlayerStop, IconSettings, IconTrain } from '@tabler/icons-react';
+import { ActionIcon, Badge, Box, Card, Group, Stack, Text, Title } from '@mantine/core';
+import { IconChevronLeft, IconChevronRight, IconSettings } from '@tabler/icons-react';
 import type {Loco} from './storage';
-type Props={locos:Loco[];activeAddress:number;onSelectLoco:(v:number)=>void;connected:boolean;speed:number;forward:boolean;onSpeed:(v:number)=>void;onDrive:(v:number,d?:boolean)=>void;onStop:()=>void;onDirection:(v:boolean)=>void;onFunction:(v:boolean)=>void;light:boolean};
+import LocoPanel from './loco-panel/LocoPanel';
+type Props={locos:Loco[];activeAddress:number;onSelectLoco:(v:number)=>void;connected:boolean;speed:number;forward:boolean;onSpeed:(v:number)=>void;onDrive:(v:number,d?:boolean)=>void;onStop:()=>void;onDirection:(v:boolean)=>void;onFunctionCommand:(address:number,fn:number,active:boolean)=>void;onDriveAddress:(address:number,speed:number,forward:boolean)=>void;onEmergencyToggle:()=>void;emergencyStop:boolean;light:boolean};
 function preference(key:string,defaultValue:number){try{return Number(localStorage.getItem(key))||defaultValue;}catch{return defaultValue;}}
 export function BrowserLayoutPage(props:Props){
  const [leftWidth,setLeftWidth]=useState(()=>preference('dcc-ex-ui.layout.left',380));
@@ -14,20 +15,14 @@ export function BrowserLayoutPage(props:Props){
  const resize=(side:'left'|'right',event:PointerEvent<HTMLDivElement>)=>{dragging.current={side,x:event.clientX,width:side==='left'?leftWidth:rightWidth};document.body.style.cursor='col-resize';};
  return <Stack gap={4} style={{flex:1,minHeight:0}}>
   <Box style={{display:'grid',gridTemplateColumns:(leftOpen?leftWidth+'px':'0px')+' 12px minmax(0,1fr) 12px '+(rightOpen?rightWidth+'px':'0px'),flex:1,minHeight:0}}>
-   {leftOpen&&<Card withBorder p="sm" radius="sm" style={{minHeight:0,overflowY:'auto'}}>
-     <Stack gap="sm"><Group justify="space-between"><Title order={5}>Locomotive</Title><IconTrain size={18}/></Group>
-     <Text size="xs" c="dimmed">Manual throttle · DCC-EX</Text>
-     <select style={{width:'100%',background:'var(--mantine-color-body)',color:'inherit',padding:9,border:'1px solid var(--mantine-color-default-border)',borderRadius:5}} disabled={props.speed>0} value={props.activeAddress} onChange={e=>props.onSelectLoco(Number(e.target.value))}>
-       {!props.locos.some(l=>l.address===props.activeAddress)&&<option value={props.activeAddress}>DCC {props.activeAddress}</option>}
-       {props.locos.map(l=><option key={l.id} value={l.address}>{l.name} · {l.address}</option>)}
-     </select>
-     <Group justify="space-between"><Text size="sm">Speed</Text><Title order={3}>{props.speed}</Title></Group>
-     <Slider min={0} max={126} disabled={!props.connected} value={props.speed} onChange={props.onSpeed} onChangeEnd={v=>props.onDrive(v)} />
-     <SegmentedControl fullWidth disabled={!props.connected} value={props.forward?'f':'r'} onChange={v=>props.onDirection(v==='f')} data={[{label:'Forward',value:'f'},{label:'Reverse',value:'r'}]}/>
-     <Button color="red" disabled={!props.connected} leftSection={<IconPlayerStop size={17}/>} onClick={props.onStop}>STOP</Button>
-     <Switch label="F0 · Headlight" checked={props.light} disabled={!props.connected} onChange={e=>props.onFunction(e.currentTarget.checked)}/>
-     </Stack>
-   </Card>}
+   {leftOpen&&<Box style={{minHeight:0,minWidth:0,overflow:'hidden'}}>
+     <LocoPanel locos={props.locos} activeAddress={props.activeAddress} speed={props.speed}
+       forward={props.forward} connected={props.connected} light={props.light}
+       onSelectLoco={props.onSelectLoco} onSpeed={props.onSpeed} onDrive={props.onDrive}
+       onDriveAddress={props.onDriveAddress} onStop={props.onStop} onDirection={props.onDirection}
+       onFunctionCommand={props.onFunctionCommand} onEmergencyToggle={props.onEmergencyToggle}
+       emergencyStop={props.emergencyStop}/>
+   </Box>}
    <Box onPointerDown={e=>resize('left',e)} style={{cursor:'col-resize',display:'grid',placeItems:'center',background:'var(--mantine-color-dark-6)'}}><ActionIcon size="xs" variant="subtle" onPointerDown={e=>e.stopPropagation()} onClick={()=>setLeftOpen(v=>!v)}>{leftOpen?<IconChevronLeft size={15}/>:<IconChevronRight size={15}/>}</ActionIcon></Box>
    <Card withBorder p={4} radius="sm" style={{minWidth:0,minHeight:0,display:'flex',flexDirection:'column'}}>
      <Group justify="space-between" px="sm" py={6}><Text size="sm" fw={600}>TrackCanvas</Text><Badge variant="outline" size="xs">Original editor port pending</Badge></Group>
