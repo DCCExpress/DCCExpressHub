@@ -30,7 +30,7 @@ const oldKinds:Record<string,string>={straight:ELEMENT_TYPES.TRACK_STRAIGHT,curv
 function cloneJson(data:TrackElement):TrackElement {
  return JSON.parse(JSON.stringify(data)) as TrackElement;
 }
-function restore(item:TrackElement,index:number):BaseElement|null{
+export function restoreBrowserElement(item:TrackElement,index:number):BaseElement|null{
  const dto=item as TrackElement&{kind?:string;rotation?:number;angle?:number;label?:string};
  const spec=byType.get(dto.type??oldKinds[dto.kind??'']??'');
  if(!spec)return null;
@@ -56,7 +56,7 @@ function restore(item:TrackElement,index:number):BaseElement|null{
 const serialize=(model:BaseElement)=>model.toJSON() as unknown as TrackElement;
 function copyModel(model:BaseElement):BaseElement{
  const dto=cloneJson(serialize(model));
- const copy=restore(dto,0);
+ const copy=restoreBrowserElement(dto,0);
  if(!copy)throw new Error('Cannot clone layout element');
  copy.id=0;copy.selected=false;copy.marked=false;
  return copy;
@@ -79,7 +79,7 @@ export default function BrowserTrackCanvas({elements,onElementsChange,editMode,t
  const holderRef=useRef<HTMLDivElement>(null);
  const selectedIds=useRef(new Set<number>());
  const models=useMemo(()=>{
-  const restored=elements.map(restore).filter((v):v is BaseElement=>v!==null);
+  const restored=elements.map(restoreBrowserElement).filter((v):v is BaseElement=>v!==null);
   const present=new Set(restored.map(m=>m.id));
   selectedIds.current=new Set([...selectedIds.current].filter(id=>present.has(id)));
   for(const model of restored)model.selected=selectedIds.current.has(model.id);
@@ -124,7 +124,7 @@ export default function BrowserTrackCanvas({elements,onElementsChange,editMode,t
   const snapshot=source.pop();if(!snapshot)return;
   destination.push(modelsNow().map(serialize).map(cloneJson));
   selectedIds.current.clear();
-  modelsRef.current=snapshot.map(restore).filter((e):e is BaseElement=>e!==null);
+  modelsRef.current=snapshot.map(restoreBrowserElement).filter((e):e is BaseElement=>e!==null);
   onSelectionChange?.(null);
   publish();
  };
@@ -315,7 +315,7 @@ export default function BrowserTrackCanvas({elements,onElementsChange,editMode,t
    if(ctrl&&key==='v'){
     if(!clipboardRef.current)return;
     event.preventDefault();
-    const copied=restore(clipboardRef.current,0);
+    const copied=restoreBrowserElement(clipboardRef.current,0);
     if(!copied)return;
     cursorRef.current=copyModel(copied);onToolChange('draw');redraw();return;
    }
