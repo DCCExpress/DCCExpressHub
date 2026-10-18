@@ -233,11 +233,24 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
   }else{fit();}
  },[fitCounter,fit]);
  useEffect(()=>{
-  if(!drawingElement)return;
+  if(!editMode||tool!=='draw')return;
+  // Upstream TrackCanvas clears layout selections on switching to placement.
+  // The cursor-held element is the sole active drawing target.
+  selectedIds.current.clear();
+  for(const model of modelsRef.current){model.selected=false;model.marked=false;}
+  selectRect.current=null;
+  gesture.current=null;
+  onSelectionChange?.(null);
+  onSelectionCountChange?.(0);
+  redraw();
+ },[editMode,tool,onSelectionChange,onSelectionCountChange,redraw]);
+ useEffect(()=>{
+  if(tool!=='draw'||!drawingElement)return;
   const ctor=drawingElement.preview.constructor as unknown as new(x:number,y:number)=>BaseElement;
   cursorRef.current=new ctor(0,0);
+  cursorRef.current.selected=true;
   redraw();
- },[drawingElement,redraw]);
+ },[tool,drawingElement,redraw]);
  const lastDelete=useRef(deleteCounter);
  useEffect(()=>{
   if(deleteCounter===undefined||deleteCounter===lastDelete.current)return;
