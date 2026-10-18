@@ -175,7 +175,9 @@ export function BrowserLayoutPage(props:Props){
      <BrowserTrackCanvas elements={props.elements} onElementsChange={props.onElementsChange}
        editMode={editMode} tool={tool} drawingElement={drawingElement}
        onToolChange={next=>{setTool(next);if(next==='cursor')setDrawingElement(null);}}
-       onSelectionChange={setSelectedElement} fitCounter={fitCounter} deleteCounter={deleteCounter}/>
+       onSelectionChange={setSelectedElement} fitCounter={fitCounter} deleteCounter={deleteCounter}
+       onSave={props.onSave}
+       onToggleEditMode={()=>{setEditMode(v=>!v);setTool('cursor');setDrawingElement(null);setSelectedElement(null);}}/>
     </Card>
     <div className="lite-panel-resizer lite-panel-resizer-right" onPointerDown={e=>beginResize('right',e)}>
      <button type="button" onPointerDown={e=>e.stopPropagation()} onClick={()=>setRightCollapsed(v=>!v)} title="Toggle property panel">

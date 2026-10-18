@@ -14,6 +14,7 @@ type Props={
  editMode:boolean;tool:BrowserTool;drawingElement:BrowserPickerItem|null;
  onToolChange:(tool:BrowserTool)=>void;fitCounter?:number;deleteCounter?:number;
  onSelectionChange?:(selected:TrackElement|null)=>void;
+ onSave?:()=>void;onToggleEditMode?:()=>void;
 };
 type GridPoint={x:number;y:number};
 type Moving={id:number;x:number;y:number};
@@ -74,7 +75,7 @@ const allocateId=(models:BaseElement[])=>{
  throw new Error('Layout is full (65535 IDs)');
 };
 export default function BrowserTrackCanvas({elements,onElementsChange,editMode,tool,drawingElement,onToolChange,
- fitCounter,deleteCounter,onSelectionChange}:Props){
+ fitCounter,deleteCounter,onSelectionChange,onSave,onToggleEditMode}:Props){
  const canvasRef=useRef<HTMLCanvasElement>(null);
  const holderRef=useRef<HTMLDivElement>(null);
  const selectedIds=useRef(new Set<number>());
@@ -297,7 +298,10 @@ export default function BrowserTrackCanvas({elements,onElementsChange,editMode,t
  useEffect(()=>{
   const keyDown=(event:KeyboardEvent)=>{
    if(document.activeElement!==canvasRef.current)return;
-   if(event.key.toLowerCase()==='f'){event.preventDefault();fit();return;}
+   const plainKey=event.key.toLowerCase();
+   if((event.ctrlKey||event.metaKey)&&plainKey==='s'){event.preventDefault();onSave?.();return;}
+   if(plainKey==='e'&&!event.ctrlKey&&!event.metaKey&&!event.altKey){event.preventDefault();onToggleEditMode?.();return;}
+   if(plainKey==='f'){event.preventDefault();fit();return;}
    if(!editMode)return;
    const ctrl=event.ctrlKey||event.metaKey;
    const key=event.key.toLowerCase();
@@ -339,7 +343,7 @@ export default function BrowserTrackCanvas({elements,onElementsChange,editMode,t
   };
   window.addEventListener('keydown',keyDown);
   return()=>window.removeEventListener('keydown',keyDown);
- },[editMode,tool,onToolChange,onElementsChange,fit]);
+ },[editMode,tool,onToolChange,onElementsChange,fit,onSave,onToggleEditMode]);
  return <div ref={holderRef} className="browser-track-canvas" style={{
   position:'relative',width:'100%',height:'100%',minWidth:0,minHeight:0,overflow:'hidden',background:'#313131'
  }}>
