@@ -13,7 +13,7 @@ export function BrowserLayoutPage(props:Props){
  useEffect(()=>{localStorage.setItem('dcc-ex-ui.layout.left',String(leftWidth));},[leftWidth]);useEffect(()=>{localStorage.setItem('dcc-ex-ui.layout.right',String(rightWidth));},[rightWidth]);
  const resize=(side:'left'|'right',event:PointerEvent<HTMLDivElement>)=>{dragging.current={side,x:event.clientX,width:side==='left'?leftWidth:rightWidth};document.body.style.cursor='col-resize';};
  return <Stack gap={4} style={{flex:1,minHeight:0}}>
-  <Box style={{display:'grid',gridTemplateColumns:(leftOpen?leftWidth+'px':'0px')+' 12px minmax(0,1fr) 12px '+(rightOpen?rightWidth+'px'),flex:1,minHeight:0}}>
+  <Box style={{display:'grid',gridTemplateColumns:(leftOpen?leftWidth+'px':'0px')+' 12px minmax(0,1fr) 12px '+(rightOpen?rightWidth+'px':'0px'),flex:1,minHeight:0}}>
    {leftOpen&&<Card withBorder p="sm" radius="sm" style={{minHeight:0,overflowY:'auto'}}>
      <Stack gap="sm"><Group justify="space-between"><Title order={5}>Locomotive</Title><IconTrain size={18}/></Group>
      <Text size="xs" c="dimmed">Manual throttle · DCC-EX</Text>
