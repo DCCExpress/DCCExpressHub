@@ -127,6 +127,8 @@ export type LocoCalibrationProfile = {
 };
 
 export type LocoPrecisionBrakingProfile = {
+  /** Operator accepted the latest completed calibration. */
+  validated?: boolean;
   /** Physical distance between start-OFF and destination-ON sensor reference points. */
   sensorDistanceMm?: number;
   routeRef?: MovementRouteRef;
@@ -138,6 +140,7 @@ export type LocoPrecisionBrakingProfile = {
     targetDistanceMm: number;
     actualDistanceMm: number;
     measuredAt: string;
+    commandedRampSeconds?: number | null;
   }>;
 };
 
