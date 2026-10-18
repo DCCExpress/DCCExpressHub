@@ -9,6 +9,7 @@ import {
 } from '@tabler/icons-react';
 import type { Loco, TrackElement } from './storage';
 import BrowserTrackCanvas from './BrowserTrackCanvas';
+import BrowserPropertyPanel from './BrowserPropertyPanel';
 import LocoPanel from './loco-panel/LocoPanel';
 import AppModal from './components/common/AppModal';
 import BrowserElementPicker, { type BrowserPickerItem } from './BrowserElementPicker';
@@ -46,6 +47,14 @@ export function BrowserLayoutPage(props:Props){
  const [fitCounter,setFitCounter]=useState(0);
  const [deleteCounter,setDeleteCounter]=useState(0);
  const [selectedElement,setSelectedElement]=useState<TrackElement|null>(null);
+ const patchSelected=(patch:Partial<TrackElement>)=>{
+  if(!selectedElement)return;
+  const id=String(selectedElement.id);
+  const next=props.elements.map(item=>String(item.id)===id?{...item,...patch}:item);
+  props.onElementsChange(next);
+  setSelectedElement(current=>current?{...current,...patch}:null);
+ };
+
  const [tool,setTool]=useState<'cursor'|'draw'>('cursor');
  const [leftWidth,setLeftWidth]=useState(()=>readNumber('left',380));
  const [rightWidth,setRightWidth]=useState(()=>readNumber('right',380));
@@ -118,7 +127,7 @@ export function BrowserLayoutPage(props:Props){
       <Badge size="sm" variant="light" color="violet">v0.1.0-alpha.7</Badge>
      </Group>
      <Group gap={6} wrap="nowrap" style={{flexShrink:0}}>
-      <ActionIcon variant={editMode?'filled':'light'} color="violet" title="Edit mode" onClick={()=>{setEditMode(v=>!v);setTool('cursor');}}><IconEdit size={18}/></ActionIcon>
+      <ActionIcon variant={editMode?'filled':'light'} color="violet" title="Edit mode" onClick={()=>{setEditMode(v=>!v);setTool('cursor');setDrawingElement(null);setSelectedElement(null);}}><IconEdit size={18}/></ActionIcon>
       {editMode&&<>
        <ActionIcon variant={tool==='cursor'?'filled':'light'} onClick={()=>{setTool('cursor');setDrawingElement(null);}} title="Select"><IconPointer size={18}/></ActionIcon>
        <ActionIcon variant={tool==='draw'?'filled':'light'} onClick={()=>setPickerOpened(true)} title="Add layout element"><IconPlus size={18}/></ActionIcon>
@@ -178,16 +187,7 @@ export function BrowserLayoutPage(props:Props){
      ? <div className="lite-property-panel lite-right-loco-panel">{locoPanel('right')}</div>
      : <Card withBorder p="sm" className="lite-property-panel">
        {editMode?
-        <><Title order={5} mb="sm">{selectedElement?'Properties':'Display'}</Title>
-          {selectedElement
-           ? <Stack gap={5}><Text size="sm" fw={600}>{selectedElement.type??selectedElement.kind}</Text>
-              <Text size="xs" c="dimmed">ID: {selectedElement.id}</Text>
-              <Text size="xs">X: {selectedElement.x} · Y: {selectedElement.y}</Text>
-              <Text size="xs">Rotation: {selectedElement.rotation??selectedElement.angle??0}°</Text>
-              <Text size="xs" c="dimmed">Drag to move · R to rotate · Del to delete</Text>
-             </Stack>
-           : <Text size="sm" c="dimmed">Select a layout element to edit its properties.</Text>}
-        </>
+        <BrowserPropertyPanel selected={selectedElement} onPatch={patchSelected}/>
        : <Tabs value={runtimeTab} onChange={setTab} className="lite-runtime-tabs">
           <Tabs.List grow mb="sm">
            <Tooltip label="TaskMan" withArrow><Tabs.Tab value="tasks" aria-label="TaskMan"><IconClipboardList size={20}/></Tabs.Tab></Tooltip>
