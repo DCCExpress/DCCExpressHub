@@ -15,6 +15,7 @@ import { loadSavedViewState, saveViewState } from './preview-webui/track-canvas/
 import { getBridgePlacement } from './preview-webui/track-canvas/bridgePlacement';
 import type { BrowserVisibility } from './property-panel/VisibilitySettings';
 import { fitLayoutToView } from './preview-webui/track-canvas/trackCanvasLayoutBounds';
+import { wsClient } from './preview-webui/services/wsClient';
 
 type BrowserTool='cursor'|'draw';
 type Props={
@@ -121,6 +122,7 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
  const view=useRef<ViewState>(loadSavedViewState(VIEW_KEY));
  const hover=useRef<GridPoint|null>(null);
  const mouseGrid=useRef<GridPoint>({x:0,y:0});
+ const pointerInside=useRef(false);
  const selectRect=useRef<SelectionRect|null>(null);
  const undoStack=useRef<TrackElement[][]>([]);
  const redoStack=useRef<TrackElement[][]>([]);
@@ -128,6 +130,14 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
  const [drawTick,setDrawTick]=useState(0);
  const redraw=useCallback(()=>setDrawTick(n=>n+1),[]);
  const [message,setMessage]=useState('');
+ // Sensor and disconnect events update the original shared occupancy cache.
+ // Repaint without changing the editor project or writing runtime state to IndexedDB.
+ useEffect(()=>{
+  const unsubscribeChange=wsClient.on('sensorChanged',redraw);
+  const unsubscribeSnapshot=wsClient.on('sensorSnapshot',redraw);
+  const unsubscribeStatus=wsClient.subscribeStatus(()=>redraw());
+  return()=>{unsubscribeChange();unsubscribeSnapshot();unsubscribeStatus();};
+ },[redraw]);
 
  // Original TrackCanvas leaves no editable selection or ghost cursor in runtime mode.
  useEffect(()=>{
@@ -245,7 +255,7 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
   }};
   drawScene(ctx,canvasSize.width,canvasSize.height,editMode,'dark',view.current,
    mouseGrid.current,{mode:tool,elementType:(cursorRef.current?.type??drawingElement?.type??ELEMENT_TYPES.GENERAL) as ElementType},
-   hover.current,editMode&&tool==='draw'?cursorRef.current:null,
+   hover.current,editMode&&tool==='draw'&&pointerInside.current?cursorRef.current:null,
    layout as never,visibility as never,
    undefined,selected()[0],selectRect.current,false,[]);
  },[canvasSize,drawTick,elements,editMode,tool,drawingElement,visibility]);
@@ -261,9 +271,11 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
   return buttons??all.reverse().find(m=>m.hitTest(g.x,g.y))??null;
  };
  const onPointerDown=(event:PointerEvent<HTMLCanvasElement>)=>{
-  if(event.button!==0&&event.button!==1&&event.button!==2)return;
-  event.currentTarget.focus();event.currentTarget.setPointerCapture(event.pointerId);
+  if(event.button!==0&&event.button!==2)return;
+  event.currentTarget.focus();
   const p=local(event),g=grid(p);
+  // Original desktop behavior: only the right mouse button pans the layout.
+  // Left-click in runtime mode operates an element; empty space does nothing.
   if(!editMode && event.button===0){
    const target=hit(g);
    const multi=target instanceof TrackTurnoutDoubleElement||target instanceof TrackTurnoutThreeWayElement;
@@ -285,11 +297,14 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
     return;
    }
   }
-  if(event.button===1||event.button===2||!editMode){
+  if(event.button===2 || event.pointerType==='touch'){
+   event.currentTarget.setPointerCapture(event.pointerId);
    gesture.current={kind:'pan',pointerId:event.pointerId,startX:p.x,startY:p.y,startGrid:g,
     offsetX:view.current.offsetX,offsetY:view.current.offsetY,moving:[],dirty:false,additive:false};
    return;
   }
+  if(!editMode)return;
+  event.currentTarget.setPointerCapture(event.pointerId);
   if(tool==='draw'&&cursorRef.current){
    const model=cursorRef.current,anchor=getCenteredElementGridAnchor(model,g);
    if(!canPlace(model,anchor.x,anchor.y)){
@@ -330,6 +345,7 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
  };
  const onPointerMove=(event:PointerEvent<HTMLCanvasElement>)=>{
   const p=local(event),g=grid(p),d=gesture.current;
+  pointerInside.current=true;
   mouseGrid.current=g;
   if(editMode&&tool==='draw'&&cursorRef.current){
    const position=getCenteredElementGridAnchor(cursorRef.current,g);
@@ -361,6 +377,7 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
  const onPointerEnd=(event:PointerEvent<HTMLCanvasElement>)=>{
   const d=gesture.current;if(!d||d.pointerId!==event.pointerId)return;
   gesture.current=null;
+  if(d.kind==='pan')saveViewState(view.current,VIEW_KEY);
   if(d.kind==='select'&&selectRect.current){
    const r=selectRect.current;selectRect.current=null;
    const left=Math.min(r.startGridX,r.endGridX),right=Math.max(r.startGridX,r.endGridX);
@@ -436,10 +453,10 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
  }}>
   <canvas ref={canvasRef} tabIndex={0} width={canvasSize.width} height={canvasSize.height}
    onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerEnd}
-   onPointerCancel={onPointerEnd} onPointerLeave={()=>{if(!gesture.current)hover.current=null;redraw();}}
+   onPointerCancel={onPointerEnd} onPointerLeave={()=>{pointerInside.current=false;if(!gesture.current)hover.current=null;redraw();}}
    onWheel={onWheel} onContextMenu={event=>event.preventDefault()}
    style={{width:'100%',height:'100%',display:'block',touchAction:'none',
-    outline:'none',cursor:editMode?(tool==='draw'?'crosshair':'default'):'grab'}}/>
+    outline:'none',cursor:editMode&&tool==='draw'&&cursorRef.current?'none':'default'}}/>
   <TrackCanvasDoubleTurnoutPopover state={turnoutPopover}
    onClose={()=>setTurnoutPopover({opened:false,x:0,y:0,turnout:null})}
    onChanged={()=>{publish();setMessage('');}}/>
