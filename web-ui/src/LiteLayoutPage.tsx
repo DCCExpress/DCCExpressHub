@@ -1970,13 +1970,6 @@ export default function LiteLayoutPage({
     blockSelectionActive,
   });
 
-  const removeSelected = () => {
-    if (!selectedElement) return;
-    layout.removeElement(selectedElement);
-    setSelectedElement(null);
-    invalidate();
-  };
-
   const beginResize = (side: "left" | "right", event: React.PointerEvent<HTMLDivElement>) => {
     event.preventDefault();
     resizeRef.current = {

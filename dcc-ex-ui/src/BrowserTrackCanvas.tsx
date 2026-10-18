@@ -262,15 +262,6 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
   redraw();
  },[tool,drawingElement,redraw]);
  useEffect(()=>{
-  if(deleteCounter===undefined||deleteCounter===lastDelete.current)return;
-  lastDelete.current=deleteCounter;
-  const targets=selected().filter(m=>!m.locked);
-  if(!targets.length)return;
-  saveHistory();const ids=new Set(targets.map(m=>m.id));
-  modelsRef.current=modelsNow().filter(m=>!ids.has(m.id));
-  selectIds([]);publish();
- },[deleteCounter]);
- useEffect(()=>{
   const canvas=canvasRef.current;if(!canvas)return;
   const ctx=canvas.getContext('2d');if(!ctx)return;
   // These are the exact original upstream drawScene + element.draw methods.
