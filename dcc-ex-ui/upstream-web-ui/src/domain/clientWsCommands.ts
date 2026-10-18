@@ -1,0 +1,521 @@
+import type { MovementPage } from "./movement";
+
+import type {
+  Direction,
+  ICommandCenter,
+  Loco,
+  ReservationOwnerType,
+} from "./domainTypes.js";
+
+import type {
+  SerializedLayoutDto,
+} from "./layout/layoutDto.js";
+
+import type {
+  ScriptDocumentDto,
+  ScriptRunSource,
+} from "./scriptTypes.js";
+
+import type {
+  TrainTaskCreateInput,
+} from "./task.js";
+
+import type {
+  SetRuntimeVariablePayload,
+} from "./runtimeVariables.js";
+
+import type {
+  AppSettings,
+} from "./appSettings.js";
+
+import type {
+  SignalLogicDocumentDto,
+} from "./signalLogic.js";
+
+import type {
+  BlockAutomationCommandPayload,
+} from "./blockAutomation.js";
+
+import type {
+  LevelCrossingCommandPayload,
+} from "./levelCrossingLogic.js";
+
+export type EmptyClientWsCommandPayload = {};
+
+export type SetTrackPowerCommandPayload = {
+  on: boolean;
+};
+
+export type SetProgrammingPowerCommandPayload = {
+  on: boolean;
+};
+
+export type DccExDirectCommandPayload = {
+  command: string;
+};
+
+export type SetLocoCommandPayload = {
+  locoAddress: number;
+  speed: number;
+  direction: Direction;
+};
+
+export type GetLocoCommandPayload = {
+  locoAddress: number;
+};
+
+export type SetLocoFunctionCommandPayload = {
+  locoAddress: number;
+  functionNumber: number;
+  active: boolean;
+};
+
+export type ReserveLocoCommandPayload = {
+  locoAddress: number;
+  ownerId: string;
+  ownerType: ReservationOwnerType;
+  ownerName?: string;
+  reason?: string;
+};
+
+export type ReleaseLocoReservationCommandPayload = {
+  locoAddress: number;
+  ownerId: string;
+};
+
+export type SetTurnoutCommandPayload = {
+  address: number;
+  closed: boolean;
+};
+
+export type SetSensorCommandPayload = {
+  address: number;
+  on: boolean;
+};
+
+export type SetBasicAccessoryCommandPayload = {
+  address: number;
+  active: boolean;
+};
+
+export type SetVpinCommandPayload = {
+  vpin: number;
+  active: boolean;
+};
+
+export type SetSignalAspectCommandPayload = {
+  address: number;
+  aspect: number;
+  turnoutPhysicalValue?: boolean;
+};
+
+export type SetBlockCommandPayload = {
+  blockId: string;
+  locoId: string | null;
+  locoAddress?: number;
+};
+
+export type SetBlockRemoveCommandPayload =
+  SetBlockCommandPayload;
+
+export type RouteReservationCommandPayload = {
+  fromBlockName: string;
+  toBlockName: string;
+};
+
+export type LayoutCommandAction =
+  | "load"
+  | "save"
+  | "refreshRuntime"
+  | "getRouteGraph";
+
+export type LayoutCommandPayload = {
+  requestId: string;
+  action: LayoutCommandAction;
+  layout?: SerializedLayoutDto;
+};
+
+export type LocosCommandAction =
+  | "load"
+  | "save";
+
+export type LocosCommandPayload = {
+  requestId: string;
+  action: LocosCommandAction;
+  locos?: Loco[];
+};
+
+export type ScriptDocumentCommandAction =
+  | "load"
+  | "save";
+
+export type ScriptDocumentCommandPayload = {
+  requestId: string;
+  action: ScriptDocumentCommandAction;
+  document?: Partial<ScriptDocumentDto>;
+};
+
+export type CommandCenterConfigCommandAction =
+  | "load"
+  | "save";
+
+export type CommandCenterConfigCommandPayload = {
+  requestId: string;
+  action: CommandCenterConfigCommandAction;
+  config?: Partial<ICommandCenter>;
+};
+
+export type AppSettingsCommandAction =
+  | "load"
+  | "save";
+
+export type AppSettingsCommandPayload = {
+  requestId: string;
+  action: AppSettingsCommandAction;
+  settings?: Partial<AppSettings>;
+};
+
+export type SignalLogicCommandAction =
+  | "load"
+  | "save"
+  | "start"
+  | "stop"
+  | "state"
+  | "integrityCheck"
+  | "deleteOrphanSignals";
+
+export type SignalLogicCommandPayload = {
+  requestId: string;
+  action: SignalLogicCommandAction;
+  document?: SignalLogicDocumentDto;
+  signalAddresses?: number[];
+};
+
+export type ProgrammingCommandAction =
+  | "readAddress"
+  | "writeAddress"
+  | "readCv"
+  | "writeCv"
+  | "pomReadCv"
+  | "pomWriteCv"
+  | "accessoryPomReadCv"
+  | "accessoryPomWriteCv"
+  | "accessoryLearn";
+
+export type ProgrammingCommandPayload = {
+  requestId: string;
+  action: ProgrammingCommandAction;
+  address?: number;
+  cv?: number;
+  value?: number;
+  active?: boolean;
+};
+
+export type AutomationCommandAction =
+  | "snapshot"
+  | "start"
+  | "stop";
+
+export type AutomationCommandPayload = {
+  requestId: string;
+  action: AutomationCommandAction;
+};
+
+export type TaskManagerCommandAction =
+  | "snapshot"
+  | "add"
+  | "update"
+  | "delete"
+  | "save"
+  | "reload"
+  | "start"
+  | "pause"
+  | "resume"
+  | "finish"
+  | "abort"
+  | "startAll"
+  | "pauseAll"
+  | "finishAll"
+  | "abortAll";
+
+export type TaskManagerCommandPayload = {
+  requestId: string;
+  action: TaskManagerCommandAction;
+  taskId?: string;
+  input?: TrainTaskCreateInput;
+};
+
+export type FastClockCommandAction =
+  | "snapshot"
+  | "run"
+  | "pause"
+  | "reset"
+  | "setSpeed"
+  | "setTime";
+
+export type FastClockCommandPayload = {
+  requestId: string;
+  action: FastClockCommandAction;
+  speed?: number;
+  timeMs?: number;
+};
+
+export type FileCommandAction =
+  | "readText"
+  | "writeText"
+  | "readJson"
+  | "writeJson";
+
+export type FileCommandPayload = {
+  requestId: string;
+  action: FileCommandAction;
+  fileName: string;
+  content?: string;
+  data?: unknown;
+};
+
+export type RunScriptCommandPayload = {
+  script?: string;
+  source: ScriptRunSource;
+  elementId: string | null;
+};
+
+export type TaskIdOrNameCommandPayload = {
+  taskIdOrName: string;
+};
+
+export type SetEditorEditModeCommandPayload = {
+  editMode: boolean;
+};
+
+export type BroadcastPlayAudioCommandPayload = {
+  requestId: string;
+  fileName: string;
+};
+
+export type BroadcastStopAudioCommandPayload = {
+  fileName: string;
+};
+
+export type AudioPlaybackStateCommandPayload = {
+  enabled: boolean;
+};
+
+export type DispatcherCommandAction =
+  | "snapshot"
+  | "acquireLeg"
+  | "releaseLeg"
+  | "acquireRoute"
+  | "commitRoute"
+  | "releaseRoute"
+  | "releaseAll";
+
+export type DispatcherCommandPayload = {
+  requestId: string;
+  action:
+    DispatcherCommandAction;
+  ownerId?: string;
+  ownerName?: string;
+  locoAddress?: number;
+  fromBlockId?: number;
+  toBlockId?: number;
+  sourceBlockId?: number;
+  downstreamBlocks?: Array<{
+    blockId: number;
+    sensorAddress: number;
+  }>;
+  turnouts?: Array<{
+    address: number;
+    closed: boolean;
+  }>;
+  safetySensors?: number[];
+  resourceKeys?: string[];
+  timeoutMs?: number;
+  setDelayMs?: number;
+};
+
+export type MovementCommandAction =
+  | "snapshot"
+  | "start"
+  | "startTransient"
+  | "stop"
+  | "abort"
+  | "stopAll"
+  | "abortAll";
+
+export type MovementCommandPayload = {
+  requestId: string;
+  action: MovementCommandAction;
+  pageId?: string;
+  page?: MovementPage;
+  emergencyStop?: boolean;
+};
+
+export type MovementAudioCompleteCommandPayload = {
+  requestId: string;
+  ok: boolean;
+};
+
+export type TrainTrackingCommandAction =
+  | "snapshot"
+  | "setEnabled"
+  | "refresh"
+  | "reset"
+  | "clearLogs";
+
+export type TrainTrackingCommandPayload = {
+  requestId: string;
+  action: TrainTrackingCommandAction;
+  enabled?: boolean;
+};
+
+export type TimetableCommandAction =
+  | "snapshot"
+  | "start"
+  | "stop"
+  | "rebase"
+  | "setFinishing";
+
+export type TimetableCommandPayload = {
+  requestId: string;
+  action: TimetableCommandAction;
+  finishing?: boolean;
+};
+
+export type ScriptCommandAction =
+  | "snapshot"
+  | "startSaved"
+  | "startSource"
+  | "pause"
+  | "resume"
+  | "abort"
+  | "startAll"
+  | "pauseAll"
+  | "resumeAll"
+  | "abortAll"
+  | "pauseAllSaved"
+  | "resumeAllSaved"
+  | "abortAllSaved"
+  | "setFinishing";
+
+export type ScriptCommandPayload = {
+  requestId: string;
+  action:
+    ScriptCommandAction;
+  scriptId?: string;
+  executionId?: string;
+  name?: string;
+  executionType?: string;
+  source?: string;
+  finishing?: boolean;
+};
+
+export type ScriptAudioCompleteCommandPayload = {
+  requestId: string;
+  ok: boolean;
+};
+
+export type FlowCommandAction =
+  | "snapshot"
+  | "runPage"
+  | "abortPage"
+  | "abortAll";
+
+export type FlowCommandPayload = {
+  requestId: string;
+  action:
+    FlowCommandAction;
+  pageId?: string;
+  inputNodeId?: string;
+  payload?: unknown;
+  mode?: string;
+};
+
+export type TrainDriverCommandPayload = {
+  requestId: string;
+  action: "snapshot" | "start" | "startAuto" | "stop" | "resume" | "abort";
+  taskId?: string;
+  page?: import("./movement").MovementPage;
+  candidates?: import("./movement").MovementPage[];
+};
+
+export type ClientWsPayloadMap = {
+  heartbeat: EmptyClientWsCommandPayload;
+  broadcastPlayAudio: BroadcastPlayAudioCommandPayload;
+  broadcastStopAudio: BroadcastStopAudioCommandPayload;
+  audioPlaybackState: AudioPlaybackStateCommandPayload;
+  dispatcherCommand: DispatcherCommandPayload;
+  movementCommand: MovementCommandPayload;
+  trainDriverCommand: TrainDriverCommandPayload;
+  movementAudioComplete: MovementAudioCompleteCommandPayload;
+  trainTrackingCommand: TrainTrackingCommandPayload;
+  scriptCommand: ScriptCommandPayload;
+  scriptAudioComplete: ScriptAudioCompleteCommandPayload;
+  flowCommand: FlowCommandPayload;
+  timetableCommand: TimetableCommandPayload;
+  setTrackPower: SetTrackPowerCommandPayload;
+  setProgrammingPower: SetProgrammingPowerCommandPayload;
+  emergencyStop: EmptyClientWsCommandPayload;
+  writeDccExDirectCommand: DccExDirectCommandPayload;
+
+  setLoco: SetLocoCommandPayload;
+  getLoco: GetLocoCommandPayload;
+  setLocoFunction: SetLocoFunctionCommandPayload;
+  reserveLoco: ReserveLocoCommandPayload;
+  releaseLocoReservation: ReleaseLocoReservationCommandPayload;
+
+  setTurnout: SetTurnoutCommandPayload;
+  setSensor: SetSensorCommandPayload;
+  setBasicAccessory: SetBasicAccessoryCommandPayload;
+  setVpin: SetVpinCommandPayload;
+  setSignalAspect: SetSignalAspectCommandPayload;
+
+  setBlock: SetBlockCommandPayload;
+  setBlockRemove: SetBlockRemoveCommandPayload;
+  setBlocksReset: EmptyClientWsCommandPayload;
+  getBlocks: EmptyClientWsCommandPayload;
+  getLayoutRuntimeSnapshot: EmptyClientWsCommandPayload;
+
+  routeLock: EmptyClientWsCommandPayload;
+  routeUnlock: EmptyClientWsCommandPayload;
+
+  reserveRoute: RouteReservationCommandPayload;
+  releaseRouteReservation: RouteReservationCommandPayload;
+  clearAllRouteReservations: EmptyClientWsCommandPayload;
+  getRouteReservations: EmptyClientWsCommandPayload;
+
+  layoutCommand: LayoutCommandPayload;
+  locosCommand: LocosCommandPayload;
+  scriptDocumentCommand: ScriptDocumentCommandPayload;
+  commandCenterConfigCommand: CommandCenterConfigCommandPayload;
+  appSettingsCommand: AppSettingsCommandPayload;
+  signalLogicCommand: SignalLogicCommandPayload;
+  programmingCommand: ProgrammingCommandPayload;
+  blockAutomationCommand: BlockAutomationCommandPayload;
+  levelCrossingCommand: LevelCrossingCommandPayload;
+  automationCommand: AutomationCommandPayload;
+  taskManagerCommand: TaskManagerCommandPayload;
+  fastClockCommand: FastClockCommandPayload;
+  fileCommand: FileCommandPayload;
+
+  runScript: RunScriptCommandPayload;
+  stopScript: EmptyClientWsCommandPayload;
+  getScriptRuntimeState: EmptyClientWsCommandPayload;
+
+  startTask: TaskIdOrNameCommandPayload;
+  startAllTasks: EmptyClientWsCommandPayload;
+  pauseTask: TaskIdOrNameCommandPayload;
+  pauseAllTasks: EmptyClientWsCommandPayload;
+  resumeTask: TaskIdOrNameCommandPayload;
+  finishTask: TaskIdOrNameCommandPayload;
+  abortTask: TaskIdOrNameCommandPayload;
+  finishAllTasks: EmptyClientWsCommandPayload;
+  abortAllTasks: EmptyClientWsCommandPayload;
+
+  setRuntimeVariable: SetRuntimeVariablePayload;
+  getRuntimeVariables: EmptyClientWsCommandPayload;
+
+  setEditorEditMode: SetEditorEditModeCommandPayload;
+
+  getTaskRuntimeState: EmptyClientWsCommandPayload;
+};

@@ -1,0 +1,1291 @@
+import {
+  Edge,
+  Graph,
+  GraphNode,
+  type SectionBlock,
+  type SectionDetector,
+  type SectionSignal,
+  type TurnoutStateRequirement,
+  type RouteTurnoutPassage,
+} from "./graph";
+
+import {
+  RailwayTopologyLayout,
+  type TopologyBlockElement,
+  type TopologyPoint,
+  type TopologyTrackElement,
+  type TopologyTurnoutElement,
+  isTopologyTurnoutElement,
+  type TravelDirection,
+} from "./topology";
+
+import TrackTurnoutDoubleElement from "../../models/editor/elements/TrackTurnoutDoubleElement";
+import { TrackTurnoutThreeWayElement } from "../../models/editor/elements/TrackTurnoutThreeWayElement";
+import { TrackTravelDirectionResolver } from "./trackTravelDirectionResolver";
+
+type TurnoutSide = string;
+
+type TurnoutExit = {
+  exitSide: TurnoutSide;
+  turnoutStates: TurnoutStateRequirement[];
+};
+
+type TrackConnectionGroup = {
+  index: number;
+  endpoints: TopologyPoint[];
+};
+
+type LinearConnectionSide =
+  | "prev"
+  | "next";
+
+export class RouteGraphBuilder {
+  private readonly graph = new Graph();
+
+  private readonly sectionNodes =
+    new Map<number, GraphNode>();
+
+  // A physical section may contain several separately occupied blocks.
+  private readonly partNodeByTrackId = new Map<number, GraphNode>();
+
+  private readonly createdEdgeKeys =
+    new Set<string>();
+
+  private readonly sectionByTrackConnectionKey =
+    new Map<string, number>();
+
+  private readonly visitedTrackConnectionKeys =
+    new Set<string>();
+
+  private turnouts: TopologyTurnoutElement[] = [];
+  private nextSectionNumber = 1;
+
+  constructor(
+    private readonly topology: RailwayTopologyLayout
+  ) {}
+
+  build(): Graph {
+    this.resetRoutes();
+
+    new TrackTravelDirectionResolver(
+      this.topology
+    ).resolve();
+
+    this.turnouts = this.topology.getTurnouts();
+
+    this.markTurnoutsVisited();
+    this.discoverPhysicalSections();
+    this.discoverSectionsFromDirectionElements();
+    this.discoverRemainingTrackConnectionSections();
+    this.createRouteEdges();
+
+    return this.graph;
+  }
+
+  private resetRoutes(): void {
+    const elems =
+      this.topology.getPhysicalTrackElements();
+
+    this.sectionNodes.clear();
+    this.partNodeByTrackId.clear();
+    this.createdEdgeKeys.clear();
+    this.sectionByTrackConnectionKey.clear();
+    this.visitedTrackConnectionKeys.clear();
+
+    this.nextSectionNumber = 1;
+    this.turnouts = [];
+
+    for (const elem of elems) {
+      elem.isVisited = false;
+      elem.isRoute = false;
+      elem.section = 0;
+      elem.travelDirection = "unknown";
+    }
+  }
+
+  private markTurnoutsVisited(): void {
+    for (const turnout of this.turnouts) {
+      turnout.isVisited = true;
+    }
+  }
+
+  private discoverPhysicalSections(): void {
+    for (const turnout of this.turnouts) {
+      const connections = this.getTurnoutConnectionPoints(turnout);
+
+      for (const pos of Object.values(connections)) {
+        const firstElem =
+          this.topology.getPhysicalTrackAt(pos, turnout.pos);
+
+        if (
+          !firstElem ||
+          isTopologyTurnoutElement(firstElem)
+        ) {
+          continue;
+        }
+
+        if (!this.hasTrackConnectionAt(firstElem, turnout.pos)) {
+          continue;
+        }
+
+        if (this.isTrackConnectionVisited(firstElem, turnout.pos)) {
+          continue;
+        }
+
+        this.createPhysicalSection(firstElem, turnout.pos);
+      }
+    }
+  }
+
+  private discoverSectionsFromDirectionElements(): void {
+    for (const directionElement of this.topology.getDirectionElements()) {
+      if (this.areAllTrackConnectionsVisited(directionElement)) {
+        continue;
+      }
+
+      this.createPhysicalSection(directionElement);
+    }
+  }
+
+  private discoverRemainingTrackConnectionSections(): void {
+    const rails = this.topology.getPhysicalTrackElements();
+    // Discover ordinary ground sections first so adding a disconnected bridge
+    // does not renumber existing ground sections simply due to layout order.
+    const ordered = [
+      ...rails.filter(elem => elem.type !== "trackbridge"),
+      ...rails.filter(elem => elem.type === "trackbridge"),
+    ];
+    for (const elem of ordered) {
+      if (
+        isTopologyTurnoutElement(elem) ||
+        this.areAllTrackConnectionsVisited(elem)
+      ) {
+        continue;
+      }
+
+      this.createPhysicalSection(elem);
+    }
+  }
+
+  private createPhysicalSection(
+    firstElem: TopologyTrackElement,
+    incomingPos?: TopologyPoint
+  ): void {
+    const sectionNumber =
+      this.nextSectionNumber++;
+
+    const sectionElements: TopologyTrackElement[] = [];
+
+    this.walkTrackSection(
+      firstElem,
+      incomingPos,
+      sectionNumber,
+      sectionElements
+    );
+
+    if (sectionElements.length === 0) {
+      this.nextSectionNumber--;
+      return;
+    }
+
+    const node = this.createSectionGraphNode(
+      sectionNumber,
+      sectionElements
+    );
+
+    this.graph.addNode(node);
+    this.sectionNodes.set(sectionNumber, node);
+    this.splitSectionIntoBlockParts(sectionNumber, sectionElements, node);
+  }
+
+  /**
+   * Preserve the physical section number for locking and persistence, but
+   * represent its successive occupancy blocks as separately routed nodes.
+   * Assignment of unblocked rail cells uses connected-track distance, never
+   * lexical block name or sensor address order.
+   */
+  private splitSectionIntoBlockParts(
+    section: number,
+    elements: TopologyTrackElement[],
+    originalNode: GraphNode
+  ): void {
+    const byId = new Map(elements.map(elem => [elem.id, elem]));
+    const adjacency = new Map<number, TopologyTrackElement[]>();
+
+    // Connect only genuine railway endpoints. This works for straight,
+    // corner and curve track pieces alike: all expose their respective
+    // getNeighborPointPairs(), including their rotations.
+    for (const elem of elements) {
+      const neighbors: TopologyTrackElement[] = [];
+      for (const group of this.getTrackConnectionGroups(elem)) {
+        for (const point of group.endpoints) {
+          const other = this.topology.getPhysicalTrackAt(point, elem.pos);
+          if (other && byId.has(other.id) &&
+              this.hasTrackConnectionAt(other, elem.pos) &&
+              !neighbors.some(item => item.id === other.id)) {
+            neighbors.push(other);
+          }
+        }
+      }
+      adjacency.set(elem.id, neighbors);
+    }
+
+    type PartSeed = { cells: TopologyTrackElement[] };
+    let seeds: PartSeed[] = [];
+
+    // Occupancy sensors on the physical rails define part boundaries,
+    // even when the physical Sx contains zero or only one Block element.
+    // Repeated addresses form ONE part only while physically connected;
+    // unrelated track with the same address must not be joined by name.
+    const visitedSensorCells = new Set<number>();
+    for (const elem of elements) {
+      if (elem.address <= 0 || visitedSensorCells.has(elem.id)) continue;
+      const cells: TopologyTrackElement[] = [];
+      const pending = [elem];
+      visitedSensorCells.add(elem.id);
+      for (let index = 0; index < pending.length; index++) {
+        const current = pending[index]!;
+        cells.push(current);
+        for (const other of adjacency.get(current.id) ?? []) {
+          if (other.address !== elem.address ||
+              visitedSensorCells.has(other.id)) continue;
+          visitedSensorCells.add(other.id);
+          pending.push(other);
+        }
+      }
+      seeds.push({ cells });
+    }
+
+    // Existing multi-block layouts may use only block occupancy sensors
+    // (rather than addresses on the rails). Keep that supported too.
+    const blockSeeds = originalNode.blocks.map(block => {
+      const physicalBlock = this.topology.getBlocks()
+        .find(item => item.id === block.id);
+      return {
+        cells: physicalBlock
+          ? elements.filter(elem =>
+              this.isSectionElementInsideBlock(elem, physicalBlock))
+          : [],
+      };
+    });
+
+    const partition = (partSeeds: PartSeed[]): Map<number, number> | null => {
+      const owners = new Map<number, number>();
+      const queue: TopologyTrackElement[] = [];
+
+      partSeeds.forEach((seed, index) => {
+        for (const elem of seed.cells) {
+          if (owners.has(elem.id)) continue;
+          owners.set(elem.id, index);
+          queue.push(elem);
+        }
+      });
+
+      // Assign unaddressed connecting rails to the nearest physical
+      // detector region. The BFS follows curves/corners just like straights.
+      for (let head = 0; head < queue.length; head++) {
+        const current = queue[head]!;
+        for (const neighbor of adjacency.get(current.id) ?? []) {
+          if (owners.has(neighbor.id)) continue;
+          owners.set(neighbor.id, owners.get(current.id)!);
+          queue.push(neighbor);
+        }
+      }
+
+      return owners.size === elements.length &&
+        new Set(owners.values()).size === partSeeds.length
+        ? owners
+        : null;
+    };
+
+    if (seeds.length < 2) {
+      seeds = blockSeeds;
+    }
+
+    if (seeds.length < 2) {
+      for (const elem of elements) this.partNodeByTrackId.set(elem.id, originalNode);
+      return;
+    }
+
+    let owners = partition(seeds);
+    if (!owners && blockSeeds.length >= 2) {
+      seeds = blockSeeds;
+      owners = partition(seeds);
+    }
+    if (!owners) {
+      // Never publish a disconnected or ambiguous graph as a valid route.
+      for (const elem of elements) this.partNodeByTrackId.set(elem.id, originalNode);
+      return;
+    }
+
+    const blockOwners = new Map<number, number>();
+    let ambiguousBlockMapping = false;
+    for (const block of originalNode.blocks) {
+      const physicalBlock = this.topology.getBlocks()
+        .find(item => item.id === block.id);
+      if (!physicalBlock) {
+        ambiguousBlockMapping = true;
+        break;
+      }
+      const counts = new Map<number, number>();
+      for (const elem of elements) {
+        if (!this.isSectionElementInsideBlock(elem, physicalBlock)) continue;
+        const owner = owners.get(elem.id);
+        if (owner === undefined) continue;
+        counts.set(owner, (counts.get(owner) ?? 0) + 1);
+      }
+      const best = [...counts.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0] - b[0])[0];
+      if (!best) {
+        ambiguousBlockMapping = true;
+        break;
+      }
+      blockOwners.set(block.id, best[0]);
+    }
+
+    // If multiple blocks collapse onto one sensor part, fall back to
+    // block boundaries: a block cannot belong to an ambiguous graph node.
+    if ((!owners || ambiguousBlockMapping ||
+        new Set(blockOwners.values()).size < originalNode.blocks.length) &&
+        blockSeeds.length >= 2) {
+      const byBlock = partition(blockSeeds);
+      if (byBlock) {
+        owners = byBlock;
+        seeds = blockSeeds;
+        blockOwners.clear();
+        originalNode.blocks.forEach((block, index) =>
+          blockOwners.set(block.id, index));
+        ambiguousBlockMapping = false;
+      }
+    }
+    if (ambiguousBlockMapping ||
+        new Set(blockOwners.values()).size < originalNode.blocks.length) {
+      for (const elem of elements) this.partNodeByTrackId.set(elem.id, originalNode);
+      return;
+    }
+
+    // Number Sx.1, Sx.2, ... in the direction defined by TrackDirection,
+    // rather than by detector address or Block name.
+    const forwardNeighbors = new Map<number, Set<number>>();
+    const inDegree = new Array<number>(seeds.length).fill(0);
+    for (const elem of elements) {
+      const from = owners.get(elem.id)!;
+      for (const next of adjacency.get(elem.id) ?? []) {
+        const to = owners.get(next.id)!;
+        if (from === to) continue;
+        const side = this.getLinearConnectionSideTowards(elem, next.pos);
+        const forward =
+          (side === "next" && elem.travelDirection === "forward") ||
+          (side === "prev" && elem.travelDirection === "reverse");
+        if (!forward) continue;
+        const outgoing = forwardNeighbors.get(from) ?? new Set<number>();
+        if (!outgoing.has(to)) {
+          outgoing.add(to);
+          inDegree[to] = (inDegree[to] ?? 0) + 1;
+        }
+        forwardNeighbors.set(from, outgoing);
+      }
+    }
+
+    const order: number[] = [];
+    const ready = seeds.map((_, index) => index)
+      .filter(index => inDegree[index] === 0);
+    while (ready.length > 0) {
+      const owner = ready.shift()!;
+      order.push(owner);
+      for (const next of forwardNeighbors.get(owner) ?? []) {
+        inDegree[next] = (inDegree[next] ?? 0) - 1;
+        if (inDegree[next] === 0) ready.push(next);
+      }
+    }
+    // Loops or missing TrackDirection can lack a unique forward order.
+    // Keep deterministic labels but do not fabricate an edge direction.
+    for (let index = 0; index < seeds.length; index++) {
+      if (!order.includes(index)) order.push(index);
+    }
+
+    const parts = order.map((owner, index) => {
+      const cells = elements.filter(elem => owners.get(elem.id) === owner);
+      const node = this.createSectionGraphNode(section, cells);
+      node.name = `S${section}.${index + 1}`;
+      node.blocks = originalNode.blocks.filter(block =>
+        blockOwners.get(block.id) === owner);
+      return { owner, node };
+    });
+
+    const partByOwner = new Map(
+      parts.map(item => [item.owner, item.node])
+    );
+    const nodeIndex = this.graph.nodes.indexOf(originalNode);
+    this.graph.nodes.splice(nodeIndex, 1, ...parts.map(item => item.node));
+    for (const elem of elements) {
+      this.partNodeByTrackId.set(elem.id, partByOwner.get(owners.get(elem.id)!)!);
+    }
+
+    // Adjacent parts get directed edges in BOTH traversable directions.
+    // Their locoDirection follows the physical TrackDirection metadata.
+    for (const elem of elements) {
+      for (const next of adjacency.get(elem.id) ?? []) {
+        const fromNode = this.partNodeByTrackId.get(elem.id)!;
+        const toNode = this.partNodeByTrackId.get(next.id)!;
+        if (fromNode === toNode) continue;
+        const side = this.getLinearConnectionSideTowards(elem, next.pos);
+        let direction: TravelDirection = "unknown";
+        if (side === "next") direction = elem.travelDirection;
+        else if (side === "prev") {
+          direction = elem.travelDirection === "forward" ? "reverse" :
+            elem.travelDirection === "reverse" ? "forward" : "unknown";
+        }
+        this.addRouteEdgeIfMissing(fromNode, toNode, [], [], direction);
+      }
+    }
+  }
+
+  private walkTrackSection(
+    obj: TopologyTrackElement,
+    incomingPos: TopologyPoint | undefined,
+    section: number,
+    sectionElements: TopologyTrackElement[]
+  ): void {
+    const groups =
+      this.getTrackConnectionGroupsForIncoming(
+        obj,
+        incomingPos
+      );
+
+    for (const group of groups) {
+      const key =
+        this.getTrackConnectionKey(obj, group.index);
+
+      if (this.visitedTrackConnectionKeys.has(key)) {
+        continue;
+      }
+
+      this.visitedTrackConnectionKeys.add(key);
+      this.sectionByTrackConnectionKey.set(key, section);
+
+      if (obj.section === 0) {
+        obj.section = section;
+      }
+
+      this.addSectionElementOnce(
+        sectionElements,
+        obj
+      );
+
+      for (const endpoint of group.endpoints) {
+        if (incomingPos?.isEqual(endpoint)) {
+          continue;
+        }
+
+        this.walkTrackSectionDirection(
+          obj,
+          endpoint,
+          section,
+          sectionElements
+        );
+      }
+
+      obj.isVisited =
+        this.areAllTrackConnectionsVisited(obj);
+    }
+  }
+
+  private walkTrackSectionDirection(
+    current: TopologyTrackElement,
+    targetPos: TopologyPoint,
+    section: number,
+    sectionElements: TopologyTrackElement[]
+  ): void {
+    const next =
+      this.topology.getPhysicalTrackAt(targetPos, current.pos);
+
+    if (
+      !next ||
+      isTopologyTurnoutElement(next) ||
+      !this.hasTrackConnectionAt(next, current.pos) ||
+      this.isTrackConnectionVisited(next, current.pos)
+    ) {
+      return;
+    }
+
+    this.walkTrackSection(
+      next,
+      current.pos,
+      section,
+      sectionElements
+    );
+  }
+
+  private addSectionElementOnce(
+    sectionElements: TopologyTrackElement[],
+    elem: TopologyTrackElement
+  ): void {
+    if (sectionElements.some(existing => existing.id === elem.id)) {
+      return;
+    }
+
+    sectionElements.push(elem);
+  }
+
+  private createSectionGraphNode(
+    section: number,
+    sectionElements: TopologyTrackElement[]
+  ): GraphNode {
+    let x = 0;
+    let y = 0;
+
+    for (const elem of sectionElements) {
+      x += elem.pos.x;
+      y += elem.pos.y;
+    }
+
+    if (sectionElements.length > 0) {
+      x /= sectionElements.length;
+      y /= sectionElements.length;
+    }
+
+    const trackName =
+      this.getSectionTrackName(sectionElements);
+
+    const detectors =
+      this.collectSectionDetectors(sectionElements);
+
+    const signals =
+      this.collectSectionSignals(sectionElements);
+
+    const blocks =
+      this.collectSectionBlocks(
+        sectionElements,
+        trackName
+      );
+
+    return new GraphNode(
+      `S${section}`,
+      trackName,
+      x,
+      y,
+      detectors,
+      signals,
+      blocks,
+      sectionElements.map(elem => elem.id)
+    );
+  }
+
+  private getSectionTrackName(
+    sectionElements: TopologyTrackElement[]
+  ): string {
+    return (
+      sectionElements.find(
+        elem => elem.trackName.trim().length > 0
+      )?.trackName.trim() ?? ""
+    );
+  }
+
+  // A bridge crossing is two independent tracks occupying one canvas cell.
+  // Spatial overlays at the crossing belong to the ground-level track by
+  // default; they must never be duplicated onto the elevated route.
+  private isGroundOrUnstackedRail(element: TopologyTrackElement): boolean {
+    if (element.type !== "trackbridge") return true;
+    return !this.topology.getPhysicalTrackElements().some(other =>
+      other.id !== element.id &&
+      other.type === "trackstraight" &&
+      other.x === element.x &&
+      other.y === element.y
+    );
+  }
+
+  private collectSectionDetectors(
+    sectionElements: TopologyTrackElement[]
+  ): SectionDetector[] {
+    const positions = new Set(
+      sectionElements.filter(elem => this.isGroundOrUnstackedRail(elem)).map(
+        elem => `${elem.x}:${elem.y}`
+      )
+    );
+
+    return this.topology
+      .getSensors()
+      .filter(sensor =>
+        positions.has(`${sensor.x}:${sensor.y}`)
+      )
+      .sort((a, b) => a.address - b.address)
+      .map(sensor => ({
+        id: sensor.id,
+        address: sensor.address,
+        label: `D${sensor.address}`,
+      }));
+  }
+
+  private collectSectionSignals(
+    sectionElements: TopologyTrackElement[]
+  ): SectionSignal[] {
+    const positions = new Set(
+      sectionElements.filter(elem => this.isGroundOrUnstackedRail(elem)).map(
+        elem => `${elem.x}:${elem.y}`
+      )
+    );
+
+    return this.topology
+      .getSignals()
+      .filter(signal =>
+        positions.has(`${signal.x}:${signal.y}`)
+      )
+      .sort((a, b) => a.address - b.address)
+      .map(signal => ({
+        id: signal.id,
+        address: signal.address,
+        label: `L${signal.address}`,
+      }));
+  }
+
+  private collectSectionBlocks(
+    sectionElements: TopologyTrackElement[],
+    trackName: string
+  ): SectionBlock[] {
+    return this.topology
+      .getBlocks()
+      .filter(block =>
+        sectionElements.some(sectionElem =>
+          this.isSectionElementInsideBlock(
+            sectionElem,
+            block
+          )
+        )
+      )
+      .sort((a, b) =>
+        (a.name ?? "").localeCompare(b.name ?? "")
+      )
+      .map(block => {
+        const blockName =
+          block.name?.trim()
+            ? block.name.trim()
+            : "Block";
+
+        const resolvedTrackName =
+          trackName.trim();
+
+        return {
+          id: block.id,
+          name: blockName,
+          trackName: resolvedTrackName,
+          label: resolvedTrackName
+            ? `${resolvedTrackName}: ${blockName}`
+            : blockName,
+        };
+      });
+  }
+
+  private isSectionElementInsideBlock(
+    sectionElem: TopologyTrackElement,
+    block: TopologyBlockElement
+  ): boolean {
+    if (!this.isGroundOrUnstackedRail(sectionElem)) return false;
+    const bounds = block.getBounds();
+
+    return (
+      sectionElem.x >= bounds.x &&
+      sectionElem.x < bounds.x + bounds.width &&
+      sectionElem.y >= bounds.y &&
+      sectionElem.y < bounds.y + bounds.height
+    );
+  }
+
+  private createRouteEdges(): void {
+    for (const turnout of this.turnouts) {
+      const connections =
+        this.getTurnoutConnectionPoints(turnout);
+
+      for (const [side, point] of Object.entries(connections)) {
+        const connectedElem =
+          this.topology.getPhysicalTrackAt(point, turnout.pos);
+
+        if (
+          !connectedElem ||
+          isTopologyTurnoutElement(connectedElem)
+        ) {
+          continue;
+        }
+
+        const connectedSection =
+          this.getSectionForTrackConnection(
+            connectedElem,
+            turnout.pos
+          );
+
+        if (!connectedSection) {
+          continue;
+        }
+
+        const fromNode =
+          this.partNodeByTrackId.get(connectedElem.id) ??
+          this.sectionNodes.get(connectedSection);
+
+        if (!fromNode) {
+          continue;
+        }
+
+        const locoDirection =
+          this.getLocoDirectionFromSectionTowardsTurnout(
+            connectedElem,
+            turnout
+          );
+
+        this.walkTurnoutChainToSections(
+          fromNode,
+          turnout,
+          side,
+          [],
+          [],
+          new Set<string>(),
+          locoDirection
+        );
+      }
+    }
+  }
+
+  private walkTurnoutChainToSections(
+    fromNode: GraphNode,
+    turnout: TopologyTurnoutElement,
+    enteredSide: TurnoutSide,
+    turnoutStates: TurnoutStateRequirement[],
+    turnoutPath: RouteTurnoutPassage[],
+    visitedTurnoutSides: Set<string>,
+    locoDirection: TravelDirection
+  ): void {
+    const visitKey =
+      `${turnout.id}:${enteredSide}`;
+
+    if (visitedTurnoutSides.has(visitKey)) {
+      return;
+    }
+
+    const nextVisited =
+      new Set(visitedTurnoutSides);
+
+    nextVisited.add(visitKey);
+
+    for (const exit of this.getAllowedTurnoutExits(turnout, enteredSide)) {
+      const nextTurnoutStates = [
+        ...turnoutStates,
+        ...exit.turnoutStates,
+      ];
+
+      const nextTurnoutPath = [
+        ...turnoutPath,
+        {
+          elementId:
+            turnout.id,
+          name: (() => {
+            const configuredName =
+              turnout.name?.trim() ??
+              "";
+
+            if (
+              configuredName &&
+              configuredName !==
+                "element"
+            ) {
+              return configuredName;
+            }
+
+            const addresses =
+              exit.turnoutStates
+                .map(
+                  state =>
+                    state.address
+                )
+                .join("/");
+
+            return addresses
+              ? `Turnout #${addresses}`
+              : `Turnout #${turnout.id}`;
+          })(),
+          turnoutStates:
+            this.normalizeTurnoutStates(
+              exit.turnoutStates
+            ),
+        },
+      ];
+
+      const exitPos =
+        this.getTurnoutConnectionPoints(turnout)[exit.exitSide];
+
+      if (!exitPos) {
+        continue;
+      }
+
+      const nextElem =
+        this.topology.getPhysicalTrackAt(exitPos, turnout.pos);
+
+      if (!nextElem) {
+        continue;
+      }
+
+      if (!isTopologyTurnoutElement(nextElem)) {
+        this.finishRouteEdge(
+          fromNode,
+          nextElem,
+          turnout.pos,
+          nextTurnoutStates,
+          nextTurnoutPath,
+          locoDirection
+        );
+
+        continue;
+      }
+
+      const nextEnteredSide =
+        this.getTurnoutSideConnectedToElement(
+          nextElem,
+          turnout
+        );
+
+      if (!nextEnteredSide) {
+        continue;
+      }
+
+      this.walkTurnoutChainToSections(
+        fromNode,
+        nextElem,
+        nextEnteredSide,
+        nextTurnoutStates,
+        nextTurnoutPath,
+        nextVisited,
+        locoDirection
+      );
+    }
+  }
+
+  private finishRouteEdge(
+    fromNode: GraphNode,
+    targetElem: TopologyTrackElement,
+    connectedFrom: TopologyPoint,
+    turnoutStates: TurnoutStateRequirement[],
+    turnoutPath: RouteTurnoutPassage[],
+    locoDirection: TravelDirection
+  ): void {
+    const targetSection =
+      this.getSectionForTrackConnection(
+        targetElem,
+        connectedFrom
+      );
+
+    if (!targetSection) {
+      return;
+    }
+
+    const toNode =
+      this.partNodeByTrackId.get(targetElem.id) ??
+      this.sectionNodes.get(targetSection);
+
+    if (!toNode || toNode === fromNode) {
+      return;
+    }
+
+    this.addRouteEdgeIfMissing(
+      fromNode,
+      toNode,
+      turnoutStates,
+      turnoutPath,
+      locoDirection
+    );
+  }
+
+  private addRouteEdgeIfMissing(
+    from: GraphNode,
+    to: GraphNode,
+    turnoutStates: TurnoutStateRequirement[],
+    turnoutPath: RouteTurnoutPassage[],
+    locoDirection: TravelDirection
+  ): void {
+    const normalizedStates =
+      this.normalizeTurnoutStates(turnoutStates);
+
+    const turnoutKey = normalizedStates
+      .map(state =>
+        `${state.address}:${state.closed ? "C" : "T"}`
+      )
+      .join("|");
+
+    const turnoutPathKey =
+      turnoutPath
+        .map(
+          passage =>
+            String(
+              passage.elementId
+            )
+        )
+        .join(">");
+
+    const edgeKey =
+      `${from.name}->${to.name}:${turnoutKey}:${turnoutPathKey}:${locoDirection}`;
+
+    if (this.createdEdgeKeys.has(edgeKey)) {
+      return;
+    }
+
+    this.createdEdgeKeys.add(edgeKey);
+
+    this.graph.addEdge(
+      new Edge(
+        from,
+        to,
+        normalizedStates,
+        locoDirection,
+        turnoutPath
+      )
+    );
+
+    // A turnout crossing is physically reversible in the same turnout state.
+    // Derive the exact inverse of each validated crossing, instead of
+    // independently guessing its direction from the track at the other end.
+    // This also preserves the ordered chain of turnouts on the return trip.
+    if (turnoutPath.length > 0) {
+      const oppositeDirection: TravelDirection =
+        locoDirection === "forward" ? "reverse" :
+        locoDirection === "reverse" ? "forward" : "unknown";
+      const oppositePath = [...turnoutPath].reverse();
+      const oppositeKey =
+        `${to.name}->${from.name}:${turnoutKey}:${oppositePath.map(p => String(p.elementId)).join(">")}:${oppositeDirection}`;
+      if (!this.createdEdgeKeys.has(oppositeKey)) {
+        this.createdEdgeKeys.add(oppositeKey);
+        this.graph.addEdge(
+          new Edge(to, from, normalizedStates, oppositeDirection, oppositePath)
+        );
+      }
+    }
+  }
+
+  private normalizeTurnoutStates(
+    turnoutStates: TurnoutStateRequirement[]
+  ): TurnoutStateRequirement[] {
+    const byAddress = new Map<number, boolean>();
+
+    for (const state of turnoutStates) {
+      if (state.address <= 0) {
+        continue;
+      }
+
+      const existing = byAddress.get(state.address);
+
+      if (
+        existing !== undefined &&
+        existing !== state.closed
+      ) {
+        throw new Error(
+          `Conflicting turnout requirement for address ${state.address}.`
+        );
+      }
+
+      byAddress.set(state.address, state.closed);
+    }
+
+    return [...byAddress.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([address, closed]) => ({
+        address,
+        closed,
+      }));
+  }
+
+  private getAllowedTurnoutExits(
+    turnout: TopologyTurnoutElement,
+    enteredSide: TurnoutSide
+  ): TurnoutExit[] {
+    if (turnout instanceof TrackTurnoutDoubleElement) {
+      return turnout
+        .getOppositeRoutesFromSide(enteredSide as any)
+        .map(route => ({
+          exitSide:
+            turnout.getRouteExitSide(route, enteredSide as any) ?? "",
+          turnoutStates:
+            this.toLogicalMultiMotorStates(
+              turnout,
+              route.turnoutStates
+            ),
+        }))
+        .filter(exit => Boolean(exit.exitSide));
+    }
+
+    if (turnout instanceof TrackTurnoutThreeWayElement) {
+      return turnout
+        .getOppositeRoutesFromSide(enteredSide as any)
+        .map(route => ({
+          exitSide:
+            turnout.getRouteExitSide(route, enteredSide as any) ?? "",
+          turnoutStates:
+            this.toLogicalMultiMotorStates(
+              turnout,
+              route.turnoutStates
+            ),
+        }))
+        .filter(exit => Boolean(exit.exitSide));
+    }
+
+    const single = turnout as TopologyTurnoutElement & {
+      turnoutAddress: number;
+    };
+
+    const straightState: TurnoutStateRequirement = {
+      address: single.turnoutAddress,
+      closed: true,
+    };
+
+    const divState: TurnoutStateRequirement = {
+      address: single.turnoutAddress,
+      closed: false,
+    };
+
+    switch (enteredSide) {
+      case "entry":
+        return [
+          {
+            exitSide: "straight",
+            turnoutStates: [straightState],
+          },
+          {
+            exitSide: "div",
+            turnoutStates: [divState],
+          },
+        ];
+
+      case "straight":
+        return [
+          {
+            exitSide: "entry",
+            turnoutStates: [straightState],
+          },
+        ];
+
+      case "div":
+        return [
+          {
+            exitSide: "entry",
+            turnoutStates: [divState],
+          },
+        ];
+
+      default:
+        return [];
+    }
+  }
+
+  /**
+   * Multi-motor turnout classes expose their configured position table as
+   * PHYSICAL motor bits. The route graph stores LOGICAL CLOSED/THROWN states,
+   * exactly like the original DCCExpressNext graph did.
+   *
+   * This keeps graph semantics uniform for single, Double and 3-way turnouts.
+   */
+  private toLogicalMultiMotorStates(
+    turnout:
+      | TrackTurnoutDoubleElement
+      | TrackTurnoutThreeWayElement,
+    physicalStates: readonly TurnoutStateRequirement[]
+  ): TurnoutStateRequirement[] {
+    return physicalStates.map(state => {
+      if (state.address === turnout.turnout1Address) {
+        return {
+          address: state.address,
+          closed:
+            state.closed === turnout.turnout1ClosedValue,
+        };
+      }
+
+      if (state.address === turnout.turnout2Address) {
+        return {
+          address: state.address,
+          closed:
+            state.closed === turnout.turnout2ClosedValue,
+        };
+      }
+
+      throw new Error(
+        `Unknown motor address ${state.address} in multi-motor turnout ${turnout.id}.`
+      );
+    });
+  }
+
+  private getTurnoutConnectionPoints(
+    turnout: TopologyTurnoutElement
+  ): Record<string, TopologyPoint> {
+    return turnout.getConnections() as unknown as Record<string, TopologyPoint>;
+  }
+
+  private getTurnoutSideConnectedToElement(
+    turnout: TopologyTurnoutElement,
+    other: TopologyTrackElement
+  ): TurnoutSide | undefined {
+    for (
+      const [side, point]
+      of Object.entries(
+        this.getTurnoutConnectionPoints(turnout)
+      )
+    ) {
+      if (point.isEqual(other.pos)) {
+        return side;
+      }
+    }
+
+    return undefined;
+  }
+
+  private getLocoDirectionFromSectionTowardsTurnout(
+    sectionElem: TopologyTrackElement,
+    turnout: TopologyTurnoutElement
+  ): TravelDirection {
+    if (sectionElem.travelDirection === "unknown") {
+      return "unknown";
+    }
+
+    const side =
+      this.getLinearConnectionSideTowards(
+        sectionElem,
+        turnout.pos
+      );
+
+    if (side === "next") {
+      return sectionElem.travelDirection;
+    }
+
+    if (side === "prev") {
+      return sectionElem.travelDirection === "forward"
+        ? "reverse"
+        : "forward";
+    }
+
+    return "unknown";
+  }
+
+  private getSectionForTrackConnection(
+    element: TopologyTrackElement,
+    connectedFrom: TopologyPoint
+  ): number {
+    const group =
+      this.getTrackConnectionGroupsForIncoming(
+        element,
+        connectedFrom
+      )[0];
+
+    if (!group) {
+      return 0;
+    }
+
+    return (
+      this.sectionByTrackConnectionKey.get(
+        this.getTrackConnectionKey(
+          element,
+          group.index
+        )
+      ) ??
+      element.section ??
+      0
+    );
+  }
+
+  private isTrackConnectionVisited(
+    element: TopologyTrackElement,
+    connectedFrom: TopologyPoint
+  ): boolean {
+    const groups =
+      this.getTrackConnectionGroupsForIncoming(
+        element,
+        connectedFrom
+      );
+
+    return (
+      groups.length > 0 &&
+      groups.every(group =>
+        this.visitedTrackConnectionKeys.has(
+          this.getTrackConnectionKey(
+            element,
+            group.index
+          )
+        )
+      )
+    );
+  }
+
+  private areAllTrackConnectionsVisited(
+    element: TopologyTrackElement
+  ): boolean {
+    const groups =
+      this.getTrackConnectionGroups(element);
+
+    return (
+      groups.length > 0 &&
+      groups.every(group =>
+        this.visitedTrackConnectionKeys.has(
+          this.getTrackConnectionKey(
+            element,
+            group.index
+          )
+        )
+      )
+    );
+  }
+
+  private hasTrackConnectionAt(
+    element: TopologyTrackElement,
+    point: TopologyPoint
+  ): boolean {
+    return this.getTrackConnectionGroupsForIncoming(
+      element,
+      point
+    ).length > 0;
+  }
+
+  private getLinearConnectionSideTowards(
+    element: TopologyTrackElement,
+    point: TopologyPoint
+  ): LinearConnectionSide | undefined {
+    for (const pair of element.getNeighborPointPairs()) {
+      if (pair[0].isEqual(point)) {
+        return "prev";
+      }
+
+      if (pair[1].isEqual(point)) {
+        return "next";
+      }
+    }
+
+    return undefined;
+  }
+
+  private getTrackConnectionGroupsForIncoming(
+    element: TopologyTrackElement,
+    incomingPos?: TopologyPoint
+  ): TrackConnectionGroup[] {
+    const groups =
+      this.getTrackConnectionGroups(element);
+
+    if (!incomingPos) {
+      return groups;
+    }
+
+    return groups.filter(group =>
+      group.endpoints.some(endpoint =>
+        endpoint.isEqual(incomingPos)
+      )
+    );
+  }
+
+  private getTrackConnectionGroups(
+    element: TopologyTrackElement
+  ): TrackConnectionGroup[] {
+    return element
+      .getNeighborPointPairs()
+      .map((pair, index) => ({
+        index,
+        endpoints: [pair[0], pair[1]],
+      }));
+  }
+
+  private getTrackConnectionKey(
+    element: TopologyTrackElement,
+    groupIndex: number
+  ): string {
+    return `${element.id}:${groupIndex}`;
+  }
+}

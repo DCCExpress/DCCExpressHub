@@ -1,0 +1,297 @@
+{
+  "schemaVersion": 1,
+  "dataset": "nmra-multifunction-decoder-cv-help",
+  "language": "en",
+  "source": {
+    "name": "NMRA S-9.2.2 Draft - Configuration Variables for Digital Command Control",
+    "revision": "2026-06-08",
+    "url": "https://www.nmra.org/sites/default/files/standards/sandrp/Draft/DCC/s-9.2.2_configuration_variables_draft_13.pdf"
+  },
+  "notes": [
+    "This database describes standard/common NMRA CV meanings.",
+    "Decoder manufacturers may add manufacturer-specific CVs and restrictions. Always check the decoder manual before writing an unfamiliar CV."
+  ],
+  "cvs": {
+    "1": {
+      "name": "Primary address",
+      "description": "Short locomotive address used when CV29 bit 5 is off.",
+      "range": {
+        "min": 1,
+        "max": 127
+      },
+      "default": 3,
+      "related": [
+        29
+      ]
+    },
+    "2": {
+      "name": "Vstart",
+      "description": "Motor drive level at the first speed step."
+    },
+    "3": {
+      "name": "Acceleration rate",
+      "description": "Acceleration momentum. Value 0 disables programmed acceleration delay."
+    },
+    "4": {
+      "name": "Deceleration rate",
+      "description": "Braking/deceleration momentum. Value 0 disables programmed braking delay."
+    },
+    "5": {
+      "name": "Vhigh",
+      "description": "Motor drive level at the maximum speed step. Values 0 or 1 mean Vhigh is not used."
+    },
+    "6": {
+      "name": "Vmid",
+      "description": "Motor drive level near the middle speed step. Values 0 or 1 mean Vmid is not used."
+    },
+    "7": {
+      "name": "Manufacturer version",
+      "description": "Decoder version value assigned by the manufacturer.",
+      "readOnlyValue": true,
+      "warning": "Some standards/manufacturers define special actions when this CV is written."
+    },
+    "8": {
+      "name": "Manufacturer ID",
+      "description": "NMRA-assigned decoder manufacturer identifier.",
+      "readOnlyValue": true,
+      "warning": "Writing CV8 is commonly used by decoders for reset or other manufacturer-defined actions."
+    },
+    "15": {
+      "name": "Decoder lock select",
+      "description": "Selects which decoder may accept writes when decoder locking is used.",
+      "related": [
+        16
+      ]
+    },
+    "16": {
+      "name": "Decoder lock ID",
+      "description": "Decoder lock identity. Value 0 disables decoder locking.",
+      "related": [
+        15
+      ]
+    },
+    "17": {
+      "name": "Extended address high byte",
+      "description": "High byte of the extended locomotive address.",
+      "related": [
+        18,
+        29
+      ]
+    },
+    "18": {
+      "name": "Extended address low byte",
+      "description": "Low byte of the extended locomotive address.",
+      "related": [
+        17,
+        29
+      ]
+    },
+    "19": {
+      "name": "Consist address",
+      "description": "Consist address and relative direction information."
+    },
+    "21": {
+      "name": "Consist functions F1-F8",
+      "description": "Bits 0-7 select whether F1-F8 also respond to the consist address.",
+      "bits": [
+        {
+          "bit": 0,
+          "name": "F1 via consist",
+          "off": "Locomotive address only",
+          "on": "Also respond to consist"
+        },
+        {
+          "bit": 1,
+          "name": "F2 via consist",
+          "off": "Locomotive address only",
+          "on": "Also respond to consist"
+        },
+        {
+          "bit": 2,
+          "name": "F3 via consist",
+          "off": "Locomotive address only",
+          "on": "Also respond to consist"
+        },
+        {
+          "bit": 3,
+          "name": "F4 via consist",
+          "off": "Locomotive address only",
+          "on": "Also respond to consist"
+        },
+        {
+          "bit": 4,
+          "name": "F5 via consist",
+          "off": "Locomotive address only",
+          "on": "Also respond to consist"
+        },
+        {
+          "bit": 5,
+          "name": "F6 via consist",
+          "off": "Locomotive address only",
+          "on": "Also respond to consist"
+        },
+        {
+          "bit": 6,
+          "name": "F7 via consist",
+          "off": "Locomotive address only",
+          "on": "Also respond to consist"
+        },
+        {
+          "bit": 7,
+          "name": "F8 via consist",
+          "off": "Locomotive address only",
+          "on": "Also respond to consist"
+        }
+      ]
+    },
+    "22": {
+      "name": "Consist functions FL/F9-F12",
+      "description": "Selects whether lighting and F9-F12 also respond to the consist address.",
+      "bits": [
+        {
+          "bit": 0,
+          "name": "Forward light via consist",
+          "off": "Locomotive address only",
+          "on": "Also respond to consist"
+        },
+        {
+          "bit": 1,
+          "name": "Reverse light via consist",
+          "off": "Locomotive address only",
+          "on": "Also respond to consist"
+        },
+        {
+          "bit": 2,
+          "name": "F9 via consist",
+          "off": "Locomotive address only",
+          "on": "Also respond to consist"
+        },
+        {
+          "bit": 3,
+          "name": "F10 via consist",
+          "off": "Locomotive address only",
+          "on": "Also respond to consist"
+        },
+        {
+          "bit": 4,
+          "name": "F11 via consist",
+          "off": "Locomotive address only",
+          "on": "Also respond to consist"
+        },
+        {
+          "bit": 5,
+          "name": "F12 via consist",
+          "off": "Locomotive address only",
+          "on": "Also respond to consist"
+        },
+        {
+          "bit": 6,
+          "name": "Reserved",
+          "reserved": true
+        },
+        {
+          "bit": 7,
+          "name": "Reserved",
+          "reserved": true
+        }
+      ]
+    },
+    "29": {
+      "name": "Configurations supported",
+      "description": "Main multifunction-decoder configuration bit field.",
+      "bits": [
+        {
+          "bit": 0,
+          "name": "Locomotive direction",
+          "off": "Normal direction",
+          "on": "Reversed direction"
+        },
+        {
+          "bit": 1,
+          "name": "Speed/function packet mode",
+          "off": "14-step style; F0 carried in speed command",
+          "on": "28-step style; F0 carried in function command"
+        },
+        {
+          "bit": 2,
+          "name": "Power source conversion",
+          "off": "NMRA digital only",
+          "on": "Alternate power conversion enabled"
+        },
+        {
+          "bit": 3,
+          "name": "Bi-directional communication",
+          "off": "Disabled",
+          "on": "Enabled"
+        },
+        {
+          "bit": 4,
+          "name": "Speed table",
+          "off": "Use CV2/CV5/CV6",
+          "on": "Use extended speed table"
+        },
+        {
+          "bit": 5,
+          "name": "DCC addressing",
+          "off": "Short address from CV1",
+          "on": "Extended address from CV17/CV18"
+        },
+        {
+          "bit": 6,
+          "name": "Reserved",
+          "reserved": true
+        },
+        {
+          "bit": 7,
+          "name": "Decoder control type",
+          "off": "Multifunction decoder",
+          "on": "Accessory decoder"
+        }
+      ],
+      "related": [
+        1,
+        2,
+        5,
+        6,
+        12,
+        17,
+        18,
+        28
+      ]
+    },
+    "31": {
+      "name": "Index high byte",
+      "description": "High byte used for indexed CV page selection.",
+      "related": [
+        32
+      ]
+    },
+    "32": {
+      "name": "Index low byte",
+      "description": "Low byte used for indexed CV page selection.",
+      "related": [
+        31
+      ]
+    },
+    "65": {
+      "name": "Kick start",
+      "description": "Extra motor drive applied when starting from stop."
+    },
+    "66": {
+      "name": "Forward trim",
+      "description": "Forward motor-voltage scale factor; interpreted relative to 128."
+    },
+    "67-94": {
+      "name": "Extended speed table",
+      "description": "Twenty-eight speed-table entries used when CV29 bit 4 is on.",
+      "rangeEntry": true,
+      "related": [
+        29
+      ]
+    },
+    "95": {
+      "name": "Reverse trim",
+      "description": "Reverse motor-voltage scale factor; interpreted relative to 128."
+    }
+  }
+}

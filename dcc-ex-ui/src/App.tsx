@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, AppShell, Badge, Box, Button, Card, Container, Group, NumberInput, Paper, Tabs, FileButton, SegmentedControl, Slider, Stack, Switch, Text, TextInput, Title } from '@mantine/core';
 import { IconAlertTriangle, IconPlugConnected, IconPlayerStop, IconTrain, IconWifiOff } from '@tabler/icons-react';
 import { functionCommand, parseFrames, throttleCommand } from './dccex';
-import { LayoutEditor } from './LayoutEditor';
 import { LocoEditor } from './LocoEditor';
 import { exportProject, importProject, loadProject, saveProject, type Project } from './storage';
 
@@ -99,12 +98,8 @@ export function App() {
             <Tabs defaultValue="throttle" keepMounted={false}>
               <Tabs.List>
                 <Tabs.Tab value="throttle">Throttle</Tabs.Tab>
-                <Tabs.Tab value="layout">Layout editor</Tabs.Tab>
                 <Tabs.Tab value="locos">Locomotive editor</Tabs.Tab>
               </Tabs.List>
-              <Tabs.Panel value="layout" pt="md">
-                <LayoutEditor elements={project.elements} onChange={elements => setProject(p => ({...p,elements}))} />
-              </Tabs.Panel>
               <Tabs.Panel value="locos" pt="md">
                 <LocoEditor locos={project.locos} onChange={locos => setProject(p => ({...p,locos}))} onDrive={nextAddress => { if (speed > 0) { setError('Stop the locomotive before selecting another address.'); return; } setAddress(nextAddress); }} />
               </Tabs.Panel>
