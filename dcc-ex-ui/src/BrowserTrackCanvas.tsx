@@ -254,8 +254,17 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
   // These are the exact original upstream drawScene + element.draw methods.
   const layout={gridSize,draw:(context:CanvasRenderingContext2D,options:unknown)=>{
    for(const model of modelsNow()){
-    try{if(model.visible&&(visibility.showBuildings||model.layerName!=='buildings'))model.draw(context,options as never);}
-    catch(err){console.error('Element drawing failed',model.type,err);}
+    try{
+     if(model.visible&&(visibility.showBuildings||model.layerName!=='buildings')){
+      model.draw(context,options as never);
+      // Original BaseElement.drawSelection paints the editor's red outline.
+      // Apply it to every selected model, not just the first one.
+      if(editMode&&tool==='cursor'&&selectedIds.current.has(model.id)){
+       model.selected=true;
+       model.drawSelection(context);
+      }
+     }
+    }catch(err){console.error('Element drawing failed',model.type,err);}
    }
   }};
   drawScene(ctx,canvasSize.width,canvasSize.height,editMode,'dark',view.current,
