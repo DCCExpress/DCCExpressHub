@@ -4,6 +4,8 @@ import { IconTrash } from '@tabler/icons-react';
 import type { Loco, LocoAction, LocoActionHook, LocoFunction } from './storage';
 import LocoListPanel from './loco-dialog/LocoListPanel';
 import LocoGeneralTab from './loco-dialog/LocoGeneralTab';
+import TrainGeometryPreview from './loco-dialog/TrainGeometryPreview';
+import LocoCounterSettingsPanel from './loco-dialog/LocoCounterSettingsPanel';
 
 const label=(key:string):string=>({
  'locodialog.mozdonylista':'Locomotives','locodialog.newloco':'New locomotive',
@@ -13,6 +15,11 @@ const label=(key:string):string=>({
  'locodialog.loco_max_speed':'Maximum speed','locodialog.loco_cruising_speed':'Cruising speed',
  'locodialog.loco_cruising_speed_description':'Default step for locomotive movement',
  'locodialog.loco_direction_invert':'Invert direction',
+ 'locodialog.counters_title':'Mechanical counters',
+ 'locodialog.odometer_km':'Odometer (km)',
+ 'locodialog.operating_hours':'Operating hours',
+ 'locodialog.counter_max_scale_speed':'Maximum scale speed',
+ 'locodialog.counter_display_global_hint':'Counter display settings can be configured for each locomotive.',
  } as Record<string,string>)[key] ?? key;
 
 const hooks: {value:LocoActionHook;label:string}[]=[
@@ -102,25 +109,41 @@ export function LocoEditor({locos:originalLocos,onSave,onCancel,onDrive}:{locos:
         </Group>)}
         <Button variant="light" size="xs" w="fit-content" onClick={()=>changeActions([...actions,{id:crypto.randomUUID(),type:'setFunction',functionNumber:0,active:true,ms:250}])}>Add action</Button>
        </Stack></Tabs.Panel>
-       <Tabs.Panel value="extended"><SimpleGrid cols={{base:1,md:2}}><Stack>
-        <Select label="Train type" value={selected.trainType??'passenger'} onChange={v=>update({trainType:(v??'passenger') as Loco['trainType']})} data={['passenger','freight','mixed','maintenance','other']}/>
-        <NumberInput label="Locomotive length (mm)" value={selected.locomotiveLengthMm??selected.length??200} min={1} onChange={v=>{const length=n(v,1);update({locomotiveLengthMm:length,length:length+(selected.wagonsLengthMm??0)});}}/>
-        <NumberInput label="Wagons length (mm)" value={selected.wagonsLengthMm??0} min={0} onChange={v=>{const length=n(v);update({wagonsLengthMm:length,length:length+(selected.locomotiveLengthMm??200)});}}/>
-        <Text size="xs">Total train length: {selected.length??200} mm</Text>
-        <Select label="Consist mode" data={[{value:'pull',label:'Pull'},{value:'push',label:'Push'}]} value={selected.trainConsistMode??'pull'} onChange={v=>update({trainConsistMode:(v??'pull') as 'pull'|'push'})}/>
-       </Stack><Stack>
-        <Select label="Detection position" data={['forward','reverse','both']} value={selected.occupancyDetectionPosition??'both'} onChange={v=>update({occupancyDetectionPosition:(v??'both') as Loco['occupancyDetectionPosition']})}/>
-        <NumberInput label="Detector offset (mm)" value={selected.trainDetectionOffsetMm??0} onChange={v=>update({trainDetectionOffsetMm:n(v)})}/>
-        <Checkbox label="Entire train electrically detectable" checked={selected.entireTrainDetectable??false} onChange={e=>update({entireTrainDetectable:e.currentTarget.checked})}/>
-        <NumberInput label="Train clearance margin (mm)" value={selected.trainClearanceMarginMm??30} min={0} onChange={v=>update({trainClearanceMarginMm:n(v)})}/>
-       </Stack></SimpleGrid></Tabs.Panel>
-       <Tabs.Panel value="counters"><Stack maw={500}>
-        <TextInput label="Last run" value={selected.lastRunAt??''} disabled/>
-        <NumberInput label="Odometer (km)" value={selected.odometerKm??0} min={0} onChange={v=>update({odometerKm:n(v)})}/>
-        <NumberInput label="Operating hours" value={selected.operatingHours??0} min={0} onChange={v=>update({operatingHours:n(v)})}/>
-        <NumberInput label="Max scale speed (km/h)" value={selected.counterSettings?.maxScaleSpeedKmh??120} min={1} onChange={v=>update({counterSettings:{maxScaleSpeedKmh:n(v,120)}})}/>
-        <Text size="xs" c="dimmed">Automatic runtime counter updates are not available yet.</Text>
-       </Stack></Tabs.Panel>
+       <Tabs.Panel value="extended" pt="md">
+        <SimpleGrid cols={{base:1,lg:2}} spacing="md" style={{alignItems:'start',gridTemplateColumns:'minmax(220px,3fr) minmax(0,7fr)'}}>
+         <Stack gap="md">
+          <Select label="Train type" data={['passenger','freight','mixed','maintenance','other']}
+            value={selected.trainType??'passenger'}
+            onChange={value=>update({trainType:(value??'passenger') as Loco['trainType']})}/>
+          <NumberInput label="Locomotive length (mm)" value={selected.locomotiveLengthMm??selected.length??200} min={1}
+            onChange={value=>{const locomotiveLengthMm=Math.max(1,n(value,1));const wagonsLengthMm=selected.wagonsLengthMm??0;update({locomotiveLengthMm,wagonsLengthMm,length:locomotiveLengthMm+wagonsLengthMm});}}/>
+          <NumberInput label="Total wagon length (mm)" value={selected.wagonsLengthMm??0} min={0}
+            onChange={value=>{const wagonsLengthMm=Math.max(0,n(value));const locomotiveLengthMm=selected.locomotiveLengthMm??selected.length??200;update({locomotiveLengthMm,wagonsLengthMm,length:locomotiveLengthMm+wagonsLengthMm});}}/>
+          <Text size="xs" c="dimmed">Total train length: {selected.length??200} mm</Text>
+          <Checkbox label="Entire train electrically detectable"
+            description="Enable only when the last vehicle also reliably maintains block occupancy."
+            checked={selected.entireTrainDetectable??false}
+            onChange={e=>update({entireTrainDetectable:e.currentTarget.checked})}/>
+          <NumberInput label="Train clearance margin (mm)" value={selected.trainClearanceMarginMm??30} min={0} max={2000}
+            onChange={value=>update({trainClearanceMarginMm:Math.max(0,n(value))})}/>
+          <Text size="xs" c="dimmed">If only the locomotive is detectable, cars may still occupy a block after its occupancy signal goes OFF.</Text>
+         </Stack>
+         <TrainGeometryPreview trainLengthMm={selected.length??200}
+           locomotiveLengthMm={selected.locomotiveLengthMm??selected.length??200}
+           wagonsLengthMm={selected.wagonsLengthMm??0}
+           entireTrainDetectable={selected.entireTrainDetectable??false}
+           clearanceMarginMm={selected.trainClearanceMarginMm??30}
+           mode={selected.trainConsistMode??'pull'}
+           onModeChange={trainConsistMode=>update({trainConsistMode})}/>
+        </SimpleGrid>
+       </Tabs.Panel>
+       <Tabs.Panel value="counters" pt="md">
+        <Stack gap="md" maw={620}>
+         <TextInput label="Last run" value={selected.lastRunAt??''} readOnly disabled/>
+         <LocoCounterSettingsPanel loco={selected} onPatch={update} t={label}/>
+         <Text size="xs" c="dimmed">Automatic runtime updates are not yet available in the browser edition.</Text>
+        </Stack>
+       </Tabs.Panel>
        <Tabs.Panel value="decoder"><Stack>
         <Text fw={600}>Decoder CV</Text><Text c="dimmed" size="sm">Saved decoder profile values only. Service-track CV read/write is not connected to the direct WebSocket yet.</Text>
         <Text size="sm">Stored CV values: {Object.keys(selected.decoderProfile?.cvValues??{}).length}</Text>
