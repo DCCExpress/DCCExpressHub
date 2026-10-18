@@ -1,4 +1,4 @@
-import { Alert, Badge, Button, Card, Checkbox, Group, NumberInput, Stack, Table, Text } from "@mantine/core";
+import { Alert, Badge, Button, Card, Checkbox, Group, NumberInput, Select, Stack, Table, Text } from "@mantine/core";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Loco } from "@domain/types";
@@ -65,13 +65,16 @@ export default function PrecisionBrakingPanel({
   const [busy, setBusy] = useState(false);
   const [selectedRoute, setSelectedRoute] = useState<BrakingRouteSelection | null>(null);
   const [speedStep, setSpeedStep] = useState<number | string>(20);
+  const [scale, setScale] = useState<"H0" | "TT" | "N">("H0");
+  const scaleRatio = { H0: 87, TT: 120, N: 160 }[scale];
+  const realSpeedKmh = (mmPerSecond: number) => mmPerSecond * scaleRatio * 0.0036;
   const [distance, setDistance] = useState<number | string>(200);
   const [measuredOverlap, setMeasuredOverlap] = useState<number | string>("");
   const [confirmed, setConfirmed] = useState(false);
   // Braking trial UI preferences are local to this browser and locomotive.
   // They do not change decoder CVs, speed calibration or saved trial data.
   const prefsKey = `dcc-express-hub:precision-braking:${loco.id}`;
-  const savePreference = (key: "speedStep" | "distance", value: number | string) => {
+  const savePreference = (key: "speedStep" | "distance" | "scale", value: number | string) => {
     try {
       const previous = JSON.parse(window.localStorage.getItem(prefsKey) ?? "{}") as Record<string, unknown>;
       window.localStorage.setItem(prefsKey, JSON.stringify({ ...previous, [key]: value }));
@@ -80,6 +83,7 @@ export default function PrecisionBrakingPanel({
   useEffect(() => {
     try {
       const prefs = JSON.parse(window.localStorage.getItem(prefsKey) ?? "{}") as Record<string, unknown>;
+      setScale(prefs.scale === "TT" || prefs.scale === "N" ? prefs.scale : "H0");
       if (typeof prefs.speedStep === "number" && prefs.speedStep >= 1 && prefs.speedStep <= 126)
         setSpeedStep(prefs.speedStep);
       else setSpeedStep(20);
@@ -195,6 +199,16 @@ export default function PrecisionBrakingPanel({
           <Badge color={active ? "orange" : "gray"}>{state?.status ?? "offline"}</Badge>
         </Group>
         {other && <Alert color="orange">Another locomotive is being calibrated.</Alert>}
+        <Group justify="flex-end">
+          <Select label="Scale" w={160} value={scale}
+            data={[{ value: "H0", label: "H0 (1:87)" }, { value: "TT", label: "TT (1:120)" }, { value: "N", label: "N (1:160)" }]}
+            onChange={value => {
+              if (value === "H0" || value === "TT" || value === "N") {
+                setScale(value);
+                savePreference("scale", value);
+              }
+            }} />
+        </Group>
         <PrecisionBrakingDiagram
           mode={loco.trainConsistMode ?? "pull"}
           locomotiveLengthMm={loco.locomotiveLengthMm ?? loco.length}
@@ -269,7 +283,7 @@ export default function PrecisionBrakingPanel({
           <Button color="red" onClick={() => void action("/estop")}>E-STOP</Button>
         </Group>
         {active && <Text size="sm">Reference sensor: {state?.sensorAddress} ·
-          Approach: {state?.speedMmPerSecond?.toFixed(1) ?? "—"} mm/s ·
+          Approach: {state?.speedMmPerSecond?.toFixed(1) ?? "—"} mm/s ({state?.speedMmPerSecond != null ? realSpeedKmh(state.speedMmPerSecond).toFixed(1) : "—"} km/h) ·
           Target: {state?.targetDistanceMm} mm · Hold before speed 0: {state?.commandedRampSeconds?.toFixed(2) ?? "—"} s</Text>}
         {state?.status === "preparing" && active &&
           <Alert color="blue">Validating selected route, locomotive and turnout positions…</Alert>}
@@ -320,10 +334,11 @@ export default function PrecisionBrakingPanel({
       {sessionPreview && <Alert color="orange">The previous trial measurements still exist in this running Hub, but were not approved with OK or saved as a validated profile. Do not start another training session if you want to inspect these values.</Alert>}
       {showingTraining && !displayedProfile.length && <Text c="dimmed" size="sm">No training measurements yet.</Text>}
       {displayedProfile.length > 0 &&
-        <Table striped><Table.Thead><Table.Tr><Table.Th>Direction</Table.Th><Table.Th>DCC</Table.Th><Table.Th>mm/s</Table.Th><Table.Th>Deceleration (mm/s²)</Table.Th><Table.Th>Base stop (0) mm</Table.Th><Table.Th>Adaptive stop mm</Table.Th><Table.Th>Trials</Table.Th></Table.Tr></Table.Thead>
+        <Table striped><Table.Thead><Table.Tr><Table.Th>Direction</Table.Th><Table.Th>DCC</Table.Th><Table.Th>mm/s</Table.Th><Table.Th>Real speed (km/h)</Table.Th><Table.Th>Deceleration (mm/s²)</Table.Th><Table.Th>Base stop (0) mm</Table.Th><Table.Th>Adaptive stop mm</Table.Th><Table.Th>Trials</Table.Th></Table.Tr></Table.Thead>
           <Table.Tbody>{displayedProfile.map(point => <Table.Tr key={point.direction + point.dccStep}>
             <Table.Td>{point.direction}</Table.Td><Table.Td>{point.dccStep}</Table.Td>
             <Table.Td>{point.millimetersPerSecond.toFixed(1)}</Table.Td>
+            <Table.Td>{realSpeedKmh(point.millimetersPerSecond).toFixed(1)}</Table.Td>
             <Table.Td>{point.baselineStoppingDistanceMm != null && point.baselineStoppingDistanceMm > 0
               ? (-(point.millimetersPerSecond * point.millimetersPerSecond) / (2 * point.baselineStoppingDistanceMm)).toFixed(2)
               : "—"}</Table.Td>
