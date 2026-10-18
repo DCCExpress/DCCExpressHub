@@ -1,5 +1,6 @@
 // @ts-nocheck — original web-ui model and preview renderer
-import { Box, CSSProperties, Text, useMantineColorScheme, useMantineTheme } from "@mantine/core";
+import { Box, Text, useMantineColorScheme, useMantineTheme } from "@mantine/core";
+import type { CSSProperties } from "react";
 import { BaseElement } from "../core/BaseElement";
 import { DrawOptions } from "../types/EditorTypes";
 
