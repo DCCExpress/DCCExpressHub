@@ -16,6 +16,7 @@ import { getBridgePlacement } from './preview-webui/track-canvas/bridgePlacement
 import type { BrowserVisibility } from './property-panel/VisibilitySettings';
 import { fitLayoutToView } from './preview-webui/track-canvas/trackCanvasLayoutBounds';
 import { wsClient } from './preview-webui/services/wsClient';
+import { getTrackCanvasCursor } from './preview-webui/track-canvas/trackCanvasCursor';
 
 type BrowserTool='cursor'|'draw';
 type Props={
@@ -130,6 +131,7 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
  const [drawTick,setDrawTick]=useState(0);
  const redraw=useCallback(()=>setDrawTick(n=>n+1),[]);
  const [message,setMessage]=useState('');
+ const [pointerCursor,setPointerCursor]=useState('default');
  // Sensor and disconnect events update the original shared occupancy cache.
  // Repaint without changing the editor project or writing runtime state to IndexedDB.
  useEffect(()=>{
@@ -351,6 +353,10 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
    const position=getCenteredElementGridAnchor(cursorRef.current,g);
    hover.current=canPlace(cursorRef.current,position.x,position.y)?null:position;
   }else{hover.current=null;}
+  if(!editMode){
+   const nextCursor=getTrackCanvasCursor(false,{mode:'cursor',elementType:ELEMENT_TYPES.GENERAL},hit(g));
+   setPointerCursor(nextCursor);
+  }
   if(!d||d.pointerId!==event.pointerId){redraw();return;}
   if(d.kind==='pan'){
    view.current={...view.current,offsetX:d.offsetX+p.x-d.startX,
@@ -453,10 +459,10 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
  }}>
   <canvas ref={canvasRef} tabIndex={0} width={canvasSize.width} height={canvasSize.height}
    onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerEnd}
-   onPointerCancel={onPointerEnd} onPointerLeave={()=>{pointerInside.current=false;if(!gesture.current)hover.current=null;redraw();}}
+   onPointerCancel={onPointerEnd} onPointerLeave={()=>{pointerInside.current=false;setPointerCursor('default');if(!gesture.current)hover.current=null;redraw();}}
    onWheel={onWheel} onContextMenu={event=>event.preventDefault()}
    style={{width:'100%',height:'100%',display:'block',touchAction:'none',
-    outline:'none',cursor:editMode&&tool==='draw'&&cursorRef.current?'none':'default'}}/>
+    outline:'none',cursor:editMode&&tool==='draw'&&cursorRef.current?'none':editMode?'default':pointerCursor}}/>
   <TrackCanvasDoubleTurnoutPopover state={turnoutPopover}
    onClose={()=>setTurnoutPopover({opened:false,x:0,y:0,turnout:null})}
    onChanged={()=>{publish();setMessage('');}}/>
