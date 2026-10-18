@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ActionIcon, Badge, Card, Group, ScrollArea, Slider, Stack, Text, Tooltip } from '@mantine/core';
 import { IconArrowBigLeft, IconArrowBigRight, IconPlayerStopFilled } from '@tabler/icons-react';
 import type { Loco } from '../storage';
+import type { LocoLiveState } from '../dccex';
 import LocoImage from '../loco-dialog/LocoImage';
 import FunctionIconAsset from '../loco-dialog/FunctionIconAsset';
 import LocoEmergencyButton from './LocoEmergencyButton';
@@ -10,23 +11,29 @@ type Live={speed:number;direction:'forward'|'reverse';functionsMask:number};
 type Props={
  locos:Loco[];selectedLocoId:string;onSelect:(loco:Loco)=>void;disabled:boolean;
  emergencyStop:boolean;onEmergencyToggle:()=>void;activeAddress:number;speed:number;forward:boolean;
- functionStates:Record<number,Record<number,boolean>>;
+ functionStates:Record<number,Record<number,boolean>>;locoStates:Record<number,LocoLiveState>;
  onCommand:(address:number,speed:number,forward:boolean)=>void;onSpeed:(speed:number)=>void;
  onFunctionCommand:(address:number,number:number,active:boolean)=>void;
 };
 export default function LocoCardsView(p:Props){
  const [local,setLocal]=useState<Record<number,Live>>({});
+ const [dragging,setDragging]=useState<Record<number,number>>({});
  const live=(loco:Loco):Live=>{
-   const cached=local[loco.address]??{speed:0,direction:'forward' as const,functionsMask:0};
+   const fromStation=p.locoStates[loco.address];
+   const cached=fromStation?.known
+     ? {speed:fromStation.speed,direction:fromStation.forward?'forward' as const:'reverse' as const,
+        functionsMask:fromStation.functionsMask}
+     : local[loco.address]??{speed:0,direction:'forward' as const,functionsMask:0};
    const fns=p.functionStates[loco.address]??{};
    let mask=cached.functionsMask;
    if(Object.keys(fns).length>0){mask=0;for(const [key,on] of Object.entries(fns))if(on)mask|=1<<Number(key);}
-   return {...cached,speed:p.activeAddress===loco.address?p.speed:cached.speed,
+   return {...cached,speed:dragging[loco.address]??(p.activeAddress===loco.address?p.speed:cached.speed),
      direction:p.activeAddress===loco.address?(p.forward?'forward':'reverse'):cached.direction,functionsMask:mask};
  };
  const command=(loco:Loco,speed:number,direction:'forward'|'reverse')=>{
    const value=Math.max(0,Math.min(126,loco.maxSpeed??126,Math.round(speed)));
    setLocal(old=>({...old,[loco.address]:{...live(loco),speed:value,direction}}));
+   setDragging(prev=>{const next={...prev};delete next[loco.address];return next;});
    p.onCommand(loco.address,value,direction==='forward');
  };
  const toggleFunction=(loco:Loco,number:number,active:boolean)=>{
@@ -64,7 +71,11 @@ export default function LocoCardsView(p:Props){
          })}
         </Group>
        </Stack>
-       <Badge color="dark" variant="filled" radius="sm" size="lg" styles={{root:{backgroundColor:'#111',minWidth:40,transform:'translateY(-15px)'},label:{fontVariantNumeric:'tabular-nums'}}}>{state.speed}</Badge>
+       <Badge color="dark" variant="filled" radius="sm" size="lg"
+        title={p.locoStates[loco.address]?.known?'Command-station speed':'Locomotive state not known by command station'}
+        styles={{root:{backgroundColor:'#111',minWidth:40,transform:'translateY(-15px)'},label:{fontVariantNumeric:'tabular-nums'}}}>
+         {p.locoStates[loco.address]?.known?state.speed:'--'}
+       </Badge>
       </Group>
       <Group wrap="nowrap" gap={5} mt={5} onClick={e=>e.stopPropagation()}>
        <Tooltip label="Reverse"><ActionIcon size="sm" variant={state.direction==='reverse'?'filled':'light'} disabled={p.disabled||p.emergencyStop} onClick={()=>command(loco,state.speed,'reverse')} aria-label="Reverse"><IconArrowBigLeft size={14}/></ActionIcon></Tooltip>
@@ -72,7 +83,7 @@ export default function LocoCardsView(p:Props){
        <Tooltip label="Forward"><ActionIcon size="sm" variant={state.direction==='forward'?'filled':'light'} disabled={p.disabled||p.emergencyStop} onClick={()=>command(loco,state.speed,'forward')} aria-label="Forward"><IconArrowBigRight size={14}/></ActionIcon></Tooltip>
        <Slider style={{flex:1,minWidth:35}} size="xs" min={0} max={Math.max(1,Math.min(126,loco.maxSpeed??126))}
         value={Math.min(state.speed,Math.max(1,Math.min(126,loco.maxSpeed??126)))} disabled={p.disabled||p.emergencyStop}
-        onChange={value=>{if(p.activeAddress===loco.address)p.onSpeed(value);else setLocal(old=>({...old,[loco.address]:{...state,speed:value}}));}}
+        onChange={value=>{setDragging(old=>({...old,[loco.address]:value}));if(p.activeAddress===loco.address)p.onSpeed(value);else setLocal(old=>({...old,[loco.address]:{...state,speed:value}}));}}
         onChangeEnd={value=>command(loco,value,state.direction)} aria-label={'Speed '+loco.name}/>
       </Group>
       <Text size="xs" c="dimmed" truncate="end" style={{height:18,lineHeight:'18px'}}>Manual</Text>

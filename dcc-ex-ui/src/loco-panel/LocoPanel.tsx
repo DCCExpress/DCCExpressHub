@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ActionIcon, Card, Text, Tooltip } from '@mantine/core';
 import { IconLayoutGrid, IconSettings, IconAdjustmentsHorizontal } from '@tabler/icons-react';
 import type { Loco } from '../storage';
+import type { LocoLiveState } from '../dccex';
 import LocoPicker from './LocoPicker';
 import LocoControlCard from './LocoControlCard';
 import LocoCardsView from './LocoCardsView';
@@ -12,6 +13,7 @@ import './loco-panel.css';
 
 type Props = {
  locos:Loco[]; activeAddress:number; speed:number; forward:boolean; connected:boolean;
+ locoStates:Record<number,LocoLiveState>;
  light:boolean;emergencyStop:boolean;
  onSelectLoco:(address:number)=>void;
  onSpeed:(value:number)=>void;onDrive:(value:number,forward?:boolean)=>void;
@@ -45,7 +47,14 @@ export default function LocoPanel(p:Props) {
  const [pickerOpen,setPickerOpen]=useState(false);
  const [settingsOpen,setSettingsOpen]=useState(false);
  const [counterSettings,setCounterSettings]=useState(getLocoPanelCounterDisplaySettings);
- const [functionStates,setFunctionStates]=useState<Record<number,Record<number,boolean>>>({});
+ // Both left and right LocoPanels share the same command station state from App.
+ const functionStates:Record<number,Record<number,boolean>>={};
+ for(const [key,value] of Object.entries(p.locoStates)){
+   if(!value.known)continue;
+   const address=Number(key),functions:Record<number,boolean>={};
+   for(let fn=0;fn<=28;fn++)functions[fn]=(value.functionsMask&(1<<fn))!==0;
+   functionStates[address]=functions;
+ }
  useEffect(()=>subscribeLocoPanelCounterDisplaySettings(setCounterSettings),[]);
  const currentLoco=p.locos.find(l=>l.address===p.activeAddress)??p.locos[0]??null;
  const selectedId=currentLoco?.id??'';
@@ -53,7 +62,7 @@ export default function LocoPanel(p:Props) {
  const commandFunction=(address:number,fn:number,active:boolean)=>{
    if(!p.connected)return;
    p.onFunctionCommand(address,fn,active);
-   setFunctionStates(previous=>({...previous,[address]:{...previous[address],[fn]:active}}));
+   // App owns the function state; the acknowledgement will update both views.
  };
  const select=(loco:Loco)=>{
    if(loco.address!==p.activeAddress)p.onSelectLoco(loco.address);
@@ -80,13 +89,13 @@ export default function LocoPanel(p:Props) {
      <LocoCardsView locos={p.locos} selectedLocoId={selectedId} onSelect={select}
        disabled={!p.connected} emergencyStop={p.emergencyStop} onEmergencyToggle={p.onEmergencyToggle}
        activeAddress={p.activeAddress} speed={p.speed} forward={p.forward}
-       functionStates={functionStates} onCommand={p.onDriveAddress} onSpeed={p.onSpeed} onFunctionCommand={commandFunction}/>
+       functionStates={functionStates} locoStates={p.locoStates} onCommand={p.onDriveAddress} onSpeed={p.onSpeed} onFunctionCommand={commandFunction}/>
      :
      <div className="browser-loco-panel-fit">
       {!currentLoco?<Text size="sm" c="dimmed" ta="center" mt="xl">No locomotives. Add a locomotive on the Home page.</Text>:
       <div className="browser-loco-panel-layout">
        <div className="browser-loco-panel-controls">
-        <LocoControlCard loco={currentLoco} speed={p.speed}
+        <LocoControlCard loco={currentLoco} statusKnown={p.locoStates[currentLoco.address]?.known??false} speed={p.speed}
           direction={p.forward?'forward':'reverse'} alive={p.connected} emergencyStop={p.emergencyStop}
           onOpenPicker={()=>setPickerOpen(true)} onSpeedChange={p.onSpeed}
           onSpeedChangeEnd={value=>p.onDrive(value)} onSpeedPercentChange={percent=>p.onDrive(Math.round((currentLoco.maxSpeed??126)*percent/100))}
@@ -98,11 +107,12 @@ export default function LocoPanel(p:Props) {
           activeFunctions={{...fns,0:fns[0]??p.light}}
           disabled={!p.connected||p.emergencyStop}
           onActiveFunctionsChange={set=>{
-             setFunctionStates(prev=>{
-               const prevFns=prev[currentLoco.address]??{};
-               const next=typeof set==='function'?set(prevFns):set;
-               return {...prev,[currentLoco.address]:next};
-             });
+            const next=typeof set==='function'?set(fns):set;
+            for(const [fn,value] of Object.entries(next)){
+              const num=Number(fn);
+              if(Number.isInteger(num)&&num>=0&&num<=28&&value!==fns[num])
+                commandFunction(currentLoco.address,num,value);
+            }
           }}
           onFunctionCommand={commandFunction}/>
        </div>

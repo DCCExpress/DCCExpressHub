@@ -9,7 +9,7 @@ import LocoEmergencyButton from './LocoEmergencyButton';
 import type { LocoPanelCounterDisplaySettings } from './locoPanelCounterDisplaySettings';
 
 type Props = {
- loco:Loco; speed:number; direction:'forward'|'reverse'; alive:boolean; emergencyStop:boolean;
+ loco:Loco; speed:number; direction:'forward'|'reverse'; alive:boolean; emergencyStop:boolean;statusKnown:boolean;
  onOpenPicker:()=>void; onSpeedChange:(value:number)=>void; onSpeedChangeEnd:(value:number)=>void;
  onSpeedPercentChange:(percent:number)=>void; onForward:()=>void; onReverse:()=>void; onStop:()=>void;
  onEmergencyToggle:()=>void; counterDisplaySettings:LocoPanelCounterDisplaySettings;
@@ -39,6 +39,7 @@ export default function LocoControlCard(p:Props) {
     {settings.showWorktime&&<MechanicalCounter value={settings.daily?0:p.loco.operatingHours??0} digits={settings.digits} decimals={settings.operatingHoursDecimals} digitHeight={settings.digitHeight} unit="h" accentFraction={settings.accentFraction}/>}
    </Group>}
    {!p.alive&&<Badge color="red" variant="light">Offline</Badge>}
+   {p.alive&&!p.statusKnown&&<Badge color="gray" variant="light" size="sm">No command-station state</Badge>}
    <LocoSpeedControls speed={p.speed} maxSpeed={Math.max(1,Math.min(126,p.loco.maxSpeed??126))}
      disabled={!p.alive||p.emergencyStop} onSpeedChange={p.onSpeedChange} onSpeedChangeEnd={p.onSpeedChangeEnd} onSpeedPercentChange={p.onSpeedPercentChange}/>
    <LocoDirectionControls speed={p.speed} direction={p.direction} disabled={!p.alive||p.emergencyStop}

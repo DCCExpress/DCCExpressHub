@@ -8,6 +8,7 @@ import {
  IconVolume,IconUserShield,IconRoute,IconLockOpen
 } from '@tabler/icons-react';
 import type { Loco, TrackElement, Station } from './storage';
+import type { LocoLiveState } from './dccex';
 import BrowserTrackCanvas from './BrowserTrackCanvas';
 import BrowserPropertyPanel from './BrowserPropertyPanel';
 import { loadBrowserVisibility, type BrowserVisibility } from './property-panel/VisibilitySettings';
@@ -19,6 +20,7 @@ import './browser-layout.css';
 type RuntimeTab='tasks'|'automation'|'timetable'|'info'|'log';
 type Props={
  locos:Loco[];activeAddress:number;onSelectLoco:(address:number)=>void;connected:boolean;
+ locoStates:Record<number,LocoLiveState>;
  speed:number;forward:boolean;onSpeed:(v:number)=>void;onDrive:(v:number,forward?:boolean)=>void;
  onStop:()=>void;onDirection:(v:boolean)=>void;
  onFunctionCommand:(address:number,fn:number,active:boolean)=>void;
@@ -120,7 +122,7 @@ export function BrowserLayoutPage(props:Props){
    '--lite-loco-width':leftCollapsed?'0px':leftWidth+'px',
    '--lite-property-width':rightCollapsed?'0px':rightWidth+'px',
  } as CSSProperties;
- const locoPanel=(extra?:string)=><LocoPanel key={extra??'left'} locos={props.locos}
+ const locoPanel=(extra?:string)=><LocoPanel key={extra??'left'} locos={props.locos} locoStates={props.locoStates}
   activeAddress={props.activeAddress} speed={props.speed} forward={props.forward}
   connected={props.connected} light={props.light}
   onSelectLoco={props.onSelectLoco} onSpeed={props.onSpeed} onDrive={props.onDrive}
