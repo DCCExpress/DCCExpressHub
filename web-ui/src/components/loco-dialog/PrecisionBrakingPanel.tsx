@@ -7,6 +7,8 @@ import PrecisionBrakingDiagram from "./PrecisionBrakingDiagram";
 
 type Point = { dccStep: number; direction: string; millimetersPerSecond: number; estimatedStoppingDistanceMm: number; samples: number; baselineStoppingDistanceMm?: number | null };
 type State = { status: string; error: string | null; locoId: string | null; locoAddress: number | null; sensorAddress: number | null; direction: string | null; speedStep: number | null; speedMmPerSecond: number | null; targetDistanceMm: number | null; actualDistanceMm: number | null; profile: Point[]; commandedRampSeconds?: number };
+type SavedProfile = { validated: boolean; updatedAt: string | null; samples: number; profile: Point[] };
+
 
 async function request(path: string, data?: unknown): Promise<State> {
   const init: RequestInit = {
@@ -23,6 +25,19 @@ async function request(path: string, data?: unknown): Promise<State> {
   return value as State;
 }
 
+async function loadSavedProfile(locoId: string): Promise<SavedProfile> {
+  const response = await fetch("/api/precision-braking/profile", {
+    method: "POST",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ locoId }),
+  });
+  const result = await response.json();
+  if (!response.ok || result.ok === false)
+    throw new Error(result.message ?? "Could not load saved braking profile");
+  return result as SavedProfile;
+}
+
 export default function PrecisionBrakingPanel({
   loco, onPatch,
 }: {
@@ -31,6 +46,21 @@ export default function PrecisionBrakingPanel({
 }) {
   const { t } = useTranslation();
   const [state, setState] = useState<State | null>(null);
+  const [savedProfile, setSavedProfile] = useState<SavedProfile | null>(null);
+  const [savedLoading, setSavedLoading] = useState(true);
+  const [savedError, setSavedError] = useState("");
+  useEffect(() => {
+    let mounted = true;
+    setSavedProfile(null);
+    setSavedLoading(true);
+    setSavedError("");
+    void loadSavedProfile(loco.id)
+      .then(profile => { if (mounted) setSavedProfile(profile); })
+      .catch(e => { if (mounted) setSavedError(e instanceof Error ? e.message : String(e)); })
+      .finally(() => { if (mounted) setSavedLoading(false); });
+    return () => { mounted = false; };
+  }, [loco.id]);
+
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [selectedRoute, setSelectedRoute] = useState<BrakingRouteSelection | null>(null);
@@ -72,9 +102,28 @@ export default function PrecisionBrakingPanel({
 
   const action = async (path: string, data?: unknown) => {
     setBusy(true); setError("");
-    try { setState(await request(path, data)); }
-    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
-    finally { setBusy(false); }
+    try {
+      setState(await request(path, data));
+      // New training invalidates the approved profile; OK persists it.
+      // Refresh from the disk-backed endpoint after either transition.
+      if (path === "/start" || path === "/abort" ||
+          (path === "/measure" && !!(data as { approve?: boolean } | undefined)?.approve)) {
+        setSavedProfile(null);
+        setSavedLoading(true);
+        try {
+          setSavedProfile(await loadSavedProfile(loco.id));
+          setSavedError("");
+        } catch (e) {
+          setSavedError(e instanceof Error ? e.message : String(e));
+        } finally {
+          setSavedLoading(false);
+        }
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const active = state?.locoId === loco.id &&
@@ -116,6 +165,13 @@ export default function PrecisionBrakingPanel({
   const rearGap = rearPosition;
   const measurementConsistent = measuredBlockLength > 0 && trainLength > 0 &&
     Number.isFinite(frontPosition) && frontPosition > 0 && frontPosition <= 20000;
+  // During training use provisional samples; outside a trial show ONLY
+  // operator-approved results loaded from the locomotive's persisted profile.
+  const displayedProfile = active && state?.locoId === loco.id
+    ? state.profile
+    : savedProfile?.validated ? savedProfile.profile : [];
+  const showingTraining = active && state?.locoId === loco.id;
+
   return <Stack gap="md">
     <Group justify="flex-end">
       <Button component="a" variant="subtle" size="xs"
@@ -240,17 +296,21 @@ export default function PrecisionBrakingPanel({
     <Card withBorder p="md">
       <Group justify="space-between" mb="sm">
         <Text fw={700}>Adaptive stopping profile</Text>
-        <Button color="red" variant="light" size="xs" disabled={busy || !!active}
-          onClick={() => {
-            if (!window.confirm("Delete ALL saved adaptive braking measurements for this locomotive? Speed calibration and decoder CV profiles will be preserved.")) return;
-            void action("/reset", { locoId: loco.id });
-          }}>Reset profile</Button>
+        {showingTraining
+          ? <Badge color="orange">Training — not approved</Badge>
+          : savedProfile?.validated
+            ? <Badge color="green">Validated · {savedProfile.samples} trials</Badge>
+            : null}
       </Group>
       <Text size="xs" c="dimmed" mb="sm">Base stop (0) is the measured stopping distance when speed 0 is commanded immediately at the sensor; it is shown separately for each speed and direction. Adaptive stop is the learned result. Deceleration is estimated as −v²/(2s) from the immediate speed-zero baseline; it is unavailable without that measurement. Not applied to normal Movement runs.</Text>
-      {state?.locoId !== loco.id || !state.profile.length
-        ? <Text c="dimmed" size="sm">No trial data in the current session.</Text>
-        : <Table striped><Table.Thead><Table.Tr><Table.Th>Direction</Table.Th><Table.Th>DCC</Table.Th><Table.Th>mm/s</Table.Th><Table.Th>Deceleration (mm/s²)</Table.Th><Table.Th>Base stop (0) mm</Table.Th><Table.Th>Adaptive stop mm</Table.Th><Table.Th>Trials</Table.Th></Table.Tr></Table.Thead>
-          <Table.Tbody>{state.profile.map(point => <Table.Tr key={point.direction + point.dccStep}>
+      {savedError && !showingTraining && <Alert color="red">Cannot load saved stopping profile: {savedError}</Alert>}
+      {savedLoading && !showingTraining && <Text size="sm" c="dimmed">Loading saved stopping profile…</Text>}
+      {!savedLoading && !savedError && !showingTraining && !savedProfile?.validated &&
+        <Text c="dimmed" size="sm">No approved stopping profile. Start training and finish with OK to validate it.</Text>}
+      {showingTraining && !displayedProfile.length && <Text c="dimmed" size="sm">No training measurements yet.</Text>}
+      {displayedProfile.length > 0 &&
+        <Table striped><Table.Thead><Table.Tr><Table.Th>Direction</Table.Th><Table.Th>DCC</Table.Th><Table.Th>mm/s</Table.Th><Table.Th>Deceleration (mm/s²)</Table.Th><Table.Th>Base stop (0) mm</Table.Th><Table.Th>Adaptive stop mm</Table.Th><Table.Th>Trials</Table.Th></Table.Tr></Table.Thead>
+          <Table.Tbody>{displayedProfile.map(point => <Table.Tr key={point.direction + point.dccStep}>
             <Table.Td>{point.direction}</Table.Td><Table.Td>{point.dccStep}</Table.Td>
             <Table.Td>{point.millimetersPerSecond.toFixed(1)}</Table.Td>
             <Table.Td>{point.baselineStoppingDistanceMm != null && point.baselineStoppingDistanceMm > 0
