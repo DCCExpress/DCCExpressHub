@@ -545,7 +545,7 @@ export function TrackCanvasDoubleTurnoutPopover({
                           turnout,
                           turnoutPosition
                         );
-
+                        onChanged?.();
                         onClose();
                       }}
                     >
