@@ -22,7 +22,7 @@ export function App() {
   const [speed, setSpeed] = useState(0);
   const [forward, setForward] = useState(true);
   const [light, setLight] = useState(false);
-  const [, setPower] = useState<boolean | null>(null);
+  const [power, setPower] = useState<boolean | null>(null);
   const [, setLog] = useState<string[]>([]);
   const [error, setError] = useState('');
   const socket = useRef<WebSocket | null>(null);
@@ -68,21 +68,22 @@ export function App() {
       try { localStorage.setItem('dcc-ex-ui.wsUrl', url); } catch { /* storage optional */ }
     } catch (e) { setStatus('disconnected'); setError(String(e)); }
   };
-  const drive = (nextSpeed: number, nextForward = forward) => {
-    const a = Number(address);
-    if (!Number.isInteger(a) || a < 1 || a > 10239) { setError('Select a valid DCC address (1–10239).'); return; }
+  const driveAddress=(locoAddress:number,nextSpeed:number,nextForward:boolean)=>{
+    if(!Number.isInteger(locoAddress)||locoAddress<1||locoAddress>10239){
+      setError('Invalid DCC address');return;
+    }
     try {
-      // Stop the old locomotive when changing addresses before sending to the new locomotive.
-      if (active.current.address !== a && active.current.speed > 0) {
-        if (!send(throttleCommand({ address: active.current.address, speed: 0, forward: active.current.forward }))) return;
+      if(active.current.address!==locoAddress&&active.current.speed>0){
+        if(!send(throttleCommand({address:active.current.address,speed:0,forward:active.current.forward})))return;
       }
-      if (send(throttleCommand({ address: a, speed: nextSpeed, forward: nextForward }))) {
-        active.current = { address: a, speed: nextSpeed, forward: nextForward };
-        setSpeed(nextSpeed); setForward(nextForward);
-        try { localStorage.setItem('dcc-ex-ui.loco', String(a)); } catch { /* optional */ }
+      if(send(throttleCommand({address:locoAddress,speed:nextSpeed,forward:nextForward}))){
+        active.current={address:locoAddress,speed:nextSpeed,forward:nextForward};
+        setAddress(locoAddress);setSpeed(nextSpeed);setForward(nextForward);
+        try{localStorage.setItem('dcc-ex-ui.loco',String(locoAddress));}catch{/* optional */}
       }
-    } catch (e) { setError(String(e)); }
+    }catch(e){setError(String(e));}
   };
+  const drive=(nextSpeed:number,nextForward=forward)=>driveAddress(Number(address),nextSpeed,nextForward);
   const ready = status === 'connected';
   const [connectSettingsOpen,setConnectSettingsOpen] = useState(false);
   const [locoEditorOpen,setLocoEditorOpen] = useState(false);
@@ -149,9 +150,17 @@ export function App() {
               forward={forward}
               onSpeed={setSpeed}
               onDrive={drive}
+              onDriveAddress={driveAddress}
               onStop={stop}
               onDirection={direction=>{if(speed===0)drive(0,direction);else setError('Stop before reversing.');}}
-              onFunction={enabled=>{try{if(send(functionCommand(Number(address),0,enabled)))setLight(enabled);}catch(e){setError(String(e));}}}
+              onFunctionCommand={(locoAddress,number,enabled)=>{
+                try{if(send(functionCommand(locoAddress,number,enabled))&&locoAddress===Number(address)&&number===0)setLight(enabled);}catch(e){setError(String(e));}
+              }}
+              onEmergencyToggle={()=>{
+                const nextPower=power===false;
+                if(send(nextPower?'<1>':'<0>')){setPower(nextPower);if(!nextPower){active.current.speed=0;setSpeed(0);}}
+              }}
+              emergencyStop={power===false}
               light={light}
             />
           </Stack>
