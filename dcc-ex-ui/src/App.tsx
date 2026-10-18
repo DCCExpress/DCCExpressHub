@@ -4,7 +4,6 @@ import { IconAlertTriangle, IconPlugConnected, IconTrain, IconWifiOff, IconMap, 
 import { functionCommand, parseFrames, throttleCommand } from './dccex';
 import { LocoEditor } from './LocoEditor';
 import { BrowserLayoutPage } from './BrowserLayoutPage';
-import { BrowserLayoutPage } from './BrowserLayoutPage';
 import { exportProject, importProject, loadProject, saveProject, type Project } from './storage';
 
 type Connection = 'disconnected' | 'connecting' | 'connected';
