@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, AppShell, Badge, Box, Button, Card, Container, Group, FileButton, Modal, SimpleGrid, Stack, Text, TextInput, Title, ThemeIcon } from '@mantine/core';
 import { IconAlertTriangle, IconPlugConnected, IconTrain, IconWifiOff, IconMap, IconSettings, IconDownload, IconUpload } from '@tabler/icons-react';
-import { functionCommand, parseFrames, throttleCommand } from './dccex';
+import { functionCommand, locoStatusQuery, parseFrames, parseLocoStatus, throttleCommand, type LocoLiveState } from './dccex';
 import { registerTurnoutOutputSink } from './preview-webui/services/layoutOutput';
 import { publishSensorFeedback, publishSensorSnapshot, publishConnectionStatus } from './preview-webui/services/wsClient';
 import { LocoEditor } from './LocoEditor';
@@ -24,6 +24,16 @@ export function App() {
   const [speed, setSpeed] = useState(0);
   const [forward, setForward] = useState(true);
   const [light, setLight] = useState(false);
+  const [locoStates,setLocoStates]=useState<Record<number,LocoLiveState>>({});
+  const queriedLocos=useRef(new Set<number>());
+  const currentAddress=useRef(Number(address));
+  currentAddress.current=Number(address);
+  const applySelectedStatus=(state:LocoLiveState)=>{
+    if(!state.known)return;
+    if(state.address!==currentAddress.current)return;
+    active.current={address:state.address,speed:state.speed,forward:state.forward};
+    setSpeed(state.speed);setForward(state.forward);setLight((state.functionsMask&1)!==0);
+  };
   const [power, setPower] = useState<boolean | null>(null);
   const [, setLog] = useState<string[]>([]);
   const [error, setError] = useState('');
@@ -35,6 +45,17 @@ export function App() {
     socket.current.send(command); append('TX ' + command); return true;
   }, [append]);
   useEffect(()=>registerTurnoutOutputSink(send),[send]);
+  // Ask about each saved DCC address once per connection; when a new loco is added,
+  // ask for that address too. Queries never set speed or reserve a slot.
+  useEffect(()=>{
+    if(status!=='connected'||socket.current?.readyState!==WebSocket.OPEN)return;
+    const addresses=[...new Set([...project.locos.map(loco=>loco.address),Number(address)])]
+      .filter(cab=>Number.isInteger(cab)&&cab>0&&cab<=10293&&!queriedLocos.current.has(cab));
+    for(const cab of addresses)queriedLocos.current.add(cab);
+    for(let i=0;i<addresses.length;i+=8){
+      socket.current.send(addresses.slice(i,i+8).map(locoStatusQuery).join(''));
+    }
+  },[status,project.locos,address]);
   const stop = useCallback(() => {
     const { address: a, forward: d } = active.current;
     try { if (send(throttleCommand({ address: a, speed: 0, forward: d }))) { active.current.speed = 0; setSpeed(0); } } catch (e) { setError(String(e)); }
@@ -55,6 +76,8 @@ export function App() {
       if (parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') throw new Error('URL must start with ws:// or wss://');
       // DCC-EX replies with Sec-WebSocket-Protocol: DCCEX. Browsers require us to request it.
       const ws = new WebSocket(parsed.href, 'DCCEX');
+      queriedLocos.current.clear();
+      setLocoStates({});
       socket.current = ws; setStatus('connecting');
       publishConnectionStatus('reconnecting');
       ws.onopen = () => {
@@ -71,6 +94,11 @@ export function App() {
         const frames = parseFrames(event.data);
         for (const frame of frames.length ? frames : [event.data]) {
           append('RX ' + frame);
+          const locoStatus=parseLocoStatus(frame);
+          if(locoStatus){
+            setLocoStates(old=>({...old,[locoStatus.address]:locoStatus}));
+            applySelectedStatus(locoStatus);
+          }
           // DCC-EX reports <Q address> when a sensor becomes occupied,
           // and <q address> when it clears. <Q> with no address is not an event.
           const sensor = /^<([Qq])\s+(\d+)(?:\s|>)/.exec(frame.trim());
@@ -92,11 +120,16 @@ export function App() {
       setError('Invalid DCC address');return;
     }
     try {
-      if(active.current.address!==locoAddress&&active.current.speed>0){
-        if(!send(throttleCommand({address:active.current.address,speed:0,forward:active.current.forward})))return;
-      }
+      // Switching locomotive controls must not stop another locomotive.
       if(send(throttleCommand({address:locoAddress,speed:nextSpeed,forward:nextForward}))){
         active.current={address:locoAddress,speed:nextSpeed,forward:nextForward};
+        setLocoStates(previous=>({
+          ...previous,
+          [locoAddress]:{
+            address:locoAddress,speed:nextSpeed,forward:nextForward,
+            functionsMask:previous[locoAddress]?.functionsMask??0,emergencyStop:false,known:true,
+          },
+        }));
         setAddress(locoAddress);setSpeed(nextSpeed);setForward(nextForward);
         try{localStorage.setItem('dcc-ex-ui.loco',String(locoAddress));}catch{/* optional */}
       }
@@ -168,7 +201,14 @@ export function App() {
               }}
               onElementsChange={elements=>setProject(previous=>({...previous,elements}))}
               activeAddress={Number(address)}
-              onSelectLoco={value=>{if(speed===0)setAddress(value);else setError('Stop before changing locomotive.');}}
+              locoStates={locoStates}
+              onSelectLoco={value=>{
+                const next=locoStates[value];
+                currentAddress.current=value;
+                active.current={address:value,speed:next?.known?next.speed:0,forward:next?.forward??true};
+                setAddress(value);setSpeed(active.current.speed);setForward(active.current.forward);
+                setLight(next?.known?(next.functionsMask&1)!==0:false);
+              }}
               connected={ready}
               speed={speed}
               forward={forward}
@@ -178,7 +218,19 @@ export function App() {
               onStop={stop}
               onDirection={direction=>{if(speed===0)drive(0,direction);else setError('Stop before reversing.');}}
               onFunctionCommand={(locoAddress,number,enabled)=>{
-                try{if(send(functionCommand(locoAddress,number,enabled))&&locoAddress===Number(address)&&number===0)setLight(enabled);}catch(e){setError(String(e));}
+                try{
+                  if(send(functionCommand(locoAddress,number,enabled))){
+                    setLocoStates(previous=>{
+                      const existing=previous[locoAddress];
+                      if(!existing)return previous; // no fake speed/direction before the station responds
+                      const bit=1<<number;
+                      return {...previous,[locoAddress]:{
+                        ...existing,functionsMask:enabled?existing.functionsMask|bit:existing.functionsMask&~bit,
+                      }};
+                    });
+                    if(locoAddress===currentAddress.current&&number===0)setLight(enabled);
+                  }
+                }catch(e){setError(String(e));}
               }}
               onEmergencyToggle={()=>{
                 const nextPower=power===false;
