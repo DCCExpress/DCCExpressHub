@@ -25,10 +25,10 @@ type Props={
  onStop:()=>void;onDirection:(v:boolean)=>void;
  onFunctionCommand:(address:number,fn:number,active:boolean)=>void;
  onDriveAddress:(address:number,speed:number,forward:boolean)=>void;
- onEmergencyToggle:()=>void;emergencyStop:boolean;light:boolean;
+ onEmergencyToggle:()=>void;onEmergencyStop:()=>void;emergencyStop:boolean;light:boolean;
  onBack:()=>void;onOpenLocoEditor:()=>void;onSave:()=>void;onReload:()=>void;
  onExport:()=>void;onImport:(file:File)=>void;onTogglePower:()=>void;
- powerOn:boolean;elementCount:number;
+ powerOn:boolean;powerKnown:boolean;elementCount:number;
  elements:TrackElement[];onElementsChange:(elements:TrackElement[])=>void;
  stations:Station[];onSaveStations:(stations:Station[],blockId:string,stationId:string|null)=>void;
 };
@@ -161,7 +161,7 @@ export function BrowserLayoutPage(props:Props){
       <Button size="xs" variant={props.powerOn?'filled':'light'} color={props.powerOn?'green':'red'}
        leftSection={<IconPower size={16}/>} disabled={!props.connected} onClick={props.onTogglePower}
        title={props.powerOn?'Turn track power off':'Turn track power on'}>
-       Power {props.powerOn?'ON':'OFF'}
+       Power {props.powerKnown?(props.powerOn?'ON':'OFF'):'?'}
       </Button>
       <Divider orientation="vertical" className="lite-toolbar-divider"/>
       <Button size="xs" variant="light" color="violet" leftSection={<IconTrain size={16}/>}
@@ -191,6 +191,7 @@ export function BrowserLayoutPage(props:Props){
     </div>
     <Card withBorder p={4} className="lite-track-card">
      <BrowserTrackCanvas elements={props.elements} onElementsChange={props.onElementsChange}
+       onEmergencyStop={props.onEmergencyStop}
        connected={props.connected}
        editMode={editMode} tool={tool} drawingElement={drawingElement}
        onToolChange={next=>{setTool(next);if(next==='cursor')setDrawingElement(null);}}
@@ -256,7 +257,7 @@ export function BrowserLayoutPage(props:Props){
        {props.connected?'WS':'WS LOST'}
       </Badge>
       <Badge size="sm" variant="light" color={props.emergencyStop?'red':'gray'}
-       onClick={props.onEmergencyToggle} title="Track emergency stop / resume"
+       onClick={props.onEmergencyStop} title="Emergency stop all locomotives (track power stays on)"
        className={'lite-status-action'+(props.emergencyStop?' blinkBadge':'')}>E-STOP</Badge>
       <Divider orientation="vertical"/>
       <Badge size="sm" variant="light" color="gray" title="Overload reporting is not available via this browser connection">Overload</Badge>

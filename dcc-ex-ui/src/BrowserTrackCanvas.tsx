@@ -6,6 +6,7 @@ import { drawScene } from './preview-webui/track-canvas/trackCanvasDraw';
 import { screenToGrid, getCenteredElementGridAnchor } from './preview-webui/track-canvas/trackCanvasGeometry';
 import type { ViewState, SelectionRect, DoubleTurnoutPopoverState } from './preview-webui/track-canvas/TrackCanvas.types';
 import { TrackTurnoutElement } from './preview-webui/models/editor/elements/TrackTurnoutElement';
+import { EmergencyButtonElement } from './preview-webui/models/editor/elements/EmergencyButtonElement';
 import TrackTurnoutDoubleElement from './preview-webui/models/editor/elements/TrackTurnoutDoubleElement';
 import { TrackTurnoutThreeWayElement } from './preview-webui/models/editor/elements/TrackTurnoutThreeWayElement';
 import { TrackCanvasDoubleTurnoutPopover } from './track-canvas/TrackCanvasDoubleTurnoutPopover';
@@ -21,7 +22,7 @@ import { getTrackCanvasCursor } from './preview-webui/track-canvas/trackCanvasCu
 type BrowserTool='cursor'|'draw';
 type Props={
  elements:TrackElement[];onElementsChange:(elements:TrackElement[])=>void;
- connected:boolean;
+ connected:boolean;onEmergencyStop:()=>void;
  editMode:boolean;tool:BrowserTool;drawingElement:BrowserPickerItem|null;
  onToolChange:(tool:BrowserTool)=>void;fitCounter?:number;deleteCounter?:number;
  onSelectionChange?:(selected:TrackElement|null)=>void;
@@ -103,7 +104,7 @@ const allocateId=(models:BaseElement[])=>{
  for(let id=1;id<=65535;id++)if(!used.has(id))return id;
  throw new Error('Layout is full (65535 IDs)');
 };
-export default function BrowserTrackCanvas({elements,onElementsChange,connected,editMode,tool,drawingElement,onToolChange,
+export default function BrowserTrackCanvas({elements,onElementsChange,connected,onEmergencyStop,editMode,tool,drawingElement,onToolChange,
  fitCounter,deleteCounter,onSelectionChange,onSelectionCountChange,visibility,onSave,onToggleEditMode}:Props){
  const canvasRef=useRef<HTMLCanvasElement>(null);
  const holderRef=useRef<HTMLDivElement>(null);
@@ -282,6 +283,11 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
   // Left-click in runtime mode operates an element; empty space does nothing.
   if(!editMode && event.button===0){
    const target=hit(g);
+   if(target instanceof EmergencyButtonElement){
+    if(connected)onEmergencyStop();
+    else setMessage('Connect to DCC-EX before using E-STOP.');
+    return;
+   }
    const multi=target instanceof TrackTurnoutDoubleElement||target instanceof TrackTurnoutThreeWayElement;
    const single=target instanceof TrackTurnoutElement;
    if(multi||single){

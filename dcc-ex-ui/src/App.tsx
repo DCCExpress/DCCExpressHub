@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, AppShell, Badge, Box, Button, Card, Container, Group, FileButton, Modal, SimpleGrid, Stack, Text, TextInput, Title, ThemeIcon } from '@mantine/core';
 import { IconAlertTriangle, IconPlugConnected, IconTrain, IconWifiOff, IconMap, IconSettings, IconDownload, IconUpload } from '@tabler/icons-react';
-import { functionCommand, locoStatusQuery, parseFrames, parseLocoStatus, throttleCommand, type LocoLiveState } from './dccex';
+import { emergencyStopCommand, trackPowerCommand, functionCommand, locoStatusQuery, parseFrames, parseLocoStatus, throttleCommand, type LocoLiveState } from './dccex';
 import { registerTurnoutOutputSink } from './preview-webui/services/layoutOutput';
 import { publishSensorFeedback, publishSensorSnapshot, publishConnectionStatus } from './preview-webui/services/wsClient';
 import { LocoEditor } from './LocoEditor';
@@ -35,6 +35,7 @@ export function App() {
     setSpeed(state.speed);setForward(state.forward);setLight((state.functionsMask&1)!==0);
   };
   const [power, setPower] = useState<boolean | null>(null);
+  const [emergencyStop,setEmergencyStop] = useState(false);
   const [, setLog] = useState<string[]>([]);
   const [error, setError] = useState('');
   const socket = useRef<WebSocket | null>(null);
@@ -57,18 +58,19 @@ export function App() {
     }
   },[status,project.locos,address]);
   const stop = useCallback(() => {
+    if(emergencyStop){setError('Release E-STOP before sending locomotive commands.');return;}
     const { address: a, forward: d } = active.current;
     try { if (send(throttleCommand({ address: a, speed: 0, forward: d }))) { active.current.speed = 0; setSpeed(0); } } catch (e) { setError(String(e)); }
-  }, [send]);
+  }, [send,emergencyStop]);
   const disconnect = useCallback(() => {
-    if (socket.current?.readyState === WebSocket.OPEN) {
+    if (!emergencyStop && socket.current?.readyState === WebSocket.OPEN) {
       const { address: a, forward: d } = active.current;
       socket.current.send(throttleCommand({ address: a, speed: 0, forward: d }));
     }
-    socket.current?.close(); socket.current = null; setStatus('disconnected'); setSpeed(0);
+    socket.current?.close(); socket.current = null; setStatus('disconnected'); setPower(null); setSpeed(0);
     setLocoStates({});
     publishConnectionStatus('disconnected');
-  }, []);
+  }, [emergencyStop]);
   useEffect(() => () => { socket.current?.close(); }, []);
   const connect = () => {
     setError('');
@@ -78,6 +80,7 @@ export function App() {
       // DCC-EX replies with Sec-WebSocket-Protocol: DCCEX. Browsers require us to request it.
       const ws = new WebSocket(parsed.href, 'DCCEX');
       queriedLocos.current.clear();
+      setPower(null);
       setLocoStates({});
       setSpeed(0);setLight(false);
       socket.current = ws; setStatus('connecting');
@@ -108,16 +111,17 @@ export function App() {
             const sensorAddress=Number(sensor[2]);
             publishSensorFeedback(sensorAddress,sensor[1]==='Q');
           }
-          if (/^<p1(?:\\s|>)/.test(frame)) setPower(true);
-          if (/^<p0(?:\\s|>)/.test(frame)) setPower(false);
+          const powerFeedback=/^<p([01])(?:\s+(MAIN|ALL))?>$/.exec(frame.trim());
+          if(powerFeedback)setPower(powerFeedback[1]==='1');
         }
       };
       ws.onerror = () => { if (socket.current === ws) setError('WebSocket connection failed. Verify that the station or bridge supports WebSocket, not just TCP.'); };
-      ws.onclose = () => { if (socket.current === ws) { socket.current = null; setStatus('disconnected'); publishConnectionStatus('disconnected'); setSpeed(0); setLocoStates({}); append('Disconnected'); } };
+      ws.onclose = () => { if (socket.current === ws) { socket.current = null; setStatus('disconnected'); setPower(null); publishConnectionStatus('disconnected'); setSpeed(0); setLocoStates({}); append('Disconnected'); } };
       try { localStorage.setItem('dcc-ex-ui.wsUrl', url); } catch { /* storage optional */ }
     } catch (e) { setStatus('disconnected'); publishConnectionStatus('disconnected'); setError(String(e)); }
   };
   const driveAddress=(locoAddress:number,nextSpeed:number,nextForward:boolean)=>{
+    if(emergencyStop){setError('Emergency stop is active. Resume at zero speed before driving.');return;}
     if(!Number.isInteger(locoAddress)||locoAddress<1||locoAddress>10239){
       setError('Invalid DCC address');return;
     }
@@ -136,6 +140,45 @@ export function App() {
         try{localStorage.setItem('dcc-ex-ui.loco',String(locoAddress));}catch{/* optional */}
       }
     }catch(e){setError(String(e));}
+  };
+  const engageEmergencyStop=()=>{
+    // DCC-EX sends emergency stop to all throttle reminder slots, not power off.
+    if(!send(emergencyStopCommand()))return;
+    setEmergencyStop(true);
+    active.current.speed=0;
+    setSpeed(0);
+    setLocoStates(previous=>{
+      const next:Record<number,LocoLiveState>={};
+      for(const [key,state] of Object.entries(previous)){
+        next[Number(key)]=state.known?{...state,speed:0,emergencyStop:true}:state;
+      }
+      return next;
+    });
+  };
+  const releaseEmergencyStop=()=>{
+    // Keep track power unchanged; explicitly clear emergency DCC speed code
+    // with zero-speed commands for all known slots. No automatic train restart.
+    const stops=Object.values(locoStates).filter(state=>state.known&&
+      Number.isInteger(state.address)&&state.address>=1&&state.address<=10239)
+      .map(state=>throttleCommand({address:state.address,speed:0,forward:state.forward}));
+    if(stops.length && !send(stops.join('')))return;
+    if(!stops.length && socket.current?.readyState!==WebSocket.OPEN){
+      setError('Connect to DCC-EX before resuming.');return;
+    }
+    setEmergencyStop(false);
+    active.current.speed=0;
+    setSpeed(0);
+    setLocoStates(previous=>{
+      const next:Record<number,LocoLiveState>={};
+      for(const [key,state] of Object.entries(previous)){
+        next[Number(key)]=state.known?{...state,speed:0,emergencyStop:false}:state;
+      }
+      return next;
+    });
+  };
+  const toggleTrackPower=()=>{
+    if(!send(trackPowerCommand(power!==true)))return;
+    // Only station <p0>/<p1> feedback confirms track power.
   };
   const drive=(nextSpeed:number,nextForward=forward)=>driveAddress(Number(address),nextSpeed,nextForward);
   const ready = status === 'connected';
@@ -220,6 +263,7 @@ export function App() {
               onStop={stop}
               onDirection={direction=>{if(speed===0)drive(0,direction);else setError('Stop before reversing.');}}
               onFunctionCommand={(locoAddress,number,enabled)=>{
+                if(emergencyStop){setError('Release E-STOP before using locomotive functions.');return;}
                 try{
                   if(send(functionCommand(locoAddress,number,enabled))){
                     setLocoStates(previous=>{
@@ -234,11 +278,9 @@ export function App() {
                   }
                 }catch(e){setError(String(e));}
               }}
-              onEmergencyToggle={()=>{
-                const nextPower=power===false;
-                if(send(nextPower?'<1>':'<0>')){setPower(nextPower);if(!nextPower){active.current.speed=0;setSpeed(0);}}
-              }}
-              emergencyStop={power===false}
+              onEmergencyToggle={emergencyStop?releaseEmergencyStop:engageEmergencyStop}
+              onEmergencyStop={engageEmergencyStop}
+              emergencyStop={emergencyStop}
               light={light}
               onBack={()=>setPage('home')}
               onOpenLocoEditor={()=>setLocoEditorOpen(true)}
@@ -250,11 +292,9 @@ export function App() {
                   if(window.confirm('Replace the current project with the imported project?'))setProject(p);
                 }).catch(e=>setError('Import failed: '+String(e)));
               }}
-              onTogglePower={()=>{
-                const nextPower=power!==true;
-                if(send(nextPower?'<1>':'<0>')){setPower(nextPower);if(!nextPower){active.current.speed=0;setSpeed(0);}}
-              }}
+              onTogglePower={toggleTrackPower}
               powerOn={power===true}
+              powerKnown={power!==null}
               elementCount={project.elements.length}
             />
           </Box>
