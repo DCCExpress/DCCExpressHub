@@ -16,6 +16,7 @@ type Props={
  drawingElement:BrowserPickerItem|null;
  onToolChange:(tool:BrowserTool)=>void;
  fitCounter?:number;
+ deleteCounter?:number;
  onSelectionChange?:(selected:TrackElement|null)=>void;
 };
 type Gesture={
@@ -72,7 +73,7 @@ function nextNumericId(elements:BaseElement[]):number {
  for(let id=1;id<=65535;id++)if(!ids.has(id))return id;
  throw new Error('The layout reached the 65535-element ID limit');
 }
-export default function BrowserTrackCanvas({elements,onElementsChange,editMode,tool,drawingElement,onToolChange,fitCounter,onSelectionChange}:Props){
+export default function BrowserTrackCanvas({elements,onElementsChange,editMode,tool,drawingElement,onToolChange,fitCounter,deleteCounter,onSelectionChange}:Props){
  const canvasRef=useRef<HTMLCanvasElement>(null);
  const parentRef=useRef<HTMLDivElement>(null);
  const models=useMemo(()=>elements.map(restoreOne).filter((e):e is BaseElement=>e!==null),[elements]);
@@ -95,6 +96,8 @@ export default function BrowserTrackCanvas({elements,onElementsChange,editMode,t
  const publish=()=>{
   const data=modelsRef.current.map(serializeOne);
   onElementsChange(data);
+  const selected=modelsRef.current.find(e=>e.id===selectedId.current);
+  onSelectionChange?.(selected?serializeOne(selected):null);
   redraw();
  };
  const fit=useCallback(()=>{
@@ -121,6 +124,17 @@ export default function BrowserTrackCanvas({elements,onElementsChange,editMode,t
   return()=>observe.disconnect();
  },[]);
  useEffect(()=>{if(fitCounter!==undefined)fit();},[fitCounter,fit]);
+ const appliedDeleteCounter=useRef(deleteCounter);
+ useEffect(()=>{
+   if(deleteCounter===undefined||deleteCounter===appliedDeleteCounter.current)return;
+   appliedDeleteCounter.current=deleteCounter;
+   const selected=selectedModel();
+   if(!selected||selected.locked)return;
+   modelsRef.current=modelsRef.current.filter(item=>item.id!==selected.id);
+   publishSelection(null);
+   publish();
+ },[deleteCounter]);
+
  useEffect(()=>{
   const canvas=canvasRef.current;if(!canvas||!canvasSize.width||!canvasSize.height)return;
   const ctx=canvas.getContext('2d');if(!ctx)return;
@@ -229,15 +243,6 @@ export default function BrowserTrackCanvas({elements,onElementsChange,editMode,t
   };
   window.addEventListener('keydown',onKey);return()=>window.removeEventListener('keydown',onKey);
  },[editMode,onToolChange,onElementsChange]);
- const rotateSelected=()=>{
-  const selected=selectedModel();if(!selected||selected.locked)return;
-  selected.rotateRight();publish();
- };
- const deleteSelected=()=>{
-  const selected=selectedModel();if(!selected||selected.locked)return;
-  modelsRef.current=modelsRef.current.filter(m=>m.id!==selected.id);
-  publishSelection(null);publish();
- };
  return <div ref={parentRef} className="browser-track-canvas" style={{
    position:'relative',width:'100%',height:'100%',minWidth:0,minHeight:0,overflow:'hidden',
    background:'#313131'
@@ -248,12 +253,6 @@ export default function BrowserTrackCanvas({elements,onElementsChange,editMode,t
    onWheel={onWheel} onContextMenu={event=>event.preventDefault()}
    style={{width:'100%',height:'100%',display:'block',touchAction:'none',
     cursor:editMode?(tool==='draw'?'crosshair':'default'):'grab'}}/>
-  <div style={{position:'absolute',right:8,top:8,display:'flex',gap:5}}>
-   <button type="button" title="Fit layout" onClick={fit}>Fit</button>
-   {editMode&&selectedModel()&&<>
-    <button type="button" title="Rotate selection (R)" onClick={rotateSelected}>Rotate</button>
-    <button type="button" title="Delete selection (Del)" onClick={deleteSelected}>Delete</button>
-   </>}
-  </div>
+
  </div>;
 }
