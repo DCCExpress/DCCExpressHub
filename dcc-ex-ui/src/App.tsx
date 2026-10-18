@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, AppShell, Badge, Box, Button, Card, Container, Group, FileButton, Modal, SimpleGrid, Stack, Text, TextInput, Title, ThemeIcon } from '@mantine/core';
-import { IconAlertTriangle, IconPlugConnected, IconTrain, IconWifiOff, IconMap, IconSettings, IconDownload, IconUpload } from '@tabler/icons-react';
+import { IconAlertTriangle, IconPlugConnected, IconTrain, IconWifiOff, IconMap, IconSettings, IconDownload, IconUpload, IconTrash } from '@tabler/icons-react';
 import { emergencyStopCommand, emergencyResumeCommand, trackPowerCommand, functionCommand, locoStatusQuery, parseFrames, parseLocoStatus, throttleCommand, type LocoLiveState } from './dccex';
 import { registerTurnoutOutputSink } from './preview-webui/services/layoutOutput';
 import { publishSensorFeedback, publishSensorSnapshot, publishConnectionStatus } from './preview-webui/services/wsClient';
@@ -179,6 +179,7 @@ export function App() {
   const ready = status === 'connected';
   const [connectSettingsOpen,setConnectSettingsOpen] = useState(false);
   const [locoEditorOpen,setLocoEditorOpen] = useState(false);
+  const [deleteLayoutOpen,setDeleteLayoutOpen]=useState(false);
   return (
     <AppShell header={page==='home'?{height:66}:undefined} padding={0}>
       {page==='home' && (
@@ -202,6 +203,26 @@ export function App() {
             <Group><Button disabled={status!=='disconnected'} leftSection={<IconPlugConnected size={17}/>} onClick={connect}>Connect</Button><Button variant="outline" color="gray" disabled={status==='disconnected'} leftSection={<IconWifiOff size={17}/>} onClick={disconnect}>Disconnect</Button></Group>
           </Stack>
         </Modal>
+        <Modal opened={deleteLayoutOpen} onClose={()=>setDeleteLayoutOpen(false)}
+          title="Delete layout data" centered>
+          <Stack gap="md">
+            <Alert color="red" icon={<IconAlertTriangle size={18}/>}>
+              This will permanently delete all {project.elements.length} layout elements and
+              {project.stations?.length??0} stations from the current browser project.
+              Locomotives, functions and connection settings will be kept.
+            </Alert>
+            <Text size="sm">Export your project first if you might need the layout later.</Text>
+            <Group justify="flex-end">
+              <Button variant="default" onClick={()=>setDeleteLayoutOpen(false)}>Cancel</Button>
+              <Button color="red" leftSection={<IconTrash size={16}/>}
+                disabled={!loaded || (project.elements.length===0 && (project.stations?.length??0)===0)}
+                onClick={()=>{
+                  setProject(previous=>({...previous,elements:[],stations:[]}));
+                  setDeleteLayoutOpen(false);
+                }}>Delete layout</Button>
+            </Group>
+          </Stack>
+        </Modal>
         <AppModal opened={locoEditorOpen} onClose={()=>setLocoEditorOpen(false)} title="Locomotives" size="min(1480px, 95vw)" centered draggable styles={{body:{height:'min(740px, calc(100vh - 120px))',display:'flex',flexDirection:'column',overflow:'hidden'}}} closeOnEscape={false} closeOnClickOutside={false} withCloseButton={false}>
           {locoEditorOpen && <LocoEditor locos={project.locos} functionBindings={project.functionBindings??[]} onFunctionTest={(address,fn,active)=>{try{send(functionCommand(address,fn,active));}catch(e){setError(String(e));}}} onSave={(locos,functionBindings)=>{setProject(p=>({...p,locos,functionBindings}));setLocoEditorOpen(false);}} onCancel={()=>setLocoEditorOpen(false)} onDrive={value=>{if(speed===0)setAddress(value);else setError('Stop before changing locomotive.');}}/>}
         </AppModal>
@@ -221,6 +242,17 @@ export function App() {
               </SimpleGrid>
               <Group><Button variant="light" leftSection={<IconDownload size={16}/>} onClick={()=>exportProject(project).catch(e=>setError(String(e)))}>Export project</Button>
                 <FileButton accept=".json,application/json" onChange={file=>{if(!file)return;importProject(file).then(p=>{if(window.confirm('Replace project?'))setProject(p);}).catch(e=>setError(String(e)));}}>{props=><Button {...props} variant="light" leftSection={<IconUpload size={16}/>}>Import project</Button>}</FileButton></Group>
+              <Card withBorder p="md" radius="sm">
+                <Group justify="space-between" align="center" wrap="wrap">
+                  <Stack gap={2}>
+                    <Text fw={600}>Data management</Text>
+                    <Text size="sm" c="dimmed">Remove layout data from the browser project without deleting locomotives.</Text>
+                  </Stack>
+                  <Button variant="light" color="red" leftSection={<IconTrash size={16}/>}
+                    disabled={!loaded || (project.elements.length===0 && (project.stations?.length??0)===0)}
+                    onClick={()=>setDeleteLayoutOpen(true)}>Delete layout data</Button>
+                </Group>
+              </Card>
             </Stack>
           </Container>
         ) : (
