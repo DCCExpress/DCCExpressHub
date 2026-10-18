@@ -1,12 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, AppShell, Badge, Box, Button, Card, Container, Group, NumberInput, Paper, SegmentedControl, Slider, Stack, Switch, Text, TextInput, Title } from '@mantine/core';
+import { Alert, AppShell, Badge, Box, Button, Card, Container, Group, NumberInput, Paper, Tabs, FileButton, SegmentedControl, Slider, Stack, Switch, Text, TextInput, Title } from '@mantine/core';
 import { IconAlertTriangle, IconPlugConnected, IconPlayerStop, IconTrain, IconWifiOff } from '@tabler/icons-react';
 import { functionCommand, parseFrames, throttleCommand } from './dccex';
+import { LayoutEditor } from './LayoutEditor';
+import { LocoEditor } from './LocoEditor';
+import { exportProject, importProject, loadProject, saveProject, type Project } from './storage';
 
 type Connection = 'disconnected' | 'connecting' | 'connected';
 const DEFAULT_URL = 'ws://192.168.1.100:8080/';
 function saved(key: string, fallback: string) { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } }
 export function App() {
+  const [project, setProject] = useState<Project>({ version: 1, elements: [], locos: [] });
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => { loadProject().then(p => { setProject(p); setLoaded(true); }).catch(e => setError('Cannot open IndexedDB: ' + String(e))); }, []);
+  useEffect(() => { if (loaded) saveProject(project).catch(e => setError('Cannot save IndexedDB: ' + String(e))); }, [project, loaded]);
   const [url, setUrl] = useState(() => saved('dcc-ex-ui.wsUrl', DEFAULT_URL));
   const [address, setAddress] = useState<number | string>(() => Number(saved('dcc-ex-ui.loco', '18')));
   const [status, setStatus] = useState<Connection>('disconnected');
@@ -89,6 +96,19 @@ export function App() {
       <AppShell.Main>
         <Container size="sm">
           <Stack gap="lg">
+            <Tabs defaultValue="throttle" keepMounted={false}>
+              <Tabs.List>
+                <Tabs.Tab value="throttle">Throttle</Tabs.Tab>
+                <Tabs.Tab value="layout">Layout editor</Tabs.Tab>
+                <Tabs.Tab value="locos">Locomotive editor</Tabs.Tab>
+              </Tabs.List>
+              <Tabs.Panel value="layout" pt="md">
+                <LayoutEditor elements={project.elements} onChange={elements => setProject(p => ({...p,elements}))} />
+              </Tabs.Panel>
+              <Tabs.Panel value="locos" pt="md">
+                <LocoEditor locos={project.locos} onChange={locos => setProject(p => ({...p,locos}))} onDrive={nextAddress => { if (speed > 0) { setError('Stop the locomotive before selecting another address.'); return; } setAddress(nextAddress); }} />
+              </Tabs.Panel>
+              <Tabs.Panel value="throttle" pt="md">
             <Card withBorder radius="md">
               <Stack>
                 <Title order={4}>DCC-EX WebSocket connection</Title>
@@ -155,6 +175,20 @@ export function App() {
                 </Group>
               </Stack>
             </Card>
+              </Tabs.Panel>
+            </Tabs>
+            <Group>
+              <Button variant="light" onClick={() => exportProject(project).catch(e => setError(String(e)))}>Export project</Button>
+              <FileButton accept=".json,application/json" onChange={file => {
+                if (!file) return;
+                importProject(file).then(p => {
+                  if (!window.confirm('Replace local project data with imported data?')) return;
+                  setProject(p);
+                }).catch(e => setError('Import failed: ' + String(e)));
+              }}>
+                {(props) => <Button variant="light" {...props}>Import project</Button>}
+              </FileButton>
+            </Group>
             {error && (
               <Alert icon={<IconAlertTriangle size={18} />} color="red" title="Connection / command error" withCloseButton onClose={() => setError('')}>
                 {error}
