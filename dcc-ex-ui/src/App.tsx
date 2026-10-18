@@ -3,12 +3,14 @@ import { Alert, AppShell, Badge, Box, Button, Card, Container, Group, NumberInpu
 import { IconAlertTriangle, IconPlugConnected, IconPlayerStop, IconTrain, IconWifiOff } from '@tabler/icons-react';
 import { functionCommand, parseFrames, throttleCommand } from './dccex';
 import { LocoEditor } from './LocoEditor';
+import { BrowserLayoutPage } from './BrowserLayoutPage';
 import { exportProject, importProject, loadProject, saveProject, type Project } from './storage';
 
 type Connection = 'disconnected' | 'connecting' | 'connected';
 const DEFAULT_URL = 'ws://192.168.1.100:8080/';
 function saved(key: string, fallback: string) { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } }
 export function App() {
+  const [page, setPage] = useState<'home' | 'layout'>('home');
   const [project, setProject] = useState<Project>({ version: 1, elements: [], locos: [] });
   const [loaded, setLoaded] = useState(false);
   useEffect(() => { loadProject().then(p => { setProject(p); setLoaded(true); }).catch(e => setError('Cannot open IndexedDB: ' + String(e))); }, []);
@@ -93,8 +95,15 @@ export function App() {
         </Group>
       </AppShell.Header>
       <AppShell.Main>
-        <Container size="sm">
+        <Container size={page === "layout" ? "xl" : "sm"} fluid={page === "layout"}>
           <Stack gap="lg">
+            <Group justify="space-between">
+              <Group><Button variant="subtle" onClick={() => setPage('home')}>Home</Button><Button onClick={() => setPage('layout')}>Layout</Button></Group>
+              <Badge color={ready ? 'green' : 'gray'}>{ready ? 'DCC-EX connected' : 'Offline'}</Badge>
+            </Group>
+            {page === 'home' && <Card withBorder radius="lg" p="lg"><Group justify="space-between"><Stack gap={2}><Title order={3}>Layout</Title><Text c="dimmed" size="sm">Open the layout workspace</Text></Stack><Button onClick={() => setPage('layout')}>Open layout</Button></Group></Card>}
+            {page === 'layout' && <BrowserLayoutPage locos={project.locos} activeAddress={Number(address)} onSelectLoco={value => { if (speed === 0) setAddress(value); else setError('Stop the locomotive before switching.'); }} connected={ready} />}
+            <Box style={{display:page==='home'?'block':'none'}}>
             <Tabs defaultValue="throttle" keepMounted={false}>
               <Tabs.List>
                 <Tabs.Tab value="throttle">Throttle</Tabs.Tab>
@@ -184,6 +193,7 @@ export function App() {
                 {(props) => <Button variant="light" {...props}>Import project</Button>}
               </FileButton>
             </Group>
+            </Box>
             {error && (
               <Alert icon={<IconAlertTriangle size={18} />} color="red" title="Connection / command error" withCloseButton onClose={() => setError('')}>
                 {error}
