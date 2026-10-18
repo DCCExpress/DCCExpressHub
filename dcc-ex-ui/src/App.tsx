@@ -66,6 +66,7 @@ export function App() {
       socket.current.send(throttleCommand({ address: a, speed: 0, forward: d }));
     }
     socket.current?.close(); socket.current = null; setStatus('disconnected'); setSpeed(0);
+    setLocoStates({});
     publishConnectionStatus('disconnected');
   }, []);
   useEffect(() => () => { socket.current?.close(); }, []);
@@ -78,6 +79,7 @@ export function App() {
       const ws = new WebSocket(parsed.href, 'DCCEX');
       queriedLocos.current.clear();
       setLocoStates({});
+      setSpeed(0);setLight(false);
       socket.current = ws; setStatus('connecting');
       publishConnectionStatus('reconnecting');
       ws.onopen = () => {
@@ -111,7 +113,7 @@ export function App() {
         }
       };
       ws.onerror = () => { if (socket.current === ws) setError('WebSocket connection failed. Verify that the station or bridge supports WebSocket, not just TCP.'); };
-      ws.onclose = () => { if (socket.current === ws) { socket.current = null; setStatus('disconnected'); publishConnectionStatus('disconnected'); setSpeed(0); append('Disconnected'); } };
+      ws.onclose = () => { if (socket.current === ws) { socket.current = null; setStatus('disconnected'); publishConnectionStatus('disconnected'); setSpeed(0); setLocoStates({}); append('Disconnected'); } };
       try { localStorage.setItem('dcc-ex-ui.wsUrl', url); } catch { /* storage optional */ }
     } catch (e) { setStatus('disconnected'); publishConnectionStatus('disconnected'); setError(String(e)); }
   };
