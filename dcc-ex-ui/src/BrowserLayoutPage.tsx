@@ -10,6 +10,7 @@ import {
 import type { Loco, TrackElement } from './storage';
 import BrowserTrackCanvas from './BrowserTrackCanvas';
 import BrowserPropertyPanel from './BrowserPropertyPanel';
+import { loadBrowserVisibility, type BrowserVisibility } from './property-panel/VisibilitySettings';
 import LocoPanel from './loco-panel/LocoPanel';
 import AppModal from './components/common/AppModal';
 import BrowserElementPicker, { type BrowserPickerItem } from './BrowserElementPicker';
@@ -47,6 +48,15 @@ export function BrowserLayoutPage(props:Props){
  const [fitCounter,setFitCounter]=useState(0);
  const [deleteCounter,setDeleteCounter]=useState(0);
  const [selectedElement,setSelectedElement]=useState<TrackElement|null>(null);
+ const [selectedCount,setSelectedCount]=useState(0);
+ const [visibility,setVisibility]=useState<BrowserVisibility>(loadBrowserVisibility);
+ const updateVisibility=(patch:Partial<BrowserVisibility>)=>{
+  setVisibility(previous=>{
+   const next={...previous,...patch};
+   try{localStorage.setItem('dcc-ex-ui.layout.visibility',JSON.stringify(next));}catch{/* browser preferences optional */}
+   return next;
+  });
+ };
  const patchSelected=(patch:Partial<TrackElement>)=>{
   if(!selectedElement)return;
   const id=String(selectedElement.id);
@@ -175,7 +185,8 @@ export function BrowserLayoutPage(props:Props){
      <BrowserTrackCanvas elements={props.elements} onElementsChange={props.onElementsChange}
        editMode={editMode} tool={tool} drawingElement={drawingElement}
        onToolChange={next=>{setTool(next);if(next==='cursor')setDrawingElement(null);}}
-       onSelectionChange={setSelectedElement} fitCounter={fitCounter} deleteCounter={deleteCounter}
+       onSelectionChange={setSelectedElement} onSelectionCountChange={setSelectedCount} visibility={visibility}
+       fitCounter={fitCounter} deleteCounter={deleteCounter}
        onSave={props.onSave}
        onToggleEditMode={()=>{setEditMode(v=>!v);setTool('cursor');setDrawingElement(null);setSelectedElement(null);}}/>
     </Card>
@@ -189,7 +200,8 @@ export function BrowserLayoutPage(props:Props){
      ? <div className="lite-property-panel lite-right-loco-panel">{locoPanel('right')}</div>
      : <Card withBorder p="sm" className="lite-property-panel">
        {editMode?
-        <BrowserPropertyPanel selected={selectedElement} onPatch={patchSelected}/>
+        <BrowserPropertyPanel selected={selectedElement} selectedCount={selectedCount} onPatch={patchSelected}
+           settings={visibility} onSettingsChange={updateVisibility}/>
        : <Tabs value={runtimeTab} onChange={setTab} className="lite-runtime-tabs">
           <Tabs.List grow mb="sm">
            <Tooltip label="TaskMan" withArrow><Tabs.Tab value="tasks" aria-label="TaskMan"><IconClipboardList size={20}/></Tabs.Tab></Tooltip>

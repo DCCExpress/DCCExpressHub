@@ -9,6 +9,7 @@ import { RAILWAY_PICKER_ITEMS, DECORATION_PICKER_ITEMS } from './BrowserElementP
 import { ELEMENT_TYPES, type ElementType } from './preview-webui/domain/layout/elementTypes';
 import { loadSavedViewState, saveViewState } from './preview-webui/track-canvas/trackCanvasViewStorage';
 import { getBridgePlacement } from './preview-webui/track-canvas/bridgePlacement';
+import type { BrowserVisibility } from './property-panel/VisibilitySettings';
 import { fitLayoutToView } from './preview-webui/track-canvas/trackCanvasLayoutBounds';
 
 type BrowserTool='cursor'|'draw';
@@ -17,6 +18,7 @@ type Props={
  editMode:boolean;tool:BrowserTool;drawingElement:BrowserPickerItem|null;
  onToolChange:(tool:BrowserTool)=>void;fitCounter?:number;deleteCounter?:number;
  onSelectionChange?:(selected:TrackElement|null)=>void;
+ onSelectionCountChange?:(count:number)=>void;visibility:BrowserVisibility;
  onSave?:()=>void;onToggleEditMode?:()=>void;
 };
 type GridPoint={x:number;y:number};
@@ -79,7 +81,7 @@ const allocateId=(models:BaseElement[])=>{
  throw new Error('Layout is full (65535 IDs)');
 };
 export default function BrowserTrackCanvas({elements,onElementsChange,editMode,tool,drawingElement,onToolChange,
- fitCounter,deleteCounter,onSelectionChange,onSave,onToggleEditMode}:Props){
+ fitCounter,deleteCounter,onSelectionChange,onSelectionCountChange,visibility,onSave,onToggleEditMode}:Props){
  const canvasRef=useRef<HTMLCanvasElement>(null);
  const holderRef=useRef<HTMLDivElement>(null);
  const selectedIds=useRef(new Set<number>());
@@ -115,12 +117,14 @@ export default function BrowserTrackCanvas({elements,onElementsChange,editMode,t
   selectRect.current=null;
   gesture.current=null;
   onSelectionChange?.(null);
+  onSelectionCountChange?.(0);
   redraw();
- },[editMode,onSelectionChange,redraw]);
+ },[editMode,onSelectionChange,onSelectionCountChange,redraw]);
  const modelsNow=()=>modelsRef.current;
  const selected=()=>modelsNow().filter(m=>selectedIds.current.has(m.id));
  const notifySelection=()=>{
   const one=selected();onSelectionChange?.(one.length===1?serialize(one[0]!):null);
+  onSelectionCountChange?.(one.length);
   redraw();
  };
  const selectIds=(ids:Iterable<number>)=>{
@@ -145,6 +149,7 @@ export default function BrowserTrackCanvas({elements,onElementsChange,editMode,t
   selectedIds.current.clear();
   modelsRef.current=snapshot.map(restoreBrowserElement).filter((e):e is BaseElement=>e!==null);
   onSelectionChange?.(null);
+  onSelectionCountChange?.(0);
   publish();
  };
  const canPlace=(element:BaseElement,x:number,y:number,ignored=new Set<number>())=>{
@@ -211,17 +216,16 @@ export default function BrowserTrackCanvas({elements,onElementsChange,editMode,t
   // These are the exact original upstream drawScene + element.draw methods.
   const layout={gridSize,draw:(context:CanvasRenderingContext2D,options:unknown)=>{
    for(const model of modelsNow()){
-    try{if(model.visible)model.draw(context,options as never);}
+    try{if(model.visible&&(visibility.showBuildings||model.layerName!=='buildings'))model.draw(context,options as never);}
     catch(err){console.error('Element drawing failed',model.type,err);}
    }
   }};
   drawScene(ctx,canvasSize.width,canvasSize.height,editMode,'dark',view.current,
    mouseGrid.current,{mode:tool,elementType:(cursorRef.current?.type??drawingElement?.type??ELEMENT_TYPES.GENERAL) as ElementType},
    hover.current,editMode&&tool==='draw'?cursorRef.current:null,
-   layout as never,{showGrid:true,showBuildings:true,showSegments:false,showBlockNames:true,
-    showOccupacySensorAddress:false,showSensorAddress:false,showSignalAddress:false,showTurnoutAddress:false} as never,
+   layout as never,visibility as never,
    undefined,selected()[0],selectRect.current,false,[]);
- },[canvasSize,drawTick,elements,editMode,tool,drawingElement]);
+ },[canvasSize,drawTick,elements,editMode,tool,drawingElement,visibility]);
  const local=(event:PointerEvent<HTMLCanvasElement>):GridPoint=>{
   const rect=event.currentTarget.getBoundingClientRect();
   return {x:event.clientX-rect.left,y:event.clientY-rect.top};
@@ -229,7 +233,7 @@ export default function BrowserTrackCanvas({elements,onElementsChange,editMode,t
  const grid=(p:GridPoint)=>screenToGrid(p.x,p.y,view.current,gridSize);
  const hit=(g:GridPoint)=>{
   // As in upstream hit testing, buttons win over overlapping track.
-  const all=modelsNow().filter(m=>m.visible);
+  const all=modelsNow().filter(m=>m.visible&&(visibility.showBuildings||m.layerName!=='buildings'));
   const buttons=all.filter(isButton).reverse().find(m=>m.hitTest(g.x,g.y));
   return buttons??all.reverse().find(m=>m.hitTest(g.x,g.y))??null;
  };
