@@ -41,8 +41,8 @@ export default function LocoControlCard(p:Props) {
    {!p.alive&&<Badge color="red" variant="light">Offline</Badge>}
    {p.alive&&!p.statusKnown&&<Badge color="gray" variant="light" size="sm">No command-station state</Badge>}
    <LocoSpeedControls speed={p.speed} maxSpeed={Math.max(1,Math.min(126,p.loco.maxSpeed??126))}
-     disabled={!p.alive||p.emergencyStop} onSpeedChange={p.onSpeedChange} onSpeedChangeEnd={p.onSpeedChangeEnd} onSpeedPercentChange={p.onSpeedPercentChange}/>
-   <LocoDirectionControls speed={p.speed} direction={p.direction} disabled={!p.alive||p.emergencyStop}
+     disabled={!p.alive} onSpeedChange={p.onSpeedChange} onSpeedChangeEnd={p.onSpeedChangeEnd} onSpeedPercentChange={p.onSpeedPercentChange}/>
+   <LocoDirectionControls speed={p.speed} direction={p.direction} disabled={!p.alive}
      onForward={p.onForward} onReverse={p.onReverse} onStop={p.onStop}/>
    <LocoEmergencyButton emergencyStop={p.emergencyStop} onToggle={p.onEmergencyToggle}/>
   </Stack>

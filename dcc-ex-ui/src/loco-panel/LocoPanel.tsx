@@ -105,7 +105,7 @@ export default function LocoPanel(p:Props) {
        <div className="browser-loco-panel-functions">
         <LocoFunctionGrid key={currentLoco.id} loco={currentLoco}
           activeFunctions={{...fns,0:fns[0]??p.light}}
-          disabled={!p.connected||p.emergencyStop}
+          disabled={!p.connected}
           // LocoFunctionButton already sends through onFunctionCommand.
           // App updates the shared authoritative state; do not transmit twice.
           onActiveFunctionsChange={()=>{}}

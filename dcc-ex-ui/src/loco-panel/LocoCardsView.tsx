@@ -60,7 +60,7 @@ export default function LocoCardsView(p:Props){
            const active=(state.functionsMask&(1<<fn.number))!==0;
            return <Tooltip key={fn.number} label={'F'+fn.number+' · '+fn.name}>
             <ActionIcon size={30} radius="sm" variant={active?'filled':'light'} color={active?'blue':'gray'}
-             disabled={p.disabled||p.emergencyStop} aria-label={'Function F'+fn.number}
+             disabled={p.disabled} aria-label={'Function F'+fn.number}
              onPointerDown={e=>{e.stopPropagation();if(fn.momentary){e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);toggleFunction(loco,fn.number,true);}}}
              onPointerUp={e=>{if(fn.momentary){e.stopPropagation();toggleFunction(loco,fn.number,false);}}}
              onPointerCancel={()=>{if(fn.momentary)toggleFunction(loco,fn.number,false);}}
@@ -78,11 +78,11 @@ export default function LocoCardsView(p:Props){
        </Badge>
       </Group>
       <Group wrap="nowrap" gap={5} mt={5} onClick={e=>e.stopPropagation()}>
-       <Tooltip label="Reverse"><ActionIcon size="sm" variant={state.direction==='reverse'?'filled':'light'} disabled={p.disabled||p.emergencyStop} onClick={()=>command(loco,state.speed,'reverse')} aria-label="Reverse"><IconArrowBigLeft size={14}/></ActionIcon></Tooltip>
+       <Tooltip label="Reverse"><ActionIcon size="sm" variant={state.direction==='reverse'?'filled':'light'} disabled={p.disabled} onClick={()=>command(loco,state.speed,'reverse')} aria-label="Reverse"><IconArrowBigLeft size={14}/></ActionIcon></Tooltip>
        <Tooltip label="Stop"><ActionIcon size="sm" color="red" variant="light" disabled={p.disabled} onClick={()=>command(loco,0,state.direction)} aria-label="Stop"><IconPlayerStopFilled size={14}/></ActionIcon></Tooltip>
-       <Tooltip label="Forward"><ActionIcon size="sm" variant={state.direction==='forward'?'filled':'light'} disabled={p.disabled||p.emergencyStop} onClick={()=>command(loco,state.speed,'forward')} aria-label="Forward"><IconArrowBigRight size={14}/></ActionIcon></Tooltip>
+       <Tooltip label="Forward"><ActionIcon size="sm" variant={state.direction==='forward'?'filled':'light'} disabled={p.disabled} onClick={()=>command(loco,state.speed,'forward')} aria-label="Forward"><IconArrowBigRight size={14}/></ActionIcon></Tooltip>
        <Slider style={{flex:1,minWidth:35}} size="xs" min={0} max={Math.max(1,Math.min(126,loco.maxSpeed??126))}
-        value={Math.min(state.speed,Math.max(1,Math.min(126,loco.maxSpeed??126)))} disabled={p.disabled||p.emergencyStop}
+        value={Math.min(state.speed,Math.max(1,Math.min(126,loco.maxSpeed??126)))} disabled={p.disabled}
         onChange={value=>{setDragging(old=>({...old,[loco.address]:value}));if(p.activeAddress===loco.address)p.onSpeed(value);else setLocal(old=>({...old,[loco.address]:{...state,speed:value}}));}}
         onChangeEnd={value=>command(loco,value,state.direction)} aria-label={'Speed '+loco.name}/>
       </Group>

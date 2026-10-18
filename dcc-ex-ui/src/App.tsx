@@ -58,10 +58,9 @@ export function App() {
     }
   },[status,project.locos,address]);
   const stop = useCallback(() => {
-    if(emergencyStop){setError('Release E-STOP before sending locomotive commands.');return;}
     const { address: a, forward: d } = active.current;
     try { if (send(throttleCommand({ address: a, speed: 0, forward: d }))) { active.current.speed = 0; setSpeed(0); } } catch (e) { setError(String(e)); }
-  }, [send,emergencyStop]);
+  }, [send]);
   const disconnect = useCallback(() => {
     if (!emergencyStop && socket.current?.readyState === WebSocket.OPEN) {
       const { address: a, forward: d } = active.current;
@@ -121,7 +120,6 @@ export function App() {
     } catch (e) { setStatus('disconnected'); publishConnectionStatus('disconnected'); setError(String(e)); }
   };
   const driveAddress=(locoAddress:number,nextSpeed:number,nextForward:boolean)=>{
-    if(emergencyStop){setError('Emergency stop is active. Resume at zero speed before driving.');return;}
     if(!Number.isInteger(locoAddress)||locoAddress<1||locoAddress>10239){
       setError('Invalid DCC address');return;
     }
@@ -263,7 +261,6 @@ export function App() {
               onStop={stop}
               onDirection={direction=>{if(speed===0)drive(0,direction);else setError('Stop before reversing.');}}
               onFunctionCommand={(locoAddress,number,enabled)=>{
-                if(emergencyStop){setError('Release E-STOP before using locomotive functions.');return;}
                 try{
                   if(send(functionCommand(locoAddress,number,enabled))){
                     setLocoStates(previous=>{
