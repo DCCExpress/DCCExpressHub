@@ -249,6 +249,16 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
   const ctor=drawingElement.preview.constructor as unknown as new(x:number,y:number)=>BaseElement;
   cursorRef.current=new ctor(0,0);
   cursorRef.current.selected=true;
+  // Opening the element picker fires a pointer-leave, so the preview was hidden
+  // until the next pointer-move. Show it immediately using the last known
+  // Canvas grid position (or the viewport centre before the first mouse move).
+  if(!pointerInside.current){
+   const canvas=canvasRef.current;
+   if(canvas&&mouseGrid.current.x===0&&mouseGrid.current.y===0){
+    mouseGrid.current=screenToGrid(canvas.width/2,canvas.height/2,view.current,gridSize);
+   }
+   pointerInside.current=true;
+  }
   redraw();
  },[tool,drawingElement,redraw]);
  const lastDelete=useRef(deleteCounter);
