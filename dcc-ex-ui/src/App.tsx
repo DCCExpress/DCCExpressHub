@@ -3,6 +3,7 @@ import { Alert, AppShell, Badge, Button, Card, Container, Group, FileButton, Mod
 import { IconAlertTriangle, IconPlugConnected, IconTrain, IconWifiOff, IconMap, IconSettings, IconHome, IconEdit, IconDownload, IconUpload } from '@tabler/icons-react';
 import { functionCommand, parseFrames, throttleCommand } from './dccex';
 import { LocoEditor } from './LocoEditor';
+import AppModal from './components/common/AppModal';
 import { BrowserLayoutPage } from './BrowserLayoutPage';
 import { exportProject, importProject, loadProject, saveProject, type Project } from './storage';
 
@@ -106,9 +107,9 @@ export function App() {
             <Group><Button disabled={status!=='disconnected'} leftSection={<IconPlugConnected size={17}/>} onClick={connect}>Connect</Button><Button variant="outline" color="gray" disabled={status==='disconnected'} leftSection={<IconWifiOff size={17}/>} onClick={disconnect}>Disconnect</Button></Group>
           </Stack>
         </Modal>
-        <Modal opened={locoEditorOpen} onClose={()=>setLocoEditorOpen(false)} title="Locomotives" size="min(1480px, 95vw)" styles={{body:{height:'min(820px, calc(100dvh - 100px))',display:'flex',flexDirection:'column',overflow:'hidden'}}} closeOnEscape={false} closeOnClickOutside={false} withCloseButton={false} centered>
+        <AppModal opened={locoEditorOpen} onClose={()=>setLocoEditorOpen(false)} title="Locomotives" size="min(1480px, 95vw)" centered draggable styles={{body:{height:'min(740px, calc(100vh - 120px))',display:'flex',flexDirection:'column',overflow:'hidden'}}} closeOnEscape={false} closeOnClickOutside={false} withCloseButton={false}>
           {locoEditorOpen && <LocoEditor locos={project.locos} functionBindings={project.functionBindings??[]} onFunctionTest={(address,fn,active)=>{try{send(functionCommand(address,fn,active));}catch(e){setError(String(e));}}} onSave={(locos,functionBindings)=>{setProject(p=>({...p,locos,functionBindings}));setLocoEditorOpen(false);}} onCancel={()=>setLocoEditorOpen(false)} onDrive={value=>{if(speed===0)setAddress(value);else setError('Stop before changing locomotive.');}}/>}
-        </Modal>
+        </AppModal>
         {page==='home' ? (
           <Container size="lg" py="lg">
             <Stack gap="lg">
