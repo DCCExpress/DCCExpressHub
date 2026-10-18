@@ -164,6 +164,30 @@ public sealed partial class WatsonWebServerService
             async ctx => await SendAsync(ctx,
                 HubApiResponse.Ok(Service<PrecisionBrakingRuntime>().Snapshot())));
 
+        // Fetch disk-backed certified stopping data independently of a trial session.
+        Add(server, WatsonHttpMethod.POST, "/api/precision-braking/profile",
+            async ctx =>
+            {
+                using var input = await ReadBodyStreamAsync(ctx);
+                try
+                {
+                    using var document = await System.Text.Json.JsonDocument.ParseAsync(
+                        input, cancellationToken: ctx.Token);
+                    if (!document.RootElement.TryGetProperty("locoId", out var idElement)
+                        || idElement.ValueKind != System.Text.Json.JsonValueKind.String
+                        || string.IsNullOrWhiteSpace(idElement.GetString()))
+                        throw new System.Text.Json.JsonException();
+                    var profile = await Service<PrecisionBrakingRuntime>()
+                        .GetSavedProfileAsync(idElement.GetString()!, ctx.Token);
+                    await SendAsync(ctx, HubApiResponse.Ok(profile));
+                }
+                catch (System.Text.Json.JsonException)
+                {
+                    await SendAsync(ctx, HubApiResponse.Error(400,
+                        new { ok = false, message = "invalid_locomotive_id" }));
+                }
+            });
+
         Add(server, WatsonHttpMethod.POST, "/api/precision-braking/start",
             async ctx =>
             {
