@@ -76,12 +76,16 @@ function nextNumericId(elements:BaseElement[]):number {
 export default function BrowserTrackCanvas({elements,onElementsChange,editMode,tool,drawingElement,onToolChange,fitCounter,deleteCounter,onSelectionChange}:Props){
  const canvasRef=useRef<HTMLCanvasElement>(null);
  const parentRef=useRef<HTMLDivElement>(null);
- const models=useMemo(()=>elements.map(restoreOne).filter((e):e is BaseElement=>e!==null),[elements]);
+ const selectedId=useRef<number|null>(null);
+ const models=useMemo(()=>{
+   const restored=elements.map(restoreOne).filter((e):e is BaseElement=>e!==null);
+   for(const model of restored)model.selected=model.id===selectedId.current;
+   return restored;
+ },[elements]);
  const modelsRef=useRef(models);modelsRef.current=models;
  const gesture=useRef<Gesture|null>(null);
  const view=useRef<ViewState>({scale:1,offsetX:0,offsetY:0});
  const hovered=useRef<{x:number;y:number}|null>(null);
- const selectedId=useRef<number|null>(null);
  const [canvasSize,setCanvasSize]=useState({width:0,height:0});
  const [cursor,setCursor]=useState<{x:number;y:number}|null>(null);
  const [renderVersion,setRenderVersion]=useState(0);
