@@ -113,6 +113,8 @@ export type MovementPage = {
   speed: number;
   startedAt: number | null;
   stoppedAt: number | null;
+  /** Optional planned end-to-end duration in seconds, independent of measured runtime. */
+  plannedDurationSeconds?: number | null;
   routeRef: MovementRouteRef | null;
   /** Optional physical locomotive identity check enforced by the .NET backend. */
   expectedLocoAddress?: number | null;
@@ -201,6 +203,7 @@ export function createMovementPage(
     speed: 20,
     startedAt: null,
     stoppedAt: null,
+    plannedDurationSeconds: null,
     routeRef: null,
     blockRules: [],
     resourceEventRules: [],
@@ -955,6 +958,12 @@ function normalizeMovementPage(
       timestampOrNull(
         candidate.stoppedAt
       ),
+    plannedDurationSeconds:
+      typeof candidate.plannedDurationSeconds === "number" &&
+      Number.isFinite(candidate.plannedDurationSeconds) &&
+      candidate.plannedDurationSeconds > 0
+        ? Math.round(candidate.plannedDurationSeconds)
+        : null,
     routeRef,
     expectedLocoAddress: positiveInteger(candidate.expectedLocoAddress),
     blockRules:

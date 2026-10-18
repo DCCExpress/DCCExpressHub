@@ -26,9 +26,13 @@ export type AutomationScriptDefinition = {
 
 export type TimetableTargetType =
   | "script"
-  | "movement";
+  | "movement"
+  | "fromto";
 
 export type TimetableActionDefinition = {
+  routeRef?: import("../domain/movement").MovementRouteRef | null;
+  locoAddress?: number;
+  speed?: number;
   id: string;
   targetType:
     TimetableTargetType;
@@ -215,10 +219,8 @@ export function normalizeTimetableEntries(
 
       const targetType:
         TimetableTargetType =
-        action.targetType ===
-          "movement"
-          ? "movement"
-          : "script";
+        action.targetType === "fromto" ? "fromto" :
+        action.targetType === "movement" ? "movement" : "script";
 
       const targetId =
         typeof action.targetId ===
@@ -226,11 +228,26 @@ export function normalizeTimetableEntries(
           ? action.targetId.trim()
           : "";
 
+      const ref = action.routeRef as Record<string, unknown> | null | undefined;
+      const routeRef = ref && typeof ref === "object" &&
+        Number.isInteger(ref.fromBlockId) && Number.isInteger(ref.toBlockId) &&
+        (ref.direction === "forward" || ref.direction === "reverse") &&
+        Array.isArray(ref.viaBlockIds) && ref.viaBlockIds.every(Number.isInteger)
+        ? {
+            fromBlockId: Number(ref.fromBlockId),
+            toBlockId: Number(ref.toBlockId),
+            direction: ref.direction as "forward" | "reverse",
+            viaBlockIds: ref.viaBlockIds as number[],
+          } : null;
       actions.push({
-        id:
-          actionId,
+        id: actionId,
         targetType,
         targetId,
+        ...(targetType === "fromto" ? {
+          routeRef,
+          locoAddress: Number(action.locoAddress) || 0,
+          speed: Number(action.speed) || 20,
+        } : {}),
       });
     }
 

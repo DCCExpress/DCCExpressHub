@@ -18,6 +18,50 @@ export type CommandCenterCapabilities = {
   signalAspect: boolean;
 };
 
+export type LocoNetTcpDiagnostics = {
+  lbServerEnabled: boolean;
+  lbServerConnected: boolean;
+  host: string;
+  lbServerPort: number;
+  lbServerUptimeMs: number;
+  lastLbServerRxAgeMs: number;
+  lbServerLinesObserved: number;
+  lbServerVersion: string;
+  binaryFeedbackEnabled: boolean;
+  binaryPort: number;
+  sensorFeedbackCount: number;
+  lastSensorAddress: number;
+  lastSensorOn: boolean | null;
+  lastSensorFeedbackAgeMs: number;
+  lastInterrogateAgeMs: number;
+  interrogateEnabled: boolean;
+};
+
+export type LocoNetStandardTelemetry = {
+  rxFrames: number;
+  txFrames: number;
+  sensorReports: number;
+  turnoutReports: number;
+  powerReports: number;
+  reportedTrackPowerOn: boolean | null;
+  lastRxAgeMs: number;
+  lastPowerReportAgeMs: number;
+  trackCurrentMa: number | null;
+  trackVoltageV: number | null;
+  temperatureC: number | null;
+};
+
+export type HostDiagnostics = {
+  machine: string;
+  os: string;
+  processorCount: number;
+  uptimeSeconds: number;
+  workingSetBytes: number;
+  managedHeapBytes: number;
+  cpuTimeMs: number;
+  sampledAtMs: number;
+};
+
 export type CommandCenterInfo = {
   ok: boolean;
   embedded?: boolean;
@@ -27,7 +71,11 @@ export type CommandCenterInfo = {
   transport?: string;
   defaultPort: number;
   connected: boolean;
+  hostDiagnostics?: HostDiagnostics;
+  locoNetDiagnostics?: LocoNetTcpDiagnostics | null;
+  locoNetStandardTelemetry?: LocoNetStandardTelemetry | null;
   host?: string;
+  serialPort?: string;
   port?: number;
   feedbackLinkName?: string;
   feedbackHost?: string;

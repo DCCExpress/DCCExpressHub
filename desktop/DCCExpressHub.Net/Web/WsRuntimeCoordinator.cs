@@ -10,12 +10,22 @@ public sealed class WsRuntimeCoordinator : BackgroundService
     readonly LayoutRuntime _runtime;
     readonly SignalAutomationEngine _signalAutomation;
     readonly AppPaths _env;
+    readonly ExternalDevicesRuntime _externalDevices;
     readonly ILogger<WsRuntimeCoordinator> _log;
     volatile bool _connected;
     volatile bool _connectionChanged;
+    volatile bool _locomotiveConfigurationChanged;
+
+    public void RefreshLocomotives() => _locomotiveConfigurationChanged = true;
     readonly Queue<int> _locoSync=new();
     readonly Queue<(int Address,int Function)> _startupFunctions=new();
     bool _startupFunctionsApplied;
+    // Power ON may boot feedback modules on any command center. Delay the
+    // driver-specific sensor interrogation; the coordinator owns the schedule.
+    readonly object _powerResyncGate = new();
+    DateTimeOffset? _powerResyncDue;
+    bool? _powerOn;
+
 
     public WsRuntimeCoordinator(
         ICommandCenter cc,
@@ -23,6 +33,7 @@ public sealed class WsRuntimeCoordinator : BackgroundService
         LayoutRuntime runtime,
         SignalAutomationEngine signalAutomation,
         AppPaths env,
+        ExternalDevicesRuntime externalDevices,
         ILogger<WsRuntimeCoordinator> log)
     {
         _cc=cc;
@@ -30,27 +41,66 @@ public sealed class WsRuntimeCoordinator : BackgroundService
         _runtime=runtime;
         _signalAutomation=signalAutomation;
         _env=env;
+        _externalDevices=externalDevices;
         _log=log;
 
         _connected=cc.Connected;
         cc.ConnectionChanged+=OnConnectionChanged;
         cc.SensorFeedbackChanged+=OnSensorFeedbackChanged;
+        cc.PowerFeedbackChanged+=OnPowerFeedbackChanged;
         cc.AccessoryFeedbackChanged+=OnAccessoryFeedbackChanged;
+        // Every sensor source uses the same authoritative LayoutRuntime path.
+        externalDevices.SensorFeedbackChanged += OnSensorFeedbackChanged;
+        externalDevices.SensorRangeUnavailable +=
+            (first, count) => _runtime.InvalidateSensorRange(first, count);
     }
 
     void OnConnectionChanged(bool connected)
     {
         _connected=connected;
         _connectionChanged=true;
+        if (!connected)
+        {
+            lock (_powerResyncGate)
+            {
+                _powerOn = null;
+                _powerResyncDue = null;
+            }
+        }
 
         if (!connected)
         {
             // Drop stale known states, never translate a disconnect to FREE.
             // The reconnect snapshot must be the new source of truth.
             _runtime.InvalidateSensorStates();
+            _externalDevices.ReplayLiveSensorStates();
             _log.LogWarning(
                 "Command center disconnected: previous sensor states are UNKNOWN pending fresh feedback");
         }
+    }
+
+    void OnPowerFeedbackChanged(PowerFeedback feedback)
+    {
+        if (!string.Equals(feedback.Target, "Main", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        // Do not lose an already arriving sensor report to a delayed reset:
+        // mark everything UNKNOWN immediately, before requesting a fresh scan.
+        lock (_powerResyncGate)
+        {
+            if (_powerOn == feedback.On)
+                return; // Duplicate broadcast must not repeatedly discard valid states.
+            _powerOn = feedback.On;
+            _powerResyncDue = feedback.On
+                ? DateTimeOffset.UtcNow.AddMilliseconds(1500)
+                : null;
+        }
+        _runtime.InvalidateSensorStates();
+        _externalDevices.ReplayLiveSensorStates();
+        _log.LogInformation("{CommandCenter} track power {Power}: sensor states UNKNOWN; {Action}",
+            _cc.Name,
+            feedback.On ? "ON" : "OFF",
+            feedback.On ? "sensor interrogation scheduled" : "waiting for power ON");
     }
 
     void OnSensorFeedbackChanged(int address,bool on)
@@ -113,7 +163,36 @@ public sealed class WsRuntimeCoordinator : BackgroundService
                 }
             }
 
+            if (_locomotiveConfigurationChanged)
+            {
+                _locomotiveConfigurationChanged = false;
+                LoadConfiguredLocos();
+                LoadStartupFunctions();
+                _startupFunctionsApplied = false;
+            }
+
             var now=DateTimeOffset.UtcNow;
+            bool requestPowerOnSensors = false;
+            if (_cc.Connected)
+            {
+                lock (_powerResyncGate)
+                {
+                    if (_powerResyncDue.HasValue && now >= _powerResyncDue.Value)
+                    {
+                        _powerResyncDue = null;
+                        requestPowerOnSensors = true;
+                    }
+                }
+            }
+            if (requestPowerOnSensors)
+            {
+                var requested = await _cc.RequestSensorSnapshotAsync(ct);
+                _log.LogInformation(
+                    "{CommandCenter} power ON sensor interrogation {Result}; missing feedback remains UNKNOWN",
+                    _cc.Name,
+                    requested ? "sent" : "not sent");
+            }
+
 
             if(_cc.Connected && _locoSync.Count>0 && now>=nextLoco)
             {
@@ -245,7 +324,9 @@ public sealed class WsRuntimeCoordinator : BackgroundService
 
             foreach(var loco in doc.RootElement.EnumerateArray())
             {
-                if(
+                if (loco.TryGetProperty("active", out var activeFlag) && activeFlag.ValueKind == JsonValueKind.False)
+                    continue;
+                if (
                     !loco.TryGetProperty("address",out var addressElement) ||
                     !addressElement.TryGetInt32(out var address) ||
                     address is <1 or >10239 ||
@@ -323,6 +404,8 @@ public sealed class WsRuntimeCoordinator : BackgroundService
 
             foreach(var item in doc.RootElement.EnumerateArray())
             {
+                if (item.TryGetProperty("active", out var activeFlag) && activeFlag.ValueKind == JsonValueKind.False)
+                    continue;
                 if(!item.TryGetProperty("address",out var a) ||
                    !a.TryGetInt32(out var address) ||
                    address is <1 or >10239 ||

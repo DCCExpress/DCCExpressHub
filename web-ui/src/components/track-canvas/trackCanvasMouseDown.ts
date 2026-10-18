@@ -1,4 +1,6 @@
 import i18next from "i18next";
+import { getBridgePlacement } from "./bridgePlacement";
+import { getTrackCanvasHitElement } from "./trackCanvasRuntimeHitTest";
 import type {
   Dispatch,
   SetStateAction,
@@ -24,6 +26,8 @@ import {
   isTurnoutElement,
   type LayoutView,
 } from "../../models/editor/core/LayoutView";
+
+import { EmergencyButtonElement } from "../../models/editor/elements/EmergencyButtonElement";
 
 import {
   AudioButtonElement,
@@ -88,6 +92,7 @@ export type TrackCanvasMouseDownContext = {
   editModeRef: MouseDownRef<boolean>;
   turnoutSelectionModeRef: MouseDownRef<boolean>;
   selectedElementRef: MouseDownRef<BaseElement | null>;
+  showBuildings: boolean;
   currentCursorRef: MouseDownRef<BaseElement | null>;
   signalAspectPopoverRef: MouseDownRef<SignalAspectPopoverState>;
   doubleTurnoutPopoverRef: MouseDownRef<DoubleTurnoutPopoverState>;
@@ -96,6 +101,7 @@ export type TrackCanvasMouseDownContext = {
   selectionRef: MouseDownRef<SelectionState>;
   setSelectedBlock: Dispatch<SetStateAction<BlockElement | null>>;
   setLocoPickerOpen: Dispatch<SetStateAction<boolean>>;
+  setBlockPopupPoint: Dispatch<SetStateAction<{ x: number; y: number }>>;
   setRouteTurnoutsMarked: (routeButton: RouteButtonElement) => void;
   onInvalidate: () => void;
   onBeforeLayoutChange?: (() => void) | undefined;
@@ -143,6 +149,7 @@ export function handleTrackCanvasMouseDown(
     editModeRef,
     turnoutSelectionModeRef,
     selectedElementRef,
+    showBuildings,
     currentCursorRef,
     signalAspectPopoverRef,
     doubleTurnoutPopoverRef,
@@ -151,6 +158,7 @@ export function handleTrackCanvasMouseDown(
     selectionRef,
     setSelectedBlock,
     setLocoPickerOpen,
+    setBlockPopupPoint,
     setRouteTurnoutsMarked,
     onInvalidate,
     onBeforeLayoutChange,
@@ -202,7 +210,12 @@ export function handleTrackCanvasMouseDown(
     currentLayout.gridSize
   );
 
-  const hitElement = currentLayout.getElement(grid.x, grid.y);
+  const hitElement = getTrackCanvasHitElement(currentLayout, grid.x, grid.y, currentEditMode, showBuildings);
+
+  if (!editModeRef.current && hitElement instanceof EmergencyButtonElement) {
+    hitElement.press();
+    return;
+  }
 
   if (!editModeRef.current && hitElement?.type === ELEMENT_TYPES.BUTTON_AUDIO) {
     const audioButton = hitElement as AudioButtonElement;
@@ -249,7 +262,9 @@ export function handleTrackCanvasMouseDown(
   if (!editModeRef.current) {
     if (hitElement instanceof BlockElement) {
       setSelectedBlock(hitElement);
-      setLocoPickerOpen(true);
+      setBlockPopupPoint({ x: event.clientX, y: event.clientY });
+      // Open after the originating mouse click; otherwise outside-click handling closes it.
+      window.setTimeout(() => setLocoPickerOpen(true), 100);
     }
 
     if (hitElement instanceof TrackSignalElement) {
@@ -339,7 +354,7 @@ export function handleTrackCanvasMouseDown(
   }
 
   if (currentTool.mode === "delete") {
-    const element = currentLayout.getElement(grid.x, grid.y);
+    const element = getTrackCanvasHitElement(currentLayout, grid.x, grid.y, true);
 
     if (element) {
       onBeforeLayoutChange?.();
@@ -363,7 +378,17 @@ export function handleTrackCanvasMouseDown(
       grid
     );
 
-    const exists = currentLayout.getLayeredElement(
+    if (cursor.type === ELEMENT_TYPES.TRACK_BRIDGE) {
+      const placement = getBridgePlacement(
+        currentLayout, cursorAnchor.x, cursorAnchor.y, cursor.rotation
+      );
+      if (!placement.valid) {
+        showErrorMessage("Bridge", "Bridge can only overlap a straight track element.");
+        return;
+      }
+    }
+
+    const exists = cursor.type === ELEMENT_TYPES.TRACK_BRIDGE ? null : currentLayout.getLayeredElement(
       cursor,
       cursorAnchor.x,
       cursorAnchor.y
@@ -402,7 +427,10 @@ export function handleTrackCanvasMouseDown(
       hitElement.selected = !hitElement.selected;
 
       const allSelected = getAllLayoutElements(currentLayout)
-        .filter(element => element.selected);
+        .filter(element =>
+          element.selected &&
+          element.visible &&
+          currentLayout.findLayerOfElement(element)?.visible === true);
 
       if (allSelected.length === 1) {
         onSelectedElementChange(allSelected[0]!);
@@ -424,7 +452,10 @@ export function handleTrackCanvasMouseDown(
     }
 
     const dragged = getAllLayoutElements(currentLayout)
-      .filter(element => element.selected)
+      .filter(element =>
+          element.selected &&
+          element.visible &&
+          currentLayout.findLayerOfElement(element)?.visible === true)
       .map(element => ({
         id: element.id,
         startX: element.x,

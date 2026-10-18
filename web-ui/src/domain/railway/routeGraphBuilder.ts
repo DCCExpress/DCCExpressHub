@@ -115,7 +115,7 @@ export class RouteGraphBuilder {
 
       for (const pos of Object.values(connections)) {
         const firstElem =
-          this.topology.getPhysicalTrackAt(pos);
+          this.topology.getPhysicalTrackAt(pos, turnout.pos);
 
         if (
           !firstElem ||
@@ -148,7 +148,14 @@ export class RouteGraphBuilder {
   }
 
   private discoverRemainingTrackConnectionSections(): void {
-    for (const elem of this.topology.getPhysicalTrackElements()) {
+    const rails = this.topology.getPhysicalTrackElements();
+    // Discover ordinary ground sections first so adding a disconnected bridge
+    // does not renumber existing ground sections simply due to layout order.
+    const ordered = [
+      ...rails.filter(elem => elem.type !== "trackbridge"),
+      ...rails.filter(elem => elem.type === "trackbridge"),
+    ];
+    for (const elem of ordered) {
       if (
         isTopologyTurnoutElement(elem) ||
         this.areAllTrackConnectionsVisited(elem)
@@ -212,7 +219,7 @@ export class RouteGraphBuilder {
       const neighbors: TopologyTrackElement[] = [];
       for (const group of this.getTrackConnectionGroups(elem)) {
         for (const point of group.endpoints) {
-          const other = this.topology.getPhysicalTrackAt(point);
+          const other = this.topology.getPhysicalTrackAt(point, elem.pos);
           if (other && byId.has(other.id) &&
               this.hasTrackConnectionAt(other, elem.pos) &&
               !neighbors.some(item => item.id === other.id)) {
@@ -491,7 +498,7 @@ export class RouteGraphBuilder {
     sectionElements: TopologyTrackElement[]
   ): void {
     const next =
-      this.topology.getPhysicalTrackAt(targetPos);
+      this.topology.getPhysicalTrackAt(targetPos, current.pos);
 
     if (
       !next ||
@@ -575,11 +582,24 @@ export class RouteGraphBuilder {
     );
   }
 
+  // A bridge crossing is two independent tracks occupying one canvas cell.
+  // Spatial overlays at the crossing belong to the ground-level track by
+  // default; they must never be duplicated onto the elevated route.
+  private isGroundOrUnstackedRail(element: TopologyTrackElement): boolean {
+    if (element.type !== "trackbridge") return true;
+    return !this.topology.getPhysicalTrackElements().some(other =>
+      other.id !== element.id &&
+      other.type === "trackstraight" &&
+      other.x === element.x &&
+      other.y === element.y
+    );
+  }
+
   private collectSectionDetectors(
     sectionElements: TopologyTrackElement[]
   ): SectionDetector[] {
     const positions = new Set(
-      sectionElements.map(
+      sectionElements.filter(elem => this.isGroundOrUnstackedRail(elem)).map(
         elem => `${elem.x}:${elem.y}`
       )
     );
@@ -601,7 +621,7 @@ export class RouteGraphBuilder {
     sectionElements: TopologyTrackElement[]
   ): SectionSignal[] {
     const positions = new Set(
-      sectionElements.map(
+      sectionElements.filter(elem => this.isGroundOrUnstackedRail(elem)).map(
         elem => `${elem.x}:${elem.y}`
       )
     );
@@ -660,6 +680,7 @@ export class RouteGraphBuilder {
     sectionElem: TopologyTrackElement,
     block: TopologyBlockElement
   ): boolean {
+    if (!this.isGroundOrUnstackedRail(sectionElem)) return false;
     const bounds = block.getBounds();
 
     return (
@@ -677,7 +698,7 @@ export class RouteGraphBuilder {
 
       for (const [side, point] of Object.entries(connections)) {
         const connectedElem =
-          this.topology.getPhysicalTrackAt(point);
+          this.topology.getPhysicalTrackAt(point, turnout.pos);
 
         if (
           !connectedElem ||
@@ -795,7 +816,7 @@ export class RouteGraphBuilder {
       }
 
       const nextElem =
-        this.topology.getPhysicalTrackAt(exitPos);
+        this.topology.getPhysicalTrackAt(exitPos, turnout.pos);
 
       if (!nextElem) {
         continue;
@@ -915,6 +936,25 @@ export class RouteGraphBuilder {
         turnoutPath
       )
     );
+
+    // A turnout crossing is physically reversible in the same turnout state.
+    // Derive the exact inverse of each validated crossing, instead of
+    // independently guessing its direction from the track at the other end.
+    // This also preserves the ordered chain of turnouts on the return trip.
+    if (turnoutPath.length > 0) {
+      const oppositeDirection: TravelDirection =
+        locoDirection === "forward" ? "reverse" :
+        locoDirection === "reverse" ? "forward" : "unknown";
+      const oppositePath = [...turnoutPath].reverse();
+      const oppositeKey =
+        `${to.name}->${from.name}:${turnoutKey}:${oppositePath.map(p => String(p.elementId)).join(">")}:${oppositeDirection}`;
+      if (!this.createdEdgeKeys.has(oppositeKey)) {
+        this.createdEdgeKeys.add(oppositeKey);
+        this.graph.addEdge(
+          new Edge(to, from, normalizedStates, oppositeDirection, oppositePath)
+        );
+      }
+    }
   }
 
   private normalizeTurnoutStates(

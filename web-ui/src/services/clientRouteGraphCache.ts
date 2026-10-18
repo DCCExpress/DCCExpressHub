@@ -29,9 +29,8 @@ import {
   createClientGraphFromRouteGraphDto,
 } from "@/services/routeGraphDtoMapper";
 
-// v4 introduces directed block parts inside an unchanged physical section.
-// Invalidate persisted v3 graphs (which flattened all blocks into one node).
-const ROUTE_TOPOLOGY_VERSION = 5;
+// Retained only as informational metadata; loading validates the actual graph shape.
+const ROUTE_TOPOLOGY_VERSION = 6;
 
 const ROUTE_TOPOLOGY_FIELD =
   "routeTopology";
@@ -955,8 +954,6 @@ function parsePersistedState(
   }
 
   if (
-    candidate.version !==
-      ROUTE_TOPOLOGY_VERSION ||
     typeof candidate.fingerprint !==
       "string" ||
     !validPositiveRevision(
@@ -985,6 +982,9 @@ function parsePersistedState(
     ) ||
     !Array.isArray(
       graph.trackRuntime
+    ) ||
+    !Array.isArray(
+      candidate.routeTable
     )
   ) {
     return null;

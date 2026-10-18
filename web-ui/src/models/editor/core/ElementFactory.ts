@@ -1,4 +1,5 @@
 import { BaseElement } from "./BaseElement";
+import { TrackBridgeElement } from "../elements/TrackBridgeElement";
 import { TrackStraightElement } from "../elements/TrackStraightElement";
 import { EditorElementData } from "../types/EditorTypes";
 import { TrackCornerElement } from "../elements/TrackCornerElement";
@@ -20,6 +21,7 @@ import { StationBuildingElement } from "../elements/StationBuildingElement";
 import { SwitchmanHutElement } from "../elements/SwitchmanHutElement";
 import { GardenHouseElement } from "../elements/GardenHouseElement";
 import { TrackSignalElement } from "../elements/TrackSignalElement";
+import { EmergencyButtonElement } from "../elements/EmergencyButtonElement";
 import { AudioButtonElement } from "../elements/AudioButtonElement";
 import { AudioListButtonElement } from "../elements/AudioListButtonElement";
 import { RouteButtonElement } from "../elements/RouteButtonElement";
@@ -38,6 +40,8 @@ export class ElementFactory {
     switch (data.type) {
       case ELEMENT_TYPES.TRACK_STRAIGHT:
         return TrackStraightElement.fromJSON(data);
+      case ELEMENT_TYPES.TRACK_BRIDGE:
+        return TrackBridgeElement.fromJSON(data);
 
       case ELEMENT_TYPES.TRACK_LEVEL_CROSSING:
         return TrackLevelCrossingElement.fromLevelCrossingJSON(data);
@@ -83,6 +87,9 @@ export class ElementFactory {
 
       case ELEMENT_TYPES.BUTTON_SCRIPT:
         return ButtonScriptElement.fromJSON(data);
+
+      case ELEMENT_TYPES.BUTTON_EMERGENCY:
+        return EmergencyButtonElement.fromJSON(data);
 
       case ELEMENT_TYPES.BUTTON_AUDIO:
         return AudioButtonElement.fromJSON(data);

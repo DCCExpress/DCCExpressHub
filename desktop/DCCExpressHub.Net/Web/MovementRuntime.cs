@@ -876,6 +876,11 @@ public sealed class MovementRuntime
             CurrentBlockName = BlockName(state.CurrentBlockId),
             TargetBlockName = BlockName(state.TargetBlockId)
         };
+        // Polling may recompute the same waiting state many times per second.
+        // Suppress identical publications before they fan out to Driver/Timetable/WS.
+        if (execution.State == state)
+            return;
+
         execution.State = state;
 
         lock (_gate)
@@ -923,6 +928,46 @@ public sealed class MovementRuntime
             ? _layout.BlocksForPersistence()
                 .FirstOrDefault(x => x.Id == (ushort)id)
             : null;
+
+    // Timetable preflight: a source block must actually contain an assigned
+    // locomotive. A target-only or predicted loco is not a source locomotive.
+    // Use the same authoritative runtime block state as StartSavedPage().
+    public bool HasSourceLocomotive(int blockId)
+    {
+        var block = Block(blockId);
+        return block is not null && block.LocoAddress > 0;
+    }
+
+    // Only timetable scheduling uses this non-runnable classification.
+    // Manual Movement starts remain fail-closed and return their full errors.
+    // UNKNOWN/OFF sensor feedback cannot establish physical locomotive
+    // presence even when the block has a stale manually assigned loco.
+    public (bool Skip, int LocoAddress, string Reason) TimetableSourceStatus(int blockId)
+    {
+        var block = Block(blockId);
+        if (block is null)
+            return (false, 0, "source_block_missing"); // let Movement report a configuration error
+
+        if (block.LocoAddress == 0)
+            return (true, 0, "source_block_empty");
+
+        if (block.SensorAddress > 0)
+        {
+            if (!_layout.TryGetSensorState(block.SensorAddress, out var on))
+                return (true, block.LocoAddress,
+                    $"source sensor #{block.SensorAddress} is UNKNOWN for block {BlockLabel(block)}");
+
+            if (!on)
+                return (true, block.LocoAddress,
+                    $"source sensor #{block.SensorAddress} is OFF for block {BlockLabel(block)}, assigned loco #{block.LocoAddress}");
+        }
+
+        if (IsLocoManaged(block.LocoAddress))
+            return (true, block.LocoAddress,
+                $"locomotive #{block.LocoAddress} is already managed by an active Movement");
+
+        return (false, block.LocoAddress, "ready");
+    }
 
     bool ConditionsSatisfied(IEnumerable<MovementSensorCondition> conditions)
     {
@@ -1137,8 +1182,10 @@ public sealed class MovementRuntime
         bool force,
         CancellationToken? cancellationToken = null)
     {
+        // An externally held train must NEVER receive a non-zero throttle
+        // command, even if a concurrent Movement action changes DesiredSpeed.
         var speed =
-            execution.Moving
+            execution.Moving && !IsHeld(execution)
                 ? Math.Clamp(execution.DesiredSpeed, 0, 126)
                 : 0;
 
@@ -2509,7 +2556,12 @@ public sealed class MovementRuntime
                     result.BlockingSensor.HasValue
                         ? "Waiting for safety sensor #" + result.BlockingSensor.Value
                         : result.BlockingBlock.HasValue
-                            ? "Waiting for block " + result.BlockingBlock.Value
+                            ? "Waiting for block " +
+                              (execution.Plan.Blocks.FirstOrDefault(block =>
+                                   block.BlockId == result.BlockingBlock.Value)?.Name
+                               ?? (Block(result.BlockingBlock.Value) is { } blockingBlock
+                                   ? BlockLabel(blockingBlock)
+                                   : "#" + result.BlockingBlock.Value))
                             : result.Error == "turnout_locked"
                                 ? "Waiting for turnout lock"
                                 : "Waiting for route authority",
@@ -3640,7 +3692,12 @@ public sealed class MovementRuntime
     }
 
     public (bool Ok, string? Error) Start(
-        string pageId)
+        string pageId) =>
+        Start(pageId, null);
+
+    public (bool Ok, string? Error) Start(
+        string pageId,
+        int? expectedSourceLocoAddress)
     {
         var page =
             LoadSavedMovementPage(
@@ -3651,16 +3708,89 @@ public sealed class MovementRuntime
                 false,
                 "movement_not_found");
 
+        // A timetable preflight must not accidentally start a different loco
+        // if the source assignment changes between preflight and Start().
+        if (expectedSourceLocoAddress is > 0)
+        {
+            if (page.ExpectedLocoAddress is > 0 &&
+                page.ExpectedLocoAddress.Value != expectedSourceLocoAddress.Value)
+                return (false, "movement_source_loco_mismatch");
+
+            page.ExpectedLocoAddress = expectedSourceLocoAddress;
+        }
+
         return StartSavedPage(
             page,
             false);
     }
 
+    // Advisory AUTO routing preflight. No authority is granted here:
+    // Dispatcher.AcquireLegAsync remains the final fail-closed arbiter.
+    // Unknown sensor state, occupied intermediate/destination blocks and
+    // another locomotive's target reservations are never treated as free.
+    public (bool Available, int Cost, string? Reason) EvaluateAutoRoute(
+        MovementPageModel page)
+    {
+        MovementPlanModel plan;
+        try { plan = _planBuilder.Build(page); }
+        catch (Exception ex) { return (false, int.MaxValue, ex.Message); }
+        if (plan.Direction is not ("forward" or "reverse") ||
+            plan.Blocks.Length < 2 ||
+            page.ExpectedLocoAddress is not > 0)
+            return (false, int.MaxValue, "invalid_auto_route");
+        var source = plan.Blocks[0];
+        if (source.BlockId is not > 0)
+            return (false, int.MaxValue, "missing_source");
+        var liveSource = Block(source.BlockId.Value);
+        if (liveSource is null || liveSource.LocoAddress != page.ExpectedLocoAddress)
+            return (false, int.MaxValue, "source_loco_mismatch");
+        foreach (var block in plan.Blocks.Skip(1))
+        {
+            if (block.BlockId is not > 0)
+                return (false, int.MaxValue, "missing_route_block");
+            var live = Block(block.BlockId.Value);
+            if (live is null || live.SensorAddress == 0 ||
+                !_layout.TryGetSensorState(live.SensorAddress, out var occupied))
+                return (false, int.MaxValue, "route_sensor_unknown");
+            if (occupied || live.Occupied || live.LocoAddress > 0 ||
+                live.TargetLocoAddress > 0)
+                return (false, int.MaxValue, "route_block_occupied_or_reserved");
+        }
+        // Check the same turnout/segment detectors which Dispatcher later
+        // checks when acquiring each leg. These must be known and FREE.
+        foreach (var leg in plan.Legs)
+            foreach (var sensor in EffectiveSafetySensors(page, leg))
+                if (!_layout.TryGetSensorState(sensor, out var occupied) || occupied)
+                    return (false, int.MaxValue, "route_safety_sensor_not_free");
+
+        // Avoid an already-reserved first leg. This is advisory only; the
+        // Dispatcher always rechecks under its own locks at acquisition.
+        var firstLeg = plan.Legs[0];
+        var firstTokens = firstLeg.Resources
+            .Where(resource => resource.Kind == "segment")
+            .Select(resource => DispatcherRuntime.ResourceToken(
+                "segment:" + resource.Name))
+            .ToHashSet();
+        if (_dispatcher.Snapshot().Any(lease =>
+                lease.LocoAddress != page.ExpectedLocoAddress &&
+                (lease.ToBlockId == firstLeg.To.BlockId ||
+                 lease.ResourceTokens.Any(firstTokens.Contains))))
+            return (false, int.MaxValue, "route_resource_reserved");
+
+        // Prefer fewer block transitions, then fewer turnout requirements.
+        return (
+            true,
+            (plan.Blocks.Length - 1) * 100 +
+            plan.Legs.Sum(leg => leg.TurnoutStates.Length),
+            null);
+    }
+
     public (bool Ok, string? Error) StartTransient(
-        MovementPageModel page) =>
+        MovementPageModel page,
+        bool calibrationBypass = true) =>
         StartSavedPage(
             page,
-            true);
+            calibrationBypass);
 
     (bool Ok, string? Error) StartSavedPage(
         MovementPageModel page,
@@ -3736,6 +3866,43 @@ public sealed class MovementRuntime
                 blockWithoutSensor.Name +
                 " has no occupancy sensor configured.");
 
+        // Fail closed before registering an execution: every block on the
+        // resolved route (FROM, VIA and TO) needs a real configured occupancy
+        // input and a fresh, known value from the command center. A stored
+        // block.sensorAddress alone does not prove the sensor exists.
+        foreach (var routeBlock in plan.Blocks.Where(block => block.BlockId.HasValue))
+        {
+            var blockId = routeBlock.BlockId!.Value;
+            var liveBlock = Block(blockId);
+            var blockName = !string.IsNullOrWhiteSpace(routeBlock.Name)
+                ? routeBlock.Name
+                : liveBlock is null ? $"#{blockId}" : BlockLabel(liveBlock);
+            var sensorAddress = liveBlock?.SensorAddress ?? (ushort)0;
+
+            if (liveBlock is null)
+                return (false,
+                    $"Movement cannot start: block {blockName} (#{blockId}) " +
+                    "does not exist in the current layout.");
+
+            if (sensorAddress == 0 || routeBlock.SensorAddress != sensorAddress)
+                return (false,
+                    $"Movement cannot start: block {blockName} has no valid " +
+                    "occupancy sensor or the saved route sensor binding is outdated. " +
+                    "Regenerate the route graph and verify the block sensor configuration.");
+
+            if (_layout.FindSensor(sensorAddress) is null)
+                return (false,
+                    $"Movement cannot start: block {blockName}, sensor #{sensorAddress} " +
+                    "is not registered among the layout sensors. Configure a track " +
+                    "occupancy sensor with this address before starting.");
+
+            if (!_layout.TryGetSensorState(sensorAddress, out _))
+                return (false,
+                    $"Movement cannot start: block {blockName}, sensor #{sensorAddress} " +
+                    "is UNKNOWN (no current feedback). Check the sensor connection " +
+                    "and wait for a fresh sensor report after Power ON.");
+        }
+
         var sourceBlock =
             Block(source.BlockId.Value);
 
@@ -3804,12 +3971,6 @@ public sealed class MovementRuntime
                 false,
                 "movement_source_loco_mismatch");
 
-        lock (_gate)
-        {
-            if (_executions.ContainsKey(page.Id))
-                return (false, "movement_already_running");
-        }
-
         var execution =
             new Execution
             {
@@ -3849,8 +4010,22 @@ public sealed class MovementRuntime
         foreach (var pair in LoadFunctionBindingMap(execution.LocoAddress))
             execution.FunctionNumbersByBindingId[pair.Key] = pair.Value;
 
+        // Atomically claim both the task ID and locomotive. Checking the
+        // address before constructing the execution is not sufficient: two
+        // requests can race through the initial validation.
         lock (_gate)
         {
+            if (_executions.ContainsKey(page.Id))
+            {
+                execution.Cancellation.Dispose();
+                return (false, "movement_already_running");
+            }
+            if (_executions.Values.Any(active =>
+                active.LocoAddress == execution.LocoAddress))
+            {
+                execution.Cancellation.Dispose();
+                return (false, "locomotive_already_managed");
+            }
             _executions[page.Id] = execution;
             _states[page.Id] = execution.State;
         }

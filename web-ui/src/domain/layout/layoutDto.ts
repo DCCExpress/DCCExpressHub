@@ -1,3 +1,4 @@
+import type { StationRouteDefinition } from "./stationRoutes";
 import type {
   BlockType,
   ElementType,
@@ -112,6 +113,7 @@ export type SerializedLayoutElementDto = {
   locoAddress?: number;
   sensorAddress?: number;
   blockType?: BlockType | string;
+  stationId?: string | null;
   eventConfig?: BlockEventConfigDto;
 
   text?: string;
@@ -153,6 +155,8 @@ export type SerializedLayoutDto = {
   gridSize?: number;
   _activeLayerId?: string;
   layers?: SerializedLayoutLayerDto[];
+  stations?: Array<{ id: string; name: string }>;
+  stationRoutes?: StationRouteDefinition[];
   [key: string]: unknown;
 };
 
@@ -182,6 +186,9 @@ export interface TrackElementDto extends BaseElementDto {
 
 export interface TrackStraightElementDto extends TrackElementDto {
   type: "trackstraight";
+}
+export interface TrackBridgeElementDto extends TrackElementDto {
+  type: "trackbridge";
 }
 
 export interface TrackLevelCrossingElementDto extends TrackElementDto {
@@ -306,6 +313,10 @@ export interface ButtonScriptElementDto extends BaseElementDto {
   script: string;
 }
 
+export interface EmergencyButtonElementDto extends BaseElementDto {
+  type: "emergencybutton";
+}
+
 export interface AudioButtonElementDto extends BaseElementDto {
   type: "audiobutton";
   fileName: string;
@@ -362,6 +373,7 @@ export interface BlockElementDto extends TrackElementDto {
   locoAddress: number;
   sensorAddress: number;
   blockType: BlockType;
+  stationId?: string | null;
   eventConfig?: BlockEventConfigDto;
 }
 
@@ -445,6 +457,7 @@ export interface TrackSignalElementDto extends TrackElementDto {
 
 export type LayoutElementDto =
   | TrackStraightElementDto
+  | TrackBridgeElementDto
   | TrackLevelCrossingElementDto
   | TrackDirectionElementDto
   | TrackEndElementDto
@@ -460,6 +473,7 @@ export type LayoutElementDto =
   | ButtonElementDto
   | ButtonScriptElementDto
   | AudioButtonElementDto
+  | EmergencyButtonElementDto
   | AudioListButtonElementDto
   | RouteButtonElementDto
   | ExtendedRouteButtonElementDto

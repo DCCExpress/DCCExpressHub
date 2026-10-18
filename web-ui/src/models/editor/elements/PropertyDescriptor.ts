@@ -11,6 +11,7 @@ export type PropertyEditorType =
   | "audioList"
   | "routeBlockSelect"
   | "blockTypeSelect"
+  | "stationSelect"
   | "scriptEditor"
   | "select";
 

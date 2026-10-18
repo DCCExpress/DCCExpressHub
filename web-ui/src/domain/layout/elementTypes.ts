@@ -3,6 +3,7 @@ export const ELEMENT_TYPES = {
   ADDRESSED_ELEMENT: "addressedelement",
 
   TRACK_STRAIGHT: "trackstraight",
+  TRACK_BRIDGE: "trackbridge",
   TRACK_DIRECTION: "trackdirection",
   TRACK_END: "trackend",
   TRACK_CORNER: "trackcorner",
@@ -29,6 +30,7 @@ export const ELEMENT_TYPES = {
   BUTTON: "button",
   BUTTON_SCRIPT: "buttonscript",
   BUTTON_AUDIO: "audiobutton",
+  BUTTON_EMERGENCY: "emergencybutton",
   BUTTON_AUDIO_LIST: "audiolistbutton",
   BUTTON_ROUTE: "routebutton",
   BUTTON_ROUTE_EXTENDED: "extendedroutebutton",

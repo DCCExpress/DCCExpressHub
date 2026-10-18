@@ -60,6 +60,8 @@ import {
 import AppModal from "@/components/common/AppModal";
 
 import RoutePreviewDialog from "@/components/routes/RoutePreviewDialog";
+import RouteGraphVisualization from "@/components/routes/RouteGraphVisualization";
+import StationRoutesTab from "@/components/routes/StationRoutesTab";
 
 import {
   testRouteTurnoutStates,
@@ -73,6 +75,11 @@ import {
   useTranslation,
 } from "react-i18next";
 
+// Enable this only while diagnosing route topology; keep the viewer available for debugging.
+const SHOW_DEBUG_GRAPH_VISUALIZATION = false;
+// Temporarily hide Station Routes without removing its editor or saved data.
+const SHOW_STATION_ROUTES_TAB = true;
+
 type RoutesDialogProps = {
   opened: boolean;
   onClose: () => void;
@@ -80,12 +87,15 @@ type RoutesDialogProps = {
   movements: MovementDocument;
   editingMovementId:
     string | null;
+  editingStationRouteId?: string | null;
   onMovementsChange: (
     document:
       MovementDocument
   ) => void;
   onPersistRouteTopology?: () => Promise<void>;
   onGenerated?: () => void;
+  onSelectRoute?: (page: MovementPage) => void;
+  initialRoute?: Pick<MovementPage, "name" | "speed" | "routeRef"> | null;
 };
 
 function previewMovementPage(
@@ -204,9 +214,12 @@ export default function RoutesDialog({
   layout,
   movements,
   editingMovementId,
+  editingStationRouteId,
   onMovementsChange,
   onPersistRouteTopology,
   onGenerated,
+  onSelectRoute,
+  initialRoute,
 }: RoutesDialogProps) {
   const { t } = useTranslation();
 
@@ -456,6 +469,7 @@ export default function RoutesDialog({
         false;
 
       const editingPage =
+        onSelectRoute && initialRoute ? initialRoute :
         editingMovementId ===
           null
           ? null
@@ -644,8 +658,74 @@ export default function RoutesDialog({
       editingMovementId,
       movements,
       layout,
+      Boolean(onSelectRoute),
+      initialRoute?.name,
+      initialRoute?.speed,
+      initialRoute?.routeRef,
     ]
   );
+
+  // Presentation only: occupancy addresses configured on ordinary rail cells
+  // are also detectors. Never mutate GraphNode.detectors or the route graph,
+  // and never confuse turnout/accessory addresses with occupancy feedback.
+  const railSensorAddressesByElementId = useMemo(() => {
+    const index = new Map<number, number>();
+    const serialized = JSON.parse(JSON.stringify(layout)) as {
+      layers?: Array<{ elements?: Array<{ id?: number; type?: string; address?: number }> }>;
+    };
+    const occupancyRailTypes = new Set([
+      "trackstraight", "trackbridge", "trackdirection", "trackend",
+      "trackcorner", "trackcurve", "trackcrossing", "tracklevelcrossing",
+    ]);
+    for (const layer of serialized.layers ?? []) {
+      for (const element of layer.elements ?? []) {
+        if (!occupancyRailTypes.has(element.type ?? "")) continue;
+        const id = element.id;
+        const address = element.address;
+        if (typeof id === "number" && Number.isInteger(id) &&
+            typeof address === "number" && Number.isInteger(address) &&
+            address > 0 && address <= 65535) {
+          index.set(id, address);
+        }
+      }
+    }
+    return index;
+  }, [layout]);
+
+  const signalAccessoryAddressByElementId = useMemo(() => {
+    const result = new Map<number, number>();
+    const serialized = JSON.parse(JSON.stringify(layout)) as {
+      layers?: Array<{ elements?: Array<{
+        id?: number; type?: string; address?: number;
+        signalOutput?: { address?: number };
+      }> }>;
+    };
+    for (const layer of serialized.layers ?? []) {
+      for (const element of layer.elements ?? []) {
+        if (element.type !== "tracksignal" || !Number.isInteger(element.id)) continue;
+        const address = element.signalOutput?.address ?? element.address;
+        if (typeof address === "number" && Number.isInteger(address) && address > 0) {
+          result.set(element.id!, address);
+        }
+      }
+    }
+    return result;
+  }, [layout]);
+
+  const segmentDetectorAddresses = (node: {
+    elementIds: number[];
+    detectors: Array<{ address: number }>;
+  }) => {
+    const explicitDetectors = node.detectors.map(detector => detector.address);
+    const railDetectors = node.elementIds
+      .map(id => railSensorAddressesByElementId.get(id))
+      .filter((address): address is number => address !== undefined);
+    // Sensor and accessory addresses belong to independent namespaces.
+    // Never discard a real occupancy address just because a signal uses
+    // the same numeric address.
+    return [...new Set([...explicitDetectors, ...railDetectors])]
+      .sort((left, right) => left - right);
+  };
 
   const nodes =
     result?.graph.nodes ?? [];
@@ -1060,6 +1140,7 @@ export default function RoutesDialog({
             }}
           >
             <Tabs.List>
+              {SHOW_STATION_ROUTES_TAB && !onSelectRoute && <Tabs.Tab value="stationRoutes">Station Routes</Tabs.Tab>}
               <Tabs.Tab value="selectRoute">
                 {t("ui.movementSelectRouteTitle")}
               </Tabs.Tab>
@@ -1072,10 +1153,25 @@ export default function RoutesDialog({
                 {t("ui.graph")}
               </Tabs.Tab>
 
+              {SHOW_DEBUG_GRAPH_VISUALIZATION && <Tabs.Tab value="graphVisualization">Graph visualization</Tabs.Tab>}
+
               <Tabs.Tab value="segments">
                 {t("ui.segments")}
               </Tabs.Tab>
             </Tabs.List>
+
+            {SHOW_STATION_ROUTES_TAB && !onSelectRoute && <Tabs.Panel value="stationRoutes" pt="sm" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+              <StationRoutesTab
+                layout={layout}
+                editingRouteId={editingStationRouteId ?? null}
+                graph={result.graph}
+                onSave={async () => {
+                  if (!onPersistRouteTopology) throw new Error("Layout saving is unavailable.");
+                  await onPersistRouteTopology();
+                }}
+                onChanged={() => onGenerated?.()}
+              />
+            </Tabs.Panel>}
 
             <Tabs.Panel
               value="selectRoute"
@@ -1416,7 +1512,7 @@ export default function RoutesDialog({
                                       fullWidth
                                       color="teal"
                                       disabled={
-                                        candidate.used ||
+                                        (!onSelectRoute && candidate.used) ||
                                         candidate.locoDirection ===
                                           "unknown" ||
                                         assigningRoute
@@ -1430,12 +1526,14 @@ export default function RoutesDialog({
                                       loading={
                                         assigningRoute
                                       }
-                                      onClick={
-                                        () =>
-                                          void assignCandidateToMovement(
-                                            candidate
-                                          )
-                                      }
+                                      onClick={() => {
+                                        if (onSelectRoute) {
+                                          const page = previewCandidate(candidate);
+                                          if (page.routeRef) onSelectRoute(page);
+                                        } else {
+                                          void assignCandidateToMovement(candidate);
+                                        }
+                                      }}
                                     >
                                       {t("ui.select")}
                                     </Button>
@@ -1486,11 +1584,7 @@ export default function RoutesDialog({
                         {t("ui.direction")}
                       </Table.Th>
 
-                      <Table.Th
-                        style={{ width: 100 }}
-                      >
-                        {t("ui.test")}
-                      </Table.Th>
+                      {!onSelectRoute && <Table.Th style={{ width: 100 }}>{t("ui.test")}</Table.Th>}
                     </Table.Tr>
                   </Table.Thead>
 
@@ -1522,7 +1616,7 @@ export default function RoutesDialog({
                                 : t("ui.unknown")}
                           </Table.Td>
 
-                          <Table.Td>
+                          {!onSelectRoute && <>                          <Table.Td>
                             <Button
                               size="xs"
                               variant="light"
@@ -1547,7 +1641,7 @@ export default function RoutesDialog({
                             >
                               {t("ui.test")}
                             </Button>
-                          </Table.Td>
+                          </Table.Td></>}
                         </Table.Tr>
                       )
                     )}
@@ -1555,6 +1649,11 @@ export default function RoutesDialog({
                 </Table>
               </ScrollArea.Autosize>
             </Tabs.Panel>
+
+            {SHOW_DEBUG_GRAPH_VISUALIZATION && <Tabs.Panel value="graphVisualization" pt="sm"
+              style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+              <RouteGraphVisualization graph={result.graph} layout={layout} />
+            </Tabs.Panel>}
 
             <Tabs.Panel
               value="segments"
@@ -1576,10 +1675,6 @@ export default function RoutesDialog({
                     <Table.Tr>
                       <Table.Th>
                         {t("ui.segment")}
-                      </Table.Th>
-
-                      <Table.Th>
-                        {t("ui.network")}
                       </Table.Th>
 
                       <Table.Th>
@@ -1608,10 +1703,6 @@ export default function RoutesDialog({
                         </Table.Td>
 
                         <Table.Td>
-                          {node.trackName || "—"}
-                        </Table.Td>
-
-                        <Table.Td>
                           {node.elementIds.join(", ")}
                         </Table.Td>
 
@@ -1622,14 +1713,14 @@ export default function RoutesDialog({
                         </Table.Td>
 
                         <Table.Td>
-                          {node.detectors
-                            .map(item => item.address)
-                            .join(", ") || "—"}
+                          {segmentDetectorAddresses(node).join(", ") || "—"}
                         </Table.Td>
 
                         <Table.Td>
-                          {node.signals
-                            .map(item => item.address)
+                          {[...new Set(node.signals
+                            .map(item => signalAccessoryAddressByElementId.get(item.id))
+                            .filter((address): address is number => address !== undefined))]
+                            .sort((a, b) => a - b)
                             .join(", ") || "—"}
                         </Table.Td>
                       </Table.Tr>
@@ -1713,18 +1804,13 @@ export default function RoutesDialog({
                       <Table.Th>
                         {t("ui.direction")}
                       </Table.Th>
-
                       <Table.Th
                         style={{ width: 110 }}
                       >
                         {t("ui.preview")}
                       </Table.Th>
 
-                      <Table.Th
-                        style={{ width: 100 }}
-                      >
-                        {t("ui.test")}
-                      </Table.Th>
+                      <Table.Th w={100}>{t("ui.test")}</Table.Th>
                     </Table.Tr>
                   </Table.Thead>
 
@@ -1761,7 +1847,6 @@ export default function RoutesDialog({
                                 ? t("ui.reverse")
                                 : t("ui.unknown")}
                           </Table.Td>
-
                           <Table.Td>
                             <Button
                               size="xs"
@@ -1781,7 +1866,7 @@ export default function RoutesDialog({
                             </Button>
                           </Table.Td>
 
-                          <Table.Td>
+                                                    <Table.Td>
                             <Button
                               size="xs"
                               variant="light"

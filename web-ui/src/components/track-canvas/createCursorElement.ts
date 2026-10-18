@@ -1,5 +1,6 @@
 import { ELEMENT_TYPES } from "@domain/layout/elementTypes";
 import { BaseElement } from "../../models/editor/core/BaseElement";
+import { EmergencyButtonElement } from "../../models/editor/elements/EmergencyButtonElement";
 import { AudioButtonElement } from "../../models/editor/elements/AudioButtonElement";
 import { AudioListButtonElement } from "../../models/editor/elements/AudioListButtonElement";
 import { BlockElement } from "../../models/editor/elements/BlockElement";
@@ -17,6 +18,7 @@ import { TrackEndElement } from "../../models/editor/elements/TrackEndElement";
 import { TrackLevelCrossingElement } from "../../models/editor/elements/TrackLevelCrossingElement";
 import { TrackSensorElement } from "../../models/editor/elements/TrackSensorElement";
 import { TrackSignalElement } from "../../models/editor/elements/TrackSignalElement";
+import { TrackBridgeElement } from "../../models/editor/elements/TrackBridgeElement";
 import { TrackStraightElement } from "../../models/editor/elements/TrackStraightElement";
 import TrackTurnoutDoubleElement from "../../models/editor/elements/TrackTurnoutDoubleElement";
 import { TrackTurnoutLeftElement } from "../../models/editor/elements/TrackTurnoutLeftElement";
@@ -31,6 +33,7 @@ import { SwitchmanHutElement } from "../../models/editor/elements/SwitchmanHutEl
 import { GardenHouseElement } from "../../models/editor/elements/GardenHouseElement";
 import type { EditorTool } from "../../models/editor/types/EditorTypes";
 
+const cursorBridgeElement = new TrackBridgeElement(0, 0);
 const cursorTrackElement = new TrackStraightElement(0, 0);
 const cursorTrackLevelCrossingElement = new TrackLevelCrossingElement(0, 0);
 const cursorTrackDirectionElement = new TrackDirectionElement(0, 0);
@@ -49,6 +52,7 @@ const cursorButtonElement = new ButtonElement(0, 0);
 const cursorButtonScriptElement = new ButtonScriptElement(0, 0);
 const cursorRouteButtonElement = new RouteButtonElement(0, 0);
 const cursorExtendedRouteButtonElement = new ExtendedRouteButtonElement(0, 0);
+const cursorEmergencyButtonElement = new EmergencyButtonElement(0, 0);
 const cursorAudioButtonElement = new AudioButtonElement(0, 0);
 const cursorAudioListButtonElement = new AudioListButtonElement(0, 0);
 const cursorClockElement = new ClockElement(0, 0);
@@ -64,6 +68,7 @@ const cursorLabelElement = new LabelElement(0, 0);
 export function createCursorElement(tool: EditorTool): BaseElement | null {
   switch (tool.elementType) {
     case ELEMENT_TYPES.TRACK_STRAIGHT: return cursorTrackElement;
+    case ELEMENT_TYPES.TRACK_BRIDGE: return cursorBridgeElement;
     case ELEMENT_TYPES.TRACK_LEVEL_CROSSING: return cursorTrackLevelCrossingElement;
     case ELEMENT_TYPES.TRACK_DIRECTION: return cursorTrackDirectionElement;
     case ELEMENT_TYPES.TRACK_END: return cursorTrackEndElement;
@@ -78,6 +83,7 @@ export function createCursorElement(tool: EditorTool): BaseElement | null {
     case ELEMENT_TYPES.TRACK_SENSOR: return cursorTrackSensorElement;
     case ELEMENT_TYPES.BUTTON: return cursorButtonElement;
     case ELEMENT_TYPES.BUTTON_SCRIPT: return cursorButtonScriptElement;
+    case ELEMENT_TYPES.BUTTON_EMERGENCY: return cursorEmergencyButtonElement;
     case ELEMENT_TYPES.BUTTON_AUDIO: return cursorAudioButtonElement;
     case ELEMENT_TYPES.BUTTON_AUDIO_LIST: return cursorAudioListButtonElement;
     case ELEMENT_TYPES.BUTTON_ROUTE: return cursorRouteButtonElement;

@@ -64,6 +64,7 @@ export default function LocoDialogContent({
     setActiveActionHook,
     functionOptions,
     updateSelectedLoco,
+    setLocoActive,
     addLoco,
     deleteSelectedLoco,
     addFunction,
@@ -85,6 +86,7 @@ export default function LocoDialogContent({
         locos={locos}
         selectedId={selectedId}
         onSelect={setSelectedId}
+        onActiveChange={setLocoActive}
         onAdd={addLoco}
         
         onDeleteSelected={deleteSelectedLoco}
@@ -105,7 +107,7 @@ export default function LocoDialogContent({
               <Tabs.Tab value="actions">{t("locodialog.tabs.actions")}</Tabs.Tab>
               <Tabs.Tab value="extended">{t("locodialog.extended_params")}</Tabs.Tab>
               <Tabs.Tab value="counters">Mechanical counters</Tabs.Tab>
-              <Tabs.Tab value="calibration">{t("locodialog.tabs.calibration")} (Experimental)</Tabs.Tab>
+              <Tabs.Tab value="calibration">Precision Braking (Experimental)</Tabs.Tab>
               <Tabs.Tab value="decoder">Decoder CV</Tabs.Tab>
               <Tabs.Tab value="statistics" style={{ marginLeft: "auto" }}>
                 {t("locodialog.tabs.statistics")}
@@ -165,11 +167,26 @@ export default function LocoDialogContent({
                 />
 
                 <NumberInput
-                  label="Train length (mm)"
-                  value={selectedLoco.length}
+                  label="Locomotive length (mm)"
+                  value={selectedLoco.locomotiveLengthMm ?? selectedLoco.length}
                   min={1}
-                  onChange={value => updateSelectedLoco({ length: Math.max(1, Number(value) || 1) })}
+                  onChange={value => {
+                    const locomotiveLengthMm = Math.max(1, Number(value) || 1);
+                    const wagonsLengthMm = selectedLoco.wagonsLengthMm ?? 0;
+                    updateSelectedLoco({ locomotiveLengthMm, wagonsLengthMm, length: locomotiveLengthMm + wagonsLengthMm });
+                  }}
                 />
+                <NumberInput
+                  label="Total wagon length (mm)"
+                  value={selectedLoco.wagonsLengthMm ?? 0}
+                  min={0}
+                  onChange={value => {
+                    const wagonsLengthMm = Math.max(0, Number(value) || 0);
+                    const locomotiveLengthMm = selectedLoco.locomotiveLengthMm ?? selectedLoco.length;
+                    updateSelectedLoco({ locomotiveLengthMm, wagonsLengthMm, length: locomotiveLengthMm + wagonsLengthMm });
+                  }}
+                />
+                <Text size="xs" c="dimmed">Total train length: {selectedLoco.length} mm</Text>
 
                 <Checkbox
                   label="Entire train electrically detectable"
@@ -193,8 +210,12 @@ export default function LocoDialogContent({
                   </Stack>
                   <TrainGeometryPreview
                     trainLengthMm={selectedLoco.length}
+                    locomotiveLengthMm={selectedLoco.locomotiveLengthMm ?? selectedLoco.length}
+                    wagonsLengthMm={selectedLoco.wagonsLengthMm ?? 0}
                     entireTrainDetectable={selectedLoco.entireTrainDetectable ?? false}
                     clearanceMarginMm={selectedLoco.trainClearanceMarginMm ?? 30}
+                    mode={selectedLoco.trainConsistMode ?? "pull"}
+                    onModeChange={trainConsistMode => updateSelectedLoco({ trainConsistMode })}
                   />
                 </SimpleGrid>
               </ScrollArea>

@@ -1,3 +1,4 @@
+import { wsApi } from "../services/wsApi";
 import { useMantineColorScheme } from "@mantine/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -8,8 +9,18 @@ import TrackTurnoutDoubleElement from "../models/editor/elements/TrackTurnoutDou
 import {
   TrackTurnoutThreeWayElement,
 } from "../models/editor/elements/TrackTurnoutThreeWayElement";
+import { EmergencyButtonElement } from "../models/editor/elements/EmergencyButtonElement";
 import { AudioButtonElement } from "../models/editor/elements/AudioButtonElement";
+import type { Loco } from "@domain/types";
 import { BlockElement } from "../models/editor/elements/BlockElement";
+import { getTrainTrackingState, subscribeTrainTrackingState } from "../services/trainTrackingRuntime";
+import { loadAutomationMovement } from "../services/automationApi";
+import { loadMovementRouteCandidates, applyMovementRouteCandidate, type MovementRouteCandidate } from "../services/movementRouteCatalog";
+import { createMovementPage } from "../domain/movement";
+
+import { activateDriveToBlockLoco, registerDriveToBlockCanvas, setDriveToBlockSelectionActive } from "../services/driveToBlockSelection";
+import { showNotification } from "@mantine/notifications";
+import { getTrackCanvasHitElement } from "./track-canvas/trackCanvasRuntimeHitTest";
 import { RouteButtonElement } from "../models/editor/elements/RouteButtonElement";
 import { TrackSignalElement } from "../models/editor/elements/TrackSignalElement";
 import { TrackLevelCrossingElement } from "../models/editor/elements/TrackLevelCrossingElement";
@@ -79,6 +90,9 @@ import {
 
 export default function TrackCanvas({
   editMode = false,
+  onBlockSelectionChange,
+  cancelBlockSelectionCounter = 0,
+  emergencyStopActive = false,
   tool,
   onToolChange,
   layout,
@@ -100,6 +114,9 @@ export default function TrackCanvas({
   const { colorScheme } = useMantineColorScheme();
   const commandCenter = useCommandCenter();
   const { settings } = useEditorSettings();
+  // Event listeners are installed once; read current visibility from a ref.
+  const showBuildingsRef = useRef(settings.showBuildings);
+  showBuildingsRef.current = settings.showBuildings;
 
   const [mouseGrid, setMouseGrid] = useState({ x: 0, y: 0 });
   const [hoverGrid, setHoverGrid] = useState<{ x: number; y: number } | null>(null);
@@ -107,7 +124,141 @@ export default function TrackCanvas({
   const [drawVersion, setDrawVersion] = useState(0);
   const [canvasSize, setCanvasSize] = useState<CanvasSize>({ width: 0, height: 0 });
   const [locoPickerOpen, setLocoPickerOpen] = useState(false);
+  const [blockPopupPoint, setBlockPopupPoint] = useState({ x: 0, y: 0 });
   const [selectedBlock, setSelectedBlock] = useState<BlockElement | null>(null);
+  const [driveBlockLocos, setDriveBlockLocos] = useState<Record<string, number>>({});
+  const driveBlockLocosRef = useRef(driveBlockLocos);
+  driveBlockLocosRef.current = driveBlockLocos;
+  useEffect(() => wsClient.on("blockStateChanged", data => {
+    const next: Record<string, number> = {};
+    for (const [id, block] of Object.entries(data)) {
+      if (!block || typeof block !== "object") continue;
+      const item = block as { blockId?: string; locoAddress?: number };
+      if (typeof item.locoAddress === "number" && item.locoAddress > 0)
+        next[String(item.blockId ?? id)] = item.locoAddress;
+    }
+    driveBlockLocosRef.current = next;
+    setDriveBlockLocos(next);
+  }), []);
+  useEffect(() => subscribeTrainTrackingState(() => requestDraw()), []);
+  const driveDestinationAvailable = (blockId: number) =>
+    !getTrainTrackingState().locos.some(item => item.currentBlockId === blockId) &&
+    !((driveBlockLocosRef.current[String(blockId)] ?? 0) > 0) &&
+    !(getBlockTargetLocoAddress(blockId) > 0);
+
+  const [blockSelection, setBlockSelection] = useState<{ loco: Loco; sourceId: number; routes: MovementRouteCandidate[] } | null>(null);
+  const blockSelectionRef = useRef<{ loco: Loco; sourceId: number; routes: MovementRouteCandidate[] } | null>(null);
+  const blockSelectionBusyRef = useRef(false);
+  const onBlockSelectionChangeRef = useRef(onBlockSelectionChange);
+  onBlockSelectionChangeRef.current = onBlockSelectionChange;
+
+  const exitBlockSelection = () => {
+    blockSelectionRef.current = null;
+    setBlockSelection(null);
+    onBlockSelectionChangeRef.current?.(false);
+    setDriveToBlockSelectionActive(false);
+    canvasRef.current && (canvasRef.current.style.cursor = "default");
+  };
+
+  const startBlockSelection = async (loco: Loco) => {
+    if (editModeRef.current || blockSelectionRef.current) return;
+    const tracking = getTrainTrackingState();
+    const current = tracking.locos.find(item => item.locoAddress === loco.address);
+    const sourceId = current?.currentBlockId;
+    if (!tracking.enabled || !tracking.active || !tracking.ready ||
+        current?.confidence !== "certain" || sourceId == null) {
+      showNotification({ color: "orange", message: "Drive to Block requires a confirmed current locomotive block." });
+      return;
+    }
+    // Lock the editor while the asynchronously loaded destinations are prepared.
+    const state = { loco, sourceId, routes: [] as MovementRouteCandidate[] };
+    blockSelectionRef.current = state;
+    setBlockSelection(state);
+    onBlockSelectionChangeRef.current?.(true);
+    setDriveToBlockSelectionActive(true);
+    try {
+      const routes = await loadMovementRouteCandidates(await loadAutomationMovement());
+      if (blockSelectionRef.current !== state) return;
+      const next = { ...state, routes: routes.filter(route =>
+        route.fromBlockId === sourceId && route.toBlockId !== sourceId &&
+        route.locoDirection !== "unknown" && route.blockPath.length >= 2) };
+      if (!next.routes.length) {
+        showNotification({ color: "orange", message: "No reachable destination in the route topology." });
+        exitBlockSelection();
+        return;
+      }
+      blockSelectionRef.current = next;
+      setBlockSelection(next);
+    } catch (error) {
+      showNotification({ color: "red", message: error instanceof Error ? error.message : String(error) });
+      exitBlockSelection();
+    }
+  };
+
+  const selectDestination = (hit: BaseElement | null) => {
+    const state = blockSelectionRef.current;
+    if (!state) return false;
+    if (blockSelectionBusyRef.current) return true;
+    if (!(hit instanceof BlockElement) || !state.routes.some(route => route.toBlockId === hit.id)) {
+      exitBlockSelection();
+      return true;
+    }
+    if (!driveDestinationAvailable(hit.id)) {
+      showNotification({ color: "orange", message: "Destination block is occupied or has a target locomotive." });
+      return true;
+    }
+    const candidates = state.routes.filter(route => route.toBlockId === hit.id);
+    const live = getTrainTrackingState();
+    const current = live.locos.find(item => item.locoAddress === state.loco.address);
+    if (!live.enabled || !live.active || !live.ready || current?.confidence !== "certain" ||
+        current.currentBlockId !== state.sourceId) {
+      showNotification({ color: "orange", message: "Locomotive position changed. Select Drive to Block again." });
+      exitBlockSelection();
+      return true;
+    }
+    blockSelectionBusyRef.current = true;
+    const pages = candidates.map(route => {
+      const page = applyMovementRouteCandidate(createMovementPage(), route);
+      page.id = `quick-route-loco-${state.loco.address}`;
+      page.name = `Quick route · #${state.loco.address} · ${route.blockPath.map(block => block.name).join(" → ")}`;
+      page.expectedLocoAddress = state.loco.address;
+      return page;
+    });
+    // Drive to Block takes its initial speed from this locomotive's settings.
+    // Older locomotive entries default to step 20.
+    const preferredSpeed = state.loco.cruisingSpeed ?? 20;
+    for (const page of pages)
+      page.speed = Math.max(1, Math.min(Math.round(preferredSpeed),
+        state.loco.maxSpeed > 0 ? state.loco.maxSpeed : 126, 126));
+    const requestId = `driver-start-${Date.now()}-${state.loco.address}`;
+    const taskId = `driver-${state.loco.address}-${Date.now()}`;
+    void wsApi.request("trainDriverCommand",
+      { requestId, action: "startAuto", taskId, candidates: pages },
+      "trainDriverResponse", response => response.requestId === requestId, 10000
+    ).then(response => {
+      if (!response.ok) throw new Error(response.error || "Train Driver rejected the task");
+      activateDriveToBlockLoco(state.loco.id);
+
+      exitBlockSelection();
+    }).catch(error => {
+      showNotification({ color: "red", message: error instanceof Error ? error.message : String(error) });
+      exitBlockSelection();
+    }).finally(() => { blockSelectionBusyRef.current = false; });
+    return true;
+  };
+  // A local or externally reported E-STOP always leaves target-selection mode.
+  // The counter handles repeated E-STOP commands while power is already stopped.
+  useEffect(() => {
+    if (blockSelectionRef.current) exitBlockSelection();
+  }, [cancelBlockSelectionCounter, emergencyStopActive]);
+
+  const selectDestinationRef = useRef(selectDestination);
+  selectDestinationRef.current = selectDestination;
+  const beginBlockSelectionRef = useRef(startBlockSelection);
+  beginBlockSelectionRef.current = startBlockSelection;
+  useEffect(() => registerDriveToBlockCanvas(loco => {
+    void beginBlockSelectionRef.current(loco);
+  }), []);
 
   const [signalAspectPopover, setSignalAspectPopover] =
     useState<SignalAspectPopoverState>({
@@ -209,6 +360,14 @@ export default function TrackCanvas({
       setDrawVersion(prev => prev + 1);
     });
   }, []);
+
+  useEffect(() => wsClient.on("powerInfo", info => {
+    const active = info.emergencyStop === true;
+    if (EmergencyButtonElement.emergencyActive !== active) {
+      EmergencyButtonElement.emergencyActive = active;
+      requestDraw();
+    }
+  }), [requestDraw]);
 
   const invalidate = useCallback(() => {
     requestDraw();
@@ -459,6 +618,7 @@ export default function TrackCanvas({
         );
 
       const needsBlinkRedraw =
+        EmergencyButtonElement.emergencyActive && elements.some(element => element instanceof EmergencyButtonElement) ||
         hasMovingMovementBlockRuntime() ||
         hasTrainTrackingPredictions() ||
         liveLocoMoving ||
@@ -711,6 +871,27 @@ export default function TrackCanvas({
       turnoutSelectionMode,
       locos || []
     );
+    if (blockSelection) {
+      ctx.save();
+      ctx.setTransform(
+        dpr * viewRef.current.scale, 0, 0, dpr * viewRef.current.scale,
+        dpr * viewRef.current.offsetX, dpr * viewRef.current.offsetY
+      );
+      ctx.lineWidth = 1 / (dpr * viewRef.current.scale);
+      for (const block of layout.blocks.elements) {
+        if (!(block instanceof BlockElement) || !block.visible) continue;
+        const isSource = block.id === blockSelection.sourceId;
+        const isDestination = driveDestinationAvailable(block.id) &&
+          blockSelection.routes.some(route => route.toBlockId === block.id);
+        if (!isSource && !isDestination) continue;
+        // FROM is yellow; reachable destination blocks are lime.
+        ctx.strokeStyle = isSource ? "#ffd43b" : "#82c91e";
+        const bounds = block.getBounds();
+        ctx.strokeRect(bounds.x * layout.gridSize, bounds.y * layout.gridSize,
+          bounds.width * layout.gridSize, bounds.height * layout.gridSize);
+      }
+      ctx.restore();
+    }
   }, [
     canvasSize,
     editMode,
@@ -723,6 +904,8 @@ export default function TrackCanvas({
     selectedElement,
     settings,
     turnoutSelectionMode,
+    blockSelection,
+    driveBlockLocos,
     locos,
   ]);
 
@@ -783,6 +966,14 @@ export default function TrackCanvas({
         return;
       }
 
+      if (blockSelectionRef.current && ev.button === 0) {
+        const rect = canvas.getBoundingClientRect();
+        const grid = screenToGrid(ev.clientX - rect.left, ev.clientY - rect.top,
+          viewRef.current, layoutRef.current.gridSize);
+        selectDestinationRef.current(getTrackCanvasHitElement(layoutRef.current, grid.x, grid.y, false, showBuildingsRef.current));
+        ev.preventDefault();
+        return;
+      }
       handleTrackCanvasMouseDown(ev, {
         canvas,
         layoutRef,
@@ -791,6 +982,7 @@ export default function TrackCanvas({
         editModeRef,
         turnoutSelectionModeRef,
         selectedElementRef,
+        showBuildings: showBuildingsRef.current,
         currentCursorRef,
         signalAspectPopoverRef,
         doubleTurnoutPopoverRef,
@@ -799,6 +991,7 @@ export default function TrackCanvas({
         selectionRef,
         setSelectedBlock,
         setLocoPickerOpen,
+        setBlockPopupPoint,
         setRouteTurnoutsMarked,
         onInvalidate,
         onBeforeLayoutChange,
@@ -832,11 +1025,22 @@ export default function TrackCanvas({
         persistView,
         invalidate,
       });
+      if (blockSelectionRef.current) {
+        const rect = canvas.getBoundingClientRect();
+        const grid = screenToGrid(ev.clientX - rect.left, ev.clientY - rect.top,
+          viewRef.current, layoutRef.current.gridSize);
+        const hit = getTrackCanvasHitElement(layoutRef.current, grid.x, grid.y, false, settings.showBuildings);
+        canvas.style.cursor = hit instanceof BlockElement &&
+          driveDestinationAvailable(hit.id) &&
+          blockSelectionRef.current.routes.some(route => route.toBlockId === hit.id)
+          ? "pointer" : "default";
+      }
     };
 
     const stopInteraction = () => {
       stopTrackCanvasInteraction({
         canvas,
+        showBuildings: showBuildingsRef.current,
         layoutRef,
         dragRef,
         panRef,
@@ -867,7 +1071,7 @@ export default function TrackCanvas({
           viewRef.current,
           layoutRef.current.gridSize
         );
-        const hitElement = layoutRef.current.getElement(grid.x, grid.y);
+        const hitElement = getTrackCanvasHitElement(layoutRef.current, grid.x, grid.y, editModeRef.current, settings.showBuildings);
         handleClickableUp(hitElement, ev);
         return;
       }
@@ -916,9 +1120,17 @@ export default function TrackCanvas({
         currentLayout.gridSize
       );
 
-      const hitElement = currentLayout.getElement(grid.x, grid.y);
+      const hitElement = getTrackCanvasHitElement(currentLayout, grid.x, grid.y, editModeRef.current, settings.showBuildings);
 
       if (!editModeRef.current) {
+        if (blockSelectionRef.current) {
+          selectDestinationRef.current(hitElement);
+          return;
+        }
+        if (hitElement instanceof EmergencyButtonElement) {
+          hitElement.press();
+          return;
+        }
         if (hitElement instanceof AudioButtonElement) {
           hitElement.press(() => {
             invalidate();
@@ -936,6 +1148,7 @@ export default function TrackCanvas({
         if (hitElement instanceof BlockElement) {
           ev.stopPropagation();
           setSelectedBlock(hitElement);
+          setBlockPopupPoint({ x: ev.clientX, y: ev.clientY });
 
           window.setTimeout(() => {
             setLocoPickerOpen(true);
@@ -1265,7 +1478,7 @@ export default function TrackCanvas({
           viewRef.current,
           layoutRef.current.gridSize
         );
-        const hitElement = layoutRef.current.getElement(grid.x, grid.y);
+        const hitElement = getTrackCanvasHitElement(layoutRef.current, grid.x, grid.y, editModeRef.current, settings.showBuildings);
         handleClickableUp(hitElement, ev);
       }
 
@@ -1359,6 +1572,11 @@ export default function TrackCanvas({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (blockSelectionRef.current && event.key === "Escape") {
+        exitBlockSelection();
+        event.preventDefault();
+        return;
+      }
       handleTrackCanvasKeyDown(event, {
         canvasRef,
         layoutRef,
@@ -1404,7 +1622,11 @@ export default function TrackCanvas({
         opened={locoPickerOpen}
         locos={locos}
         selectedBlock={selectedBlock}
+        popupX={blockPopupPoint.x}
+        popupY={blockPopupPoint.y}
         onClose={() => setLocoPickerOpen(false)}
+        onBeginBlockSelection={startBlockSelection}
+        blockSelectionActive={blockSelection !== null}
       />
     </>
   );

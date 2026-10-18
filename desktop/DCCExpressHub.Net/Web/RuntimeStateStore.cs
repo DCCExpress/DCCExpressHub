@@ -31,34 +31,10 @@ public sealed class RuntimeStateStore
             using var doc = JsonDocument.Parse(await File.ReadAllTextAsync(_path));
             var root = doc.RootElement;
 
-            // v3 physical runtime format.
-            if (root.TryGetProperty("basicAccessories", out var basic) && basic.ValueKind == JsonValueKind.Object)
-            {
-                foreach (var pair in basic.EnumerateObject())
-                {
-                    if (!ushort.TryParse(pair.Name, out var address))
-                        continue;
-
-                    bool active = pair.Value.ValueKind == JsonValueKind.True ||
-                                  (pair.Value.ValueKind == JsonValueKind.Number && pair.Value.TryGetInt32(out var n) && n != 0);
-
-                    _runtime.SetAccessory(address, active);
-                }
-            }
-
-            if (root.TryGetProperty("extendedAccessories", out var extended) && extended.ValueKind == JsonValueKind.Object)
-            {
-                foreach (var pair in extended.EnumerateObject())
-                {
-                    if (!ushort.TryParse(pair.Name, out var address))
-                        continue;
-
-                    if (!pair.Value.TryGetInt32(out var aspect) || aspect is < 0 or > 255)
-                        continue;
-
-                    _runtime.SetSignal(address, aspect);
-                }
-            }
+            // Accessory outputs are commands, not physical feedback. A saved ON
+            // must never be replayed as a known live state after restart: a
+            // platform lamp may be physically OFF even if its last command was ON.
+            // Ignore old basicAccessories/extendedAccessories entries as well.
 
             if (root.TryGetProperty("vpins", out var vpins) && vpins.ValueKind == JsonValueKind.Object)
             {
@@ -83,44 +59,14 @@ public sealed class RuntimeStateStore
                     var key = pair.Name;
                     var value = pair.Value;
 
-                    if (key.StartsWith("accessory:", StringComparison.Ordinal) &&
-                        ushort.TryParse(key[10..], out var basicAddress))
-                    {
-                        _runtime.SetAccessory(
-                            basicAddress,
-                            value.TryGetProperty("active", out var active) && active.ValueKind == JsonValueKind.True);
-                    }
-                    else if (key.StartsWith("signal:", StringComparison.Ordinal) &&
-                             ushort.TryParse(key[7..], out var extendedAddress) &&
-                             value.TryGetProperty("aspect", out var a) &&
-                             a.ValueKind == JsonValueKind.Number &&
-                             a.TryGetInt32(out var aspect) &&
-                             aspect is >= 0 and <= 255)
-                    {
-                        // This succeeds only if the CURRENT layout says the address
-                        // is Extended. A former basic signal cannot leak into it.
-                        _runtime.SetSignal(extendedAddress, aspect);
-                    }
-                    else if (key.StartsWith("vpin:", StringComparison.Ordinal) &&
-                             ushort.TryParse(key[5..], out var vp))
+                    if (key.StartsWith("vpin:", StringComparison.Ordinal) &&
+                        ushort.TryParse(key[5..], out var vp))
                     {
                         _runtime.SetVPin(
                             vp,
                             value.TryGetProperty("active", out var active) && active.ValueKind == JsonValueKind.True);
                     }
-                    else if (key.StartsWith("turnout:", StringComparison.Ordinal) &&
-                             ushort.TryParse(key[8..], out var turnoutAddress) &&
-                             value.TryGetProperty("closed", out var c) &&
-                             c.ValueKind is JsonValueKind.True or JsonValueKind.False)
-                    {
-                        var turnout = _runtime.FindAccessory(RuntimeAccessoryKind.Turnout, turnoutAddress);
-                        if (turnout is null || turnout.TurnoutExtended)
-                            continue;
 
-                        bool logicalClosed = c.GetBoolean();
-                        bool physical = logicalClosed ? turnout.ClosedValue : !turnout.ClosedValue;
-                        _runtime.SetTurnout(turnoutAddress, physical);
-                    }
                 }
             }
 
@@ -188,12 +134,6 @@ public sealed class RuntimeStateStore
     {
         try
         {
-            var basic = _runtime.BasicAccessoryStatesForPersistence()
-                .ToDictionary(x => x.Key.ToString(), x => x.Value);
-
-            var extended = _runtime.ExtendedAccessoryStatesForPersistence()
-                .ToDictionary(x => x.Key.ToString(), x => x.Value);
-
             var vpins = _runtime.VPinStatesForPersistence()
                 .ToDictionary(x => x.Key.ToString(), x => x.Value);
 
@@ -216,8 +156,6 @@ public sealed class RuntimeStateStore
             {
                 version = 3,
                 savedAtMs = Environment.TickCount64,
-                basicAccessories = basic,
-                extendedAccessories = extended,
                 vpins,
                 blocks
             }, Json);

@@ -17,6 +17,7 @@ import {
 } from "../../api/domainApi";
 import { uploadLocoImage } from "../../api/imageApi";
 import { wsApi } from "../../services/wsApi";
+import { ensureLocoFunctions } from "@domain/locoFunctions";
 import {
   createDefaultFunction,
   createEmptyLoco,
@@ -56,7 +57,7 @@ export function useLocoDialogState(
           getFunctionBindings(),
         ]);
 
-        setLocos(data);
+        setLocos(data.map(ensureLocoFunctions));
         setFunctionBindings(bindings);
         setSelectedId(data[0]?.id ?? "");
       } catch (error) {
@@ -115,6 +116,10 @@ export function useLocoDialogState(
     );
   };
 
+  const setLocoActive = (id: string, active: boolean): void => {
+    setLocos(previous => previous.map(loco => loco.id === id ? { ...loco, active } : loco));
+  };
+
   const addLoco = (): void => {
     const loco = createEmptyLoco();
     setLocos(previous => [...previous, loco]);
@@ -150,10 +155,14 @@ export function useLocoDialogState(
     patch: Partial<LocoFunction>
   ): void => {
     if (!selectedLoco) return;
+    if (patch.showOnLocoCard === true) {
+      const selected = selectedLoco.functions.filter(fn => fn.showOnLocoCard ?? fn.number < 5);
+      if (!selected.some(fn => fn.id === fnId) && selected.length >= 5) return;
+    }
 
     updateSelectedLoco({
       functions: selectedLoco.functions.map(fn =>
-        fn.id === fnId ? { ...fn, ...patch } : fn
+        fn.id === fnId ? { ...fn, ...patch, number: fn.number } : fn
       ),
     });
   };
@@ -228,7 +237,7 @@ export function useLocoDialogState(
       setSaving(true);
       setMessage("");
       await Promise.all([
-        persistLocos(locos),
+        persistLocos(locos.map(ensureLocoFunctions)),
         saveFunctionBindings(
           functionBindings
         ),
@@ -257,6 +266,7 @@ export function useLocoDialogState(
     selectedLoco,
     functionOptions,
     updateSelectedLoco,
+    setLocoActive,
     addLoco,
     deleteSelectedLoco,
     addFunction,

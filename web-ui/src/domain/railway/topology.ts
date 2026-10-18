@@ -29,6 +29,7 @@ import {
   type TravelDirection,
 } from "../../models/editor/core/TrackElement";
 
+import { TrackBridgeElement } from "../../models/editor/elements/TrackBridgeElement";
 import { TrackStraightElement } from "../../models/editor/elements/TrackStraightElement";
 import { TrackLevelCrossingElement } from "../../models/editor/elements/TrackLevelCrossingElement";
 import { TrackDirectionElement } from "../../models/editor/elements/TrackDirectionElement";
@@ -267,6 +268,7 @@ export type TopologyTurnoutElement =
 
 export type TopologyTrackElement =
   | TrackStraightElement
+  | TrackBridgeElement
   | TrackLevelCrossingElement
   | TrackDirectionElement
   | TrackEndElement
@@ -302,6 +304,7 @@ export class RailwayTopologyLayout {
     return this.elements.filter(
       (element): element is TopologyTrackElement =>
         element instanceof TrackStraightElement ||
+        element instanceof TrackBridgeElement ||
         element instanceof TrackLevelCrossingElement ||
         element instanceof TrackDirectionElement ||
         element instanceof TrackEndElement ||
@@ -318,8 +321,11 @@ export class RailwayTopologyLayout {
   getSignals(): TrackSignalElement[] { return this.elements.filter((element): element is TrackSignalElement => element instanceof TrackSignalElement); }
   getDirectionElements(): TrackDirectionElement[] { return this.elements.filter((element): element is TrackDirectionElement => element instanceof TrackDirectionElement); }
 
-  getPhysicalTrackAt(point: Point): TopologyTrackElement | undefined {
-    return this.getPhysicalTrackElements().find(element => element.x === point.x && element.y === point.y);
+  getPhysicalTrackAt(point: Point, from?: Point): TopologyTrackElement | undefined {
+    return this.getPhysicalTrackElements().find(element =>
+      element.x === point.x && element.y === point.y &&
+      (!from || element.getNeighborPointPairs().some(pair => pair.some(endpoint => endpoint.x === from.x && endpoint.y === from.y)))
+    );
   }
 
   getElementById(id: LayoutElementId): RailwayTopologyElement | undefined {
@@ -350,6 +356,7 @@ export function buildRailwayTopologyFromLayout(
 function createTopologyElement(data: SerializedLayoutElementDto): RailwayTopologyElement | null {
   switch (data.type) {
     case ELEMENT_TYPES.TRACK_STRAIGHT: return createStraightElement(data);
+    case ELEMENT_TYPES.TRACK_BRIDGE: return applyTrackData(new TrackBridgeElement(numberValue(data.x, 0), numberValue(data.y, 0)), data);
     case ELEMENT_TYPES.TRACK_LEVEL_CROSSING: return createLevelCrossingElement(data);
     case ELEMENT_TYPES.TRACK_DIRECTION: return createDirectionElement(data);
     case ELEMENT_TYPES.TRACK_END: return createEndElement(data);

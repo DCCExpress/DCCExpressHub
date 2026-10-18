@@ -1,3 +1,4 @@
+import type { MovementPage } from "./movement";
 
 import type {
   Direction,
@@ -336,6 +337,7 @@ export type DispatcherCommandPayload = {
 export type MovementCommandAction =
   | "snapshot"
   | "start"
+  | "startTransient"
   | "stop"
   | "abort"
   | "stopAll"
@@ -345,6 +347,7 @@ export type MovementCommandPayload = {
   requestId: string;
   action: MovementCommandAction;
   pageId?: string;
+  page?: MovementPage;
   emergencyStop?: boolean;
 };
 
@@ -428,6 +431,14 @@ export type FlowCommandPayload = {
   mode?: string;
 };
 
+export type TrainDriverCommandPayload = {
+  requestId: string;
+  action: "snapshot" | "start" | "startAuto" | "stop" | "resume" | "abort";
+  taskId?: string;
+  page?: import("./movement").MovementPage;
+  candidates?: import("./movement").MovementPage[];
+};
+
 export type ClientWsPayloadMap = {
   heartbeat: EmptyClientWsCommandPayload;
   broadcastPlayAudio: BroadcastPlayAudioCommandPayload;
@@ -435,6 +446,7 @@ export type ClientWsPayloadMap = {
   audioPlaybackState: AudioPlaybackStateCommandPayload;
   dispatcherCommand: DispatcherCommandPayload;
   movementCommand: MovementCommandPayload;
+  trainDriverCommand: TrainDriverCommandPayload;
   movementAudioComplete: MovementAudioCompleteCommandPayload;
   trainTrackingCommand: TrainTrackingCommandPayload;
   scriptCommand: ScriptCommandPayload;

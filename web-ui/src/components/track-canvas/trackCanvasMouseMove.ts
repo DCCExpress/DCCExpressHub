@@ -1,4 +1,7 @@
 
+import { ELEMENT_TYPES } from "@domain/layout/elementTypes";
+import { getBridgePlacement } from "./bridgePlacement";
+import { getTrackCanvasHitElement } from "./trackCanvasRuntimeHitTest";
 import type {
   Dispatch,
   SetStateAction,
@@ -113,7 +116,7 @@ export function handleTrackCanvasMouseMove(
   );
 
   const hoveredElement =
-    currentLayout.getElement(grid.x, grid.y);
+    getTrackCanvasHitElement(currentLayout, grid.x, grid.y, editModeRef.current);
 
   if (toolRef.current.mode === "draw" && currentCursorRef.current) {
     const cursorAnchor = getCenteredElementGridAnchor(
@@ -121,11 +124,13 @@ export function handleTrackCanvasMouseMove(
       grid
     );
 
-    const occupied = currentLayout.getLayeredElement(
-      currentCursorRef.current,
-      cursorAnchor.x,
-      cursorAnchor.y
-    );
+    const cursor = currentCursorRef.current;
+    const bridgePlacement = cursor.type === ELEMENT_TYPES.TRACK_BRIDGE
+      ? getBridgePlacement(currentLayout, cursorAnchor.x, cursorAnchor.y, cursor.rotation)
+      : null;
+    const occupied = bridgePlacement
+      ? (bridgePlacement.valid ? null : cursor)
+      : currentLayout.getLayeredElement(cursor, cursorAnchor.x, cursorAnchor.y);
 
     if (occupied != null) {
       setHoverGrid(cursorAnchor);
@@ -194,11 +199,17 @@ export function handleTrackCanvasMouseMove(
       const nextX = item.startX + dx;
       const nextY = item.startY + dy;
 
-      const occupied = currentLayout.getLayeredElement(
-        element,
-        nextX,
-        nextY
-      );
+      if (element.type === ELEMENT_TYPES.TRACK_BRIDGE) {
+        const placement = getBridgePlacement(currentLayout, nextX, nextY, element.rotation, element.id);
+        if (!placement.valid) {
+          setHoverGrid({ x: grid.x, y: grid.y });
+          canvas.style.cursor = "not-allowed";
+          return;
+        }
+      }
+      const occupied = element.type === ELEMENT_TYPES.TRACK_BRIDGE
+        ? null
+        : currentLayout.getLayeredElement(element, nextX, nextY);
 
       if (occupied && !selectedIds.has(occupied.id)) {
         setHoverGrid({

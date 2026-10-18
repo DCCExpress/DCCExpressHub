@@ -88,6 +88,15 @@ export default function LocoGeneralTab({
           onChange={value => onPatch({ maxSpeed: Number(value) || 0 })}
         />
 
+        <NumberInput
+          label={t("locodialog.loco_cruising_speed")}
+          description={t("locodialog.loco_cruising_speed_description")}
+          value={loco.cruisingSpeed ?? 20}
+          min={1}
+          max={Math.min(126, Math.max(1, loco.maxSpeed))}
+          onChange={value => onPatch({ cruisingSpeed: Math.max(1, Math.min(Number(value) || 1, 126, loco.maxSpeed)) })}
+        />
+
         <Checkbox
           label={t("locodialog.loco_direction_invert")}
           checked={loco.invert}

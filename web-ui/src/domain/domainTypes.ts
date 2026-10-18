@@ -31,6 +31,9 @@ export type LocoFunction = {
   bindingId?: number | null;
   icon: string;
   momentary: boolean;
+  showOnLocoCard?: boolean;
+  iconTintMode?: "original" | "tint";
+  iconColor?: string;
   startupActive?: boolean;
   active?: boolean;
 };
@@ -124,6 +127,10 @@ export type LocoCalibrationProfile = {
 };
 
 export type LocoPrecisionBrakingProfile = {
+  /** Operator accepted the latest completed calibration. */
+  validated?: boolean;
+  /** Physical distance between start-OFF and destination-ON sensor reference points. */
+  sensorDistanceMm?: number;
   routeRef?: MovementRouteRef;
   updatedAt?: string;
   trials?: Array<{
@@ -133,6 +140,7 @@ export type LocoPrecisionBrakingProfile = {
     targetDistanceMm: number;
     actualDistanceMm: number;
     measuredAt: string;
+    commandedRampSeconds?: number | null;
   }>;
 };
 
@@ -148,10 +156,17 @@ export type Loco = {
   id: string;
   name: string;
   address: number;
+  /** Whether this locomotive is currently on the layout. Legacy entries default to active. */
+  active?: boolean;
   maxSpeed: number;
+  /** Default DCC speed step for Drive to Block. */
+  cruisingSpeed?: number;
   invert: boolean;
   image?: string;
   length: number;
+  locomotiveLengthMm?: number;
+  wagonsLengthMm?: number;
+  trainConsistMode?: "pull" | "push";
   trainType?: LocoTrainType;
   occupancyDetectionPosition?: LocoOccupancyDetectionPosition;
   /** Detector reference measured from train's physical forward end, in mm. */

@@ -1,5 +1,6 @@
+import type { TrainDriverStatePayload } from "@/domain/wsTypes";
 import { ActionIcon, Badge, Button, Group, Paper, Stack, Text, Tooltip, Divider, SimpleGrid, ScrollArea } from "@mantine/core";
-import { IconAlertTriangle, IconPlayerStop } from "@tabler/icons-react";
+import { IconAlertTriangle, IconPlayerStop, IconPlayerPlay } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import type { MovementDocument } from "../../domain/movement";
 import type { Loco } from "../../domain/domainTypes";
@@ -8,7 +9,7 @@ import { BlockElement } from "../../models/editor/elements/BlockElement";
 import LocoImage from "../loco/LocoImage";
 import { wsClient } from "../../services/wsClient";
 import {
-  abortAllMovements, abortMovement, getMovementTaskStates, stopAllMovements, stopMovement, subscribeMovementTaskStates,
+  abortAllMovements, abortMovement, getMovementTaskStates, stopMovement, subscribeMovementTaskStates,
   type MovementEngineState,
 } from "../../services/movementEngine";
 
@@ -21,6 +22,7 @@ type Props = { document: MovementDocument; locos: Loco[]; layout: LayoutView };
 
 export default function MovementTaskManager({ document, locos, layout }: Props) {
   const [tasks, setTasks] = useState<Task[]>(getMovementTaskStates);
+  const [drivers, setDrivers] = useState<TrainDriverStatePayload[]>([]);
   const [traffic, setTraffic] = useState<Traffic>(emptyTraffic);
   const [loaded, setLoaded] = useState({ locks: false, dispatcher: false });
   const liveTraffic = loaded.locks && loaded.dispatcher;
@@ -43,6 +45,13 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
           extra?: { locks?: Lock[]; leases?: Lease[]; routes?: Lease[] } | null;
         };
       };
+      if (frame.type === "trainDriverStateChanged") {
+        const driver = frame.data as unknown as TrainDriverStatePayload;
+        if (driver?.taskId) setDrivers(previous => [...previous.filter(t => t.taskId !== driver.taskId), driver]);
+      } else if (frame.type === "trainDriverResponse" && frame.data?.action === "snapshot" && frame.data?.ok === true) {
+        const states = (frame.data as unknown as { states?: TrainDriverStatePayload[] }).states;
+        if (Array.isArray(states)) setDrivers(states);
+      }
       const isSwitchManSnapshot =
         frame.type === "switchManResponse" &&
         frame.data?.action === "snapshot" &&
@@ -69,6 +78,7 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
 
     const unsubscribeStatus = wsClient.subscribeStatus(status => {
       if (status !== "connected") {
+        setDrivers([]);
         setTraffic(emptyTraffic);
         setLoaded({ locks: false, dispatcher: false });
         return;
@@ -82,6 +92,7 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
         type: "switchManCommand",
         data: { action: "snapshot", requestId: requestId() },
       });
+      wsClient.send({ type: "trainDriverCommand", data: { action: "snapshot", requestId: requestId() } });
       wsClient.send({
         type: "dispatcherCommand",
         data: { action: "snapshot", requestId: requestId() },
@@ -119,7 +130,18 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
         <Group gap="xs" wrap="wrap">
           <Badge variant="light" color={active.length ? "green" : "gray"}>{active.length} active</Badge>
           <Button size="xs" color="yellow" variant="light" leftSection={<IconPlayerStop size={14} />}
-            disabled={!active.length} onClick={() => stopAllMovements()}>Stop All</Button>
+            disabled={!active.length} onClick={() => {
+              const managed = drivers.filter(driver => ["created", "running", "waiting", "paused"].includes(driver.status));
+              for (const driver of managed) {
+                if (driver.status !== "paused") wsClient.send({ type: "trainDriverCommand", data: {
+                  requestId: `driver-pause-all-${Date.now()}-${driver.taskId}`,
+                  action: "stop", taskId: driver.taskId,
+                } });
+              }
+              const owned = new Set(managed.map(driver => driver.movementId));
+              for (const task of active.filter(task => !owned.has(task.pageId)))
+                stopMovement(task.pageId);
+            }}>Stop All</Button>
           <Button size="xs" color="red" variant="light" leftSection={<IconAlertTriangle size={14} />}
             disabled={!active.length} onClick={() => abortAllMovements()}>Abort All</Button>
         </Group>
@@ -169,6 +191,10 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
           {active.map(({ pageId, state }) => {
         const page = document.pages.find(item => item.id === pageId);
         const loco = locos.find(item => item.address === state.locoAddress);
+        const driver = [...drivers]
+          .filter(item => item.movementId === pageId)
+          .sort((a, b) => b.createdAt - a.createdAt)
+          .find(item => ["created", "running", "waiting", "paused", "stopping"].includes(item.status));
         const isQuickRoute = pageId.startsWith("quick-route-loco-");
         const fullName = state.movementName || page?.name || (isQuickRoute
           ? "Quick route"
@@ -178,7 +204,8 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
         const quickRouteMatch = isQuickRoute
           ? /^Quick route\\s*·\\s*(?:#\\d+\\s*·\\s*)?(.*)$/i.exec(fullName)
           : null;
-        const title = isQuickRoute ? "Quick route" : fullName;
+        const isStationRoute = isQuickRoute && fullName.startsWith("Station Route ·");
+        const title = isStationRoute ? fullName : isQuickRoute ? "Quick route" : fullName;
         const route = state.routeDescription?.trim() || quickRouteMatch?.[1]?.trim() || null;
         return (
           <Paper key={pageId} withBorder p="sm" radius="sm">
@@ -196,6 +223,7 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
                 <Text size="sm" fw={600} truncate>{title}</Text>
                 <Group gap={6} wrap="wrap">
                   <Badge color={state.status === "stopping" ? "yellow" : "green"} size="xs">{state.status}</Badge>
+                  {driver && <Badge size="xs" variant="light" color={driver.status === "paused" ? "yellow" : "blue"}>Train Driver · {driver.status}</Badge> }
                   <Text size="xs" c="dimmed" style={{ whiteSpace: "nowrap" }}>
                     Speed {state.desiredSpeed}
                     {state.currentBlockId != null && (
@@ -208,14 +236,22 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
                 {route && <Text size="sm" fw={500} lineClamp={2}>{route}</Text>}
               </Stack>
               <Group gap={5} wrap="nowrap">
-                <Tooltip label="Stop movement">
+                {driver?.status === "paused" && (
+                  <Tooltip label="Resume train driver">
+                    <ActionIcon aria-label="Resume train driver" variant="light" color="green"
+                      onClick={() => wsClient.send({ type: "trainDriverCommand", data: {
+                        requestId: `driver-resume-${Date.now()}`, action: "resume", taskId: driver.taskId,
+                      } })}><IconPlayerPlay size={17} /></ActionIcon>
+                  </Tooltip>
+                )}
+                <Tooltip label={driver ? "Pause train driver (speed 0)" : "Stop movement"}>
                   <ActionIcon aria-label="Stop movement" variant="light" color="yellow"
-                    disabled={state.status === "stopping"}
-                    onClick={() => stopMovement(pageId)}><IconPlayerStop size={17} /></ActionIcon>
+                    disabled={state.status === "stopping" || driver?.status === "paused"}
+                    onClick={() => driver ? wsClient.send({type:"trainDriverCommand", data:{requestId:`driver-stop-${Date.now()}`,action:"stop",taskId:driver.taskId}}) : stopMovement(pageId)}><IconPlayerStop size={17} /></ActionIcon>
                 </Tooltip>
                 <Tooltip label="Abort movement (E-STOP)">
                   <ActionIcon aria-label="Abort movement (E-STOP)" variant="light" color="red"
-                    onClick={() => abortMovement(pageId)}><IconAlertTriangle size={17} /></ActionIcon>
+                    onClick={() => driver ? wsClient.send({type:"trainDriverCommand", data:{requestId:`driver-abort-${Date.now()}`,action:"abort",taskId:driver.taskId}}) : abortMovement(pageId)}><IconAlertTriangle size={17} /></ActionIcon>
                 </Tooltip>
               </Group>
             </Group>

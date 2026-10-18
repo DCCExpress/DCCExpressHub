@@ -165,11 +165,13 @@ export default function AppModal({
     setOffset({ x: 0, y: 0 });
   };
 
-  const modalTitle = draggable ? (
+  // Keep the same padded, vertically centered title for every AppModal.
+  // Dragging is optional; it must not determine the header layout.
+  const modalTitle = title == null ? title : (
     <Box
-      onPointerDown={handleDragAreaPointerDown}
-      onDoubleClick={handleDragAreaDoubleClick}
-      title={i18next.t("ui.dragToMoveDoubleClickToResetPosition")}
+      onPointerDown={draggable ? handleDragAreaPointerDown : undefined}
+      onDoubleClick={draggable ? handleDragAreaDoubleClick : undefined}
+      title={draggable ? i18next.t("ui.dragToMoveDoubleClickToResetPosition") : undefined}
       style={{
         width: "100%",
         height: "100%",
@@ -178,16 +180,14 @@ export default function AppModal({
         alignItems: "center",
         paddingLeft: "var(--mantine-spacing-md)",
         paddingRight: "var(--mantine-spacing-md)",
-        cursor: "move",
-        userSelect: "none",
-        WebkitUserSelect: "none",
-        touchAction: "none",
+        cursor: draggable ? "move" : undefined,
+        userSelect: draggable ? "none" : undefined,
+        WebkitUserSelect: draggable ? "none" : undefined,
+        touchAction: draggable ? "none" : undefined,
       }}
     >
       {title}
     </Box>
-  ) : (
-    title
   );
 
   return (

@@ -1,0 +1,27 @@
+name: JMRI JSON Explorer CI
+
+on:
+  push:
+    branches: [alpha6]
+    paths:
+      - 'jmri/**'
+      - '.github/workflows/jmri-explorer-ci.yml'
+  workflow_dispatch:
+
+jobs:
+  debugger:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: jmri
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Typecheck and build
+        run: npm run build
+      - name: Protocol smoke checks
+        run: npm test

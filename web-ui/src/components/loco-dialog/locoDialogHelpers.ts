@@ -1,6 +1,7 @@
 import i18next from "i18next";
 import type { Loco, LocoAction, LocoActionHook, LocoFunction } from "@domain/types";
 import { DEFAULT_LOCO_COUNTER_SETTINGS } from "@domain/locoCounterSettings";
+import { ensureLocoFunctions } from "@domain/locoFunctions";
 
 import { generateId } from "../../helpers";
 
@@ -27,11 +28,13 @@ export const createEmptyLocoActions = (): Record<LocoActionHook, LocoAction[]> =
   afterStop: [],
 });
 
-export const createEmptyLoco = (): Loco => ({
+export const createEmptyLoco = (): Loco => ensureLocoFunctions({
   id: generateId(),
   name: "",
   address: 3,
+  active: true,
   maxSpeed: 100,
+  cruisingSpeed: 20,
   invert: false,
   image: "",
   length: 200,

@@ -11,7 +11,7 @@ import {
   Button,
   Checkbox,
   Group,
-  NumberInput,
+  SegmentedControl,
   ScrollArea,
   Stack,
   Table,
@@ -22,8 +22,6 @@ import {
 
 import {
   IconDots,
-  IconPlus,
-  IconTrash,
 } from "@tabler/icons-react";
 
 import type {
@@ -32,20 +30,23 @@ import type {
 } from "@domain/types";
 
 import FunctionBindingsDialog from "./FunctionBindingsDialog";
+import FunctionIconPicker from "./FunctionIconPicker";
+import { useFunctionButtonDisplayMode, setFunctionButtonDisplayMode } from "../../services/functionButtonDisplayMode";
+import FunctionIconAsset from "../loco/FunctionIconAsset";
+
 
 type LocoFunctionsTabProps = {
   functions: LocoFunction[];
+  /** Legacy callbacks retained for existing dialog callers; fixed slots cannot be added/removed. */
+  onAddFunction?: () => void;
+  onDeleteFunction?: (fnId: string) => void;
   functionBindings: FunctionBinding[];
   onFunctionBindingsChange: (
     bindings: FunctionBinding[]
   ) => void;
-  onAddFunction: () => void;
   onUpdateFunction: (
     fnId: string,
     patch: Partial<LocoFunction>
-  ) => void;
-  onDeleteFunction: (
-    fnId: string
   ) => void;
   onFunctionTest: (
     fn: LocoFunction,
@@ -58,13 +59,15 @@ export default function LocoFunctionsTab({
   functions,
   functionBindings,
   onFunctionBindingsChange,
-  onAddFunction,
   onUpdateFunction,
-  onDeleteFunction,
   onFunctionTest,
   t,
 }: LocoFunctionsTabProps) {
   useTranslation();
+  const displayMode = useFunctionButtonDisplayMode();
+  const cardFunctionCount = functions.filter(fn => fn.showOnLocoCard ?? fn.number < 5).length;
+  const [iconFunctionId, setIconFunctionId] = useState<string | null>(null);
+  const iconFunction = functions.find(fn => fn.id === iconFunctionId);
   const [
     activeTestFunctions,
     setActiveTestFunctions,
@@ -181,6 +184,12 @@ export default function LocoFunctionsTab({
 
   return (
     <Stack h="100%">
+      <Group gap="xs" wrap="wrap">
+        <Text size="xs" fw={600}>LocoPanel function buttons</Text>
+        <SegmentedControl size="xs" value={displayMode} onChange={value => setFunctionButtonDisplayMode(value as typeof displayMode)}
+          data={[{ label: "Default (F0–F28)", value: "default" }, { label: "Icon", value: "icon" },
+            { label: "Icon + text", value: "icon-text" }, { label: "Text", value: "text" }]} />
+      </Group>
       <Group
         justify="space-between"
       >
@@ -189,20 +198,9 @@ export default function LocoFunctionsTab({
             "locodialog.loco_functions"
           )}
         </Text>
+        <Text size="xs" c="dimmed">Loco Card: {cardFunctionCount} / 5</Text>
 
-        <Button
-          size="xs"
-          leftSection={
-            <IconPlus size={14} />
-          }
-          onClick={
-            onAddFunction
-          }
-        >
-          {t(
-            "locodialog.new_function"
-          )}
-        </Button>
+
       </Group>
 
       <ScrollArea
@@ -220,17 +218,13 @@ export default function LocoFunctionsTab({
           verticalSpacing="xs"
           horizontalSpacing="sm"
           style={{
-            minWidth: 940,
+            minWidth: 810,
             tableLayout: "fixed",
           }}
         >
           <Table.Thead>
             <Table.Tr>
-              <Table.Th w={90}>
-                {t(
-                  "locodialog.function_number"
-                )}
-              </Table.Th>
+              <Table.Th w={44}>#</Table.Th>
               <Table.Th>
                 {t(
                   "locodialog.functionname"
@@ -246,14 +240,7 @@ export default function LocoFunctionsTab({
                   "ui.icon"
                 )}
               </Table.Th>
-              <Table.Th
-                w={110}
-                ta="center"
-              >
-                {t(
-                  "locodialog.function_momentary"
-                )}
-              </Table.Th>
+              <Table.Th w={88} ta="center">Loco Card</Table.Th>
               <Table.Th
                 w={120}
                 ta="center"
@@ -276,6 +263,14 @@ export default function LocoFunctionsTab({
                 </Tooltip>
               </Table.Th>
               <Table.Th
+                w={110}
+                ta="center"
+              >
+                {t(
+                  "locodialog.function_momentary"
+                )}
+              </Table.Th>
+              <Table.Th
                 w={95}
                 ta="center"
               >
@@ -283,7 +278,6 @@ export default function LocoFunctionsTab({
                   "locodialog.function_test"
                 )}
               </Table.Th>
-              <Table.Th w={52} />
             </Table.Tr>
           </Table.Thead>
 
@@ -299,23 +293,7 @@ export default function LocoFunctionsTab({
                   key={fn.id}
                 >
                   <Table.Td>
-                    <NumberInput
-                      size="xs"
-                      value={fn.number}
-                      min={0}
-                      onChange={
-                        value =>
-                          onUpdateFunction(
-                            fn.id,
-                            {
-                              number:
-                                Number(
-                                  value
-                                ) || 0,
-                            }
-                          )
-                      }
-                    />
+                    <Text size="sm" fw={600}>F{fn.number}</Text>
                   </Table.Td>
 
                   <Table.Td>
@@ -377,68 +355,25 @@ export default function LocoFunctionsTab({
                   </Table.Td>
 
                   <Table.Td>
-                    <TextInput
-                      size="xs"
-                      value={fn.icon}
-                      onChange={
-                        event =>
-                          onUpdateFunction(
-                            fn.id,
-                            {
-                              icon:
-                                event
-                                  .currentTarget
-                                  .value,
-                            }
-                          )
-                      }
-                    />
-                  </Table.Td>
-
-                  <Table.Td>
-                    <Group
-                      justify="center"
-                      wrap="nowrap"
-                    >
-                      <Checkbox
-                        checked={
-                          fn.momentary
-                        }
-                        onChange={
-                          event => {
-                            const momentary =
-                              event
-                                .currentTarget
-                                .checked;
-
-                            if (
-                              momentary &&
-                              testActive
-                            ) {
-                              setTestState(
-                                fn,
-                                false
-                              );
-                            }
-
-                            onUpdateFunction(
-                              fn.id,
-                              {
-                                momentary,
-                                ...(momentary
-                                  ? {
-                                      startupActive:
-                                        false,
-                                    }
-                                  : {}),
-                              }
-                            );
-                          }
-                        }
-                      />
+                    <Group gap={4} wrap="nowrap">
+                      {(() => {
+                        return <ActionIcon size="lg" variant="light" color="gray"
+                          title="Select function icon" aria-label="Select function icon"
+                          onClick={() => setIconFunctionId(fn.id)}>
+                          {fn.icon ? <FunctionIconAsset fn={fn} size={22} /> : <IconDots size={18} />}
+                        </ActionIcon>;
+                      })()}
                     </Group>
                   </Table.Td>
 
+                  <Table.Td>
+                    <Group justify="center">
+                      <Checkbox aria-label={`Show F${fn.number} on Loco Card`}
+                        checked={fn.showOnLocoCard ?? fn.number < 5}
+                        disabled={!(fn.showOnLocoCard ?? fn.number < 5) && cardFunctionCount >= 5}
+                        onChange={event => onUpdateFunction(fn.id, { showOnLocoCard: event.currentTarget.checked })} />
+                    </Group>
+                  </Table.Td>
                   <Table.Td>
                     <Group
                       justify="center"
@@ -482,6 +417,50 @@ export default function LocoFunctionsTab({
                           }
                         />
                       </Tooltip>
+                    </Group>
+                  </Table.Td>
+
+                  <Table.Td>
+                    <Group
+                      justify="center"
+                      wrap="nowrap"
+                    >
+                      <Checkbox
+                        checked={
+                          fn.momentary
+                        }
+                        onChange={
+                          event => {
+                            const momentary =
+                              event
+                                .currentTarget
+                                .checked;
+
+                            if (
+                              momentary &&
+                              testActive
+                            ) {
+                              setTestState(
+                                fn,
+                                false
+                              );
+                            }
+
+                            onUpdateFunction(
+                              fn.id,
+                              {
+                                momentary,
+                                ...(momentary
+                                  ? {
+                                      startupActive:
+                                        false,
+                                    }
+                                  : {}),
+                              }
+                            );
+                          }
+                        }
+                      />
                     </Group>
                   </Table.Td>
 
@@ -586,39 +565,6 @@ export default function LocoFunctionsTab({
                     </Group>
                   </Table.Td>
 
-                  <Table.Td>
-                    <Group
-                      justify="center"
-                      wrap="nowrap"
-                    >
-                      <ActionIcon
-                        size="sm"
-                        color="red"
-                        variant="light"
-                        aria-label={t(
-                          "locodialog.delete"
-                        )}
-                        onClick={() => {
-                          if (
-                            testActive
-                          ) {
-                            setTestState(
-                              fn,
-                              false
-                            );
-                          }
-
-                          onDeleteFunction(
-                            fn.id
-                          );
-                        }}
-                      >
-                        <IconTrash
-                          size={15}
-                        />
-                      </ActionIcon>
-                    </Group>
-                  </Table.Td>
                 </Table.Tr>
               );
             })}
@@ -645,6 +591,9 @@ export default function LocoFunctionsTab({
           </Table.Tbody>
         </Table>
       </ScrollArea>
+      <FunctionIconPicker opened={iconFunction !== undefined} value={iconFunction?.icon ?? ""}
+        onClose={() => setIconFunctionId(null)}
+        onSelect={(icon, mode, color) => { if (iconFunction) onUpdateFunction(iconFunction.id, { icon, iconTintMode: mode, iconColor: color }); }} />
       <FunctionBindingsDialog
         opened={
           bindingFunction !==

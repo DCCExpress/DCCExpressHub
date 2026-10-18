@@ -60,6 +60,7 @@ type Props = {
 };
 
 type NumberValue = string | number;
+type ReadStatus = "idle" | "reading" | "ok" | "nok";
 
 type ProgrammingPowerInfo = WsPowerInfoPayload & {
   programmingJoined?: boolean;
@@ -155,11 +156,12 @@ function ProgrammingResult({
           : <IconAlertTriangle size={18} />
       }
     >
+      {!result.ok && <Text size="sm" fw={700} c="red">NOK</Text>}
       <Text size="sm" fw={600}>
         {result.message ?? (result.ok ? i18next.t("ui.commandCompleted") : i18next.t("ui.commandFailed"))}
       </Text>
 
-      {typeof result.value === "number" && result.value >= 0 && (
+      {result.ok && typeof result.value === "number" && result.value >= 0 && (
         <Text size="sm"> {i18next.t("ui.returnedValue")} <strong>{result.value}</strong>
         </Text>
       )}
@@ -225,6 +227,9 @@ function DccExProgrammingPage({
   const [locoAddress, setLocoAddress] = useState<NumberValue>(3);
   const [cv, setCv] = useState<NumberValue>(1);
   const [cvValue, setCvValue] = useState<NumberValue>(0);
+  const [dccReadStatus, setDccReadStatus] = useState<Record<"address" | "locomotive" | "accessory", ReadStatus>>({
+    address: "idle", locomotive: "idle", accessory: "idle",
+  });
   const [pom, setPom] = useState(false);
 
   const [quickTestAddress, setQuickTestAddress] = useState<NumberValue>(3);
@@ -272,6 +277,21 @@ function DccExProgrammingPage({
         action === "writeCv"
       );
 
+    const readTarget = action === "readAddress"
+      ? "address"
+      : action === "readCv" ? valueTarget : undefined;
+    if (readTarget) {
+      setDccReadStatus(current => ({ ...current, [readTarget]: "reading" }));
+      if (readTarget === "address") {
+        setLocoAddress("");
+        setQuickTestAddress("");
+      } else if (readTarget === "locomotive") {
+        setCvValue("");
+      } else {
+        setAccessoryCvValue("");
+      }
+    }
+
     setBusy(true);
     setResult(null);
 
@@ -285,7 +305,20 @@ function DccExProgrammingPage({
         values,
       );
 
-      setResult(response);
+      const readValueValid = response.ok &&
+        typeof response.value === "number" &&
+        Number.isInteger(response.value) &&
+        (readTarget === "address"
+          ? response.value >= 1 && response.value <= 10239
+          : response.value >= 0 && response.value <= 255);
+      if (readTarget) {
+        setDccReadStatus(current => ({
+          ...current, [readTarget]: readValueValid ? "ok" : "nok",
+        }));
+      }
+      setResult(readTarget && !readValueValid && response.ok
+        ? { ...response, ok: false, message: "NOK — invalid or missing programming read value." }
+        : response);
 
       // DCC-EX service-track writes acknowledge the requested CV, but
       // follow them with an independent read to detect ACK/decoder failures.
@@ -327,25 +360,25 @@ function DccExProgrammingPage({
         }
       }
 
-      if (
-        response.ok &&
-        typeof response.value === "number" &&
-        response.value >= 0
-      ) {
+      const readValue = response.value;
+      if (readTarget && readValueValid && typeof readValue === "number") {
         if (action === "readAddress") {
-          setLocoAddress(response.value);
-          setQuickTestAddress(response.value);
+          setLocoAddress(readValue);
+          setQuickTestAddress(readValue);
         }
 
         if (action === "readCv" && valueTarget === "locomotive") {
-          setCvValue(response.value);
+          setCvValue(readValue);
         }
 
         if (action === "readCv" && valueTarget === "accessory") {
-          setAccessoryCvValue(response.value);
+          setAccessoryCvValue(readValue);
         }
       }
     } catch (error) {
+      if (readTarget) {
+        setDccReadStatus(current => ({ ...current, [readTarget]: "nok" }));
+      }
       setResult({
         requestId: "local",
         action,
@@ -508,8 +541,8 @@ function DccExProgrammingPage({
   const accCv = numberValue(accessoryCv);
   const accValue = numberValue(accessoryCvValue);
 
-  const safeLocoValue = Number.isFinite(locoValue) ? locoValue : 0;
-  const safeAccValue = Number.isFinite(accValue) ? accValue : 0;
+  const safeLocoValue = Number.isFinite(locoValue) ? locoValue : null;
+  const safeAccValue = Number.isFinite(accValue) ? accValue : null;
 
   return (
     <Stack gap="lg">
@@ -806,7 +839,12 @@ function DccExProgrammingPage({
                 <NumberInput
                   label={i18next.t("ui.address")}
                   value={locoAddress}
-                  onChange={setLocoAddress}
+                  onChange={value => {
+                    setLocoAddress(value);
+                    setDccReadStatus(current => ({ ...current, address: "idle" }));
+                  }}
+                  error={dccReadStatus.address === "nok" ? "NOK" : undefined}
+                  placeholder={dccReadStatus.address === "reading" ? "Reading..." : undefined}
                   min={1}
                   max={10239}
                   allowDecimal={false}
@@ -823,7 +861,7 @@ function DccExProgrammingPage({
                   <Button
                     color="orange"
                     leftSection={<IconDeviceFloppy size={17} />}
-                    disabled={busy || disconnected}
+                    disabled={busy || disconnected || !Number.isInteger(numberValue(locoAddress))}
                     onClick={() =>
                       void run(
                         "writeAddress",
@@ -879,25 +917,23 @@ function DccExProgrammingPage({
                   <NumberInput
                     label={i18next.t("ui.value")}
                     value={cvValue}
-                    onChange={setCvValue}
+                    onChange={value => {
+                      setCvValue(value);
+                      setDccReadStatus(current => ({ ...current, locomotive: "idle" }));
+                    }}
+                    error={dccReadStatus.locomotive === "nok" ? "NOK" : undefined}
+                    placeholder={dccReadStatus.locomotive === "reading" ? "Reading..." : undefined}
                     min={0}
                     max={255}
                     allowDecimal={false}
                   />
                 </SimpleGrid>
 
-                <BitEditor
-                  value={safeLocoValue}
-                  onChange={setCvValue}
-                />
-
-                <CvValueFormats value={safeLocoValue} />
-
-                <CvHelpPanel
-                  cv={locoCv}
-                  value={safeLocoValue}
-                  onChange={setCvValue}
-                />
+                {safeLocoValue !== null && <>
+                  <BitEditor value={safeLocoValue} onChange={setCvValue} />
+                  <CvValueFormats value={safeLocoValue} />
+                  <CvHelpPanel cv={locoCv} value={safeLocoValue} onChange={setCvValue} />
+                </>}
 
                 <SimpleGrid cols={{ base: 1, sm: pom ? 1 : 2 }}>
                   {!pom && (
@@ -919,7 +955,7 @@ function DccExProgrammingPage({
                   <Button
                     color="orange"
                     leftSection={<IconDeviceFloppy size={17} />}
-                    disabled={busy || disconnected}
+                    disabled={busy || disconnected || safeLocoValue === null}
                     onClick={() =>
                       void run(
                         pom ? "pomWriteCv" : "writeCv",
@@ -971,25 +1007,23 @@ function DccExProgrammingPage({
                   <NumberInput
                     label={i18next.t("ui.value")}
                     value={accessoryCvValue}
-                    onChange={setAccessoryCvValue}
+                    onChange={value => {
+                      setAccessoryCvValue(value);
+                      setDccReadStatus(current => ({ ...current, accessory: "idle" }));
+                    }}
+                    error={dccReadStatus.accessory === "nok" ? "NOK" : undefined}
+                    placeholder={dccReadStatus.accessory === "reading" ? "Reading..." : undefined}
                     min={0}
                     max={255}
                     allowDecimal={false}
                   />
                 </SimpleGrid>
 
-                <BitEditor
-                  value={safeAccValue}
-                  onChange={setAccessoryCvValue}
-                />
-
-                <CvValueFormats value={safeAccValue} />
-
-                <CvHelpPanel
-                  cv={accCv}
-                  value={safeAccValue}
-                  onChange={setAccessoryCvValue}
-                />
+                {safeAccValue !== null && <>
+                  <BitEditor value={safeAccValue} onChange={setAccessoryCvValue} />
+                  <CvValueFormats value={safeAccValue} />
+                  <CvHelpPanel cv={accCv} value={safeAccValue} onChange={setAccessoryCvValue} />
+                </>}
 
                 <SimpleGrid cols={{ base: 1, sm: 2 }}>
                   <Button
@@ -1007,7 +1041,7 @@ function DccExProgrammingPage({
 
                   <Button
                     color="orange"
-                    disabled={busy || disconnected}
+                    disabled={busy || disconnected || safeAccValue === null}
                     onClick={() =>
                       void run(
                         "writeCv",
@@ -1248,6 +1282,11 @@ function Z21ProgrammingPage({
   const [accessoryValue, setAccessoryValue] =
     useState<NumberValue>(0);
 
+  const [z21ReadStatus, setZ21ReadStatus] =
+    useState<Record<"address" | "service" | "loco" | "accessory", ReadStatus>>({
+      address: "idle", service: "idle", loco: "idle", accessory: "idle",
+    });
+
   const disconnected =
     status !== "connected";
 
@@ -1258,8 +1297,9 @@ function Z21ProgrammingPage({
       cv?: number;
       value?: number;
     },
-    onValue?: (value: number) => void,
+    onValue?: (value: NumberValue) => void,
     confirmText?: string,
+    readTarget?: "service" | "loco" | "accessory",
   ) => {
     if (
       confirmText &&
@@ -1268,6 +1308,14 @@ function Z21ProgrammingPage({
       )
     ) {
       return;
+    }
+
+    const isReading = action === "readCv" ||
+      action === "pomReadCv" || action === "accessoryPomReadCv";
+    const target = isReading ? readTarget : undefined;
+    if (target) {
+      onValue?.("");
+      setZ21ReadStatus(current => ({ ...current, [target]: "reading" }));
     }
 
     setBusy(true);
@@ -1284,18 +1332,24 @@ function Z21ProgrammingPage({
           values,
         );
 
-      setResult(response);
-
-      if (
-        response.ok &&
+      const validRead = response.ok &&
         typeof response.value === "number" &&
-        response.value >= 0
-      ) {
-        onValue?.(
-          response.value
-        );
+        Number.isInteger(response.value) &&
+        response.value >= 0 && response.value <= 255;
+      if (target) {
+        setZ21ReadStatus(current => ({ ...current, [target]: validRead ? "ok" : "nok" }));
+      }
+      setResult(target && !validRead && response.ok
+        ? { ...response, ok: false, message: "NOK — invalid or missing CV read value." }
+        : response);
+
+      if (target && validRead) {
+        onValue?.(response.value!);
       }
     } catch (error) {
+      if (target) {
+        setZ21ReadStatus(current => ({ ...current, [target]: "nok" }));
+      }
       setResult({
         requestId: "local",
         action,
@@ -1329,6 +1383,9 @@ function Z21ProgrammingPage({
   };
 
   const readZ21Address = async (): Promise<void> => {
+    // The old address must not survive a failed multi-CV read.
+    setLocoAddress("");
+    setZ21ReadStatus(current => ({ ...current, address: "reading" }));
     setBusy(true);
     setResult(null);
 
@@ -1341,7 +1398,9 @@ function Z21ProgrammingPage({
 
       if (
         !cv29.ok ||
-        typeof cv29.value !== "number"
+        typeof cv29.value !== "number" ||
+        !Number.isInteger(cv29.value) ||
+        cv29.value < 0 || cv29.value > 255
       ) {
         throw new Error(
           cv29.message ??
@@ -1370,7 +1429,9 @@ function Z21ProgrammingPage({
           !cv17.ok ||
           !cv18.ok ||
           typeof cv17.value !== "number" ||
-          typeof cv18.value !== "number"
+          typeof cv18.value !== "number" ||
+          !Number.isInteger(cv17.value) || cv17.value < 0 || cv17.value > 255 ||
+          !Number.isInteger(cv18.value) || cv18.value < 0 || cv18.value > 255
         ) {
           throw new Error(
             cv17.message ??
@@ -1391,7 +1452,8 @@ function Z21ProgrammingPage({
 
         if (
           !cv1.ok ||
-          typeof cv1.value !== "number"
+          typeof cv1.value !== "number" ||
+          !Number.isInteger(cv1.value) || cv1.value < 0 || cv1.value > 255
         ) {
           throw new Error(
             cv1.message ??
@@ -1403,9 +1465,10 @@ function Z21ProgrammingPage({
           cv1.value;
       }
 
-      setLocoAddress(
-        address
-      );
+      if (!Number.isInteger(address) || address < 1 || address > 10239)
+        throw new Error("Invalid decoder address returned by command station.");
+      setLocoAddress(address);
+      setZ21ReadStatus(current => ({ ...current, address: "ok" }));
 
       setResult({
         requestId: "z21-address-read",
@@ -1417,6 +1480,7 @@ function Z21ProgrammingPage({
           address,
       });
     } catch (error) {
+      setZ21ReadStatus(current => ({ ...current, address: "nok" }));
       setResult({
         requestId: "z21-address-read",
         action: "readAddress",
@@ -1436,6 +1500,7 @@ function Z21ProgrammingPage({
       numberValue(locoAddress);
 
     if (
+      !Number.isInteger(address) ||
       address < 1 ||
       address > 10239
     ) {
@@ -1708,7 +1773,12 @@ function Z21ProgrammingPage({
                   <NumberInput
                     label={i18next.t("ui.address")}
                     value={locoAddress}
-                    onChange={setLocoAddress}
+                    onChange={value => {
+                        setLocoAddress(value);
+                        setZ21ReadStatus(current => ({ ...current, address: "idle" }));
+                      }}
+                      error={z21ReadStatus.address === "nok" ? "NOK" : undefined}
+                      placeholder={z21ReadStatus.address === "reading" ? "Reading..." : undefined}
                     min={1}
                     max={10239}
                     allowDecimal={false}
@@ -1729,7 +1799,7 @@ function Z21ProgrammingPage({
                     <Button
                       color="orange"
                       leftSection={<IconDeviceFloppy size={17} />}
-                      disabled={busy || disconnected}
+                      disabled={busy || disconnected || !Number.isInteger(numberValue(locoAddress))}
                       onClick={() =>
                         void writeZ21Address()
                       }
@@ -1759,14 +1829,19 @@ function Z21ProgrammingPage({
                     <NumberInput
                       label={i18next.t("ui.value")}
                       value={serviceValue}
-                      onChange={setServiceValue}
+                      onChange={value => {
+                        setServiceValue(value);
+                        setZ21ReadStatus(current => ({ ...current, service: "idle" }));
+                      }}
+                      error={z21ReadStatus.service === "nok" ? "NOK" : undefined}
+                      placeholder={z21ReadStatus.service === "reading" ? "Reading..." : undefined}
                       min={0}
                       max={255}
                       allowDecimal={false}
                     />
                   </SimpleGrid>
-
-                  <BitEditor
+                  {Number.isFinite(serviceCvValue) && <>
+<BitEditor
                     value={serviceCvValue}
                     onChange={setServiceValue}
                   />
@@ -1780,6 +1855,7 @@ function Z21ProgrammingPage({
                     value={serviceCvValue}
                     onChange={setServiceValue}
                   />
+                  </>}
 
                   <SimpleGrid cols={{ base: 1, sm: 2 }}>
                     <Button
@@ -1797,6 +1873,8 @@ function Z21ProgrammingPage({
                             cv: serviceCvNumber,
                           },
                           setServiceValue,
+                          undefined,
+                          "service",
                         )
                       }
                     >
@@ -1809,7 +1887,8 @@ function Z21ProgrammingPage({
                       disabled={
                         busy ||
                         disconnected ||
-                        !info.capabilities.serviceModeProgramming
+                        !info.capabilities.serviceModeProgramming ||
+                        !Number.isInteger(serviceCvValue) || serviceCvValue < 0 || serviceCvValue > 255
                       }
                       onClick={() =>
                         void run(
@@ -1861,7 +1940,12 @@ function Z21ProgrammingPage({
                     <NumberInput
                       label={i18next.t("ui.locomotiveAddress")}
                       value={locoAddress}
-                      onChange={setLocoAddress}
+                      onChange={value => {
+                        setLocoAddress(value);
+                        setZ21ReadStatus(current => ({ ...current, address: "idle" }));
+                      }}
+                      error={z21ReadStatus.address === "nok" ? "NOK" : undefined}
+                      placeholder={z21ReadStatus.address === "reading" ? "Reading..." : undefined}
                       min={1}
                       max={9999}
                       allowDecimal={false}
@@ -1879,14 +1963,19 @@ function Z21ProgrammingPage({
                     <NumberInput
                       label={i18next.t("ui.value")}
                       value={locoValue}
-                      onChange={setLocoValue}
+                      onChange={value => {
+                        setLocoValue(value);
+                        setZ21ReadStatus(current => ({ ...current, loco: "idle" }));
+                      }}
+                      error={z21ReadStatus.loco === "nok" ? "NOK" : undefined}
+                      placeholder={z21ReadStatus.loco === "reading" ? "Reading..." : undefined}
                       min={0}
                       max={255}
                       allowDecimal={false}
                     />
                   </SimpleGrid>
-
-                  <BitEditor
+                  {Number.isFinite(locoCvValue) && <>
+<BitEditor
                     value={locoCvValue}
                     onChange={setLocoValue}
                   />
@@ -1900,6 +1989,7 @@ function Z21ProgrammingPage({
                     value={locoCvValue}
                     onChange={setLocoValue}
                   />
+                  </>}
 
                   <SimpleGrid cols={{ base: 1, sm: 2 }}>
                     <Button
@@ -1918,6 +2008,8 @@ function Z21ProgrammingPage({
                             cv: locoCvNumber,
                           },
                           setLocoValue,
+                          undefined,
+                          "loco",
                         )
                       }
                     >
@@ -1930,7 +2022,8 @@ function Z21ProgrammingPage({
                       disabled={
                         busy ||
                         disconnected ||
-                        !info.capabilities.pomProgramming
+                        !info.capabilities.pomProgramming ||
+                        !Number.isInteger(locoCvValue) || locoCvValue < 0 || locoCvValue > 255
                       }
                       onClick={() =>
                         void run(
@@ -1995,14 +2088,19 @@ function Z21ProgrammingPage({
                     <NumberInput
                       label={i18next.t("ui.value")}
                       value={accessoryValue}
-                      onChange={setAccessoryValue}
+                      onChange={value => {
+                        setAccessoryValue(value);
+                        setZ21ReadStatus(current => ({ ...current, accessory: "idle" }));
+                      }}
+                      error={z21ReadStatus.accessory === "nok" ? "NOK" : undefined}
+                      placeholder={z21ReadStatus.accessory === "reading" ? "Reading..." : undefined}
                       min={0}
                       max={255}
                       allowDecimal={false}
                     />
                   </SimpleGrid>
-
-                  <BitEditor
+                  {Number.isFinite(accessoryCvValue) && <>
+<BitEditor
                     value={accessoryCvValue}
                     onChange={setAccessoryValue}
                   />
@@ -2016,6 +2114,7 @@ function Z21ProgrammingPage({
                     value={accessoryCvValue}
                     onChange={setAccessoryValue}
                   />
+                  </>}
 
                   <SimpleGrid cols={{ base: 1, sm: 2 }}>
                     <Button
@@ -2034,6 +2133,8 @@ function Z21ProgrammingPage({
                             cv: accessoryCvNumber,
                           },
                           setAccessoryValue,
+                          undefined,
+                          "accessory",
                         )
                       }
                     >
@@ -2046,7 +2147,8 @@ function Z21ProgrammingPage({
                       disabled={
                         busy ||
                         disconnected ||
-                        !info.capabilities.accessoryPomProgramming
+                        !info.capabilities.accessoryPomProgramming ||
+                        !Number.isInteger(accessoryCvValue) || accessoryCvValue < 0 || accessoryCvValue > 255
                       }
                       onClick={() =>
                         void run(

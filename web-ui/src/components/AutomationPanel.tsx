@@ -13,6 +13,9 @@ import type {
   AutomationFlowDocument,
 } from "../domain/automationFlow";
 
+import type { StationRouteDefinition } from "@/domain/layout/stationRoutes";
+import type { LayoutView } from "@/models/editor/core/LayoutView";
+
 import type {
   MovementDocument,
 } from "../domain/movement";
@@ -93,6 +96,10 @@ type AutomationPanelProps = {
     pageId:
       string | null
   ) => void;
+  stationRoutes: StationRouteDefinition[];
+  layout: LayoutView;
+  stationNames: Array<{ id: string; name: string }>;
+  onOpenStationRoutes: (routeId: string) => void;
 };
 
 export default function AutomationPanel({
@@ -105,6 +112,10 @@ export default function AutomationPanel({
   movements,
   onMovementsChange,
   onSelectMovementRoute,
+  stationRoutes,
+  layout,
+  stationNames,
+  onOpenStationRoutes,
 }: AutomationPanelProps) {
   const [
     activeTab,
@@ -271,6 +282,11 @@ export default function AutomationPanel({
             document={movements}
             onDocumentChange={onMovementsChange}
             onSelectRoute={onSelectMovementRoute}
+            stationRoutes={stationRoutes}
+            layout={layout}
+            locos={locos}
+            stationNames={stationNames}
+            onOpenStationRoutes={onOpenStationRoutes}
           />
         </Tabs.Panel>
 

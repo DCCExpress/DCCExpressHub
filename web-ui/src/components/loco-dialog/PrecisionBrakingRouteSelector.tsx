@@ -17,6 +17,8 @@ export type BrakingRouteSelection = {
   fromName: string;
   toName: string;
   sensorAddress: number;
+  blockLengthMm: number;
+  sourceBlockLengthMm: number;
 };
 
 type Props = {
@@ -69,6 +71,7 @@ export default function PrecisionBrakingRouteSelector({
   const [error, setError] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<MovementRouteCandidate[]>([]);
   const [sensorByBlock, setSensorByBlock] = useState<Map<number, number>>(new Map());
+  const [lengthByBlock, setLengthByBlock] = useState<Map<number, number>>(new Map());
   const [fromFilter, setFromFilter] = useState("");
   const [toFilter, setToFilter] = useState("");
 
@@ -81,11 +84,14 @@ export default function PrecisionBrakingRouteSelector({
       const layout = await response.json() as SerializedLayoutDto;
       const loaded = buildMovementRouteCandidates(layout, createEmptyMovementDocument());
       const sensors = new Map<number, number>();
+      const lengths = new Map<number, number>();
       for (const layer of layout.layers ?? []) {
         for (const rawElement of layer.elements ?? []) {
           const element = rawElement as unknown as {
-            type?: string; id?: number; sensorAddress?: number;
+            type?: string; id?: number; sensorAddress?: number; length?: number;
           };
+          if (element.type === "trackblock" && Number.isFinite(element.length) && Number(element.length) > 0 && Number.isInteger(element.id))
+            lengths.set(Number(element.id), Number(element.length));
           if (element.type === "trackblock" &&
               Number.isInteger(element.id) &&
               Number.isInteger(element.sensorAddress) &&
@@ -96,6 +102,7 @@ export default function PrecisionBrakingRouteSelector({
       }
       setCandidates(loaded);
       setSensorByBlock(sensors);
+      setLengthByBlock(lengths);
       // A route saved by Precision Braking belongs to this tab only.
       if (preferred) {
         const matches = loaded.filter(candidate => {
@@ -111,6 +118,8 @@ export default function PrecisionBrakingRouteSelector({
             fromName: found.fromBlockName,
             toName: found.toBlockName,
             sensorAddress: sensors.get(found.toBlockId)!,
+            blockLengthMm: lengths.get(found.toBlockId) ?? 0,
+            sourceBlockLengthMm: lengths.get(found.fromBlockId) ?? 0,
           });
         } else {
           onSelect(null);
@@ -145,6 +154,8 @@ export default function PrecisionBrakingRouteSelector({
       fromName: candidate.fromBlockName,
       toName: candidate.toBlockName,
       sensorAddress: sensor,
+      blockLengthMm: lengthByBlock.get(candidate.toBlockId) ?? 0,
+      sourceBlockLengthMm: lengthByBlock.get(candidate.fromBlockId) ?? 0,
     });
     setOpened(false);
     setError(null);

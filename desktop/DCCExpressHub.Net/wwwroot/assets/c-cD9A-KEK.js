@@ -1,0 +1,1 @@
+import{J as e}from"./c-B5XFOAGX.js";import{t}from"./c-CS_bb-t9.js";var n=e();function r({document:e,onDocumentChange:r,onBack:i}){return(0,n.jsx)(t,{opened:!0,initialPageId:e.activePageId,onSaved:r,onClose:i})}export{r as default};

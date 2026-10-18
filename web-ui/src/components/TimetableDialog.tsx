@@ -13,6 +13,7 @@ import {
   Stack,
   Switch,
   Table,
+  SegmentedControl,
   Text,
   TextInput,
   Tooltip,
@@ -40,6 +41,10 @@ import {
 } from "react-i18next";
 
 import AppModal from "@/components/common/AppModal";
+import TimetableTimeline from "@/components/TimetableTimeline";
+import RoutesDialog from "@/components/RoutesDialog";
+import type { LayoutView } from "@/models/editor/core/LayoutView";
+import type { MovementDocument } from "@/domain/movement";
 
 import type {
   MovementPage,
@@ -72,6 +77,8 @@ type TimetableDialogProps = {
     AutomationScriptDefinition[];
   movements:
     MovementPage[];
+  layout: LayoutView;
+  movementDocument: MovementDocument;
 };
 
 type ScheduleMode =
@@ -313,11 +320,17 @@ export default function TimetableDialog({
   onSaved,
   scripts,
   movements,
+  layout,
+  movementDocument,
 }: TimetableDialogProps) {
   const {
     t,
   } =
     useTranslation();
+
+  const [routePicker, setRoutePicker] = useState<{ rowId: string; actionId: string } | null>(null);
+
+  const [viewMode, setViewMode] = useState<"editor" | "timeline">("editor");
 
   const [
     rows,
@@ -671,7 +684,9 @@ export default function TimetableDialog({
           )
           .find(
             action =>
-              action.targetType ===
+              action.targetType === "fromto"
+                ? !action.routeRef || !action.speed || action.speed < 1 || action.speed > 126
+                : action.targetType ===
                 "movement"
                 ? !movements.some(
                     movement =>
@@ -844,24 +859,28 @@ export default function TimetableDialog({
           )
         }
 
-        {
-          scripts.length ===
-            0 &&
-          movements.length ===
-            0 && (
-            <Alert
-              color="yellow"
-            >
-              {
-                t(
-                  "ui.timetableNoTargets"
-                )
-              }
-            </Alert>
-          )
-        }
+        <SegmentedControl
+          fullWidth
+          value={viewMode}
+          onChange={value => setViewMode(value as "editor" | "timeline")}
+          data={[
+            { value: "editor", label: "Timetable editor" },
+            { value: "timeline", label: "Graphical timeline" },
+          ]}
+        />
 
-        {
+        {viewMode === "timeline" && !loading && (
+          <TimetableTimeline
+            entries={rows.map(row => ({
+              ...row,
+              cron: cronFromEditor(row.editor),
+            }))}
+            movements={movements}
+            scripts={scripts}
+          />
+        )}
+
+        {viewMode === "editor" && (
           loading
             ? (
               <Group
@@ -891,7 +910,7 @@ export default function TimetableDialog({
                   highlightOnHover
                   withTableBorder
                   withColumnBorders
-                  miw={1040}
+                  miw={1280}
                   w="100%"
                   verticalSpacing="xs"
                   style={{
@@ -932,7 +951,7 @@ export default function TimetableDialog({
                       </Table.Th>
 
                       <Table.Th
-                        w={550}
+                        w={790}
                       >
                         {
                           t(
@@ -1247,12 +1266,15 @@ export default function TimetableDialog({
                                                         "ui.timetableScriptType"
                                                       ),
                                                   },
-                                                  {
-                                                    value:
-                                                      "movement",
-                                                    label:
-                                                      "Movement",
-                                                  },
+                                                  // Movement remains supported by storage/runtime;
+                                                  // hide it from new Timetable action selection for now.
+                                                  // {
+                                                  //                                                     value:
+                                                  //                                                       "movement",
+                                                  //                                                     label:
+                                                  //                                                       "Movement",
+                                                  //                                                   },
+                                                  { value: "fromto", label: "From–To" },
                                                 ]}
                                                 value={
                                                   action.targetType
@@ -1261,10 +1283,8 @@ export default function TimetableDialog({
                                                   value => {
                                                     const targetType =
                                                       (
-                                                        value ===
-                                                        "movement"
-                                                          ? "movement"
-                                                          : "script"
+                                                        value === "fromto" ? "fromto" :
+                                                        value === "movement" ? "movement" : "script"
                                                       ) as
                                                         TimetableTargetType;
 
@@ -1275,12 +1295,13 @@ export default function TimetableDialog({
                                                         ...current,
                                                         targetType,
                                                         targetId:
-                                                          targetType ===
-                                                            "movement"
-                                                            ? movements[0]?.id ??
-                                                              ""
-                                                            : scripts[0]?.id ??
-                                                              "",
+                                                          targetType === "fromto" ? "" :
+                                                          targetType === "movement"
+                                                            ? movements[0]?.id ?? ""
+                                                            : scripts[0]?.id ?? "",
+                                                        ...(targetType === "fromto"
+                                                          ? { routeRef: null, speed: 20 }
+                                                          : { routeRef: null }),
                                                       })
                                                     );
                                                   }
@@ -1292,7 +1313,12 @@ export default function TimetableDialog({
                                                 }}
                                               />
 
-                                              <Select
+                                              {action.targetType === "fromto" ? (
+                                                <Group gap={4} wrap="nowrap">
+                                                  <Text size="xs" w={225} truncate>{action.targetId ? `${action.targetId} · Speed ${action.speed ?? 20}` : "Select exact route"}</Text>
+                                                  <Button size="compact-xs" variant="light" onClick={() => setRoutePicker({ rowId: row.id, actionId: action.id })}>...</Button>
+                                                </Group>
+                                              ) : <Select
                                                 size="xs"
                                                 searchable
                                                 clearable={
@@ -1337,7 +1363,7 @@ export default function TimetableDialog({
                                                   flex:
                                                     "0 0 290px",
                                                 }}
-                                              />
+                                              />}
 
                                               <Tooltip
                                                 label={
@@ -1441,7 +1467,7 @@ export default function TimetableDialog({
                 </Table>
               </ScrollArea>
             )
-        }
+        )}
 
         <Group
           justify="space-between"
@@ -1512,17 +1538,7 @@ export default function TimetableDialog({
               loading={
                 saving
               }
-              disabled={
-                loading ||
-                (
-                  scripts.length ===
-                    0 &&
-                  movements.length ===
-                    0 &&
-                  rows.length >
-                    0
-                )
-              }
+              disabled={loading}
               onClick={
                 () => {
                   void persist();
@@ -1538,6 +1554,32 @@ export default function TimetableDialog({
           </Group>
         </Group>
       </Stack>
+      <RoutesDialog
+        opened={routePicker !== null}
+        onClose={() => setRoutePicker(null)}
+        layout={layout}
+        movements={movementDocument}
+        editingMovementId={null}
+        onMovementsChange={() => {}}
+        initialRoute={(() => {
+          const action = rows.find(row => row.id === routePicker?.rowId)
+            ?.actions.find(action => action.id === routePicker?.actionId);
+          return action?.routeRef
+            ? { name: action.targetId.replace(/ \((forward|reverse)\)$/i, ""),
+                speed: action.speed ?? 20, routeRef: action.routeRef }
+            : null;
+        })()}
+        onSelectRoute={page => {
+          if (!routePicker || !page.routeRef) return;
+          updateAction(routePicker.rowId, routePicker.actionId, current => ({
+            ...current, targetType: "fromto",
+            targetId: page.name + " (" + page.routeRef!.direction + ")",
+            routeRef: page.routeRef,
+            speed: page.speed,
+          }));
+          setRoutePicker(null);
+        }}
+      />
     </AppModal>
   );
 }

@@ -75,7 +75,8 @@ type ExpandedTimetableRow = {
   targetMissing: boolean;
   targetType:
     "script" |
-    "movement";
+    "movement" |
+    "fromto";
   isCurrent: boolean;
   activeRun: TimetableActiveRun | null;
 };
@@ -248,6 +249,7 @@ export default function TimetablePanel({
           const hasRunnableAction =
             entry.actions.some(
               action => {
+                if (action.targetType === "fromto") return !!action.routeRef && !!action.speed;
                 if (
                   action.targetType ===
                   "movement"
@@ -454,6 +456,7 @@ export default function TimetablePanel({
               }
 
               const target =
+                action.targetType === "fromto" ? (action.routeRef ? {name: action.targetId || "From–To"} : undefined) :
                 action.targetType ===
                   "movement"
                   ? movementsById.get(
@@ -478,6 +481,7 @@ export default function TimetablePanel({
                 targetName:
                   target?.name ??
                   (
+                    action.targetType === "fromto" ? "Missing From–To route" :
                     action.targetType ===
                       "movement"
                       ? t(
@@ -1017,6 +1021,7 @@ export default function TimetablePanel({
                               }
                             >
                               {
+                                row.targetType === "fromto" ? "From–To" :
                                 row.targetType ===
                                   "movement"
                                   ? "Movement"
@@ -1031,18 +1036,22 @@ export default function TimetablePanel({
                                 size="xs"
                                 variant="filled"
                                 color={
-                                  row.activeRun.status === "paused"
-                                    ? "yellow"
-                                    : row.activeRun.status === "launching"
-                                      ? "blue"
-                                      : "green"
+                                  row.activeRun.status === "error"
+                                    ? "red"
+                                    : row.activeRun.status === "paused"
+                                      ? "yellow"
+                                      : row.activeRun.status === "launching"
+                                        ? "blue"
+                                        : "green"
                                 }
                               >
-                                {row.activeRun.status === "paused"
-                                  ? t("ui.pausedShort")
-                                  : row.activeRun.status === "launching"
-                                    ? t("ui.launchingShort")
-                                    : t("ui.runningShort")}
+                                {row.activeRun.status === "error"
+                                  ? "ERROR"
+                                  : row.activeRun.status === "paused"
+                                    ? t("ui.pausedShort")
+                                    : row.activeRun.status === "launching"
+                                      ? t("ui.launchingShort")
+                                      : t("ui.runningShort")}
                               </Badge>
                             )}
                           </Group>

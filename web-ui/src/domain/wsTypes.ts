@@ -375,6 +375,25 @@ export type MovementRuntimeStatePayload = {
   error: string | null;
 };
 
+export type TrainDriverStatePayload = {
+  taskId: string;
+  movementId: string;
+  locoAddress: number;
+  name: string;
+  status: "created" | "running" | "waiting" | "paused" | "stopping" | "stopped" | "completed" | "aborted" | "error";
+  info: string | null;
+  error: string | null;
+  createdAt: number;
+};
+export type TrainDriverResponsePayload = {
+  requestId: string;
+  action: string;
+  ok: boolean;
+  error?: string | null;
+  state?: TrainDriverStatePayload | null;
+  states?: TrainDriverStatePayload[];
+};
+
 export type MovementResponsePayload = WsCommandResponseMeta & {
   extra?: {
     state?: MovementRuntimeStatePayload;
@@ -386,7 +405,8 @@ export type MovementResponsePayload = WsCommandResponseMeta & {
 export type TimetableRunStatusPayload =
   | "launching"
   | "running"
-  | "paused";
+  | "paused"
+  | "error";
 
 export type TimetableActiveRunPayload = {
   id: string;
@@ -394,7 +414,8 @@ export type TimetableActiveRunPayload = {
   timetableActionId: string;
   targetType:
     | "script"
-    | "movement";
+    | "movement"
+    | "fromto";
   targetId: string;
   targetName: string;
   executionId: string | null;
@@ -608,6 +629,8 @@ export type ServerWsPayloadMap = {
   movementStateChanged: MovementRuntimeStatePayload;
   movementSnapshot: { states: MovementRuntimeStatePayload[] };
   movementResponse: MovementResponsePayload;
+  trainDriverStateChanged: TrainDriverStatePayload;
+  trainDriverResponse: TrainDriverResponsePayload;
   safetyEmergencyStop: SafetyEmergencyStopPayload;
 
   automationScriptStateChanged: AutomationScriptRuntimeStatePayload;

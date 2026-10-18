@@ -41,6 +41,7 @@ export class ButtonElement extends ClickableBaseElement implements IButtonElemen
   private pulseTimer: number | null = null;
   constructor(x: number, y: number) {
     super(x, y);
+    this.layerName = "buttons";
     buttonInstances.add(this);
   }
   /**

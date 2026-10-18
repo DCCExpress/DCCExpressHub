@@ -223,9 +223,17 @@ export class TrackTravelDirectionResolver {
     const result: TopologyTrackElement[] = [];
 
     for (const connection of this.getConnectionPoints(element)) {
+      // The normal lookup follows the currently selected turnout leg.
+      // Direction propagation must also reach the other physical legs,
+      // regardless of how the turnout is thrown.
       const candidate =
         this.topology.getPhysicalTrackAt(
-          connection.point as any
+          connection.point as any,
+          element.pos
+        ) ??
+        this.topology.getTurnouts().find(turnout =>
+          connection.point.isEqual(turnout.pos) &&
+          this.getSideTowards(turnout, element) !== undefined
         );
 
       if (!candidate || candidate.id === element.id) {

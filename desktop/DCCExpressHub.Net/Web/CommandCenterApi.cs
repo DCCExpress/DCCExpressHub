@@ -69,7 +69,7 @@ public sealed class CommandCenterApi
 
     public HubApiResponse SaveLocoNetSerialSettings(bool enabled, string port, int baudRate)
     {
-        if (!string.Equals(_commandCenter.Type, "loconet-serial", StringComparison.OrdinalIgnoreCase) &&
+        if (_physical.GetLocoNetSerialDiagnostics() is null &&
             _physical.GetLocoNetDiagnostics() is null)
             return HubApiResponse.Error(400, new { ok = false, message = "LocoNet USB Serial is available only for YaMoRC YD7010." });
 
@@ -110,7 +110,8 @@ public sealed class CommandCenterApi
                 serialPort = x.IsSerial ? x.SerialPort : "",
                 baudRate =
                     x.IsSerial
-                        ? CommandCenterSettings.DccExSerialBaudRate
+                        ? (_physical.GetLocoNetSerialDiagnostics()?.BaudRate
+                           ?? CommandCenterSettings.DccExSerialBaudRate)
                         : 0,
                 powerIncludesProgramming =
                     x.PowerIncludesProgramming,
@@ -593,9 +594,9 @@ public sealed class CommandCenterApi
             _store.Current;
         var isLocoNet = string.Equals(
             _commandCenter.Type, "loconet", StringComparison.OrdinalIgnoreCase);
-        var isLocoNetSerial = string.Equals(
-            _commandCenter.Type, "loconet-serial", StringComparison.OrdinalIgnoreCase);
-        var isLocoNetProtocol = isLocoNet || isLocoNetSerial;
+        var isLocoNetSerial = isLocoNet && x.IsSerial;
+        var isLocoNetTcp = isLocoNet && !x.IsSerial;
+        var isLocoNetProtocol = isLocoNet;
 
         return HubApiResponse.Ok(
             new
@@ -610,7 +611,7 @@ public sealed class CommandCenterApi
                 defaultPort =
                     x.IsZ21
                         ? RocoZ21CommandCenter.DefaultPort
-                        : isLocoNet ? 1234 : isLocoNetSerial ? 0 : 2560,
+                        : isLocoNetSerial ? 0 : isLocoNetTcp ? 1234 : 2560,
                 defaultBaudRate =
                     CommandCenterSettings.DccExSerialBaudRate,
                 connected =
@@ -631,6 +632,20 @@ public sealed class CommandCenterApi
                     x.IsSerial
                         ? CommandCenterSettings.DccExSerialBaudRate
                         : 0,
+                hostDiagnostics = new
+                {
+                    machine = Environment.MachineName,
+                    os = System.Runtime.InteropServices.RuntimeInformation.OSDescription,
+                    processorCount = Environment.ProcessorCount,
+                    uptimeSeconds = (long)(Environment.TickCount64 / 1000),
+                    workingSetBytes = Environment.WorkingSet,
+                    managedHeapBytes = GC.GetTotalMemory(false),
+                    cpuTimeMs = (long)System.Diagnostics.Process.GetCurrentProcess().TotalProcessorTime.TotalMilliseconds,
+                    sampledAtMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+                },
+                locoNetDiagnostics = _physical.GetLocoNetDiagnostics(),
+                locoNetStandardTelemetry = _physical.GetLocoNetStandardTelemetry(),
+                locoNetSerialDiagnostics = _physical.GetLocoNetSerialDiagnostics(),
                 capabilities =
                     new
                     {

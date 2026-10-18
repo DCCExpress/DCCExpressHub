@@ -1,6 +1,9 @@
 import { showNotification } from "@mantine/notifications";
 import i18next from "i18next";
 import { useTranslation } from "react-i18next";
+import { useEffect, useState } from "react";
+import { Box, Group, Popover, Tooltip, useMantineColorScheme } from "@mantine/core";
+import { IconRoute, IconTrash, IconTrain } from "@tabler/icons-react";
 
 import type { Loco } from "@domain/types";
 import type { BlockElement } from "../../models/editor/elements/BlockElement";
@@ -16,6 +19,10 @@ export type TrackCanvasBlockLocoPickerProps = {
   locos: Loco[];
   selectedBlock: BlockElement | null;
   onClose: () => void;
+  onBeginBlockSelection?: (loco: Loco) => void;
+  blockSelectionActive?: boolean;
+  popupX?: number;
+  popupY?: number;
 };
 
 function showDisconnectedNotification(): void {
@@ -33,8 +40,15 @@ export function TrackCanvasBlockLocoPicker({
   locos,
   selectedBlock,
   onClose,
+  onBeginBlockSelection,
+  blockSelectionActive = false,
+  popupX = 0,
+  popupY = 0,
 }: TrackCanvasBlockLocoPickerProps) {
   useTranslation();
+  const { colorScheme } = useMantineColorScheme();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  useEffect(() => { if (opened) setPickerOpen(false); }, [opened, selectedBlock?.id]);
 
   /*
    * Actual and target locomotive state are separate.
@@ -83,25 +97,62 @@ export function TrackCanvasBlockLocoPicker({
       )
     );
 
+  const removeBlockLoco = () => {
+    if (!selectedBlock || !canRemoveLoco) return;
+    const blockId = String(selectedBlock.id);
+    if (!wsApi.setBlockRemove(blockId, null)) {
+      showDisconnectedNotification();
+      return;
+    }
+    clearOptimisticBlockTargetLoco(blockId);
+    selectedBlock.locoAddress = 0;
+    selectedBlock.runtimeTransitLocoAddress = 0;
+    wsApi.getBlocks();
+    onClose();
+  };
+
+  const routeLoco = locos.find(loco => loco.address === selectedBlock?.locoAddress);
   return (
+    <>
+    <Popover opened={opened && !pickerOpen && !blockSelectionActive} onChange={value => { if (!value) onClose(); }}
+      withinPortal withArrow shadow="xl" zIndex={2100} position="bottom" offset={14} closeOnClickOutside closeOnEscape>
+      <Popover.Target>
+        <Box style={{ position: "fixed", left: popupX, top: popupY, width: 0, height: 0, pointerEvents: "none" }}/>
+      </Popover.Target>
+      <Popover.Dropdown p={4} style={{ background: "var(--mantine-color-dark-7)", touchAction: "manipulation" }} onPointerDown={event => event.stopPropagation()} onMouseDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()}>
+        <Group gap={4} wrap="nowrap">
+          {([
+            { key: "remove", label: "Remove locomotive", disabled: !canRemoveLoco, icon: <IconTrash size={28} />, action: removeBlockLoco },
+            { key: "select", label: "Select locomotive", disabled: false, icon: <IconTrain size={28} />, action: () => setPickerOpen(true) },
+            { key: "route", label: "Drive to Block", disabled: !routeLoco || !onBeginBlockSelection, icon: <IconRoute size={28} />,
+              action: () => { if (routeLoco && onBeginBlockSelection) { onBeginBlockSelection(routeLoco); onClose(); } } },
+          ] as const).map(button => (
+            <Tooltip key={button.key} label={button.label}>
+              <Box component="button" type="button" className="signal-aspect-button"
+                aria-label={button.label} disabled={button.disabled}
+                onPointerDown={event => event.stopPropagation()}
+                onClick={button.action}
+                style={{ width: 76, height: 76, padding: 0, boxSizing: "border-box",
+                  border: `1px solid ${colorScheme === "dark" ? "#666" : "black"}`, borderRadius: 4,
+                  display: "grid", placeItems: "center", color: "var(--mantine-color-text)",
+                  background: colorScheme === "dark" ? "var(--mantine-color-dark-7)" : "var(--mantine-color-gray-4)",
+                  cursor: button.disabled ? "not-allowed" : "pointer",
+                  opacity: button.disabled ? 0.35 : 1, touchAction: "manipulation" }}>
+                {button.icon}
+              </Box>
+            </Tooltip>
+          ))}
+        </Group>
+      </Popover.Dropdown>
+    </Popover>
     <LocoPicker
-      opened={opened}
+      opened={opened && pickerOpen && !blockSelectionActive}
       locos={locos}
       selectedLocoId={selectedLocoId}
-      removeEnabled={canRemoveLoco}
       title={
-        selectedBlock?.name &&
-        selectedBlock.name !== "element"
-          ? i18next.t(
-              "ui.block",
-              {
-                value1:
-                  selectedBlock.name,
-              }
-            )
-          : i18next.t(
-              "ui.assignLocomotiveToBlock"
-            )
+        selectedBlock?.name && selectedBlock.name !== "element"
+          ? i18next.t("ui.block", { value1: selectedBlock.name })
+          : i18next.t("ui.assignLocomotiveToBlock")
       }
       onClose={onClose}
       onSelect={loco => {
@@ -153,54 +204,7 @@ export function TrackCanvasBlockLocoPicker({
 
         onClose();
       }}
-      onRemoveLoco={() => {
-        if (!selectedBlock) {
-          return;
-        }
-
-        const blockId =
-          String(
-            selectedBlock.id
-          );
-
-        /*
-         * null means EMPTY THIS BLOCK unconditionally.
-         *
-         * This intentionally clears BOTH:
-         * - a normal actual locomotive assignment;
-         * - a target-only marker created by dispatcher/setBlockTargetLoco.
-         *
-         * Do not depend on a possibly stale locally resolved locoId.
-         */
-        const sent =
-          wsApi.setBlockRemove(
-            blockId,
-            null
-          );
-
-        if (!sent) {
-          showDisconnectedNotification();
-          return;
-        }
-
-        clearOptimisticBlockTargetLoco(
-          blockId
-        );
-
-        selectedBlock.locoAddress =
-          0;
-
-        selectedBlock.runtimeTransitLocoAddress =
-          0;
-
-        /*
-         * Ask the Hub for its final authoritative state. This also corrects
-         * the optimistic local clear if the Hub rejects the operation.
-         */
-        wsApi.getBlocks();
-
-        onClose();
-      }}
     />
+    </>
   );
 }

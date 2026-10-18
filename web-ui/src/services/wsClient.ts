@@ -386,6 +386,15 @@ class WsClient {
         return this.status;
     }
 
+    /**
+     * Copy the latest authoritative sensor feedback. Addresses absent from
+     * this map are UNKNOWN, never implicitly FREE. The transport cache is
+     * invalidated on disconnect and on an authoritative sensorSnapshot.
+     */
+    public getSensorStatesSnapshot(): ReadonlyMap<number, boolean> {
+        return new Map(this.latestSensorStates);
+    }
+
     public getLatestLocoState(
         address: number
     ): ServerWsPayloadMap["locoState"]["loco"] | null {

@@ -40,6 +40,7 @@ export type CalibrationStartRequest = {
   routeLengthMm: number;
   maxSpeed: number;
   speedStep: number;
+  routeConfirmed: boolean;
 };
 
 async function jsonRequest<T>(

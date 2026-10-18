@@ -59,6 +59,8 @@
     "loco_functions": "Funktionen",
     "loco_length_mm": "Länge (mm)",
     "loco_max_speed": "Maximale Geschwindigkeit",
+    "loco_cruising_speed": "Reisegeschwindigkeit",
+    "loco_cruising_speed_description": "Standard-DCC-Fahrstufe für Drive to Block",
     "loco_speed_max": "Max.",
     "locoaddress": "Adresse",
     "locomotives": "Lokomotiven",
@@ -620,5 +622,21 @@
     "allStarted": "Alle Aufgaben gestartet.",
     "allFinishing": "Alle Aufgaben zum Beenden markiert.",
     "allAborted": "Alle aktiven Aufgaben abgebrochen."
+  },
+  "precisionBrakingMeasurement": {
+    "title": "Precision Braking — Blockpositionen",
+    "diagramAria": "Bremsblöcke A und C. Der Pfeil misst den positiven Einfahrweg von der gestrichelten Blockgrenze zur Zugspitze.",
+    "forward": "Vorwärts",
+    "distance": "Abstand (mm)",
+    "pull": "Ziehen",
+    "push": "Schieben",
+    "locomotive": "Lok",
+    "wagons": "Wagen",
+    "diagramHelp": "Miss, wie weit die ZUGSPITZE in den Zielblock eingefahren ist. Vorwärts (rechts): rechte Zugkante; rückwärts (links): linke Zugkante. Bei A von der rechten gestrichelten Grenze, bei C von der linken. Immer einen positiven Wert eingeben. Nicht maßstabsgetreu.",
+    "measureHelp": "Gib nur EINEN POSITIVEN Abstand in mm ein: wie weit die ZUGSPITZE über die gestrichelte Einfahrgrenze in den Zielblock gefahren ist. Vorwärts nach rechts: rechte Zugkante. Rückwärts nach links: linke Zugkante. Das Zugende wird aus der Zuglänge berechnet.",
+    "fieldHint": "Blockeinfahrtssensor → führende Zugkante IM Block (> 0 mm)",
+    "positionReport": "Einfahrt der Zugspitze: {{front}} mm · Berechnetes Zugende: {{rear}} mm · Platz bis zum Blockende: {{clearance}} mm",
+    "rearOutside": "Das berechnete Zugende ragt um {{distance}} mm über die Einfahrgrenze hinaus.",
+    "frontOutside": "Die Zugspitze ragt um {{distance}} mm über das Blockende hinaus."
   }
 }

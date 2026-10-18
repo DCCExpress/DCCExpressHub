@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using DCCExpressHub.Net.CommandCenter;
 
 namespace DCCExpressHub.Net.Web;
 
@@ -10,7 +11,8 @@ public sealed record CalibrationStartRequest(
     string RouteLabel,
     double RouteLengthMm,
     int MaxSpeed,
-    int SpeedStep);
+    int SpeedStep,
+    bool RouteConfirmed = false);
 
 public sealed record CalibrationResultRow(
     int SpeedStep,
@@ -37,6 +39,10 @@ public sealed class CalibrationRuntime
 {
     readonly object _gate = new();
     readonly MovementRuntime _movement;
+    readonly MovementPlanBuilder _planBuilder;
+    readonly DispatcherRuntime _dispatcher;
+    readonly LayoutRuntime _layout;
+    readonly ICommandCenter _commandCenter;
     readonly ScriptRuntime _scripts;
     readonly FlowRuntime _flows;
     readonly TimetableRuntime _timetable;
@@ -47,6 +53,7 @@ public sealed class CalibrationRuntime
 
     CancellationTokenSource? _cancellation;
     string? _currentPageId;
+    bool _forward;
     CalibrationStartRequest? _request;
     readonly List<CalibrationResultRow> _results = [];
 
@@ -71,6 +78,10 @@ public sealed class CalibrationRuntime
 
     public CalibrationRuntime(
         MovementRuntime movement,
+        MovementPlanBuilder planBuilder,
+        DispatcherRuntime dispatcher,
+        LayoutRuntime layout,
+        ICommandCenter commandCenter,
         ScriptRuntime scripts,
         FlowRuntime flows,
         TimetableRuntime timetable,
@@ -80,6 +91,10 @@ public sealed class CalibrationRuntime
         ILogger<CalibrationRuntime> log)
     {
         _movement = movement;
+        _planBuilder = planBuilder;
+        _dispatcher = dispatcher;
+        _layout = layout;
+        _commandCenter = commandCenter;
         _scripts = scripts;
         _flows = flows;
         _timetable = timetable;
@@ -135,6 +150,8 @@ public sealed class CalibrationRuntime
     public (bool Ok, string? Error) Start(
         CalibrationStartRequest request)
     {
+        if (!request.RouteConfirmed)
+            return (false, "calibration_route_confirmation_required");
         if (request.LocoAddress is < 1 or > 9999)
             return (
                 false,
@@ -262,146 +279,217 @@ public sealed class CalibrationRuntime
             null);
     }
 
+    static MovementRouteRefModel ReverseRouteRef(MovementRouteRefModel route) =>
+        new()
+        {
+            FromBlockId = route.ToBlockId,
+            ToBlockId = route.FromBlockId,
+            Direction = route.Direction == "forward" ? "reverse" : "forward",
+            ViaBlockIds = (route.ViaBlockIds ?? []).Reverse().ToArray()
+        };
+
     async Task RunCalibration(
         CalibrationStartRequest request,
         CancellationTokenSource cancellation)
     {
         try
         {
-            for (
-                var speed =
-                    request.SpeedStep;
-                speed <=
-                    request.MaxSpeed;
-                speed +=
-                    request.SpeedStep)
+            // Each step gets a full outbound and return measurement. No leg
+            // handover during measurement; reservations are reacquired before
+            // the direction is reversed.
+            for (var speed = request.SpeedStep; speed <= request.MaxSpeed;
+                 speed += request.SpeedStep)
             {
                 cancellation.Token.ThrowIfCancellationRequested();
-
-                await RunPass(
-                    request,
-                    speed,
-                    "outbound",
-                    request.RouteRef,
-                    cancellation.Token);
-
+                await RunCalibrationPass(request, request.RouteRef,
+                    speed, "outbound", cancellation.Token);
                 cancellation.Token.ThrowIfCancellationRequested();
-
-                await Task.Delay(
-                    350,
-                    cancellation.Token);
-
-                await RunPass(
-                    request,
-                    speed,
-                    "return",
-                    ReverseRouteRef(
-                        request.RouteRef),
-                    cancellation.Token);
-
-                cancellation.Token.ThrowIfCancellationRequested();
-
-                await PersistResults(
-                    request);
-
-                await Task.Delay(
-                    350,
-                    cancellation.Token);
+                await Task.Delay(350, cancellation.Token);
+                await RunCalibrationPass(request, ReverseRouteRef(request.RouteRef),
+                    speed, "return", cancellation.Token);
+                await PersistResults(request);
+                await Task.Delay(350, cancellation.Token);
             }
-
             lock (_gate)
-                _state =
-                    Snapshot() with
-                    {
-                        Status =
-                            "completed",
-                        CurrentSpeed =
-                            null,
-                        CurrentDirection =
-                            null,
-                        Info =
-                            "Calibration completed",
-                        Error =
-                            null
-                    };
-
-            await PersistResults(
-                request);
+                _state = Snapshot() with {
+                    Status = "completed", CurrentSpeed = null,
+                    CurrentDirection = null, Info = "Calibration completed",
+                    Error = null
+                };
         }
         catch (OperationCanceledException)
         {
             lock (_gate)
-                _state =
-                    Snapshot() with
-                    {
-                        Status =
-                            "idle",
-                        CurrentSpeed =
-                            null,
-                        CurrentDirection =
-                            null,
-                        Info =
-                            "Calibration stopped"
-                    };
+                _state = Snapshot() with {
+                    Status = "idle", CurrentSpeed = null,
+                    CurrentDirection = null, Info = "Calibration stopped"
+                };
         }
         catch (Exception ex)
         {
-            _log.LogError(
-                ex,
-                "Locomotive calibration failed");
-
+            _log.LogError(ex, "Calibration failed");
             lock (_gate)
-                _state =
-                    Snapshot() with
-                    {
-                        Status =
-                            "error",
-                        CurrentSpeed =
-                            null,
-                        CurrentDirection =
-                            null,
-                        Info =
-                            "Calibration failed",
-                        Error =
-                            ex.Message
-                    };
+                _state = Snapshot() with {
+                    Status = "error", CurrentSpeed = null,
+                    CurrentDirection = null, Error = ex.Message,
+                    Info = "Calibration failed"
+                };
         }
         finally
         {
-            try
-            {
-                await PersistResults(
-                    request);
+            try { await PersistResults(request); }
+            catch (Exception ex) {
+                _log.LogWarning(ex, "Calibration persistence failed");
             }
-            catch (Exception ex)
-            {
-                _log.LogWarning(
-                    ex,
-                    "Partial locomotive calibration results could not be persisted");
-            }
-
-            string? pageId;
-
-            lock (_gate)
-                pageId =
-                    _currentPageId;
-
-            if (!string.IsNullOrWhiteSpace(
-                    pageId))
-                _movement.Stop(
-                    pageId);
-
             lock (_gate)
             {
-                _currentPageId =
-                    null;
-
                 _cancellation?.Dispose();
-                _cancellation =
-                    null;
+                _cancellation = null;
             }
-
             _exclusiveGate.ExitCalibration();
+        }
+    }
+
+    async Task RunCalibrationPass(
+        CalibrationStartRequest request,
+        MovementRouteRefModel routeRef,
+        int speed,
+        string direction,
+        CancellationToken token)
+    {
+        string? owner = null;
+        bool moving = false;
+        try
+        {
+            var page = new MovementPageModel
+            {
+                Id = "calibration:" + Guid.NewGuid().ToString("N"),
+                Name = "Speed Calibration",
+                Enabled = true,
+                Speed = speed,
+                RouteRef = routeRef,
+                ExpectedLocoAddress = request.LocoAddress,
+                BlockRules = [],
+                ResourceEventRules = [],
+                SafetyRules = [],
+                Actions = []
+            };
+            var plan = _planBuilder.Build(page);
+            if (plan.Direction is not ("forward" or "reverse") ||
+                plan.Blocks.Length < 2 || plan.Legs.Length == 0)
+                throw new InvalidOperationException("calibration_invalid_route");
+            var source = plan.Blocks[0];
+            var destination = plan.Blocks[^1];
+            if (source.BlockId is not > 0 || destination.BlockId is not > 0 ||
+                source.SensorAddress is not > 0 || destination.SensorAddress is not > 0)
+                throw new InvalidOperationException("calibration_endpoint_sensor_missing");
+
+            var groupedTurnouts = plan.Legs.SelectMany(leg => leg.TurnoutStates)
+                .GroupBy(turnout => turnout.Address).ToArray();
+            if (groupedTurnouts.Any(group => group.Select(t => t.Closed).Distinct().Count() > 1))
+                throw new InvalidOperationException("calibration_conflicting_turnouts");
+            var turnouts = groupedTurnouts.Select(group => group.First()).ToArray();
+            var blocks = plan.Blocks.Skip(1).Select(block =>
+            {
+                if (block.BlockId is not > 0 || block.SensorAddress is not > 0)
+                    throw new InvalidOperationException("calibration_route_block_sensor_missing");
+                return new DispatcherRouteBlockRequirement(
+                    checked((ushort)block.BlockId.Value),
+                    checked((ushort)block.SensorAddress.Value));
+            }).ToArray();
+            var tokens = plan.Legs.SelectMany(leg => leg.Resources)
+                .Where(resource => resource.Kind == "segment")
+                .Select(resource => DispatcherRuntime.ResourceToken("segment:" + resource.Name))
+                .Distinct().ToArray();
+
+            owner = page.Id;
+            _forward = plan.Direction == "forward";
+            lock (_gate)
+                _state = Snapshot() with { Info = "Preparing full route and locking turnouts" };
+            var reservation = await _dispatcher.AcquireRouteAsync(
+                new DispatcherRouteRequest(owner, "Speed Calibration",
+                    checked((ushort)request.LocoAddress),
+                    checked((ushort)source.BlockId.Value),
+                    blocks, turnouts, tokens), token);
+            if (!reservation.Ok || reservation.Lease is null)
+                throw new InvalidOperationException(
+                    reservation.Error ?? "calibration_route_reservation_failed");
+            token.ThrowIfCancellationRequested();
+
+            var startSensor = checked((ushort)source.SensorAddress.Value);
+            var endSensor = checked((ushort)destination.SensorAddress.Value);
+            if (!_layout.TryGetSensorState(startSensor, out var sourceOn) || !sourceOn ||
+                !_layout.TryGetSensorState(endSensor, out var endOn) || endOn)
+                throw new InvalidOperationException("calibration_endpoint_sensors_not_ready");
+
+            lock (_gate)
+                _state = Snapshot() with {
+                    CurrentSpeed = speed, CurrentDirection = direction,
+                    Info = "Full route locked: " + direction + " at speed " + speed
+                };
+            if (!await _commandCenter.SetLocoAsync(
+                    request.LocoAddress, speed, _forward, token))
+                throw new InvalidOperationException("calibration_loco_start_failed");
+            moving = true;
+            long? departedAt = null;
+            long? elapsed = null;
+            var deadline = Environment.TickCount64 + 10 * 60 * 1000;
+            while (Environment.TickCount64 < deadline)
+            {
+                token.ThrowIfCancellationRequested();
+                if (!_dispatcher.RouteSnapshot().Any(lease => lease.OwnerId == owner))
+                    throw new InvalidOperationException("calibration_route_authority_lost");
+                if (!_layout.TryGetSensorState(startSensor, out sourceOn) ||
+                    !_layout.TryGetSensorState(endSensor, out endOn))
+                    throw new InvalidOperationException("calibration_endpoint_sensor_unknown");
+                if (!sourceOn && departedAt is null)
+                    departedAt = Environment.TickCount64;
+                if (endOn)
+                {
+                    if (departedAt is null)
+                        throw new InvalidOperationException("calibration_arrived_before_departure");
+                    elapsed = Math.Max(1, Environment.TickCount64 - departedAt.Value);
+                    break;
+                }
+                await Task.Delay(10, token);
+            }
+            if (elapsed is null)
+                throw new TimeoutException("calibration_endpoint_timeout");
+
+            // Stop before publishing a result or releasing turnout authority.
+            if (!await _commandCenter.SetLocoAsync(
+                    request.LocoAddress, 0, _forward, CancellationToken.None))
+                throw new InvalidOperationException("calibration_loco_stop_failed");
+            moving = false;
+            var row = new CalibrationResultRow(speed, direction, elapsed.Value,
+                Math.Round(request.RouteLengthMm * 1000d / elapsed.Value, 3));
+            lock (_gate)
+            {
+                _results.Add(row);
+                _state = Snapshot() with {
+                    Status = "running", CurrentSpeed = null, CurrentDirection = null,
+                    Info = "Measured " + row.MillimetersPerSecond.ToString("0.###") + " mm/s",
+                    Error = null
+                };
+            }
+        }
+        finally
+        {
+            if (moving)
+            {
+                try
+                {
+                    if (!await _commandCenter.SetLocoAsync(
+                        request.LocoAddress, 0, _forward, CancellationToken.None))
+                        _movement.EmergencyStop();
+                }
+                catch (Exception ex)
+                {
+                    _log.LogError(ex, "Calibration stop failed; E-STOP requested");
+                    _movement.EmergencyStop();
+                }
+            }
+            if (owner is not null) _dispatcher.ReleaseRoute(owner);
         }
     }
 
@@ -432,241 +520,6 @@ public sealed class CalibrationRuntime
                     .Distinct()
                     .ToArray()
         };
-
-    static MovementRouteRefModel ReverseRouteRef(
-        MovementRouteRefModel routeRef) =>
-        new()
-        {
-            FromBlockId =
-                routeRef.ToBlockId,
-            ToBlockId =
-                routeRef.FromBlockId,
-            Direction =
-                routeRef.Direction == "forward"
-                    ? "reverse"
-                    : "forward",
-            ViaBlockIds =
-                (routeRef.ViaBlockIds ?? [])
-                    .Reverse()
-                    .ToArray()
-        };
-
-    async Task RunPass(
-        CalibrationStartRequest request,
-        int speed,
-        string direction,
-        MovementRouteRefModel routeRef,
-        CancellationToken cancellationToken)
-    {
-        var pageId =
-            "calibration:" +
-            Guid.NewGuid()
-                .ToString("N");
-
-        lock (_gate)
-        {
-            _currentPageId =
-                pageId;
-
-            _state =
-                Snapshot() with
-                {
-                    Status =
-                        "running",
-                    CurrentSpeed =
-                        speed,
-                    CurrentDirection =
-                        direction,
-                    Info =
-                        "Running " +
-                        direction +
-                        " at speed " +
-                        speed,
-                    Error =
-                        null
-                };
-        }
-
-        var started =
-            new TaskCompletionSource<long>(
-                TaskCreationOptions.RunContinuationsAsynchronously);
-
-        var arrived =
-            new TaskCompletionSource<long>(
-                TaskCreationOptions.RunContinuationsAsynchronously);
-
-        var terminal =
-            new TaskCompletionSource<MovementRuntimeState>(
-                TaskCreationOptions.RunContinuationsAsynchronously);
-
-        void OnMotionStarted(
-            string id,
-            long timestamp)
-        {
-            if (id == pageId)
-                started.TrySetResult(
-                    timestamp);
-        }
-
-        void OnDestinationArrived(
-            string id,
-            long timestamp)
-        {
-            if (id == pageId)
-                arrived.TrySetResult(
-                    timestamp);
-        }
-
-        void OnChanged(
-            MovementRuntimeState state)
-        {
-            if (state.PageId != pageId)
-                return;
-
-            if (state.Status ==
-                    "error" ||
-                (
-                    state.Status ==
-                        "idle" &&
-                    state.StoppedAt.HasValue
-                ))
-                terminal.TrySetResult(
-                    state);
-        }
-
-        _movement.MotionStarted +=
-            OnMotionStarted;
-        _movement.DestinationArrived +=
-            OnDestinationArrived;
-        _movement.Changed +=
-            OnChanged;
-
-        try
-        {
-            using var registration =
-                cancellationToken.Register(
-                    () =>
-                    {
-                        started.TrySetCanceled(
-                            cancellationToken);
-
-                        arrived.TrySetCanceled(
-                            cancellationToken);
-
-                        terminal.TrySetCanceled(
-                            cancellationToken);
-                    });
-
-            var page =
-                new MovementPageModel
-                {
-                    Id =
-                        pageId,
-                    Name =
-                        "Calibration",
-                    Enabled =
-                        true,
-                    Speed =
-                        speed,
-                    RouteRef =
-                        routeRef,
-                    ExpectedLocoAddress =
-                        request.LocoAddress,
-                    BlockRules =
-                        [],
-                    ResourceEventRules =
-                        [],
-                    SafetyRules =
-                        [],
-                    Actions =
-                        []
-                };
-
-            var result =
-                _movement.StartTransient(
-                    page);
-
-            if (!result.Ok)
-                throw new InvalidOperationException(
-                    result.Error ??
-                    "calibration_movement_start_failed");
-
-            var startedAt =
-                await started.Task.WaitAsync(
-                    cancellationToken);
-
-            var arrivedAt =
-                await arrived.Task.WaitAsync(
-                    cancellationToken);
-
-            var terminalState =
-                await terminal.Task.WaitAsync(
-                    cancellationToken);
-
-            if (terminalState.Status ==
-                "error")
-                throw new InvalidOperationException(
-                    terminalState.Error ??
-                    "calibration_movement_failed");
-
-            var elapsedMs =
-                Math.Max(
-                    1,
-                    arrivedAt -
-                    startedAt);
-
-            var mmPerSecond =
-                request.RouteLengthMm /
-                (
-                    elapsedMs /
-                    1000d
-                );
-
-            var row =
-                new CalibrationResultRow(
-                    speed,
-                    direction,
-                    elapsedMs,
-                    Math.Round(
-                        mmPerSecond,
-                        3));
-
-            lock (_gate)
-            {
-                _results.Add(
-                    row);
-
-                _state =
-                    Snapshot() with
-                    {
-                        Info =
-                            "Measured " +
-                            direction +
-                            " speed " +
-                            speed +
-                            ": " +
-                            row.MillimetersPerSecond
-                                .ToString("0.###") +
-                            " mm/s"
-                    };
-            }
-        }
-        finally
-        {
-            _movement.MotionStarted -=
-                OnMotionStarted;
-            _movement.DestinationArrived -=
-                OnDestinationArrived;
-            _movement.Changed -=
-                OnChanged;
-
-            lock (_gate)
-                if (_currentPageId ==
-                    pageId)
-                    _currentPageId =
-                        null;
-        }
-    }
 
     async Task PersistResults(
         CalibrationStartRequest request)
@@ -809,78 +662,20 @@ public sealed class CalibrationRuntime
 
     public bool Stop()
     {
-        string? pageId;
         CancellationTokenSource? cancellation;
-
-        lock (_gate)
-        {
-            pageId =
-                _currentPageId;
-            cancellation =
-                _cancellation;
-        }
-
-        if (cancellation is null)
-            return false;
-
-        if (!string.IsNullOrWhiteSpace(
-                pageId))
-            _movement.Stop(
-                pageId);
-
+        lock (_gate) cancellation = _cancellation;
+        if (cancellation is null) return false;
         cancellation.Cancel();
         return true;
     }
 
-    public bool Abort(
-        bool emergencyStop)
+    public bool Abort(bool emergencyStop)
     {
-        string? pageId;
         CancellationTokenSource? cancellation;
-
-        lock (_gate)
-        {
-            pageId =
-                _currentPageId;
-            cancellation =
-                _cancellation;
-        }
-
-        if (emergencyStop &&
-            cancellation is null)
-        {
-            /*
-             * E-STOP is a global safety command. It must remain available
-             * after a normal calibration Stop because a locomotive can still
-             * be coasting physically even though the calibration runtime is
-             * already idle.
-             */
-            _movement.EmergencyStop();
-            return true;
-        }
-
-        if (cancellation is null)
-            return false;
-
-        if (!string.IsNullOrWhiteSpace(
-                pageId))
-        {
-            _movement.Abort(
-                pageId,
-                emergencyStop);
-        }
-        else if (emergencyStop)
-        {
-            /*
-             * Between outbound/return passes there is no active transient
-             * Movement to abort, but E-STOP must still reach the command
-             * station immediately.
-             */
-            _movement.EmergencyStop();
-        }
-
+        lock (_gate) cancellation = _cancellation;
+        if (emergencyStop) _movement.EmergencyStop();
+        if (cancellation is null) return emergencyStop;
         cancellation.Cancel();
-
         return true;
     }
 }

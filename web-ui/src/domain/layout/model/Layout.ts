@@ -66,6 +66,7 @@ export class Layout<
   ) {
     this.layers = [
       this.layerFactory("buildings", "Épületek"),
+      this.layerFactory("buttons", "Buttons"),
       this.layerFactory("blocks", "Blokkok"),
       this.layerFactory("sensors", "Sensors"),
       this.layerFactory("signals", "Signals"),
@@ -94,6 +95,7 @@ export class Layout<
   public get sensors(): TLayer { return this.requireLayer("sensors"); }
   public get signals(): TLayer { return this.requireLayer("signals"); }
   public get buildings(): TLayer { return this.requireLayer("buildings"); }
+  public get buttons(): TLayer { return this.requireLayer("buttons"); }
 
   public addLayer(id: LayerId, name: string, options?: LayerOptions): TLayer {
     const existing = this.getLayer(id);
@@ -164,7 +166,15 @@ export class Layout<
   }
 
   public addElement(element: TElement, layerId?: LayerId): void {
-    const layer = layerId ? this.requireLayer(layerId) : this.activeLayer;
+    const buttonTypes = new Set<string>([
+      ELEMENT_TYPES.BUTTON, ELEMENT_TYPES.BUTTON_SCRIPT,
+      ELEMENT_TYPES.BUTTON_AUDIO, ELEMENT_TYPES.BUTTON_AUDIO_LIST,
+      ELEMENT_TYPES.BUTTON_EMERGENCY,
+      ELEMENT_TYPES.BUTTON_ROUTE, ELEMENT_TYPES.BUTTON_ROUTE_EXTENDED,
+    ]);
+    const destination = buttonTypes.has(element.type) ? "buttons" : layerId;
+    const layer = destination ? this.requireLayer(destination) : this.activeLayer;
+    if (buttonTypes.has(element.type)) element.layerName = "buttons";
     if (layer.locked) return;
 
     const duplicate =
@@ -204,6 +214,7 @@ export class Layout<
       ...this.signals.elements,
       ...this.sensors.elements,
       ...this.buildings.elements,
+      ...this.buttons.elements,
     ];
   }
 

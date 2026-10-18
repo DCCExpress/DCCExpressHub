@@ -1,3 +1,4 @@
+import { normalizeStationRoutes, type StationRouteDefinition } from "@/domain/layout/stationRoutes";
 import type {
   Loco,
 } from "@domain/types";
@@ -323,11 +324,21 @@ export type CheckRoutesResult = {
 /** Kliensoldali layout-view. */
 export class LayoutView
   extends CommonLayout<BaseElement, LayerView> {
+  stations: Array<{ id: string; name: string }> = [];
+  stationRoutes: StationRouteDefinition[] = [];
   constructor() {
     super(
       (id, name, options) =>
         new LayerView(id, name, options)
     );
+  }
+
+  override getElement(x: number, y: number): BaseElement | null {
+    // Raised bridge is the topmost selectable rail at a shared anchor.
+    const bridge = this.track.elements.find(element =>
+      element.type === ELEMENT_TYPES.TRACK_BRIDGE && element.hitTest(x, y)
+    );
+    return bridge ?? super.getElement(x, y);
   }
 
   override removeElement(
@@ -370,38 +381,22 @@ export class LayoutView
 
   getSelected(): BaseElement | null {
     for (const layer of [
-      this.track,
-      this.blocks,
-      this.signals,
-      this.sensors,
-      this.buildings,
+      this.track, this.blocks, this.signals, this.sensors,
+      this.buildings, this.buttons,
     ]) {
+      if (!layer.visible) continue;
       for (const element of layer.elements) {
-        if (element.selected) {
-          return element;
-        }
+        if (element.visible && element.selected) return element;
       }
     }
-
     return null;
   }
 
   setSelected(element: BaseElement): void {
     this.unselectAll();
-
-    for (const layer of [
-      this.track,
-      this.blocks,
-      this.signals,
-      this.sensors,
-      this.buildings,
-    ]) {
-      for (const current of layer.elements) {
-        if (current.id === element.id) {
-          current.selected = true;
-        }
-      }
-    }
+    const layer = this.findLayerOfElement(element);
+    if (!layer?.visible || !element.visible) return;
+    element.selected = true;
   }
 
   unselectAll(): void {
@@ -411,6 +406,7 @@ export class LayoutView
       this.signals,
       this.sensors,
       this.buildings,
+      this.buttons,
     ]) {
       for (const element of layer.elements) {
         element.selected = false;
@@ -422,7 +418,9 @@ export class LayoutView
     ctx: CanvasRenderingContext2D,
     options: DrawOptions
   ): void {
-    this.track.draw(ctx, options);
+    // Render elevated bridge rails above the ordinary track.
+    for (const element of this.track.elements) if (element.type !== ELEMENT_TYPES.TRACK_BRIDGE) element.draw(ctx, options);
+    for (const element of this.track.elements) if (element.type === ELEMENT_TYPES.TRACK_BRIDGE) element.draw(ctx, options);
     this.sensors.draw(ctx, options);
     this.signals.draw(ctx, options);
     this.blocks.draw(ctx, options);
@@ -430,6 +428,7 @@ export class LayoutView
     if (options.showBuildings !== false) {
       this.buildings.draw(ctx, options);
     }
+    this.buttons.draw(ctx, options);
 
     this.getAllElements().forEach(
       element => {
@@ -475,6 +474,11 @@ export class LayoutView
 
     layout.gridSize =
       source.gridSize ?? 40;
+    layout.stationRoutes = normalizeStationRoutes(source.stationRoutes);
+    layout.stations = Array.isArray(source.stations)
+      ? source.stations.filter(item => item && typeof item.id === "string" && typeof item.name === "string")
+          .map(item => ({ id: item.id, name: item.name }))
+      : [];
 
     if (source._activeLayerId) {
       layout.activeLayerId =
@@ -510,6 +514,28 @@ export class LayoutView
             .map(normalizeLegacyElementType) as LayoutElementDto[]
         );
     }
+
+    // Legacy layout files often store buttons under buildings or track.
+    // Move by actual element type, preserving IDs and all button properties.
+    const buttonTypes = new Set<string>([
+      "button", "buttonscript", "audiobutton", "audiolistbutton",
+      "routebutton", "extendedroutebutton",
+    ]);
+    for (const layerData of source.layers) {
+      const layer = layout.getLayer(layerData.id as LayerId);
+      if (!layer || layer === layout.buttons) continue;
+      const retained: BaseElement[] = [];
+      for (const element of layer.elements) {
+        if (buttonTypes.has(element.type)) {
+          element.layerName = "buttons";
+          layout.buttons.elements.push(element);
+        } else {
+          retained.push(element);
+        }
+      }
+      layer.elements = retained;
+    }
+    for (const element of layout.buttons.elements) element.layerName = "buttons";
 
     // The raw migration guarantees stable unique IDs. Rebuild synchronizes the
     // allocator so every subsequently added/cloned element continues at max+1.
@@ -665,6 +691,67 @@ export class LayoutView
     );
   }
 
+  /**
+   * A RouteButton may command just one turnout while its selected rail line
+   * passes through arbitrarily many *other* turnouts.
+   *
+   * Before painting an unconfigured turnout, follow only its ACTUAL active
+   * inlet/outlet pair and the active pairs of any following turnouts. The
+   * continuation is valid only when that chain reaches a connected ordinary
+   * track element. A turnout leading into a wrong-facing or disconnected
+   * turnout is not itself a confirmed continuation, and must remain unmarked.
+   *
+   * Check without painting; a failed lookahead must not leave yellow turnouts.
+   * Visiting (turnout, entry port) rather than just a turnout ID handles
+   * crossings and prevents turnout-only cycles from looping forever.
+   */
+  private hasTrackBeyondTurnouts(
+    turnout: TrackElement,
+    enteredFrom: Point,
+    routeStates?: RouteStateMap
+  ): boolean {
+    const pending: Array<{ turnout: TrackElement; enteredFrom: Point }> = [
+      { turnout, enteredFrom },
+    ];
+    const visited = new Set<string>();
+
+    while (pending.length > 0) {
+      const current = pending.pop()!;
+      const key = `${current.turnout.id}:${current.enteredFrom.x}:${current.enteredFrom.y}`;
+      if (visited.has(key)) continue;
+      visited.add(key);
+
+      const exits = getExitPointsForEntry(
+        current.turnout,
+        current.enteredFrom,
+        routeStates
+      );
+
+      for (const exit of exits) {
+        const neighbor = this.track.elements.find(element =>
+          element instanceof TrackElement &&
+          element !== current.turnout &&
+          element.x === exit.x &&
+          element.y === exit.y &&
+          acceptsConnectionFrom(element, current.turnout.pos, routeStates)
+        );
+
+        if (!(neighbor instanceof TrackElement)) continue;
+
+        // A real, reciprocally connected ordinary rail is a valid end to
+        // the turnout chain; its length is not limited by the switch count.
+        if (!isRouteButtonTurnout(neighbor)) return true;
+
+        // Another turnout is valid only if its active passage can continue.
+        pending.push({
+          turnout: neighbor,
+          enteredFrom: current.turnout.pos,
+        });
+      }
+    }
+    return false;
+  }
+
   private walkActiveRoute(
     obj: TrackElement,
     enteredFrom:
@@ -725,9 +812,11 @@ export class LayoutView
       // Connectivity uses anchor cells, not visual hit boxes. A three-cell
       // block overlay must never hide a neighboring standalone sensor/rail.
       const candidate =
-        this.getTrackElements().find(element =>
+        this.track.elements.find(element =>
           element instanceof TrackElement &&
-          element.x === exit.x && element.y === exit.y
+          element.x === exit.x &&
+          element.y === exit.y &&
+          acceptsConnectionFrom(element, obj.pos, routeStates)
         );
 
       if (
@@ -749,6 +838,18 @@ export class LayoutView
           obj.pos,
           routeStates
         )
+      ) {
+        continue;
+      }
+
+      // Do not colour an unconfigured turnout merely because we can
+      // enter it. The selected exit must also connect through any number of
+      // subsequent turnouts to real track. A dead turnout chain is not a route.
+      if (
+        routeStates &&
+        isRouteButtonTurnout(next) &&
+        !routeStates.has(next.id) &&
+        !this.hasTrackBeyondTurnouts(next, obj.pos, routeStates)
       ) {
         continue;
       }
@@ -776,7 +877,7 @@ export class LayoutView
     const nextPosition = obj.getNextItemXy();
     const prevPosition = obj.getPrevItemXy();
 
-    const next = this.getObjectXy(nextPosition) as TrackElement;
+    const next = this.track.elements.find(element => element instanceof TrackElement && element.x === nextPosition.x && element.y === nextPosition.y && (obj.pos.isEqual(element.getNextItemXy()) || obj.pos.isEqual(element.getPrevItemXy()))) as TrackElement;
 
     if (
       next &&
@@ -791,7 +892,7 @@ export class LayoutView
       this.walkTrack(next, section);
     }
 
-    const prev = this.getObjectXy(prevPosition) as TrackElement;
+    const prev = this.track.elements.find(element => element instanceof TrackElement && element.x === prevPosition.x && element.y === prevPosition.y && (obj.pos.isEqual(element.getNextItemXy()) || obj.pos.isEqual(element.getPrevItemXy()))) as TrackElement;
 
     if (
       prev &&

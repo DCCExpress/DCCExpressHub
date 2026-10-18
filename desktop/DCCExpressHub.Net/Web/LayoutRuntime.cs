@@ -502,18 +502,13 @@ public sealed class LayoutRuntime
         int elementAddress = I(e, "address");
         bool addressIsSensor = false;
 
-        if (type is "trackstraight" or "trackdirection" or "trackend" or
+        if (type is "trackstraight" or "trackbridge" or "trackdirection" or "trackend" or
             "trackcorner" or "trackcurve" or "trackcrossing" or
-            "tracklevelcrossing" or "tracksensor")
+            "tracklevelcrossing" or "tracksensor" || TurnoutType(type))
         {
+            // Occupancy address is independent of turnout motor addresses.
+            // Bridge tracks and unpowered/manual turnouts can have detectors too.
             addressIsSensor = true;
-        }
-        else if (TurnoutType(type))
-        {
-            bool dual = type is "trackturnoutdouble" or "trackturnouttreeway";
-            addressIsSensor = dual
-                ? I(e, "turnout1Address") > 0 || I(e, "turnout2Address") > 0
-                : I(e, "turnoutAddress") > 0;
         }
         else if (SignalType(type))
         {
@@ -1031,7 +1026,34 @@ public sealed class LayoutRuntime
         }
 
         if (hadKnown)
+        {
             Changed?.Invoke("sensorSnapshot", SensorSnapshot());
+            SensorTransitionProcessed?.Invoke();
+        }
+    }
+
+    // Invalidate only sensors owned by one external device. Never emit OFF
+    // transitions for a lost connection: the dispatcher must see UNKNOWN.
+    public void InvalidateSensorRange(int firstAddress, int count)
+    {
+        bool changed = false;
+        lock (_gate)
+        {
+            for (int address = firstAddress; address < firstAddress + count; address++)
+            {
+                if (address is < 1 or > 65535)
+                    continue;
+                var key = (ushort)address;
+                if (_pendingSensorOff.Remove(key, out var pending))
+                    pending.Cancel();
+                changed |= _sensorStates.Remove(key);
+            }
+        }
+        if (changed)
+        {
+            Changed?.Invoke("sensorSnapshot", SensorSnapshot());
+            SensorTransitionProcessed?.Invoke();
+        }
     }
 
     public bool SetSensor(ushort address, bool on)

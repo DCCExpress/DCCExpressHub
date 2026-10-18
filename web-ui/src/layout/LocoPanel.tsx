@@ -1,7 +1,7 @@
 import { ActionIcon, Card, Text, Tooltip } from "@mantine/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { IconSettings } from "@tabler/icons-react";
+import { IconLayoutGrid, IconSettings, IconAdjustmentsHorizontal } from "@tabler/icons-react";
 
 import type {
   Direction,
@@ -15,6 +15,8 @@ import { showErrorMessage } from "../helpers";
 import { wsApi } from "../services/wsApi";
 import { wsClient } from "../services/wsClient";
 import LocoControlCard from "./loco-panel/LocoControlCard";
+import LocoCardsView from "./loco-panel/LocoCardsView";
+import { subscribeDriveToBlockLoco } from "../services/driveToBlockSelection";
 import LocoPanelSettingsDialog from "./loco-panel/LocoPanelSettingsDialog";
 import {
   getLocoPanelCounterDisplaySettings,
@@ -54,6 +56,13 @@ export default function LocoPanel({
   mobileViewport = false,
 }: LocoPanelProps) {
   const { t } = useTranslation();
+  const [panelView, setPanelView] = useState<"control" | "cards">(() =>
+    window.localStorage.getItem("dccexpresshub.loco-panel.view") === "cards" ? "cards" : "control");
+  const togglePanelView = () => setPanelView(view => {
+    const next = view === "control" ? "cards" : "control";
+    window.localStorage.setItem("dccexpresshub.loco-panel.view", next);
+    return next;
+  });
 
   const [selectedLocoId, setSelectedLocoId] =
     useState<string>(() => {
@@ -302,6 +311,10 @@ export default function LocoPanel({
     },
     [selectedLocoStorageKey]
   );
+
+  useEffect(() => subscribeDriveToBlockLoco(id => {
+    if (locos.some(loco => loco.id === id)) selectLocoId(id);
+  }), [locos, selectLocoId]);
 
   useEffect(() => {
     if (locos.length === 0) {
@@ -864,6 +877,13 @@ export default function LocoPanel({
           </ActionIcon>
         </Tooltip>
 
+        <Tooltip label={panelView === "control" ? "Cards view" : "Control view"}>
+          <ActionIcon aria-label="Toggle locomotive panel view" size="sm" variant="subtle" color="gray"
+            onClick={togglePanelView} style={{ position: "absolute", right: 2, top: 2, zIndex: 20 }}>
+            {panelView === "control" ? <IconLayoutGrid size={15} /> : <IconAdjustmentsHorizontal size={15} />}
+          </ActionIcon>
+        </Tooltip>
+
         {/* <Stack gap="xs" h="100%">
           {!currentLoco ? (
             <Text size="sm" c="dimmed">
@@ -911,8 +931,14 @@ export default function LocoPanel({
           )}
         </Stack> */}
 
+        <div style={{ display: panelView === "cards" ? "block" : "none", height: "100%" }}>
+          {panelView === "cards" && <LocoCardsView locos={locos} selectedLocoId={selectedLocoId}
+            onSelect={loco => selectLocoId(loco.id)} disabled={controlsDisabled}
+            emergencyStop={powerInfo?.emergencyStop ?? false} onEmergencyToggle={handleEmergencyToggle} />}
+        </div>
         <div
           ref={fitContainerRef}
+          style={{ display: panelView === "control" ? undefined : "none" }}
           className={
             mobileViewport
               ? "mobile-throttle-fit mobile-throttle-fit--viewport"

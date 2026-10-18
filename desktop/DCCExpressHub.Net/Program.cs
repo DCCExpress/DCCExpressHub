@@ -81,6 +81,8 @@ builder.Services.AddSingleton<AutomationStorageCoordinator>();
 builder.Services.AddSingleton<LocoStorageCoordinator>();
 builder.Services.AddSingleton<AutomationExclusiveGate>();
 builder.Services.AddSingleton<CommandCenterConfigStore>();
+builder.Services.AddSingleton<ExternalDeviceStore>();
+builder.Services.AddSingleton<ExternalDevicesRuntime>();
 builder.Services.AddSingleton<CommandCenterApi>();
 builder.Services.AddSingleton<LocomotiveConfigApi>();
 builder.Services.AddSingleton<LayoutConfigApi>();
@@ -92,17 +94,17 @@ builder.Services.AddSingleton<FileManagerApi>();
 builder.Services.AddSingleton<ScriptInfoApi>();
 builder.Services.AddSingleton<DesktopControlApi>();
 
-if (useLocoNetSerial)
+if (useLocoNetSerial || useLocoNetTcp)
 {
-    builder.Services.AddSingleton<LocoNetSerialCommandCenter>();
+    builder.Services.AddSingleton<ILocoNetTransport>(sp =>
+        useLocoNetSerial
+            ? new LocoNetSerialTransport(builder.Configuration,
+                sp.GetRequiredService<ILogger<LocoNetSerialTransport>>())
+            : new LocoNetTcpTransport(builder.Configuration,
+                sp.GetRequiredService<ILogger<LocoNetTcpTransport>>()));
+    builder.Services.AddSingleton<LocoNetCommandCenter>();
     builder.Services.AddHostedService(
-        sp => sp.GetRequiredService<LocoNetSerialCommandCenter>());
-}
-else if (useLocoNetTcp)
-{
-    builder.Services.AddSingleton<LocoNetTcpCommandCenter>();
-    builder.Services.AddHostedService(
-        sp => sp.GetRequiredService<LocoNetTcpCommandCenter>());
+        sp => sp.GetRequiredService<LocoNetCommandCenter>());
 }
 else if (useYaMoRcZ21)
 {
@@ -157,10 +159,8 @@ builder.Services
         sp =>
         {
             ICommandCenter inner =
-                useLocoNetSerial
-                    ? sp.GetRequiredService<LocoNetSerialCommandCenter>()
-                    : useLocoNetTcp
-                    ? sp.GetRequiredService<LocoNetTcpCommandCenter>()
+                (useLocoNetSerial || useLocoNetTcp)
+                    ? sp.GetRequiredService<LocoNetCommandCenter>()
                     : useYaMoRcZ21
                     ? sp.GetRequiredService<
                         YaMoRcZ21CommandCenter>()
@@ -192,6 +192,7 @@ builder.Services.AddSingleton<DispatcherRuntime>();
 builder.Services.AddSingleton<MovementPlanBuilder>();
 builder.Services.AddSingleton<TrainEventRuntime>();
 builder.Services.AddSingleton<MovementRuntime>();
+builder.Services.AddSingleton<TrainDriverRuntime>();
 builder.Services.AddSingleton<TrainTrackingRuntime>();
 builder.Services.AddSingleton<ScriptRuntime>();
 builder.Services.AddSingleton<FlowRuntime>();
@@ -212,10 +213,12 @@ builder.Services.AddSingleton<CalibrationRuntime>();
 builder.Services.AddSingleton<PrecisionBrakingRuntime>();
 builder.Services.AddSingleton<WsHub>();
 
-builder.Services.AddHostedService<WsRuntimeCoordinator>();
+builder.Services.AddSingleton<WsRuntimeCoordinator>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<WsRuntimeCoordinator>());
 
 // Register the HTTP/WebSocket host last so command-center and automation
 // hosted services start before clients can connect.
+builder.Services.AddHostedService(sp => sp.GetRequiredService<ExternalDevicesRuntime>());
 builder.Services.AddHostedService<WatsonWebServerService>();
 
 using var app =

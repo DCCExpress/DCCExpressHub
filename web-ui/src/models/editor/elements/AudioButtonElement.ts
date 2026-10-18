@@ -15,7 +15,7 @@ export class AudioButtonElement extends BaseElement implements IAudioButtonEleme
     super(x, y);
     this.type = ELEMENT_TYPES.BUTTON_AUDIO;
     this.rotationStep = 45;
-    this.layerName = "buildings";
+    this.layerName = "buttons";
     this.fg = "white"
     this.bg = "orange";
   }

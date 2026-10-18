@@ -14,6 +14,7 @@ import {
   SimpleGrid,
   Stack,
   Tabs,
+  Tooltip,
   Text,
   Title,
 } from "@mantine/core";
@@ -43,6 +44,11 @@ import {
   IconBug,
   IconLockOpen,
   IconListCheck,
+  IconClipboardList,
+  IconRobot,
+  IconCalendarTime,
+  IconInfoCircle,
+  IconListDetails,
   IconRoute,
   IconVolume,
   IconServerCog,
@@ -52,6 +58,7 @@ import { showNotification } from "@mantine/notifications";
 
 import type { DccExStatusPayload, Loco } from "@domain/types";
 import { ELEMENT_TYPES, type ElementType } from "@domain/layout/elementTypes";
+import { getElementTypeName } from "@domain/layout/elementTypeNames";
 import TrackCanvas from "@/components/TrackCanvas";
 import FullscreenLoader from "@/components/FullscreenLoader";
 import AppModal from "@/components/common/AppModal";
@@ -61,10 +68,12 @@ import LayoutRuntimeLogPanel from "@/components/LayoutRuntimeLogPanel";
 import SystemInfoPanel from "@/components/SystemInfoPanel";
 import SafetyEmergencyStopDialog from "@/components/SafetyEmergencyStopDialog";
 import VisibilitySettings from "@/components/VisibilitySettings";
+import EditorShortcutsHelp from "@/layout/property-panel/EditorShortcutsHelp";
 import { useCommandCenter } from "@/context/CommandCenterContext";
 import { useLayoutPageShortcuts } from "@/hooks/layout/useLayoutPageShortcuts";
 import BasicPropertyEditor from "@/layout/property-panel/BasicPropertyEditor";
 import BlockTypeSelectPropertyEditor from "@/layout/property-panel/BlockTypeSelectPropertyEditor";
+import StationSelectPropertyEditor from "@/layout/property-panel/StationSelectPropertyEditor";
 import BlockEventConfigPropertyEditor from "@/layout/property-panel/BlockEventConfigPropertyEditor";
 import SignalAspectPropertyEditor from "@/layout/property-panel/SignalAspectPropertyEditor";
 import TurnoutBitPropertyEditor from "@/layout/property-panel/TurnoutBitPropertyEditor";
@@ -90,12 +99,14 @@ import { TrackCrossingElement } from "./models/editor/elements/TrackCrossingElem
 import { TrackCurveElement } from "./models/editor/elements/TrackCurveElement";
 import { TrackEndElement } from "./models/editor/elements/TrackEndElement";
 import { TrackLevelCrossingElement } from "./models/editor/elements/TrackLevelCrossingElement";
+import { EmergencyButtonElement } from "./models/editor/elements/EmergencyButtonElement";
 import { AudioButtonElement } from "./models/editor/elements/AudioButtonElement";
 import { BlockElement } from "./models/editor/elements/BlockElement";
 import { ButtonElement } from "./models/editor/elements/ButtonElement";
 import { TrackSensorElement } from "./models/editor/elements/TrackSensorElement";
 import { TrackSignalElement } from "./models/editor/elements/TrackSignalElement";
 import type { IEditableProperty } from "@/models/editor/elements/PropertyDescriptor";
+import { TrackBridgeElement } from "./models/editor/elements/TrackBridgeElement";
 import { TrackStraightElement } from "./models/editor/elements/TrackStraightElement";
 import { TrackDirectionElement } from "./models/editor/elements/TrackDirectionElement";
 import TrackTurnoutDoubleElement from "./models/editor/elements/TrackTurnoutDoubleElement";
@@ -139,6 +150,7 @@ import {
   createAutomationId,
   loadAutomationMovement,
   loadAutomationScripts,
+  saveAutomationMovement,
   normalizeAutomationScripts,
   saveAutomationScripts,
   type AutomationScriptDefinition,
@@ -366,6 +378,7 @@ const RAILWAY_PICKER_ITEMS: PickerItem[] = [
   { type: ELEMENT_TYPES.TRACK_TURNOUT_RIGHT, get label() { return i18next.t("ui.rightTurnout"); }, preview: new TrackTurnoutRightElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_TURNOUT_TWO_WAY, get label() { return i18next.t("ui.yTurnout"); }, preview: new TrackTurnoutTwoWayElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_TURNOUT_THREE_WAY, get label() { return i18next.t("ui.wThreeWayTurnout"); }, preview: new TrackTurnoutThreeWayElement(0, 0) },
+  { type: ELEMENT_TYPES.TRACK_BRIDGE, label: "Bridge", preview: new TrackBridgeElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_TURNOUT_DOUBLE, get label() { return i18next.t("ui.doubleTurnout2"); }, preview: new TrackTurnoutDoubleElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_SENSOR, get label() { return i18next.t("ui.sensor2"); }, preview: new TrackSensorElement(0, 0) },
   { type: ELEMENT_TYPES.TRACK_BLOCK, get label() { return i18next.t("ui.block2"); }, preview: new BlockElement(0, 0) },
@@ -375,6 +388,7 @@ const RAILWAY_PICKER_ITEMS: PickerItem[] = [
   { type: ELEMENT_TYPES.BUTTON_AUDIO, get label() { return i18next.t("ui.audioButton"); }, preview: new AudioButtonElement(0, 0) },
   { type: ELEMENT_TYPES.CLOCK, get label() { return i18next.t("fastClock.title"); }, preview: createClockPreview() },
   { type: ELEMENT_TYPES.LABEL, get label() { return i18next.t("ui.label"); }, preview: new LabelElement(0, 0) },
+  { type: ELEMENT_TYPES.BUTTON_EMERGENCY, label: "Emergency Stop", preview: new EmergencyButtonElement(0, 0) },
 ];
 
 const DECORATION_PICKER_ITEMS: PickerItem[] = [
@@ -778,7 +792,14 @@ function LitePropertyPanel({
       );
     }
 
-    return <VisibilitySettings title={i18next.t("ui.layoutVisibility")} />;
+    return (
+      <ScrollArea h="100%">
+        <Stack gap="xs">
+          <VisibilitySettings title={i18next.t("ui.layoutVisibility")} />
+          <EditorShortcutsHelp />
+        </Stack>
+      </ScrollArea>
+    );
   }
 
   const onChange = (property: IEditableProperty, value: unknown) => {
@@ -798,8 +819,7 @@ function LitePropertyPanel({
             fw={800}
             truncate
           >
-            {selectedElement.name ||
-              selectedElement.type}
+            {getElementTypeName(selectedElement.type)}
           </Text>
 
           {selectedElement instanceof
@@ -859,6 +879,12 @@ function LitePropertyPanel({
                 prop={property}
                 selectedElement={selectedElement}
                 onUpdateSelectedElement={invalidate}
+              />
+            ) : property.type === "stationSelect" && selectedElement instanceof BlockElement ? (
+              <StationSelectPropertyEditor
+                block={selectedElement}
+                layout={layout}
+                onChange={invalidate}
               />
             ) : property.type === "blockTypeSelect" ? (
               <BlockTypeSelectPropertyEditor
@@ -1115,6 +1141,12 @@ export default function LiteLayoutPage({
   ] = useState(0);
   const [tool, setTool] = useState<EditorTool>({ mode: "cursor", elementType: "general" });
   const [editMode, setEditMode] = useState(false);
+  const [blockSelectionActive, setBlockSelectionActive] = useState(false);
+  const [cancelBlockSelectionCounter, setCancelBlockSelectionCounter] = useState(0);
+  const emergencyStopAndCancelSelection = () => {
+    setCancelBlockSelectionCounter(value => value + 1);
+    wsApi.emergencyStop();
+  };
   const [turnoutSelectionMode, setTurnoutSelectionMode] = useState(false);
   const [canvasBusy, setCanvasBusy] = useState(false);
   const [canvasBusyText, setCanvasBusyText] = useState("Loading...");
@@ -1145,6 +1177,7 @@ export default function LiteLayoutPage({
   const [embeddedCommandCenter, setEmbeddedCommandCenter] = useState(false);
   const [timetableOpened, setTimetableOpened] = useState(false);
   const [routesOpened, setRoutesOpened] = useState(false);
+  const [stationRouteEditId, setStationRouteEditId] = useState<string | null>(null);
   const [routesMovementPageId, setRoutesMovementPageId] =
     useState<string | null>(
       null
@@ -1460,9 +1493,18 @@ export default function LiteLayoutPage({
           ? storedAutomations
           : prepared.legacyAutomationScripts
       );
-      setMovementDocument(
-        storedMovements
-      );
+      const regularMovements = {
+        ...storedMovements,
+        pages: storedMovements.pages.filter(page => !page.id.startsWith("quick-route-loco-")),
+      };
+      setMovementDocument(regularMovements);
+      // Migrate away the old Drive-to-block slots once. Future quick routes
+      // use the backend transient start and never enter automation storage.
+      if (regularMovements.pages.length !== storedMovements.pages.length) {
+        void saveAutomationMovement(regularMovements).catch(error =>
+          console.warn("Could not remove legacy Quick Route definitions:", error)
+        );
+      }
 
       setSelectedElement(null);
     } catch (loadError) {
@@ -1841,6 +1883,28 @@ export default function LiteLayoutPage({
 
       await saveAutomationScripts(automationScripts);
 
+      // A bridge may cross a straight ground rail only at right angles.
+      // Keep saving the layout; notify the operator about any mismatch.
+      const groundRails = layout.track.elements.filter(
+        element => element.type === ELEMENT_TYPES.TRACK_STRAIGHT
+      );
+      const mismatchedBridges = layout.track.elements.filter(bridge => {
+        if (bridge.type !== ELEMENT_TYPES.TRACK_BRIDGE) return false;
+        const ground = groundRails.find(
+          rail => rail.x === bridge.x && rail.y === bridge.y
+        );
+        if (!ground) return false;
+        const delta = ((bridge.rotation - ground.rotation) % 180 + 180) % 180;
+        return Math.abs(delta - 90) > 0.001;
+      });
+      if (mismatchedBridges.length > 0) {
+        showNotification({
+          color: "yellow",
+          title: "Bridge orientation warning",
+          message: `${mismatchedBridges.length} bridge element(s) are not at 90° to the track underneath. Layout was saved.`,
+        });
+      }
+
       showNotification({
         color: "teal",
         title: i18next.t("ui.projectSaved"),
@@ -1903,6 +1967,7 @@ export default function LiteLayoutPage({
     saveLayoutToServer: saveLayout,
     setTool,
     setEditMode,
+    blockSelectionActive,
   });
 
   const removeSelected = () => {
@@ -1953,7 +2018,7 @@ export default function LiteLayoutPage({
         }}
       />
 
-      <Card withBorder px={6} py={3} radius="sm" className="lite-layout-toolbar">
+      <Card withBorder px={6} py={3} radius="sm" className="lite-layout-toolbar" inert={blockSelectionActive} style={{ opacity: blockSelectionActive ? 0.55 : 1 }}>
         <Group justify="space-between" align="center" wrap="nowrap">
           <Group gap="xs">
             <ActionIcon variant="subtle" color="gray" onClick={onBack} aria-label={i18next.t("ui.back")} title={i18next.t("ui.home")}>
@@ -1967,6 +2032,7 @@ export default function LiteLayoutPage({
             <ActionIcon
               variant={editMode ? "filled" : "light"}
               color="violet"
+              disabled={blockSelectionActive}
               title={i18next.t("ui.editMode")}
               onClick={() => {
                 setEditMode(value => !value);
@@ -2093,12 +2159,12 @@ export default function LiteLayoutPage({
 
       <div className="lite-layout-workspace" style={workspaceStyle}>
         {!locoPanelCollapsed && (
-          <div className="lite-loco-panel">
+          <div className="lite-loco-panel" inert={blockSelectionActive} style={{ opacity: blockSelectionActive ? 0.55 : 1 }}>
             <LocoPanel locos={locos} />
           </div>
         )}
 
-        <div className="lite-panel-resizer lite-panel-resizer-left" onPointerDown={event => beginResize("left", event)}>
+        <div className="lite-panel-resizer lite-panel-resizer-left" inert={blockSelectionActive} onPointerDown={event => { if (!blockSelectionActive) beginResize("left", event); }}>
           <button type="button" onPointerDown={event => event.stopPropagation()} onClick={() => setLocoPanelCollapsed(value => !value)} title={i18next.t("ui.toggleLocomotivePanel")}>
             {locoPanelCollapsed ? <IconChevronRight size={16} /> : <IconChevronLeft size={16} />}
           </button>
@@ -2107,6 +2173,9 @@ export default function LiteLayoutPage({
         <Card withBorder p={4} className="lite-track-card">
           <TrackCanvas
             editMode={editMode}
+            onBlockSelectionChange={setBlockSelectionActive}
+            cancelBlockSelectionCounter={cancelBlockSelectionCounter}
+            emergencyStopActive={commandCenter.powerInfo?.emergencyStop === true}
             tool={tool}
             onToolChange={setTool}
             layout={layout}
@@ -2122,7 +2191,7 @@ export default function LiteLayoutPage({
           />
         </Card>
 
-        <div className="lite-panel-resizer lite-panel-resizer-right" onPointerDown={event => beginResize("right", event)}>
+        <div className="lite-panel-resizer lite-panel-resizer-right" inert={blockSelectionActive} onPointerDown={event => { if (!blockSelectionActive) beginResize("right", event); }}>
           <button type="button" onPointerDown={event => event.stopPropagation()} onClick={() => setPropertyPanelCollapsed(value => !value)} title={i18next.t("ui.togglePropertyPanel")}>
             {propertyPanelCollapsed ? <IconChevronLeft size={16} /> : <IconChevronRight size={16} />}
           </button>
@@ -2130,11 +2199,11 @@ export default function LiteLayoutPage({
 
         {!propertyPanelCollapsed && (
           rightPanelMode === "loco" ? (
-            <div className="lite-property-panel lite-right-loco-panel">
+            <div className="lite-property-panel lite-right-loco-panel" inert={blockSelectionActive} style={{ opacity: blockSelectionActive ? 0.55 : 1 }}>
               <LocoPanel locos={locos} selectedLocoStorageKey={RIGHT_LOCO_STORAGE_KEY} />
             </div>
           ) : (
-            <Card withBorder p="sm" className="lite-property-panel">
+            <Card withBorder p="sm" className="lite-property-panel" inert={blockSelectionActive} style={{ opacity: blockSelectionActive ? 0.55 : 1 }}>
               {editMode ? (
                 <>
                   <Title order={5} mb="sm">
@@ -2186,11 +2255,21 @@ export default function LiteLayoutPage({
                   className="lite-runtime-tabs"
                 >
                   <Tabs.List grow mb="sm">
-                    <Tabs.Tab value="tasks">TaskMan</Tabs.Tab>
-                    <Tabs.Tab value="automation">{i18next.t("ui.automation2")}</Tabs.Tab>
-                    <Tabs.Tab value="timetable">{i18next.t("ui.timetable")}</Tabs.Tab>
-                    <Tabs.Tab value="info">{i18next.t("ui.info")}</Tabs.Tab>
-                    <Tabs.Tab value="log">{i18next.t("ui.log")}</Tabs.Tab>
+                    <Tooltip label="TaskMan" withArrow>
+                      <Tabs.Tab value="tasks" aria-label="TaskMan"><IconClipboardList size={20} aria-hidden="true" /></Tabs.Tab>
+                    </Tooltip>
+                    <Tooltip label={i18next.t("ui.automation2")} withArrow>
+                      <Tabs.Tab value="automation" aria-label={i18next.t("ui.automation2")}><IconRobot size={20} aria-hidden="true" /></Tabs.Tab>
+                    </Tooltip>
+                    <Tooltip label={i18next.t("ui.timetable")} withArrow>
+                      <Tabs.Tab value="timetable" aria-label={i18next.t("ui.timetable")}><IconCalendarTime size={20} aria-hidden="true" /></Tabs.Tab>
+                    </Tooltip>
+                    <Tooltip label={i18next.t("ui.info")} withArrow>
+                      <Tabs.Tab value="info" aria-label={i18next.t("ui.info")}><IconInfoCircle size={20} aria-hidden="true" /></Tabs.Tab>
+                    </Tooltip>
+                    <Tooltip label={i18next.t("ui.log")} withArrow>
+                      <Tabs.Tab value="log" aria-label={i18next.t("ui.log")}><IconListDetails size={20} aria-hidden="true" /></Tabs.Tab>
+                    </Tooltip>
                   </Tabs.List>
 
                   <Tabs.Panel value="tasks" className="lite-info-tab-panel">
@@ -2239,6 +2318,14 @@ export default function LiteLayoutPage({
                           }}
                           movements={movementDocument}
                           onMovementsChange={setMovementDocument}
+                          stationRoutes={layout.stationRoutes}
+                          layout={layout}
+                          stationNames={layout.stations}
+                          onOpenStationRoutes={routeId => {
+                            setStationRouteEditId(routeId);
+                            setRoutesMovementPageId(null);
+                            setRoutesOpened(true);
+                          }}
                           onSelectMovementRoute={pageId => {
                             setRoutesMovementPageId(pageId);
                             setRoutesOpened(true);
@@ -2282,8 +2369,8 @@ export default function LiteLayoutPage({
       </div>
 
       <Card withBorder p={5} radius="sm" className="lite-status-bar">
-        <Group justify="space-between" wrap="nowrap" gap="xs">
-          <Group gap={6} wrap="nowrap">
+        <Group justify="flex-start" wrap="nowrap" gap="xs">
+          <Group gap={6} wrap="nowrap" inert={blockSelectionActive} style={{ opacity: blockSelectionActive ? 0.55 : 1 }}>
             <Badge
               data-command-center-status-role="layout-ws"
               size="sm"
@@ -2299,7 +2386,9 @@ export default function LiteLayoutPage({
               size="sm"
               variant="light"
               color={commandCenter.powerInfo?.emergencyStop ? "red" : "gray"}
-              onClick={() => wsApi.emergencyStop()}
+              onClick={emergencyStopAndCancelSelection}
+              style={{ pointerEvents: "auto" }}
+              title={i18next.t("ui.estop")}
               className={`lite-status-action${commandCenter.powerInfo?.emergencyStop
                 ? " blinkBadge"
                 : ""
@@ -2415,9 +2504,19 @@ export default function LiteLayoutPage({
             >
               <IconTrain size={15} />
             </ActionIcon>
-
+            {blockSelectionActive && (
+              <>
+                <Divider orientation="vertical" />
+                <Badge color="lime" variant="filled" size="sm">Yellow: FROM · Lime: destination · Esc to cancel</Badge>
+              </>
+            )}
           </Group>
-          <Text size="xs" c="dimmed" truncate>
+          {blockSelectionActive && (
+            <Button size="compact-xs" color="red" variant="filled" onClick={emergencyStopAndCancelSelection}>
+              {i18next.t("ui.estop")}
+            </Button>
+          )}
+          <Text size="xs" c="dimmed" truncate style={{ marginLeft: "auto" }}>
             {layout.getAllElements().length} elements · {locos.length} locos
           </Text>
         </Group>
@@ -2600,9 +2699,11 @@ export default function LiteLayoutPage({
         onClose={() => {
           setRoutesOpened(false);
           setRoutesMovementPageId(null);
+          setStationRouteEditId(null);
         }}
         layout={layout}
         movements={movementDocument}
+        editingStationRouteId={stationRouteEditId}
         editingMovementId={routesMovementPageId}
         onMovementsChange={setMovementDocument}
         onPersistRouteTopology={persistRouteTopology}
@@ -2625,6 +2726,8 @@ export default function LiteLayoutPage({
         onSaved={() => setTimetableRevision(value => value + 1)}
         scripts={automationScripts}
         movements={movementDocument.pages}
+        layout={layout}
+        movementDocument={movementDocument}
       />
 
       <FullscreenLoader visible={canvasBusy} text={canvasBusyText} />

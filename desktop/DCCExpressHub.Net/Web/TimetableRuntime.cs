@@ -283,7 +283,10 @@ public sealed class TimetableRuntime : BackgroundService
     sealed record TimetableAction(
         string Id,
         string TargetType,
-        string TargetId);
+        string TargetId,
+        MovementRouteRefModel? RouteRef = null,
+        int LocoAddress = 0,
+        int Speed = 20);
 
     sealed record TimetableEntry(
         string Id,
@@ -441,13 +444,25 @@ public sealed class TimetableRuntime : BackgroundService
                                 ? targetElement.GetString() ?? ""
                                 : "";
 
+                        MovementRouteRefModel? routeRef = null;
+                        if (targetType == "fromto" &&
+                            action.TryGetProperty("routeRef", out var routeElement) &&
+                            routeElement.ValueKind == JsonValueKind.Object)
+                        {
+                            try
+                            {
+                                routeRef = JsonSerializer.Deserialize<MovementRouteRefModel>(
+                                    routeElement.GetRawText(), _json);
+                            }
+                            catch (JsonException) { }
+                        }
+                        var locoAddress = action.TryGetProperty("locoAddress", out var locoElement) &&
+                            locoElement.TryGetInt32(out var loco) ? loco : 0;
+                        var speed = action.TryGetProperty("speed", out var speedElement) &&
+                            speedElement.TryGetInt32(out var configuredSpeed) ? configuredSpeed : 20;
                         if (actionId.Length > 0 &&
-                            targetId.Length > 0)
-                            actions.Add(
-                                new(
-                                    actionId,
-                                    targetType,
-                                    targetId));
+                            (targetId.Length > 0 || targetType == "fromto"))
+                            actions.Add(new(actionId, targetType, targetId, routeRef, locoAddress, speed));
                     }
                 }
 
@@ -570,6 +585,11 @@ public sealed class TimetableRuntime : BackgroundService
 
             foreach (var action in entry.Actions)
             {
+                if (action.TargetType == "fromto")
+                {
+                    LaunchFromTo(entry, action, hour, minute, minuteOfDay);
+                    continue;
+                }
                 if (string.Equals(
                         action.TargetType,
                         "movement",
@@ -623,6 +643,34 @@ public sealed class TimetableRuntime : BackgroundService
         ":" +
         minute.ToString("00");
 
+    // Expected scheduling conditions are not failed train tasks. They may
+    // change between preflight and Start(), so handle the race here too.
+    // Structural/configuration failures remain visible as ERROR.
+    static bool IsTimetableNotReadyFailure(string? error) =>
+        error is "movement_source_loco_missing" or
+                 "locomotive_already_managed" or
+                 "movement_already_running" ||
+        (error is not null &&
+         error.StartsWith("Movement cannot start: locomotive #", StringComparison.Ordinal) &&
+         error.EndsWith(" is not ON.", StringComparison.Ordinal)) ||
+        (error is not null &&
+         error.StartsWith("Movement cannot start: block ", StringComparison.Ordinal) &&
+         error.Contains(" is UNKNOWN (no current feedback).", StringComparison.Ordinal));
+
+    void LogSourceSkip(string kind, string name, int blockId, string reason)
+    {
+        // An assigned locomotive without live occupancy feedback is worth
+        // investigating; an empty source or already-managed loco is routine.
+        if (reason.StartsWith("source sensor #", StringComparison.Ordinal))
+            _log.LogWarning(
+                "Timetable skipped {Kind} {Name}: block #{BlockId} is not confirmed occupied: {Reason}",
+                kind, name, blockId, reason);
+        else
+            _log.LogDebug(
+                "Timetable skipped {Kind} {Name} at block #{BlockId}: {Reason}",
+                kind, name, blockId, reason);
+    }
+
     void LaunchMovement(
         TimetableEntry entry,
         TimetableAction action,
@@ -642,6 +690,27 @@ public sealed class TimetableRuntime : BackgroundService
 
         if (!movement.Enabled)
             return;
+
+        // Do not create a Timetable run for an empty source block. A timetable
+        // entry is a scheduled opportunity, not an instruction to start an
+        // unoccupied Movement and then report a safety error.
+        var sourceBlockId = movement.RouteRef?.FromBlockId;
+        if (sourceBlockId is > 0 &&
+            !_movement.HasSourceLocomotive(sourceBlockId.Value))
+        {
+            LogSourceSkip("Movement", movement.Name, sourceBlockId.Value, "source_block_empty");
+            return;
+        }
+
+        (bool Skip, int LocoAddress, string Reason) sourceStatus =
+            sourceBlockId is > 0
+                ? _movement.TimetableSourceStatus(sourceBlockId.Value)
+                : default;
+        if (sourceStatus.Skip)
+        {
+            LogSourceSkip("Movement", movement.Name, sourceBlockId!.Value, sourceStatus.Reason);
+            return;
+        }
 
         var runId =
             NewRunId();
@@ -678,13 +747,31 @@ public sealed class TimetableRuntime : BackgroundService
 
         var result =
             _movement.Start(
-                movement.Id);
+                movement.Id,
+                sourceStatus.LocoAddress > 0 ? sourceStatus.LocoAddress : null);
 
         if (!result.Ok)
         {
+            // Source assignment can change after the preflight but before
+            // Start() checks it. Still skip this occurrence rather than
+            // retaining an ERROR row for a now-empty block.
+            if (IsTimetableNotReadyFailure(result.Error))
+            {
+                lock (_gate)
+                    _activeRuns.Remove(runId);
+
+                _log.LogDebug(
+                    "Timetable skipped Movement {Movement}: source no longer runnable ({Reason})",
+                    movement.Name, result.Error);
+                Publish();
+                return;
+            }
+
             lock (_gate)
-                _activeRuns.Remove(
-                    runId);
+                _activeRuns[runId] = active with {
+                    Status = "error",
+                    Message = result.Error ?? "Movement start rejected"
+                };
 
             _log.LogWarning(
                 "Timetable Movement {Movement} was not started: {Error}",
@@ -708,6 +795,97 @@ public sealed class TimetableRuntime : BackgroundService
                             .Info
                 };
 
+        Publish();
+    }
+
+    void LaunchFromTo(
+        TimetableEntry entry,
+        TimetableAction action,
+        int hour,
+        int minute,
+        int minuteOfDay)
+    {
+        var route = action.RouteRef;
+        if (route is null || route.FromBlockId <= 0 || route.ToBlockId <= 0 ||
+            route.Direction is not ("forward" or "reverse") ||
+            action.Speed is < 1 or > 126)
+        {
+            _log.LogWarning("Timetable From-To action {ActionId} has an invalid route/loco/speed",
+                action.Id);
+            return;
+        }
+
+        // Skip silently when the source is empty. This is normal timetable
+        // operation, not a Movement failure and must not create an ERROR row.
+        // The actual block assignment (not target/predicted) is authoritative.
+        if (!_movement.HasSourceLocomotive(route.FromBlockId))
+        {
+            LogSourceSkip("From-To", action.TargetId, route.FromBlockId, "source_block_empty");
+            return;
+        }
+
+        var sourceStatus = _movement.TimetableSourceStatus(route.FromBlockId);
+        if (sourceStatus.Skip)
+        {
+            LogSourceSkip("From-To", action.TargetId, route.FromBlockId, sourceStatus.Reason);
+            return;
+        }
+
+        var runId = NewRunId();
+        var movementId = "timetable-fromto-" + runId;
+        var name = string.IsNullOrWhiteSpace(action.TargetId)
+            ? $"{route.FromBlockId} → {route.ToBlockId}"
+            : action.TargetId;
+        var movement = new MovementPageModel
+        {
+            Id = movementId,
+            Name = name,
+            Enabled = true,
+            // Bind this scheduled occurrence to the verified source loco.
+            // Never silently start a different loco if the assignment changes.
+            ExpectedLocoAddress = sourceStatus.LocoAddress > 0
+                ? sourceStatus.LocoAddress : null,
+            Speed = action.Speed,
+            RouteRef = route
+        };
+        var active = new TimetableActiveRunState(
+            runId, entry.Id, action.Id, "fromto", movementId, name,
+            null, FormatTime(hour, minute), minuteOfDay, "launching", null);
+        lock (_gate)
+        {
+            _activeRuns[runId] = active;
+            _lastTriggeredAt = active.ScheduledTime;
+            _lastTriggeredTargetName = name;
+        }
+        Publish();
+        var result = _movement.StartTransient(movement, calibrationBypass: false);
+        if (!result.Ok)
+        {
+            if (IsTimetableNotReadyFailure(result.Error))
+            {
+                lock (_gate)
+                    _activeRuns.Remove(runId);
+                _log.LogDebug(
+                    "Timetable skipped From-To {Route}: source no longer runnable ({Reason})",
+                    name, result.Error);
+                Publish();
+                return;
+            }
+
+            lock (_gate)
+                _activeRuns[runId] = active with {
+                    Status = "error",
+                    Message = result.Error ?? "From-To start rejected"
+                };
+            _log.LogWarning("Timetable From-To {Route} not started: {Error}",
+                name, result.Error);
+            Publish();
+            return;
+        }
+        lock (_gate)
+            if (_activeRuns.ContainsKey(runId))
+                _activeRuns[runId] = active with { Status = "running",
+                    Message = _movement.GetState(movementId).Info };
         Publish();
     }
 
@@ -815,8 +993,7 @@ public sealed class TimetableRuntime : BackgroundService
             var pair =
                 _activeRuns
                     .FirstOrDefault(item =>
-                        item.Value.TargetType ==
-                            "movement" &&
+                        (item.Value.TargetType == "movement" || item.Value.TargetType == "fromto") &&
                         item.Value.TargetId ==
                             state.PageId);
 
@@ -830,14 +1007,14 @@ public sealed class TimetableRuntime : BackgroundService
                 "running" or
                 "stopping")
             {
-                _activeRuns[pair.Key] =
-                    run with
-                    {
-                        Status =
-                            "running",
-                        Message =
-                            state.Info
-                    };
+                var next = run with
+                {
+                    Status = "running",
+                    Message = state.Info
+                };
+                if (next == run)
+                    return;
+                _activeRuns[pair.Key] = next;
             }
             else
             {

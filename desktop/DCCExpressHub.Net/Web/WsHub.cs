@@ -17,6 +17,7 @@ public sealed class WsHub
     readonly SwitchManManager SwitchMan;
     readonly DispatcherRuntime Dispatcher;
     readonly MovementRuntime Movement;
+    readonly TrainDriverRuntime TrainDriver;
     readonly TrainTrackingRuntime TrainTracking;
     readonly ScriptRuntime Scripts;
     readonly FlowRuntime Flows;
@@ -65,7 +66,7 @@ public sealed class WsHub
     private static readonly TimeSpan WebSocketSendTimeout = TimeSpan.FromSeconds(2);
     public int ClientCount => Clients.Count;
 
-    public WsHub(ICommandCenter cc, HubState state, LayoutRuntime runtime, RuntimeStateStore stateStore, CommandCenterConfigStore ccConfig, LocoCounterRuntime locoCounters, FastClockRuntime fastClock, SwitchManManager switchMan, DispatcherRuntime dispatcher, MovementRuntime movement, TrainTrackingRuntime trainTracking, ScriptRuntime scripts, FlowRuntime flows, TimetableRuntime timetable, ILogger<WsHub> log, IHostApplicationLifetime lifetime)
+    public WsHub(ICommandCenter cc, HubState state, LayoutRuntime runtime, RuntimeStateStore stateStore, CommandCenterConfigStore ccConfig, LocoCounterRuntime locoCounters, FastClockRuntime fastClock, SwitchManManager switchMan, DispatcherRuntime dispatcher, MovementRuntime movement, TrainDriverRuntime trainDriver, TrainTrackingRuntime trainTracking, ScriptRuntime scripts, FlowRuntime flows, TimetableRuntime timetable, ILogger<WsHub> log, IHostApplicationLifetime lifetime)
     {
         CommandCenter = cc;
         HubState = state;
@@ -76,6 +77,7 @@ public sealed class WsHub
         SwitchMan = switchMan;
         Dispatcher = dispatcher;
         Movement = movement;
+        TrainDriver = trainDriver;
         TrainTracking = trainTracking;
         Scripts = scripts;
         Flows = flows;
@@ -108,6 +110,7 @@ public sealed class WsHub
                         routes =
                             Dispatcher.RouteSnapshot()
                     });
+        TrainDriver.Changed += state => QueueStateBroadcast("trainDriverStateChanged", state);
         Movement.Changed +=
             state =>
                 QueueStateBroadcast(
@@ -816,6 +819,9 @@ public sealed class WsHub
                     return;
                 case "trainTrackingCommand":
                     await HandleTrainTrackingCommand(ws, data, ct);
+                    return;
+                case "trainDriverCommand":
+                    await HandleTrainDriverCommand(ws, data);
                     return;
                 case "movementCommand":
                     await HandleMovementCommand(connectionId, ws, data, ct);
@@ -1970,6 +1976,98 @@ public sealed class WsHub
         }
     }
 
+    private async Task HandleTrainDriverCommand(IHubWebSocketClient ws, JsonElement data)
+    {
+        var requestId = S(data, "requestId");
+        var action = S(data, "action");
+        bool ok = false;
+        string? error = null;
+        TrainDriverRuntime.DriverState? state = null;
+
+        switch (action)
+        {
+            case "snapshot":
+                await Send(ws, "trainDriverResponse", new {
+                    requestId, action, ok = true, states = TrainDriver.Snapshot()
+                });
+                return;
+            case "start":
+                {
+                    var taskId = S(data, "taskId");
+                    if (!data.TryGetProperty("page", out var pageJson) ||
+                        pageJson.ValueKind != JsonValueKind.Object)
+                    {
+                        error = "invalid_train_driver_request";
+                        break;
+                    }
+                    MovementPageModel? page;
+                    try
+                    {
+                        page = JsonSerializer.Deserialize<MovementPageModel>(
+                            pageJson.GetRawText(), Json);
+                    }
+                    catch (JsonException)
+                    {
+                        page = null;
+                    }
+                    if (page is null)
+                    {
+                        error = "invalid_train_driver_request";
+                        break;
+                    }
+                    var result = TrainDriver.Start(taskId, page);
+                    ok = result.Ok;
+                    error = result.Error;
+                    state = result.State;
+                    await Send(ws, "trainDriverResponse", new { requestId, action, ok, error, state });
+                    return;
+                }
+            case "startAuto":
+                {
+                    var taskId = S(data, "taskId");
+                    if (!data.TryGetProperty("candidates", out var json) ||
+                        json.ValueKind != JsonValueKind.Array)
+                    {
+                        error = "invalid_auto_route_candidates";
+                        break;
+                    }
+                    MovementPageModel[]? candidates;
+                    try
+                    {
+                        candidates = JsonSerializer.Deserialize<MovementPageModel[]>(
+                            json.GetRawText(), Json);
+                    }
+                    catch (JsonException)
+                    {
+                        candidates = null;
+                    }
+                    var result = TrainDriver.StartAuto(taskId, candidates ?? []);
+                    await Send(ws, "trainDriverResponse", new {
+                        requestId, action, ok = result.Ok,
+                        error = result.Error, state = result.State
+                    });
+                    return;
+                }
+            case "stop":
+                ok = TrainDriver.Stop(S(data, "taskId"));
+                break;
+            case "resume":
+                ok = TrainDriver.Resume(S(data, "taskId"));
+                break;
+            case "abort":
+                ok = TrainDriver.Abort(S(data, "taskId"));
+                break;
+            default:
+                error = "unknown_train_driver_action";
+                break;
+        }
+        await Send(ws, "trainDriverResponse", new {
+            requestId, action, ok = error is null && ok,
+            error = error ?? ((action is "stop" or "resume" or "abort") && !ok ? "train_driver_action_rejected" : null),
+            state
+        });
+    }
+
     private async Task HandleMovementCommand(
         Guid connectionId,
         IHubWebSocketClient ws,
@@ -2034,6 +2132,42 @@ public sealed class WsHub
                                 Movement.GetState(
                                     pageId)
                         });
+                    return;
+                }
+
+            case "startTransient":
+                {
+                    if (!data.TryGetProperty("page", out var pageJson) ||
+                        pageJson.ValueKind != JsonValueKind.Object)
+                    {
+                        await Reply(false, "invalid_transient_movement");
+                        return;
+                    }
+
+                    MovementPageModel? page;
+                    try
+                    {
+                        page = System.Text.Json.JsonSerializer.Deserialize<MovementPageModel>(
+                            pageJson.GetRawText(),
+                            new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+                    }
+                    catch (System.Text.Json.JsonException)
+                    {
+                        await Reply(false, "invalid_transient_movement");
+                        return;
+                    }
+
+                    if (page is null || !page.Id.StartsWith("quick-route-loco-", StringComparison.Ordinal))
+                    {
+                        await Reply(false, "invalid_transient_movement");
+                        return;
+                    }
+
+                    var result = Movement.StartTransient(page, calibrationBypass: false);
+                    await Reply(result.Ok, result.Error, new
+                    {
+                        state = Movement.GetState(page.Id)
+                    });
                     return;
                 }
 
@@ -3026,7 +3160,7 @@ public sealed class WsHub
     private object CommandCenterInfo()
     {
         var x = CommandCenterConfigStore.Current;
-        var serialBaud = CommandCenter.Type == "loconet-serial"
+        var serialBaud = CommandCenter.Type == "loconet" && x.IsSerial
             ? (CommandCenter as ConfiguredCommandCenter)?.GetLocoNetSerialDiagnostics()?.BaudRate
                 ?? CommandCenterSettings.DccExSerialBaudRate
             : CommandCenterSettings.DccExSerialBaudRate;

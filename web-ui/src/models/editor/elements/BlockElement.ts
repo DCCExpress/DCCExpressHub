@@ -204,6 +204,7 @@ export class BlockElement extends TrackElement {
   override length: number = 1;
   sensorAddress: number = 0;
   blockType: BlockType = BLOCK_TYPES.NORMAL;
+  stationId: string | null = null;
   eventConfig:
     BlockEventConfigDto =
       emptyBlockEventConfig();
@@ -275,7 +276,15 @@ export class BlockElement extends TrackElement {
   protected drawBlock(ctx: CanvasRenderingContext2D, options?: DrawOptions): void {
     if (!this.visible) return;
     this.beginDraw(ctx, options);
-    ctx.translate(this.centerX, this.centerY);
+    // The block is anchored at the CENTRAL rail cell (x, y), whereas its
+    // 3x1 artwork uses a left-origin rectangle. Rotate the artwork around
+    // the anchor cell's center and translate its unrotated center there.
+    // This keeps the drawn rectangle identical to getBounds()/hitTest()
+    // for 0, 90, 180 and 270 degrees (selection and drag hit the artwork).
+    ctx.translate(
+      this.centerX,
+      this.centerY
+    );
     ctx.rotate((this.rotation * Math.PI) / 180);
     ctx.translate(-this.centerX, -this.centerY);
     const blockX = this.posLeft + 5;
@@ -495,7 +504,16 @@ export class BlockElement extends TrackElement {
         });
       }
     }
-    this.drawSelection(ctx);
+    // The block already has the viewport and rotation transforms applied.
+    // BaseElement.drawSelection() calls beginDraw() AGAIN, which applies the
+    // viewport transform twice and shifts/scales the selection outline away
+    // from the artwork. Paint it in the same coordinates as the block.
+    if (this.selected) {
+      ctx.beginPath();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = "red";
+      ctx.strokeRect(this.posLeft, this.posTop, this.width, this.height);
+    }
     this.endDraw(ctx);
   }
   private drawForwardDirectionTriangle(
@@ -688,6 +706,7 @@ export class BlockElement extends TrackElement {
     copy.length = this.length;
     copy.sensorAddress = this.sensorAddress;
     copy.blockType = this.blockType;
+    copy.stationId = this.stationId;
     copy.eventConfig =
       normalizeBlockEventConfig(
         this.eventConfig
@@ -714,6 +733,7 @@ export class BlockElement extends TrackElement {
     element.blockType =
       data.blockType ??
       BLOCK_TYPES.NORMAL;
+    element.stationId = typeof data.stationId === "string" ? data.stationId : null;
     element.eventConfig =
       normalizeBlockEventConfig(
         data.eventConfig
@@ -731,6 +751,7 @@ export class BlockElement extends TrackElement {
       sensorAddress: this.sensorAddress,
       blockType:
         this.blockType as BlockType,
+      stationId: this.stationId,
       eventConfig:
         normalizeBlockEventConfig(
           this.eventConfig
@@ -745,6 +766,11 @@ export class BlockElement extends TrackElement {
         key: "blockType",
         type: "blockTypeSelect",
         readonly: false,
+      },
+      {
+        label: "Station",
+        key: "stationId",
+        type: "stationSelect",
       },
       {
         label: i18next.t("ui.length"),

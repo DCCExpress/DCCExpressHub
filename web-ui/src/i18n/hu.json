@@ -59,6 +59,8 @@
     "loco_functions": "Funkciók",
     "loco_length_mm": "Hossz (mm)",
     "loco_max_speed": "Max. sebesség",
+    "loco_cruising_speed": "Utazósebesség",
+    "loco_cruising_speed_description": "A Drive to Block alapértelmezett DCC sebességlépése",
     "loco_speed_max": "Max.",
     "locoaddress": "Cím",
     "locomotives": "Mozdonyok",
@@ -619,5 +621,21 @@
     "allStarted": "Minden feladat elindult.",
     "allFinishing": "Minden feladat befejezésre jelölve.",
     "allAborted": "Minden aktív feladat megszakítva."
+  },
+  "precisionBrakingMeasurement": {
+    "title": "Precision Braking — blokkpozíciók",
+    "diagramAria": "Az A és C fékezőblokk. A nyíl a szaggatott belépési határtól a menetirány szerinti vonatelejéig mért pozitív befutási távolság.",
+    "forward": "Előre",
+    "distance": "Távolság (mm)",
+    "pull": "Húzás",
+    "push": "Tolás",
+    "locomotive": "Mozdony",
+    "wagons": "Vagonok",
+    "diagramHelp": "Azt mérd, mennyire futott BE a vonat ELEJE a célblokkba. Forward (jobbra): a vonat jobb széle az eleje. Reverse (balra): a bal széle. A-ban a jobb oldali szaggatott vonaltól, C-ben a bal oldalitól mérj. Mindig pozitív értéket adj meg. Az ábra nem méretarányos.",
+    "measureHelp": "Egyetlen POZITÍV értéket adj meg mm-ben: mennyivel haladt át a vonat ELEJE a célblokk szaggatott belépési vonalán. Forward (jobbra): a jobb szélső pont az eleje, reverse (balra): a bal szélső. A vonat végét a szerelvényhosszból számoljuk.",
+    "fieldHint": "Belépési szenzor → menetirány szerinti vonat ELEJE, a blokkon belül (> 0 mm)",
+    "positionReport": "Vonat elejének befutása: {{front}} mm · Számított vonatvég: {{rear}} mm · Szabad hely a blokk végéig: {{clearance}} mm",
+    "rearOutside": "A számított vonatvég {{distance}} mm-rel kilóg a belépési oldalon.",
+    "frontOutside": "A vonat eleje {{distance}} mm-rel túllóg a blokk végén."
   }
 }

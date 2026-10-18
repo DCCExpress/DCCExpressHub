@@ -11,18 +11,21 @@ public sealed class LocomotiveConfigApi
     readonly LocoCounterRuntime _counters;
     readonly ConfiguredCommandCenter _configuredCommandCenter;
     readonly LocoStorageCoordinator _locoStorage;
+    readonly WsRuntimeCoordinator _locoSyncRuntime;
 
     public LocomotiveConfigApi(
         AppPaths paths,
         LocoCounterRuntime counters,
         ConfiguredCommandCenter configuredCommandCenter,
-        LocoStorageCoordinator locoStorage)
+        LocoStorageCoordinator locoStorage,
+        WsRuntimeCoordinator locoSyncRuntime)
     {
         _paths = paths;
         _counters = counters;
         _configuredCommandCenter =
             configuredCommandCenter;
         _locoStorage = locoStorage;
+        _locoSyncRuntime = locoSyncRuntime;
     }
 
     string ConfigFile(
@@ -344,7 +347,10 @@ public sealed class LocomotiveConfigApi
                                     // the latest trial was recorded.
                                     foreach (var entry in stored)
                                     {
-                                        if (entry.Key == "trials" ||
+                                        // Both measured trials AND their operator validation
+                                        // are runtime-owned. A stale editor copy must never
+                                        // accidentally revoke or fabricate a certified profile.
+                                        if (entry.Key is "trials" or "validated" ||
                                             !updated.ContainsKey(entry.Key))
                                             updated[entry.Key] = entry.Value?.DeepClone();
                                     }
@@ -402,6 +408,7 @@ public sealed class LocomotiveConfigApi
 
         _counters.ReloadConfiguration(
             true);
+        _locoSyncRuntime.RefreshLocomotives();
 
         return HubApiResponse.Ok(
             new
