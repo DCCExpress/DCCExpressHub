@@ -3,6 +3,7 @@ import { Alert, AppShell, Badge, Box, Button, Card, Container, Group, FileButton
 import { IconAlertTriangle, IconPlugConnected, IconTrain, IconWifiOff, IconMap, IconSettings, IconDownload, IconUpload } from '@tabler/icons-react';
 import { functionCommand, parseFrames, throttleCommand } from './dccex';
 import { registerTurnoutOutputSink } from './preview-webui/services/layoutOutput';
+import { publishSensorFeedback, publishSensorSnapshot, publishConnectionStatus } from './preview-webui/services/wsClient';
 import { LocoEditor } from './LocoEditor';
 import AppModal from './components/common/AppModal';
 import { BrowserLayoutPage } from './BrowserLayoutPage';
@@ -44,6 +45,7 @@ export function App() {
       socket.current.send(throttleCommand({ address: a, speed: 0, forward: d }));
     }
     socket.current?.close(); socket.current = null; setStatus('disconnected'); setSpeed(0);
+    publishConnectionStatus('disconnected');
   }, []);
   useEffect(() => () => { socket.current?.close(); }, []);
   const connect = () => {
@@ -54,21 +56,36 @@ export function App() {
       // DCC-EX replies with Sec-WebSocket-Protocol: DCCEX. Browsers require us to request it.
       const ws = new WebSocket(parsed.href, 'DCCEX');
       socket.current = ws; setStatus('connecting');
-      ws.onopen = () => { if (socket.current !== ws) return; setStatus('connected'); append('Connected: ' + parsed.href); ws.send('<s>'); };
+      publishConnectionStatus('reconnecting');
+      ws.onopen = () => {
+        if (socket.current !== ws) return;
+        setStatus('connected');
+        publishConnectionStatus('connected');
+        publishSensorSnapshot([]);
+        append('Connected: ' + parsed.href);
+        ws.send('<s><Q>'); // DCC-EX sensor snapshot request after connecting
+      };
       ws.onmessage = event => {
         if (socket.current !== ws) return;
         if (typeof event.data !== 'string') return;
         const frames = parseFrames(event.data);
         for (const frame of frames.length ? frames : [event.data]) {
           append('RX ' + frame);
+          // DCC-EX reports <Q address> when a sensor becomes occupied,
+          // and <q address> when it clears. <Q> with no address is not an event.
+          const sensor = /^<([Qq])\s+(\d+)(?:\s|>)/.exec(frame.trim());
+          if(sensor){
+            const sensorAddress=Number(sensor[2]);
+            publishSensorFeedback(sensorAddress,sensor[1]==='Q');
+          }
           if (/^<p1(?:\\s|>)/.test(frame)) setPower(true);
           if (/^<p0(?:\\s|>)/.test(frame)) setPower(false);
         }
       };
       ws.onerror = () => { if (socket.current === ws) setError('WebSocket connection failed. Verify that the station or bridge supports WebSocket, not just TCP.'); };
-      ws.onclose = () => { if (socket.current === ws) { socket.current = null; setStatus('disconnected'); setSpeed(0); append('Disconnected'); } };
+      ws.onclose = () => { if (socket.current === ws) { socket.current = null; setStatus('disconnected'); publishConnectionStatus('disconnected'); setSpeed(0); append('Disconnected'); } };
       try { localStorage.setItem('dcc-ex-ui.wsUrl', url); } catch { /* storage optional */ }
-    } catch (e) { setStatus('disconnected'); setError(String(e)); }
+    } catch (e) { setStatus('disconnected'); publishConnectionStatus('disconnected'); setError(String(e)); }
   };
   const driveAddress=(locoAddress:number,nextSpeed:number,nextForward:boolean)=>{
     if(!Number.isInteger(locoAddress)||locoAddress<1||locoAddress>10239){
