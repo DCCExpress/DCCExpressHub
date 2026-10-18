@@ -40,7 +40,7 @@ export function App() {
     try {
       const parsed = new URL(url);
       if (parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') throw new Error('URL must start with ws:// or wss://');
-      const ws = new WebSocket(parsed.href);
+      // DCC-EX replies with Sec-WebSocket-Protocol: DCCEX. Browsers require us to request it.\n      const ws = new WebSocket(parsed.href, 'DCCEX');
       socket.current = ws; setStatus('connecting');
       ws.onopen = () => { if (socket.current !== ws) return; setStatus('connected'); append('Connected: ' + parsed.href); ws.send('<s>'); };
       ws.onmessage = event => {
