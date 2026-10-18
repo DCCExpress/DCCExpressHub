@@ -35,7 +35,7 @@ export default function PrecisionBrakingDiagram({
   const trainFrontA = trainStartA;
   const trainFrontC = trainStartC + trainLengthPx;
   const trackY = 106;
-  const trainY = trackY - 4 - trainHeight;
+  const trainY = trackY - 2 - trainHeight;
   const measurementY = trainY - 12;
 
   const train = (x: number, key: string) => {
@@ -45,7 +45,7 @@ export default function PrecisionBrakingDiagram({
       <g key={key}>
         <image href="/images/bobo.png" x={engineX} y={trainY}
           width={engineWidth} height={trainHeight} preserveAspectRatio="xMidYMid meet" />
-        <image href="/images/vagon.png" x={wagonX} y={trackY - 4 - trainHeight}
+        <image href="/images/vagon.png" x={wagonX} y={trackY - 2 - trainHeight}
           width={wagonWidth} height={trainHeight} preserveAspectRatio="xMidYMid meet" />
       </g>
     );
@@ -79,10 +79,10 @@ export default function PrecisionBrakingDiagram({
         <path d="M235 31 H415" stroke="#3b82f6" strokeWidth="1.5"
           fill="none" markerEnd="url(#braking-forward-head)" />
         {/* Minimal single-line track with unobtrusive short sleepers. */}
-        {Array.from({ length: 32 }, (_, i) => (
+        {Array.from({ length: 68 }, (_, i) => (
           <line key={i}
-            x1={26 + i * 19} y1={trackY - 4}
-            x2={26 + i * 19} y2={trackY + 4}
+            x1={26 + i * 9} y1={trackY - 2}
+            x2={26 + i * 9} y2={trackY + 0}
             stroke="#8b7355" strokeWidth="1.3" />
         ))}
         <line x1={18} y1={trackY} x2={632} y2={trackY}
