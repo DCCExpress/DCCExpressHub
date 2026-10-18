@@ -218,7 +218,7 @@ export default function PrecisionBrakingPanel({
           }} />
         <NumberInput
           label="Distance between start and destination sensors (mm)"
-          description="Physical travel distance from start sensor OFF to destination sensor ON. Initially uses the value entered in Speed Calibration; saved separately with Precision Braking."
+          description="Physical distance from start sensor OFF to destination sensor ON. Precision Braking measures approach speed directly; no separate speed calibration is required."
           min={1}
           max={100000}
           value={loco.precisionBraking?.sensorDistanceMm ?? loco.calibration?.routeLengthMm ?? 1000}
