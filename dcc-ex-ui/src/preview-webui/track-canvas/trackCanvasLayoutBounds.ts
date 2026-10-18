@@ -1,7 +1,7 @@
 
-import type {
-  LayoutView,
-} from "../models/editor/core/LayoutView";
+import type { BaseElement } from "../models/editor/core/BaseElement";
+type Layer={elements:BaseElement[]};
+type LayoutView={gridSize:number;track:Layer;blocks:Layer;signals:Layer;sensors:Layer;buildings:Layer;buttons:Layer};
 
 import type {
   ViewState,
