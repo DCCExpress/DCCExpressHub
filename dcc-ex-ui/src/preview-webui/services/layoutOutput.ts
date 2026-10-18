@@ -11,7 +11,7 @@ export function registerTurnoutOutputSink(next:TurnoutOutputSink):()=>void{
 const wsApi={
  setTurnout:(address:number,active:boolean)=>sink?.(`<a ${address} ${active?1:0}>`)??false,
  setBasicAccessory:(address:number,active:boolean)=>sink?.(`<a ${address} ${active?1:0}>`)??false,
- setSignalAspect:(address:number,aspect:number)=>sink?.(`<A ${address} ${aspect}>`)??false,
+ setSignalAspect:(address:number,aspect:number,_physicalValue?:boolean)=>sink?.(`<A ${address} ${aspect}>`)??false,
  setVpin:(address:number,active:boolean)=>sink?.(`<z ${active?address:-address}>`)??false,
 };
 

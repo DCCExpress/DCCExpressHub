@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, AppShell, Badge, Box, Button, Card, Container, Group, FileButton, Modal, SimpleGrid, Stack, Text, TextInput, Title, ThemeIcon } from '@mantine/core';
 import { IconAlertTriangle, IconPlugConnected, IconTrain, IconWifiOff, IconMap, IconSettings, IconDownload, IconUpload } from '@tabler/icons-react';
 import { functionCommand, parseFrames, throttleCommand } from './dccex';
+import { registerTurnoutOutputSink } from './preview-webui/services/layoutOutput';
 import { LocoEditor } from './LocoEditor';
 import AppModal from './components/common/AppModal';
 import { BrowserLayoutPage } from './BrowserLayoutPage';
@@ -32,6 +33,7 @@ export function App() {
     if (socket.current?.readyState !== WebSocket.OPEN) { setError('Not connected to a WebSocket endpoint.'); return false; }
     socket.current.send(command); append('TX ' + command); return true;
   }, [append]);
+  useEffect(()=>registerTurnoutOutputSink(send),[send]);
   const stop = useCallback(() => {
     const { address: a, forward: d } = active.current;
     try { if (send(throttleCommand({ address: a, speed: 0, forward: d }))) { active.current.speed = 0; setSpeed(0); } } catch (e) { setError(String(e)); }
