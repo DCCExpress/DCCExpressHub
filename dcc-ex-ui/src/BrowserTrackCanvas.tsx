@@ -253,18 +253,22 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
   const ctx=canvas.getContext('2d');if(!ctx)return;
   // These are the exact original upstream drawScene + element.draw methods.
   const layout={gridSize,draw:(context:CanvasRenderingContext2D,options:unknown)=>{
-   for(const model of modelsNow()){
-    try{
-     if(model.visible&&(visibility.showBuildings||model.layerName!=='buildings')){
-      model.draw(context,options as never);
-      // Original BaseElement.drawSelection paints the editor's red outline.
-      // Apply it to every selected model, not just the first one.
-      if(editMode&&tool==='cursor'&&selectedIds.current.has(model.id)){
-       model.selected=true;
-       model.drawSelection(context);
-      }
-     }
-    }catch(err){console.error('Element drawing failed',model.type,err);}
+   const visible=modelsNow().filter(model=>model.visible&&
+     (visibility.showBuildings||model.layerName!=='buildings'));
+   // Upstream LayoutView draws all the elements first and the selection overlay last.
+   // Drawing selection inside the element loop lets later elements cover the red border.
+   for(const model of visible){
+    try{model.draw(context,options as never);}
+    catch(err){console.error('Element drawing failed',model.type,err);}
+   }
+   if(editMode&&tool==='cursor'){
+    for(const model of visible){
+     if(!selectedIds.current.has(model.id))continue;
+     try{
+      model.selected=true;
+      model.drawSelection(context);
+     }catch(err){console.error('Selection drawing failed',model.type,err);}
+    }
    }
   }};
   drawScene(ctx,canvasSize.width,canvasSize.height,editMode,'dark',view.current,
@@ -429,6 +433,23 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
  };
  useEffect(()=>{
   const keyDown=(event:KeyboardEvent)=>{
+   // ESC must work after toolbar and picker clicks too; Canvas focus is not guaranteed.
+   // Do not intercept Escape from dialogs or editable fields.
+   const target=event.target;
+   const editing=target instanceof HTMLElement&&
+     (target.isContentEditable||!!target.closest('input,textarea,select,[role="dialog"]'));
+   if(event.key==='Escape'&&editMode&&!editing){
+    event.preventDefault();
+    selectIds([]);
+    cursorRef.current=null;
+    hover.current=null;
+    selectRect.current=null;
+    gesture.current=null;
+    onToolChange('cursor');
+    redraw();
+    canvasRef.current?.focus();
+    return;
+   }
    if(document.activeElement!==canvasRef.current)return;
    const plainKey=event.key.toLowerCase();
    if((event.ctrlKey||event.metaKey)&&plainKey==='s'){event.preventDefault();onSave?.();return;}
@@ -437,9 +458,6 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
    if(!editMode)return;
    const ctrl=event.ctrlKey||event.metaKey;
    const key=event.key.toLowerCase();
-   if((event.key==='Escape'||key==='escape')){
-    selectIds([]);cursorRef.current=null;onToolChange('cursor');event.preventDefault();return;
-   }
    if(ctrl&&key==='z'){event.preventDefault();replaceHistory(event.shiftKey?'redo':'undo');return;}
    if(ctrl&&key==='y'){event.preventDefault();replaceHistory('redo');return;}
    if(ctrl&&key==='c'){
