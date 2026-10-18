@@ -233,8 +233,8 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
   }else{fit();}
  },[fitCounter,fit]);
  useEffect(()=>{
-  if(!editMode||tool!=='draw')return;
-  // Upstream TrackCanvas clears layout selections on switching to placement.
+  if(!editMode||(tool!=='draw'&&tool!=='delete'))return;
+  // Drawing or deleting uses a tool cursor, not a prior selected layout element.
   // The cursor-held element is the sole active drawing target.
   selectedIds.current.clear();
   for(const model of modelsRef.current){model.selected=false;model.marked=false;}
