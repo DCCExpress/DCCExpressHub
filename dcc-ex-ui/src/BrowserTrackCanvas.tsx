@@ -40,7 +40,7 @@ function restoreOne(item:TrackElement,ordinal:number):BaseElement|null {
  const picker=pickerByType.get(resolveType(data));
  if(!picker)return null;
  const prototype=picker.preview;
- const ctor=prototype.constructor as new(x:number,y:number)=>BaseElement;
+ const ctor=prototype.constructor as unknown as new(x:number,y:number)=>BaseElement;
  const x=Number.isFinite(data.x)?data.x:0;
  const y=Number.isFinite(data.y)?data.y:0;
  try{
@@ -61,7 +61,7 @@ function serializeOne(element:BaseElement):TrackElement {
  return element.toJSON() as unknown as TrackElement;
 }
 function newElement(item:BrowserPickerItem,x:number,y:number,id:number):BaseElement {
- const ctor=item.preview.constructor as new(x:number,y:number)=>BaseElement;
+ const ctor=item.preview.constructor as unknown as new(x:number,y:number)=>BaseElement;
  const element=new ctor(x,y);
  element.id=id;
  element.x=x;element.y=y;
