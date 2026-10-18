@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, AppShell, Badge, Box, Button, Card, Container, Group, NumberInput, Paper, Tabs, FileButton, SegmentedControl, Slider, Stack, Switch, Text, TextInput, Title } from '@mantine/core';
-import { IconAlertTriangle, IconPlugConnected, IconPlayerStop, IconTrain, IconWifiOff } from '@tabler/icons-react';
+import { Alert, AppShell, Badge, Box, Button, Card, Container, Group, NumberInput, Paper, FileButton, Modal, SimpleGrid, SegmentedControl, Slider, Stack, Switch, Text, TextInput, Title, ThemeIcon, ActionIcon } from '@mantine/core';
+import { IconAlertTriangle, IconPlugConnected, IconPlayerStop, IconTrain, IconWifiOff, IconMap, IconSettings, IconHome, IconEdit, IconDownload, IconUpload } from '@tabler/icons-react';
 import { functionCommand, parseFrames, throttleCommand } from './dccex';
 import { LocoEditor } from './LocoEditor';
+import { BrowserLayoutPage } from './BrowserLayoutPage';
 import { BrowserLayoutPage } from './BrowserLayoutPage';
 import { exportProject, importProject, loadProject, saveProject, type Project } from './storage';
 
@@ -83,138 +84,79 @@ export function App() {
     } catch (e) { setError(String(e)); }
   };
   const ready = status === 'connected';
+  const [connectSettingsOpen,setConnectSettingsOpen] = useState(false);
+  const [locoEditorOpen,setLocoEditorOpen] = useState(false);
   return (
-    <AppShell header={{ height: 68 }} padding="md">
+    <AppShell header={{height:66}} padding={0}>
       <AppShell.Header>
-        <Group h="100%" px="lg" justify="space-between">
-          <Group>
-            <IconTrain size={28} />
-            <Title order={3}>DCCExpressHub <Text span c="dimmed" size="sm">Browser alpha7</Text></Title>
+        <Group h="100%" px="md" justify="space-between">
+          <Group gap="sm" style={{cursor:'pointer'}} onClick={()=>setPage('home')}>
+            <IconTrain size={26}/><Title order={3}>DCCExpressHub</Title><Badge variant="outline">alpha7 · Browser</Badge>
           </Group>
-          <Badge color={ready ? 'green' : status === 'connecting' ? 'yellow' : 'gray'}>{status}</Badge>
+          <Group gap="sm">
+            <Badge color={ready?'green':'gray'}>{ready?'DCC-EX connected':status}</Badge>
+            <Text size="xs" c="dimmed" visibleFrom="sm">{url}</Text>
+            <Button leftSection={<IconSettings size={16}/>} variant="light" onClick={()=>setConnectSettingsOpen(true)}>Connection</Button>
+          </Group>
         </Group>
       </AppShell.Header>
       <AppShell.Main>
-        <Container size={page === "layout" ? "xl" : "sm"} fluid={page === "layout"}>
-          <Stack gap="lg">
-            <Group justify="space-between">
-              <Group><Button variant="subtle" onClick={() => setPage('home')}>Home</Button><Button onClick={() => setPage('layout')}>Layout</Button></Group>
-              <Badge color={ready ? 'green' : 'gray'}>{ready ? 'DCC-EX connected' : 'Offline'}</Badge>
-            </Group>
-            {page === 'home' && <Card withBorder radius="lg" p="lg"><Group justify="space-between"><Stack gap={2}><Title order={3}>Layout</Title><Text c="dimmed" size="sm">Open the layout workspace</Text></Stack><Button onClick={() => setPage('layout')}>Open layout</Button></Group></Card>}
-            {page === 'layout' && <BrowserLayoutPage locos={project.locos} activeAddress={Number(address)} onSelectLoco={value => { if (speed === 0) setAddress(value); else setError('Stop the locomotive before switching.'); }} connected={ready} />}
-            <Box style={{display:page==='home'?'block':'none'}}>
-            <Tabs defaultValue="throttle" keepMounted={false}>
-              <Tabs.List>
-                <Tabs.Tab value="throttle">Throttle</Tabs.Tab>
-                <Tabs.Tab value="locos">Locomotive editor</Tabs.Tab>
-              </Tabs.List>
-              <Tabs.Panel value="locos" pt="md">
-                <LocoEditor locos={project.locos} onChange={locos => setProject(p => ({...p,locos}))} onDrive={nextAddress => { if (speed > 0) { setError('Stop the locomotive before selecting another address.'); return; } setAddress(nextAddress); }} />
-              </Tabs.Panel>
-              <Tabs.Panel value="throttle" pt="md">
-            <Card withBorder radius="md">
-              <Stack>
-                <Title order={4}>DCC-EX WebSocket connection</Title>
-                <TextInput
-                  label="WebSocket URL"
-                  description="Requires a real WebSocket endpoint forwarding raw DCC-EX commands. TCP port 2560 is not WebSocket."
-                  value={url}
-                  onChange={(event) => setUrl(event.currentTarget.value)}
-                  disabled={status !== 'disconnected'}
-                  placeholder="ws://station:port/path"
-                />
-                <Group>
-                  <Button leftSection={<IconPlugConnected size={18} />} disabled={status !== 'disconnected'} onClick={connect}>Connect</Button>
-                  <Button color="gray" variant="outline" leftSection={<IconWifiOff size={18} />} disabled={status === 'disconnected'} onClick={disconnect}>Disconnect</Button>
-                </Group>
-              </Stack>
-            </Card>
-            <Card withBorder radius="md">
-              <Stack gap="md">
-                <Group justify="space-between"><Title order={4}>Locomotive throttle</Title><Badge variant="light">DCC-EX</Badge></Group>
-                <NumberInput label="DCC locomotive address" value={address} onChange={setAddress} min={1} max={10239} clampBehavior="strict" disabled={speed > 0} />
-                <Text size="xs" c="dimmed">Choose an address at speed zero, then move the throttle.</Text>
-                <Group justify="space-between"><Text>Speed</Text><Title order={2}>{speed} / 126</Title></Group>
-                <Box px="xs">
-                  <Slider
-                    min={0}
-                    max={126}
-                    value={speed}
-                    onChange={setSpeed}
-                    onChangeEnd={(value) => drive(value)}
-                    disabled={!ready}
-                    marks={[{ value: 0, label: '0' }, { value: 63, label: '63' }, { value: 126, label: '126' }]}
-                    mb="lg"
-                  />
-                </Box>
-                <SegmentedControl
-                  fullWidth
-                  value={forward ? 'forward' : 'reverse'}
-                  onChange={(value) => {
-                    if (speed !== 0) { setError('Stop before changing direction.'); return; }
-                    drive(0, value === 'forward');
-                  }}
-                  disabled={!ready}
-                  data={[{ label: 'Forward', value: 'forward' }, { label: 'Reverse', value: 'reverse' }]}
-                />
-                <Button color="red" size="lg" leftSection={<IconPlayerStop />} disabled={!ready} onClick={stop}>STOP locomotive</Button>
-                <Switch
-                  label="F0 – Headlight"
-                  checked={light}
-                  disabled={!ready}
-                  onChange={(event) => {
-                    const enabled = event.currentTarget.checked;
-                    try {
-                      if (send(functionCommand(Number(address), 0, enabled))) setLight(enabled);
-                    } catch (e) {
-                      setError(String(e));
-                    }
-                  }}
-                />
-                <Group>
-                  <Button variant="light" disabled={!ready} onClick={() => send('<1>')}>Track power ON</Button>
-                  <Button variant="light" color="orange" disabled={!ready} onClick={() => send('<0>')}>Track power OFF</Button>
-                  <Badge color={power === null ? 'gray' : power ? 'green' : 'red'}>Power: {power === null ? 'unknown' : power ? 'on' : 'off'}</Badge>
-                </Group>
-              </Stack>
-            </Card>
-              </Tabs.Panel>
-            </Tabs>
-            <Group>
-              <Button variant="light" onClick={() => exportProject(project).catch(e => setError(String(e)))}>Export project</Button>
-              <FileButton accept=".json,application/json" onChange={file => {
-                if (!file) return;
-                importProject(file).then(p => {
-                  if (!window.confirm('Replace local project data with imported data?')) return;
-                  setProject(p);
-                }).catch(e => setError('Import failed: ' + String(e)));
-              }}>
-                {(props) => <Button variant="light" {...props}>Import project</Button>}
-              </FileButton>
-            </Group>
-            </Box>
-            {error && (
-              <Alert icon={<IconAlertTriangle size={18} />} color="red" title="Connection / command error" withCloseButton onClose={() => setError('')}>
-                {error}
-              </Alert>
-            )}
-            <Paper withBorder p="md" radius="md">
-              <Group justify="space-between">
-                <Title order={5}>Protocol log</Title>
-                <Button variant="subtle" size="xs" onClick={() => setLog([])}>Clear</Button>
-              </Group>
-              <Box mah={220} style={{ overflowY: 'auto' }}>
-                <Stack gap={3} mt="sm">
-                  {log.map((line, index) => <Text key={index} size="xs" ff="monospace">{line}</Text>)}
-                </Stack>
-              </Box>
-            </Paper>
-            <Text c="dimmed" size="xs">
-              Keep this tab active. Network loss or browser closure cannot guarantee a stop command reaches the station. Use physical emergency stop for safety.
-            </Text>
+        <Modal opened={connectSettingsOpen} onClose={()=>setConnectSettingsOpen(false)} title="DCC-EX WebSocket connection" centered>
+          <Stack>
+            <TextInput label="WebSocket address" value={url} disabled={status!=='disconnected'} onChange={e=>setUrl(e.currentTarget.value)} description="DCC-EX native DCCEX WebSocket subprotocol, e.g. ws://192.168.1.145:2560/"/>
+            <Group><Button disabled={status!=='disconnected'} leftSection={<IconPlugConnected size={17}/>} onClick={connect}>Connect</Button><Button variant="outline" color="gray" disabled={status==='disconnected'} leftSection={<IconWifiOff size={17}/>} onClick={disconnect}>Disconnect</Button></Group>
           </Stack>
-        </Container>
+        </Modal>
+        <Modal opened={locoEditorOpen} onClose={()=>setLocoEditorOpen(false)} title="Locomotive editor" size="xl">
+          <LocoEditor locos={project.locos} onChange={locos=>setProject(p=>({...p,locos}))} onDrive={value=>{if(speed===0)setAddress(value);else setError('Stop before changing locomotive.');}}/>
+        </Modal>
+        {page==='home' ? (
+          <Container size="lg" py="lg">
+            <Stack gap="lg">
+              <Card withBorder p="lg" radius="sm"><Group justify="space-between"><Stack gap={2}><Title order={3}>DCCExpressHub</Title><Text c="dimmed" size="sm">Browser-only layout and locomotive control</Text></Stack><Badge color={ready?'green':'gray'}>{ready?'ONLINE':'OFFLINE'}</Badge></Group></Card>
+              <SimpleGrid cols={{base:1,sm:2}} spacing="md">
+                <Card withBorder p="lg" radius="sm" style={{cursor:'pointer'}} onClick={()=>setPage('layout')}>
+                  <ThemeIcon variant="light" color="teal" size={48} radius="lg"><IconMap size={27}/></ThemeIcon>
+                  <Title order={4} mt="md">Layout</Title><Text size="sm" c="dimmed">Track layout editor and manual control</Text>
+                </Card>
+                <Card withBorder p="lg" radius="sm" style={{cursor:'pointer'}} onClick={()=>setLocoEditorOpen(true)}>
+                  <ThemeIcon variant="light" color="cyan" size={48} radius="lg"><IconTrain size={27}/></ThemeIcon>
+                  <Title order={4} mt="md">Locomotives</Title><Text size="sm" c="dimmed">{project.locos.length} locomotives · edit roster and pictures</Text>
+                </Card>
+              </SimpleGrid>
+              <Group><Button variant="light" leftSection={<IconDownload size={16}/>} onClick={()=>exportProject(project).catch(e=>setError(String(e)))}>Export project</Button>
+                <FileButton accept=".json,application/json" onChange={file=>{if(!file)return;importProject(file).then(p=>{if(window.confirm('Replace project?'))setProject(p);}).catch(e=>setError(String(e)));}}>{props=><Button {...props} variant="light" leftSection={<IconUpload size={16}/>}>Import project</Button>}</FileButton></Group>
+            </Stack>
+          </Container>
+        ) : (
+          <Stack gap={6} px={8} py={6} style={{height:'calc(100dvh - 66px)',minHeight:560}}>
+            <Card withBorder p="xs" radius="sm">
+              <Group justify="space-between" wrap="nowrap">
+                <Group gap="xs">
+                  <ActionIcon variant="light" size="lg" title="Home" onClick={()=>setPage('home')}><IconHome size={18}/></ActionIcon>
+                  <Button variant="subtle" size="compact-sm" leftSection={<IconEdit size={16}/>}>Layout editor</Button>
+                  <Button variant="subtle" size="compact-sm" onClick={()=>setLocoEditorOpen(true)}>Locomotives</Button>
+                </Group>
+                <Group gap="xs"><Badge variant="light">{project.locos.length} locos</Badge><Badge color={ready?'green':'gray'}>{ready?'Online':'Offline'}</Badge></Group>
+              </Group>
+            </Card>
+            <BrowserLayoutPage
+              locos={project.locos}
+              activeAddress={Number(address)}
+              onSelectLoco={value=>{if(speed===0)setAddress(value);else setError('Stop before changing locomotive.');}}
+              connected={ready}
+              speed={speed}
+              forward={forward}
+              onSpeed={setSpeed}
+              onDrive={drive}
+              onStop={stop}
+              onDirection={direction=>{if(speed===0)drive(0,direction);else setError('Stop before reversing.');}}
+              onFunction={enabled=>{try{if(send(functionCommand(Number(address),0,enabled)))setLight(enabled);}catch(e){setError(String(e));}}}
+              light={light}
+            />
+          </Stack>
+        )}
+        {error&&<Alert color="red" icon={<IconAlertTriangle size={17}/>} title="Error" withCloseButton onClose={()=>setError('')} mx="md" my="xs">{error}</Alert>}
       </AppShell.Main>
     </AppShell>
   );
