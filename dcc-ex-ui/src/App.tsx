@@ -88,7 +88,8 @@ export function App() {
   const [connectSettingsOpen,setConnectSettingsOpen] = useState(false);
   const [locoEditorOpen,setLocoEditorOpen] = useState(false);
   return (
-    <AppShell header={{height:66}} padding={0}>
+    <AppShell header={page==='home'?{height:66}:undefined} padding={0}>
+      {page==='home' && (
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between">
           <Group gap="sm" style={{cursor:'pointer'}} onClick={()=>setPage('home')}>
@@ -101,6 +102,7 @@ export function App() {
           </Group>
         </Group>
       </AppShell.Header>
+      )}
       <AppShell.Main>
         <Modal opened={connectSettingsOpen} onClose={()=>setConnectSettingsOpen(false)} title="DCC-EX WebSocket connection" centered>
           <Stack>
@@ -130,7 +132,7 @@ export function App() {
             </Stack>
           </Container>
         ) : (
-          <Box px={8} py={8} style={{height:'calc(100dvh - 66px)',minHeight:0,overflow:'hidden'}}>
+          <Box px={8} py={8} style={{height:'100dvh',minHeight:0,overflow:'hidden'}}>
             <BrowserLayoutPage
               locos={project.locos}
               activeAddress={Number(address)}
