@@ -7,6 +7,7 @@ import { screenToGrid, getCenteredElementGridAnchor } from './preview-webui/trac
 import type { ViewState, SelectionRect } from './preview-webui/track-canvas/TrackCanvas.types';
 import { RAILWAY_PICKER_ITEMS, DECORATION_PICKER_ITEMS } from './BrowserElementPicker';
 import { ELEMENT_TYPES, type ElementType } from './preview-webui/domain/layout/elementTypes';
+import { loadSavedViewState, saveViewState } from './preview-webui/track-canvas/trackCanvasViewStorage';
 
 type BrowserTool='cursor'|'draw';
 type Props={
@@ -23,6 +24,7 @@ type Gesture={
  startGrid:GridPoint;offsetX:number;offsetY:number;moving:Moving[];dirty:boolean;additive:boolean;
 };
 const gridSize=40;
+const VIEW_KEY='dcc-ex-ui.layout.canvas.view';
 const pickers=[...RAILWAY_PICKER_ITEMS,...DECORATION_PICKER_ITEMS];
 const byType=new Map(pickers.map(item=>[item.type,item]));
 const oldKinds:Record<string,string>={straight:ELEMENT_TYPES.TRACK_STRAIGHT,curve:ELEMENT_TYPES.TRACK_CURVE,
@@ -90,7 +92,7 @@ export default function BrowserTrackCanvas({elements,onElementsChange,editMode,t
  const cursorRef=useRef<BaseElement|null>(null);
  const clipboardRef=useRef<TrackElement|null>(null);
  const gesture=useRef<Gesture|null>(null);
- const view=useRef<ViewState>({scale:1,offsetX:0,offsetY:0});
+ const view=useRef<ViewState>(loadSavedViewState(VIEW_KEY));
  const hover=useRef<GridPoint|null>(null);
  const selectRect=useRef<SelectionRect|null>(null);
  const undoStack=useRef<TrackElement[][]>([]);
@@ -144,12 +146,13 @@ export default function BrowserTrackCanvas({elements,onElementsChange,editMode,t
  const fit=useCallback(()=>{
   const node=holderRef.current;if(!node)return;
   const width=node.clientWidth,height=node.clientHeight,elems=modelsRef.current;
-  if(!elems.length){view.current={scale:1,offsetX:Math.round(width/2)-80,offsetY:Math.round(height/2)-80};redraw();return;}
+  if(!elems.length){view.current={scale:1,offsetX:Math.round(width/2)-80,offsetY:Math.round(height/2)-80};saveViewState(view.current,VIEW_KEY);redraw();return;}
   const bounds=elems.map(m=>m.getBounds());
   const l=Math.min(...bounds.map(b=>b.x))*gridSize,t=Math.min(...bounds.map(b=>b.y))*gridSize;
   const r=Math.max(...bounds.map(b=>b.x+b.width))*gridSize,b=Math.max(...bounds.map(b=>b.y+b.height))*gridSize;
   const scale=Math.max(.2,Math.min(3,Math.min((width-60)/Math.max(40,r-l),(height-60)/Math.max(40,b-t))));
   view.current={scale,offsetX:(width-(l+r)*scale)/2,offsetY:(height-(t+b)*scale)/2};
+  saveViewState(view.current,VIEW_KEY);
   redraw();
  },[redraw]);
  useEffect(()=>{
@@ -159,7 +162,13 @@ export default function BrowserTrackCanvas({elements,onElementsChange,editMode,t
   const observer=new ResizeObserver(resize);observer.observe(node);resize();
   return()=>observer.disconnect();
  },[]);
- useEffect(()=>{fit();},[fitCounter,fit]);
+ const fittedOnce=useRef(false);
+ useEffect(()=>{
+  if(!fittedOnce.current){
+   fittedOnce.current=true;
+   try{if(!localStorage.getItem(VIEW_KEY))fit();}catch{fit();}
+  }else{fit();}
+ },[fitCounter,fit]);
  useEffect(()=>{
   if(!drawingElement)return;
   const ctor=drawingElement.preview.constructor as unknown as new(x:number,y:number)=>BaseElement;
@@ -251,7 +260,7 @@ export default function BrowserTrackCanvas({elements,onElementsChange,editMode,t
   if(!d||d.pointerId!==event.pointerId){redraw();return;}
   if(d.kind==='pan'){
    view.current={...view.current,offsetX:d.offsetX+p.x-d.startX,
-    offsetY:d.offsetY+p.y-d.startY};redraw();return;
+    offsetY:d.offsetY+p.y-d.startY};saveViewState(view.current,VIEW_KEY);redraw();return;
   }
   if(d.kind==='select'){
    selectRect.current={startGridX:d.startGrid.x,startGridY:d.startGrid.y,endGridX:g.x,endGridY:g.y};
@@ -293,7 +302,7 @@ export default function BrowserTrackCanvas({elements,onElementsChange,editMode,t
   const old=view.current;
   const scale=Math.max(.2,Math.min(4,old.scale*(event.deltaY<0?1.13:1/1.13)));
   view.current={scale,offsetX:p.x-(p.x-old.offsetX)*scale/old.scale,
-   offsetY:p.y-(p.y-old.offsetY)*scale/old.scale};redraw();
+   offsetY:p.y-(p.y-old.offsetY)*scale/old.scale};saveViewState(view.current,VIEW_KEY);redraw();
  };
  useEffect(()=>{
   const keyDown=(event:KeyboardEvent)=>{
