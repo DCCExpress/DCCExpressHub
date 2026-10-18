@@ -95,6 +95,7 @@ export default function BrowserTrackCanvas({elements,onElementsChange,editMode,t
  const gesture=useRef<Gesture|null>(null);
  const view=useRef<ViewState>(loadSavedViewState(VIEW_KEY));
  const hover=useRef<GridPoint|null>(null);
+ const mouseGrid=useRef<GridPoint>({x:0,y:0});
  const selectRect=useRef<SelectionRect|null>(null);
  const undoStack=useRef<TrackElement[][]>([]);
  const redoStack=useRef<TrackElement[][]>([]);
@@ -197,7 +198,7 @@ export default function BrowserTrackCanvas({elements,onElementsChange,editMode,t
    }
   }};
   drawScene(ctx,canvasSize.width,canvasSize.height,editMode,'dark',view.current,
-   hover.current??{x:0,y:0},{mode:tool,elementType:(cursorRef.current?.type??drawingElement?.type??ELEMENT_TYPES.GENERAL) as ElementType},
+   mouseGrid.current,{mode:tool,elementType:(cursorRef.current?.type??drawingElement?.type??ELEMENT_TYPES.GENERAL) as ElementType},
    hover.current,editMode&&tool==='draw'?cursorRef.current:null,
    layout as never,{showGrid:true,showBuildings:true,showSegments:false,showBlockNames:true,
     showOccupacySensorAddress:false,showSensorAddress:false,showSignalAddress:false,showTurnoutAddress:false} as never,
@@ -263,7 +264,11 @@ export default function BrowserTrackCanvas({elements,onElementsChange,editMode,t
  };
  const onPointerMove=(event:PointerEvent<HTMLCanvasElement>)=>{
   const p=local(event),g=grid(p),d=gesture.current;
-  hover.current=g;
+  mouseGrid.current=g;
+  if(editMode&&tool==='draw'&&cursorRef.current){
+   const position=getCenteredElementGridAnchor(cursorRef.current,g);
+   hover.current=canPlace(cursorRef.current,position.x,position.y)?null:position;
+  }else{hover.current=null;}
   if(!d||d.pointerId!==event.pointerId){redraw();return;}
   if(d.kind==='pan'){
    view.current={...view.current,offsetX:d.offsetX+p.x-d.startX,
