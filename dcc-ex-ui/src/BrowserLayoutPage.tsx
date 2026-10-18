@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
-import { ActionIcon, Badge, Box, Button, Card, Group, NumberInput, SegmentedControl, Slider, Stack, Switch, Text, Title } from '@mantine/core';
+import { ActionIcon, Badge, Box, Button, Card, Group, SegmentedControl, Slider, Stack, Switch, Text, Title } from '@mantine/core';
 import { IconChevronLeft, IconChevronRight, IconPlayerStop, IconSettings, IconTrain } from '@tabler/icons-react';
 import type {Loco} from './storage';
 type Props={locos:Loco[];activeAddress:number;onSelectLoco:(v:number)=>void;connected:boolean;speed:number;forward:boolean;onSpeed:(v:number)=>void;onDrive:(v:number,d?:boolean)=>void;onStop:()=>void;onDirection:(v:boolean)=>void;onFunction:(v:boolean)=>void;light:boolean};

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, AppShell, Badge, Box, Button, Card, Container, Group, NumberInput, Paper, FileButton, Modal, SimpleGrid, SegmentedControl, Slider, Stack, Switch, Text, TextInput, Title, ThemeIcon, ActionIcon } from '@mantine/core';
-import { IconAlertTriangle, IconPlugConnected, IconPlayerStop, IconTrain, IconWifiOff, IconMap, IconSettings, IconHome, IconEdit, IconDownload, IconUpload } from '@tabler/icons-react';
+import { Alert, AppShell, Badge, Button, Card, Container, Group, FileButton, Modal, SimpleGrid, Stack, Text, TextInput, Title, ThemeIcon, ActionIcon } from '@mantine/core';
+import { IconAlertTriangle, IconPlugConnected, IconTrain, IconWifiOff, IconMap, IconSettings, IconHome, IconDownload, IconUpload } from '@tabler/icons-react';
 import { functionCommand, parseFrames, throttleCommand } from './dccex';
 import { LocoEditor } from './LocoEditor';
 import { BrowserLayoutPage } from './BrowserLayoutPage';
@@ -22,8 +22,8 @@ export function App() {
   const [speed, setSpeed] = useState(0);
   const [forward, setForward] = useState(true);
   const [light, setLight] = useState(false);
-  const [power, setPower] = useState<boolean | null>(null);
-  const [log, setLog] = useState<string[]>([]);
+  const [, setPower] = useState<boolean | null>(null);
+  const [, setLog] = useState<string[]>([]);
   const [error, setError] = useState('');
   const socket = useRef<WebSocket | null>(null);
   const active = useRef({ address: 18, speed: 0, forward: true });
