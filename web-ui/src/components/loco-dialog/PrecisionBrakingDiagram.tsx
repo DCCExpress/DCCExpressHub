@@ -78,12 +78,15 @@ export default function PrecisionBrakingDiagram({
         <text x="325" y="16" fill="currentColor" fontSize="13" textAnchor="middle">{t("precisionBrakingMeasurement.forward")}</text>
         <path d="M235 31 H415" stroke="#3b82f6" strokeWidth="1.5"
           fill="none" markerEnd="url(#braking-forward-head)" />
-        {Array.from({ length: 41 }, (_, i) => (
-          <path key={i} d={`M${19 + i * 15} ${trackY - 8} v18`}
-            stroke="#8b7355" strokeWidth="3" />
+        {/* Minimal single-line track with unobtrusive short sleepers. */}
+        {Array.from({ length: 32 }, (_, i) => (
+          <line key={i}
+            x1={26 + i * 19} y1={trackY - 4}
+            x2={26 + i * 19} y2={trackY + 4}
+            stroke="#8b7355" strokeWidth="1.3" />
         ))}
-        <path d={`M18 ${trackY - 4} H632 M18 ${trackY + 6} H632`}
-          stroke="#64748b" strokeWidth="2.5" fill="none" />
+        <line x1={18} y1={trackY} x2={632} y2={trackY}
+          stroke="#64748b" strokeWidth="1.8" />
         {[entryA, entryC].map(x => <path key={x} d={`M${x} 49 V155`}
           stroke="currentColor" strokeWidth="2" strokeDasharray="5 5" />)}
         {train(trainStartA, "origin")}
