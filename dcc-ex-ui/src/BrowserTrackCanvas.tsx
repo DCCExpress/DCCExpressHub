@@ -475,7 +475,7 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
    onPointerCancel={onPointerEnd} onPointerLeave={()=>{pointerInside.current=false;setPointerCursor('default');if(!gesture.current)hover.current=null;redraw();}}
    onWheel={onWheel} onContextMenu={event=>event.preventDefault()}
    style={{width:'100%',height:'100%',display:'block',touchAction:'none',
-    outline:'none',cursor:panActive?'grabbing':editMode&&tool==='draw'&&cursorRef.current?'none':editMode?'default':pointerCursor}}/>
+    outline:'none',cursor:panActive?'grabbing':editMode?tool==='draw'?'crosshair':'default':pointerCursor}}/>
   <TrackCanvasDoubleTurnoutPopover state={turnoutPopover}
    onClose={()=>setTurnoutPopover({opened:false,x:0,y:0,turnout:null})}
    onChanged={()=>{publish();setMessage('');}}/>
