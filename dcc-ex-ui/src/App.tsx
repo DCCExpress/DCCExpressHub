@@ -74,11 +74,108 @@ export function App() {
     } catch (e) { setError(String(e)); }
   };
   const ready = status === 'connected';
-  return <AppShell header={{ height: 68 }} padding="md"><AppShell.Header><Group h="100%" px="lg" justify="space-between"><Group><IconTrain size={28}/><Title order={3}>DCCExpressHub <Text span c="dimmed" size="sm">Browser alpha7</Text></Title></Group><Badge color={ready ? 'green' : status === 'connecting' ? 'yellow' : 'gray'}>{status}</Badge></Group></AppShell.Header><AppShell.Main><Container size="sm"><Stack gap="lg">
-    <Card withBorder radius="md"><Stack><Title order={4}>DCC-EX WebSocket connection</Title><TextInput label="WebSocket URL" description="Requires a native WebSocket DCC-EX endpoint or a WS-to-TCP bridge. Plain DCC-EX TCP port 2560 does not work here." value={url} onChange={e => setUrl(e.currentTarget.value)} disabled={status !== 'disconnected'} placeholder="ws://station:port/path"/><Group><Button leftSection={<IconPlugConnected size={18}/>} disabled={status !== 'disconnected'} onClick={connect}>Connect</Button><Button color="gray" variant="outline" leftSection={<IconWifiOff size={18}/>} disabled={status === 'disconnected'} onClick={disconnect}>Disconnect</Button></Group></Stack></Card>
-    <Card withBorder radius="md"><Stack gap="md"><Group justify="space-between"><Title order={4}>Locomotive throttle</Title><Badge variant="light">DCC-EX</Badge></Group><NumberInput label="DCC locomotive address" value={address} onChange={setAddress} min={1} max={10239} clampBehavior="strict" disabled={speed > 0} /><Text size="xs" c="dimmed">Set the address with speed zero, then move the throttle to apply it.</Text><Group justify="space-between"><Text>Speed</Text><Title order={2}>{speed} / 126</Title></Group><Box px="xs"><Slider min={0} max={126} value={speed} onChange={setSpeed} onChangeEnd={value => drive(value)} disabled={!ready} marks={[{value:0,label:'0'},{value:63,label:'63'},{value:126,label:'126'}] mb="lg"/></Box><SegmentedControl fullWidth value={forward ? 'forward' : 'reverse'} onChange={v => { if (speed !== 0) { setError('Stop before changing direction.'); return; } drive(0, v === 'forward'); }} disabled={!ready} data={[{label:'Forward',value:'forward'},{label:'Reverse',value:'reverse'}]}/><Button color="red" size="lg" leftSection={<IconPlayerStop/>} disabled={!ready} onClick={stop}>STOP locomotive</Button><Switch label="F0 – Headlight" checked={light} disabled={!ready} onChange={event => { const on = event.currentTarget.checked; try { if (send(functionCommand(Number(address), 0, on))) setLight(on); } catch (e) { setError(String(e)); } }}/><Group><Button variant="light" disabled={!ready} onClick={() => send('<1>')}>Track power ON</Button><Button variant="light" color="orange" disabled={!ready} onClick={() => send('<0>')}>Track power OFF</Button><Badge color={power === null ? 'gray' : power ? 'green' : 'red'}>Power: {power === null ? 'unknown' : power ? 'on' : 'off'}</Badge></Group></Stack></Card>
-    {error && <Alert icon={<IconAlertTriangle size={18}/>} color="red" title="Connection / command error" withCloseButton onClose={() => setError('')}>{error}</Alert>}
-    <Paper withBorder p="md" radius="md"><Group justify="space-between"><Title order={5}>Protocol log</Title><Button variant="subtle" size="xs" onClick={() => setLog([])}>Clear</Button></Group><Box mah={220} style={{ overflowY:'auto' }}><Stack gap={3} mt="sm">{log.map((line, i) => <Text key={i} size="xs" ff="monospace">{line}</Text>)}</Stack></Box></Paper>
-    <Text c="dimmed" size="xs">Browser prototype: keep this tab active. Disconnecting or closing the browser cannot guarantee a stop command reaches the command station; use the command station's emergency stop for safety.</Text>
-  </Stack></Container></AppShell.Main></AppShell>;
+  return (
+    <AppShell header={{ height: 68 }} padding="md">
+      <AppShell.Header>
+        <Group h="100%" px="lg" justify="space-between">
+          <Group>
+            <IconTrain size={28} />
+            <Title order={3}>DCCExpressHub <Text span c="dimmed" size="sm">Browser alpha7</Text></Title>
+          </Group>
+          <Badge color={ready ? 'green' : status === 'connecting' ? 'yellow' : 'gray'}>{status}</Badge>
+        </Group>
+      </AppShell.Header>
+      <AppShell.Main>
+        <Container size="sm">
+          <Stack gap="lg">
+            <Card withBorder radius="md">
+              <Stack>
+                <Title order={4}>DCC-EX WebSocket connection</Title>
+                <TextInput
+                  label="WebSocket URL"
+                  description="Requires a real WebSocket endpoint forwarding raw DCC-EX commands. TCP port 2560 is not WebSocket."
+                  value={url}
+                  onChange={(event) => setUrl(event.currentTarget.value)}
+                  disabled={status !== 'disconnected'}
+                  placeholder="ws://station:port/path"
+                />
+                <Group>
+                  <Button leftSection={<IconPlugConnected size={18} />} disabled={status !== 'disconnected'} onClick={connect}>Connect</Button>
+                  <Button color="gray" variant="outline" leftSection={<IconWifiOff size={18} />} disabled={status === 'disconnected'} onClick={disconnect}>Disconnect</Button>
+                </Group>
+              </Stack>
+            </Card>
+            <Card withBorder radius="md">
+              <Stack gap="md">
+                <Group justify="space-between"><Title order={4}>Locomotive throttle</Title><Badge variant="light">DCC-EX</Badge></Group>
+                <NumberInput label="DCC locomotive address" value={address} onChange={setAddress} min={1} max={10239} clampBehavior="strict" disabled={speed > 0} />
+                <Text size="xs" c="dimmed">Choose an address at speed zero, then move the throttle.</Text>
+                <Group justify="space-between"><Text>Speed</Text><Title order={2}>{speed} / 126</Title></Group>
+                <Box px="xs">
+                  <Slider
+                    min={0}
+                    max={126}
+                    value={speed}
+                    onChange={setSpeed}
+                    onChangeEnd={(value) => drive(value)}
+                    disabled={!ready}
+                    marks={[{ value: 0, label: '0' }, { value: 63, label: '63' }, { value: 126, label: '126' }]}
+                    mb="lg"
+                  />
+                </Box>
+                <SegmentedControl
+                  fullWidth
+                  value={forward ? 'forward' : 'reverse'}
+                  onChange={(value) => {
+                    if (speed !== 0) { setError('Stop before changing direction.'); return; }
+                    drive(0, value === 'forward');
+                  }}
+                  disabled={!ready}
+                  data={[{ label: 'Forward', value: 'forward' }, { label: 'Reverse', value: 'reverse' }]}
+                />
+                <Button color="red" size="lg" leftSection={<IconPlayerStop />} disabled={!ready} onClick={stop}>STOP locomotive</Button>
+                <Switch
+                  label="F0 – Headlight"
+                  checked={light}
+                  disabled={!ready}
+                  onChange={(event) => {
+                    const enabled = event.currentTarget.checked;
+                    try {
+                      if (send(functionCommand(Number(address), 0, enabled))) setLight(enabled);
+                    } catch (e) {
+                      setError(String(e));
+                    }
+                  }}
+                />
+                <Group>
+                  <Button variant="light" disabled={!ready} onClick={() => send('<1>')}>Track power ON</Button>
+                  <Button variant="light" color="orange" disabled={!ready} onClick={() => send('<0>')}>Track power OFF</Button>
+                  <Badge color={power === null ? 'gray' : power ? 'green' : 'red'}>Power: {power === null ? 'unknown' : power ? 'on' : 'off'}</Badge>
+                </Group>
+              </Stack>
+            </Card>
+            {error && (
+              <Alert icon={<IconAlertTriangle size={18} />} color="red" title="Connection / command error" withCloseButton onClose={() => setError('')}>
+                {error}
+              </Alert>
+            )}
+            <Paper withBorder p="md" radius="md">
+              <Group justify="space-between">
+                <Title order={5}>Protocol log</Title>
+                <Button variant="subtle" size="xs" onClick={() => setLog([])}>Clear</Button>
+              </Group>
+              <Box mah={220} style={{ overflowY: 'auto' }}>
+                <Stack gap={3} mt="sm">
+                  {log.map((line, index) => <Text key={index} size="xs" ff="monospace">{line}</Text>)}
+                </Stack>
+              </Box>
+            </Paper>
+            <Text c="dimmed" size="xs">
+              Keep this tab active. Network loss or browser closure cannot guarantee a stop command reaches the station. Use physical emergency stop for safety.
+            </Text>
+          </Stack>
+        </Container>
+      </AppShell.Main>
+    </AppShell>
+  );
 }
