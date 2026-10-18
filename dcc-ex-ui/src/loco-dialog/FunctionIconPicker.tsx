@@ -1,5 +1,5 @@
 import { useEffect,useState } from 'react';
-import { ActionIcon, Button, ColorInput, Group, Modal, ScrollArea, SegmentedControl, SimpleGrid, Stack, Text } from '@mantine/core';
+import { Button, ColorInput, Group, Modal, ScrollArea, SegmentedControl, SimpleGrid, Stack, Text } from '@mantine/core';
 import { BUILTIN_FUNCTION_ICONS, getBuiltinFunctionIcon } from './FunctionIconRegistry';
 import type { LocoFunction } from '../storage';
 type Mode=NonNullable<LocoFunction['iconTintMode']>;
