@@ -8,6 +8,7 @@ import type { ViewState, SelectionRect } from './preview-webui/track-canvas/Trac
 import { RAILWAY_PICKER_ITEMS, DECORATION_PICKER_ITEMS } from './BrowserElementPicker';
 import { ELEMENT_TYPES, type ElementType } from './preview-webui/domain/layout/elementTypes';
 import { loadSavedViewState, saveViewState } from './preview-webui/track-canvas/trackCanvasViewStorage';
+import { getBridgePlacement } from './preview-webui/track-canvas/bridgePlacement';
 
 type BrowserTool='cursor'|'draw';
 type Props={
@@ -136,8 +137,8 @@ export default function BrowserTrackCanvas({elements,onElementsChange,editMode,t
   element.x=x;element.y=y;
   try{
    if(element.type===ELEMENT_TYPES.TRACK_BRIDGE){
-    // Original bridge constraint: bridge must overlap a straight track.
-    return modelsNow().some(other=>other.type===ELEMENT_TYPES.TRACK_STRAIGHT&&rectsIntersect(element.getBounds(),other.getBounds()));
+    return getBridgePlacement({track:{elements:modelsNow().filter(m=>m.layerName==='track')}},
+      x,y,element.rotation,element.id).valid;
    }
    return !modelsNow().some(other=>other!==element&&!ignored.has(other.id)&&
     other.layerName===element.layerName&&intersects(element,other));
@@ -229,6 +230,12 @@ export default function BrowserTrackCanvas({elements,onElementsChange,editMode,t
    }
    saveHistory();const placed=copyModel(model);
    placed.id=allocateId(modelsNow());placed.x=anchor.x;placed.y=anchor.y;
+   if(placed.type===ELEMENT_TYPES.TRACK_BRIDGE){
+    const bridge=getBridgePlacement({track:{elements:modelsNow().filter(m=>m.layerName==='track')}},
+      anchor.x,anchor.y,placed.rotation);
+    if(!bridge.valid)return;
+    placed.rotation=bridge.rotation;
+   }
    modelsRef.current=[...modelsNow(),placed];
    // Like original web-ui: keep the current drawing tool for repeated placement.
    publish();setMessage('');return;
