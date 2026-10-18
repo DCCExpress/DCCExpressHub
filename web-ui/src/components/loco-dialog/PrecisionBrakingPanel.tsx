@@ -165,12 +165,14 @@ export default function PrecisionBrakingPanel({
   const rearGap = rearPosition;
   const measurementConsistent = measuredBlockLength > 0 && trainLength > 0 &&
     Number.isFinite(frontPosition) && frontPosition > 0 && frontPosition <= 20000;
-  // Show existing measurements even when they predate the approval flag.
-  // An unapproved profile is display-only, never operational braking authority.
-  const displayedProfile = active && state?.locoId === loco.id
-    ? state.profile
-    : savedProfile?.profile ?? [];
+  // Display persisted history, or show the previous in-memory session
+  // if this Hub process still holds samples that were never approved.
   const showingTraining = active && state?.locoId === loco.id;
+  const sessionPreview = !showingTraining && !savedProfile?.samples &&
+    state?.locoId === loco.id && (state?.profile.length ?? 0) > 0;
+  const displayedProfile = showingTraining || sessionPreview
+    ? state?.profile ?? []
+    : savedProfile?.profile ?? [];
 
   return <Stack gap="md">
     <Group justify="flex-end">
@@ -302,7 +304,9 @@ export default function PrecisionBrakingPanel({
             ? <Badge color="green">Validated · {savedProfile.samples} trials</Badge>
             : savedProfile && savedProfile.samples > 0
               ? <Badge color="orange">Stored measurements · not validated</Badge>
-              : null}
+              : sessionPreview
+                ? <Badge color="orange">Previous session · not saved</Badge>
+                : null}
       </Group>
       <Text size="xs" c="dimmed" mb="sm">Base stop (0) is the measured stopping distance when speed 0 is commanded immediately at the sensor; it is shown separately for each speed and direction. Adaptive stop is the learned result. Deceleration is estimated as −v²/(2s) from the immediate speed-zero baseline; it is unavailable without that measurement. Not applied to normal Movement runs.</Text>
       {savedError && !showingTraining && <Alert color="red">Cannot load saved stopping profile: {savedError}</Alert>}
@@ -313,6 +317,7 @@ export default function PrecisionBrakingPanel({
           : (savedProfile.rawSamples ?? 0) > 0
             ? <Alert color="orange">There are {savedProfile.rawSamples} saved measurements, but they cannot be interpreted as valid braking samples. The original data is preserved.</Alert>
             : <Text c="dimmed" size="sm">No stored braking measurements found for this locomotive. An unfinished training session was not saved as an approved profile.</Text>)}
+      {sessionPreview && <Alert color="orange">The previous trial measurements still exist in this running Hub, but were not approved with OK or saved as a validated profile. Do not start another training session if you want to inspect these values.</Alert>}
       {showingTraining && !displayedProfile.length && <Text c="dimmed" size="sm">No training measurements yet.</Text>}
       {displayedProfile.length > 0 &&
         <Table striped><Table.Thead><Table.Tr><Table.Th>Direction</Table.Th><Table.Th>DCC</Table.Th><Table.Th>mm/s</Table.Th><Table.Th>Deceleration (mm/s²)</Table.Th><Table.Th>Base stop (0) mm</Table.Th><Table.Th>Adaptive stop mm</Table.Th><Table.Th>Trials</Table.Th></Table.Tr></Table.Thead>
