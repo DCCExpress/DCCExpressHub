@@ -11,7 +11,7 @@ type Props={
  locos:Loco[];selectedLocoId:string;onSelect:(loco:Loco)=>void;disabled:boolean;
  emergencyStop:boolean;onEmergencyToggle:()=>void;activeAddress:number;speed:number;forward:boolean;
  functionStates:Record<number,Record<number,boolean>>;
- onCommand:(address:number,speed:number,forward:boolean)=>void;
+ onCommand:(address:number,speed:number,forward:boolean)=>void;onSpeed:(speed:number)=>void;
  onFunctionCommand:(address:number,number:number,active:boolean)=>void;
 };
 export default function LocoCardsView(p:Props){
@@ -72,7 +72,7 @@ export default function LocoCardsView(p:Props){
        <Tooltip label="Forward"><ActionIcon size="sm" variant={state.direction==='forward'?'filled':'light'} disabled={p.disabled||p.emergencyStop} onClick={()=>command(loco,state.speed,'forward')} aria-label="Forward"><IconArrowBigRight size={14}/></ActionIcon></Tooltip>
        <Slider style={{flex:1,minWidth:35}} size="xs" min={0} max={Math.max(1,Math.min(126,loco.maxSpeed??126))}
         value={Math.min(state.speed,Math.max(1,Math.min(126,loco.maxSpeed??126)))} disabled={p.disabled||p.emergencyStop}
-        onChange={value=>setLocal(old=>({...old,[loco.address]:{...state,speed:value}}))}
+        onChange={value=>{if(p.activeAddress===loco.address)p.onSpeed(value);else setLocal(old=>({...old,[loco.address]:{...state,speed:value}}));}}
         onChangeEnd={value=>command(loco,value,state.direction)} aria-label={'Speed '+loco.name}/>
       </Group>
       <Text size="xs" c="dimmed" truncate="end" style={{height:18,lineHeight:'18px'}}>Manual</Text>

@@ -80,7 +80,7 @@ export default function LocoPanel(p:Props) {
      <LocoCardsView locos={p.locos} selectedLocoId={selectedId} onSelect={select}
        disabled={!p.connected} emergencyStop={p.emergencyStop} onEmergencyToggle={p.onEmergencyToggle}
        activeAddress={p.activeAddress} speed={p.speed} forward={p.forward}
-       functionStates={functionStates} onCommand={p.onDriveAddress} onFunctionCommand={commandFunction}/>
+       functionStates={functionStates} onCommand={p.onDriveAddress} onSpeed={p.onSpeed} onFunctionCommand={commandFunction}/>
      :
      <div className="browser-loco-panel-fit">
       {!currentLoco?<Text size="sm" c="dimmed" ta="center" mt="xl">No locomotives. Add a locomotive on the Home page.</Text>:
