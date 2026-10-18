@@ -108,6 +108,47 @@ public sealed class PrecisionBrakingRuntime
         root.OfType<JsonObject>().FirstOrDefault(
             loco => string.Equals(loco["id"]?.GetValue<string>(), id, StringComparison.Ordinal));
 
+    // Read the persisted, operator-approved profile for a SPECIFIC locomotive.
+    // Unlike Snapshot(), this survives reopening the editor or restarting the Hub.
+    public sealed record SavedProfile(
+        bool Validated, string? UpdatedAt, int Samples,
+        IReadOnlyList<PrecisionBrakingProfile.LearnedPoint> Profile);
+
+    public Task<SavedProfile> GetSavedProfileAsync(
+        string locoId, CancellationToken token = default)
+    {
+        return _storage.ExecuteAsync(async () =>
+        {
+            if (string.IsNullOrWhiteSpace(locoId) || !File.Exists(LocoFile))
+                return new SavedProfile(false, null, 0, []);
+
+            var root = JsonNode.Parse(await File.ReadAllTextAsync(LocoFile, token)) as JsonArray;
+            var loco = root is null ? null : FindLoco(root, locoId);
+            var saved = loco?["precisionBraking"] as JsonObject;
+            if (saved is null || saved["validated"]?.GetValue<bool>() != true)
+                return new SavedProfile(false, saved?["updatedAt"]?.ToString(), 0, []);
+
+            var trials = new List<PrecisionBrakingProfile.Trial>();
+            if (saved["trials"] is JsonArray entries)
+                foreach (var entry in entries.OfType<JsonObject>())
+                {
+                    try
+                    {
+                        var sample = entry.Deserialize<PrecisionBrakingProfile.Trial>(
+                            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                        if (sample is not null && PrecisionBrakingProfile.ValidTrial(sample))
+                            trials.Add(sample);
+                    }
+                    catch (JsonException) { /* Ignore malformed individual samples. */ }
+                }
+
+            if (trials.Count == 0)
+                return new SavedProfile(false, saved["updatedAt"]?.ToString(), 0, []);
+            return new SavedProfile(true, saved["updatedAt"]?.ToString(),
+                trials.Count, PrecisionBrakingProfile.Learn(trials));
+        }, token);
+    }
+
     public async Task<(bool Ok, string Error)> ResetProfileAsync(string locoId)
     {
         if (string.IsNullOrWhiteSpace(locoId))
