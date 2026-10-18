@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, AppShell, Badge, Box, Button, Card, Container, Group, FileButton, Modal, SimpleGrid, Stack, Text, TextInput, Title, ThemeIcon } from '@mantine/core';
 import { IconAlertTriangle, IconPlugConnected, IconTrain, IconWifiOff, IconMap, IconSettings, IconDownload, IconUpload } from '@tabler/icons-react';
-import { emergencyStopCommand, trackPowerCommand, functionCommand, locoStatusQuery, parseFrames, parseLocoStatus, throttleCommand, type LocoLiveState } from './dccex';
+import { emergencyStopCommand, emergencyResumeCommand, trackPowerCommand, functionCommand, locoStatusQuery, parseFrames, parseLocoStatus, throttleCommand, type LocoLiveState } from './dccex';
 import { registerTurnoutOutputSink } from './preview-webui/services/layoutOutput';
 import { publishSensorFeedback, publishSensorSnapshot, publishConnectionStatus } from './preview-webui/services/wsClient';
 import { LocoEditor } from './LocoEditor';
@@ -62,14 +62,14 @@ export function App() {
     try { if (send(throttleCommand({ address: a, speed: 0, forward: d }))) { active.current.speed = 0; setSpeed(0); } } catch (e) { setError(String(e)); }
   }, [send]);
   const disconnect = useCallback(() => {
-    if (!emergencyStop && socket.current?.readyState === WebSocket.OPEN) {
+    if (socket.current?.readyState === WebSocket.OPEN) {
       const { address: a, forward: d } = active.current;
       socket.current.send(throttleCommand({ address: a, speed: 0, forward: d }));
     }
     socket.current?.close(); socket.current = null; setStatus('disconnected'); setPower(null); setSpeed(0);
     setLocoStates({});
     publishConnectionStatus('disconnected');
-  }, [emergencyStop]);
+  }, []);
   useEffect(() => () => { socket.current?.close(); }, []);
   const connect = () => {
     setError('');
@@ -98,6 +98,8 @@ export function App() {
         const frames = parseFrames(event.data);
         for (const frame of frames.length ? frames : [event.data]) {
           append('RX ' + frame);
+          if(frame.trim()==='<!PAUSED>')setEmergencyStop(true);
+          else if(frame.trim()==='<!RESUMED>')setEmergencyStop(false);
           const locoStatus=parseLocoStatus(frame);
           if(locoStatus){
             setLocoStates(old=>({...old,[locoStatus.address]:locoStatus}));
@@ -154,15 +156,10 @@ export function App() {
     });
   };
   const releaseEmergencyStop=()=>{
-    // Keep track power unchanged; explicitly clear emergency DCC speed code
-    // with zero-speed commands for all known slots. No automatic train restart.
-    const stops=Object.values(locoStates).filter(state=>state.known&&
-      Number.isInteger(state.address)&&state.address>=1&&state.address<=10239)
-      .map(state=>throttleCommand({address:state.address,speed:0,forward:state.forward}));
-    if(stops.length && !send(stops.join('')))return;
-    if(!stops.length && socket.current?.readyState!==WebSocket.OPEN){
-      setError('Connect to DCC-EX before resuming.');return;
-    }
+    // Exact DCC-EX sequence from the original .NET wrapper:
+    // ESTOPALL clears remembered speeds, then RESUME releases the pause.
+    // Do not send speed commands in between, and do not change track power.
+    if(!send(emergencyResumeCommand()))return;
     setEmergencyStop(false);
     active.current.speed=0;
     setSpeed(0);
@@ -276,7 +273,7 @@ export function App() {
                 }catch(e){setError(String(e));}
               }}
               onEmergencyToggle={emergencyStop?releaseEmergencyStop:engageEmergencyStop}
-              onEmergencyStop={engageEmergencyStop}
+              onEmergencyStop={emergencyStop?releaseEmergencyStop:engageEmergencyStop}
               emergencyStop={emergencyStop}
               light={light}
               onBack={()=>setPage('home')}

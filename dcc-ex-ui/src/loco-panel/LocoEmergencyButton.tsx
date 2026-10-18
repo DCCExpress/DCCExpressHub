@@ -19,8 +19,8 @@ export default function LocoEmergencyButton({
       style={{ width: "100%" }}
       color={emergencyStop ? "red" : "gray"}
       title={emergencyStop
-        ? "E-STOP sent. Resume with all locomotives at zero, or drive a locomotive manually."
-        : "Emergency stop all locomotives without switching track power off"}
+        ? "Resume safely (ESTOPALL then RESUME), without track-power switching"
+        : "Pause all locomotives without switching track power off"}
       className={emergencyStop ? "blinkBadge" : ""}
       leftSection={
         <IconAlertTriangle size={14} />

@@ -39,5 +39,6 @@ export function parseLocoStatus(frame:string):LocoLiveState|null{
 }
 
 // Unlike power-off, DCC-EX global E-STOP stops all locomotive reminder slots.
-export const emergencyStopCommand=()=> '<!>';
+export const emergencyStopCommand=()=> '<!P>';
+export const emergencyResumeCommand=()=> '<!><!R>';
 export const trackPowerCommand=(on:boolean)=>on?'<1>':'<0>';

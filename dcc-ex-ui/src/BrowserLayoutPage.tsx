@@ -257,7 +257,7 @@ export function BrowserLayoutPage(props:Props){
        {props.connected?'WS':'WS LOST'}
       </Badge>
       <Badge size="sm" variant="light" color={props.emergencyStop?'red':'gray'}
-       onClick={props.onEmergencyStop} title="Emergency stop all locomotives (track power stays on)"
+       onClick={props.onEmergencyStop} title={props.emergencyStop?"Resume locomotives at zero speed":"Pause all locomotives (track power stays on)"}
        className={'lite-status-action'+(props.emergencyStop?' blinkBadge':'')}>E-STOP</Badge>
       <Divider orientation="vertical"/>
       <Badge size="sm" variant="light" color="gray" title="Overload reporting is not available via this browser connection">Overload</Badge>
