@@ -189,6 +189,7 @@ export function BrowserLayoutPage(props:Props){
     </div>
     <Card withBorder p={4} className="lite-track-card">
      <BrowserTrackCanvas elements={props.elements} onElementsChange={props.onElementsChange}
+       connected={props.connected}
        editMode={editMode} tool={tool} drawingElement={drawingElement}
        onToolChange={next=>{setTool(next);if(next==='cursor')setDrawingElement(null);}}
        onSelectionChange={setSelectedElement} onSelectionCountChange={setSelectedCount} visibility={visibility}

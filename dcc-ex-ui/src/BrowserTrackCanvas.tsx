@@ -4,7 +4,11 @@ import type { BrowserPickerItem } from './BrowserElementPicker';
 import type { BaseElement } from './preview-webui/models/editor/core/BaseElement';
 import { drawScene } from './preview-webui/track-canvas/trackCanvasDraw';
 import { screenToGrid, getCenteredElementGridAnchor } from './preview-webui/track-canvas/trackCanvasGeometry';
-import type { ViewState, SelectionRect } from './preview-webui/track-canvas/TrackCanvas.types';
+import type { ViewState, SelectionRect, DoubleTurnoutPopoverState } from './preview-webui/track-canvas/TrackCanvas.types';
+import { TrackTurnoutElement } from './preview-webui/models/editor/elements/TrackTurnoutElement';
+import TrackTurnoutDoubleElement from './preview-webui/models/editor/elements/TrackTurnoutDoubleElement';
+import { TrackTurnoutThreeWayElement } from './preview-webui/models/editor/elements/TrackTurnoutThreeWayElement';
+import { TrackCanvasDoubleTurnoutPopover } from './track-canvas/TrackCanvasDoubleTurnoutPopover';
 import { RAILWAY_PICKER_ITEMS, DECORATION_PICKER_ITEMS } from './BrowserElementPicker';
 import { ELEMENT_TYPES, type ElementType } from './preview-webui/domain/layout/elementTypes';
 import { loadSavedViewState, saveViewState } from './preview-webui/track-canvas/trackCanvasViewStorage';
@@ -15,6 +19,7 @@ import { fitLayoutToView } from './preview-webui/track-canvas/trackCanvasLayoutB
 type BrowserTool='cursor'|'draw';
 type Props={
  elements:TrackElement[];onElementsChange:(elements:TrackElement[])=>void;
+ connected:boolean;
  editMode:boolean;tool:BrowserTool;drawingElement:BrowserPickerItem|null;
  onToolChange:(tool:BrowserTool)=>void;fitCounter?:number;deleteCounter?:number;
  onSelectionChange?:(selected:TrackElement|null)=>void;
@@ -56,11 +61,27 @@ export function restoreBrowserElement(item:TrackElement,index:number):BaseElemen
   if(!dto.type&&dto.label)result.name=dto.label;
   const id=Number(item.id);
   result.id=Number.isInteger(id)&&id>0&&id<=65535?id:index+1;
+  // Original web-ui serializes turnout configuration but not physical runtime state.
+  // Preserve it across browser project updates so a click actually changes the drawing.
+  const stateFields=['turnoutClosed','turnout1Closed','turnout2Closed'] as const;
+  for(const field of stateFields){
+   const value=(dto as Record<string,unknown>)[field];
+   if(typeof value==='boolean'&&field in result){
+    (result as unknown as Record<string,unknown>)[field]=value;
+   }
+  }
   result.selected=false;result.marked=false;
   return result;
  }catch(error){console.warn('Cannot load web-ui editor element',item,error);return null;}
 }
-const serialize=(model:BaseElement)=>model.toJSON() as unknown as TrackElement;
+const serialize=(model:BaseElement):TrackElement=>{
+ const dto=model.toJSON() as unknown as TrackElement;
+ if(model instanceof TrackTurnoutDoubleElement || model instanceof TrackTurnoutThreeWayElement){
+  return {...dto,turnout1Closed:model.turnout1Closed,turnout2Closed:model.turnout2Closed};
+ }
+ if(model instanceof TrackTurnoutElement)return {...dto,turnoutClosed:model.turnoutClosed};
+ return dto;
+};
 function copyModel(model:BaseElement):BaseElement{
  const dto=cloneJson(serialize(model));
  const copy=restoreBrowserElement(dto,0);
@@ -80,11 +101,12 @@ const allocateId=(models:BaseElement[])=>{
  for(let id=1;id<=65535;id++)if(!used.has(id))return id;
  throw new Error('Layout is full (65535 IDs)');
 };
-export default function BrowserTrackCanvas({elements,onElementsChange,editMode,tool,drawingElement,onToolChange,
+export default function BrowserTrackCanvas({elements,onElementsChange,connected,editMode,tool,drawingElement,onToolChange,
  fitCounter,deleteCounter,onSelectionChange,onSelectionCountChange,visibility,onSave,onToggleEditMode}:Props){
  const canvasRef=useRef<HTMLCanvasElement>(null);
  const holderRef=useRef<HTMLDivElement>(null);
  const selectedIds=useRef(new Set<number>());
+ const [turnoutPopover,setTurnoutPopover]=useState<DoubleTurnoutPopoverState>({opened:false,x:0,y:0,turnout:null});
  const models=useMemo(()=>{
   const restored=elements.map(restoreBrowserElement).filter((v):v is BaseElement=>v!==null);
   const present=new Set(restored.map(m=>m.id));
@@ -110,6 +132,7 @@ export default function BrowserTrackCanvas({elements,onElementsChange,editMode,t
  // Original TrackCanvas leaves no editable selection or ghost cursor in runtime mode.
  useEffect(()=>{
   if(editMode)return;
+  setTurnoutPopover({opened:false,x:0,y:0,turnout:null});
   selectedIds.current.clear();
   for(const model of modelsRef.current){model.selected=false;model.marked=false;}
   cursorRef.current=null;
@@ -241,6 +264,27 @@ export default function BrowserTrackCanvas({elements,onElementsChange,editMode,t
   if(event.button!==0&&event.button!==1&&event.button!==2)return;
   event.currentTarget.focus();event.currentTarget.setPointerCapture(event.pointerId);
   const p=local(event),g=grid(p);
+  if(!editMode && event.button===0){
+   const target=hit(g);
+   const multi=target instanceof TrackTurnoutDoubleElement||target instanceof TrackTurnoutThreeWayElement;
+   const single=target instanceof TrackTurnoutElement;
+   if(multi||single){
+    if(!connected){setMessage('Connect to DCC-EX before operating a turnout.');return;}
+    if(!target.enabled||target.locked){setMessage('Turnout is disabled or locked.');return;}
+    const addresses=multi?[target.turnout1Address,target.turnout2Address]:[target.turnoutAddress];
+    if(addresses.some(address=>!Number.isInteger(address)||address<=0)){
+     setMessage('Set the turnout accessory address in Edit mode first.');return;
+    }
+    setMessage('');
+    if(multi){
+     setTurnoutPopover({opened:true,x:event.clientX,y:event.clientY,turnout:target});
+    }else if(single){
+     target.toggle();
+     publish();
+    }
+    return;
+   }
+  }
   if(event.button===1||event.button===2||!editMode){
    gesture.current={kind:'pan',pointerId:event.pointerId,startX:p.x,startY:p.y,startGrid:g,
     offsetX:view.current.offsetX,offsetY:view.current.offsetY,moving:[],dirty:false,additive:false};
@@ -396,6 +440,9 @@ export default function BrowserTrackCanvas({elements,onElementsChange,editMode,t
    onWheel={onWheel} onContextMenu={event=>event.preventDefault()}
    style={{width:'100%',height:'100%',display:'block',touchAction:'none',
     outline:'none',cursor:editMode?(tool==='draw'?'crosshair':'default'):'grab'}}/>
+  <TrackCanvasDoubleTurnoutPopover state={turnoutPopover}
+   onClose={()=>setTurnoutPopover({opened:false,x:0,y:0,turnout:null})}
+   onChanged={()=>{publish();setMessage('');}}/>
   {message&&<div role="status" style={{position:'absolute',left:10,bottom:10,
     background:'rgba(30,22,20,.85)',color:'#ffd0a0',fontSize:12,padding:'3px 7px',
     borderRadius:4,pointerEvents:'none'}}>{message}</div>}
