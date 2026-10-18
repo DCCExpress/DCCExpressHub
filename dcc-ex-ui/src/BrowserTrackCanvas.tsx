@@ -9,6 +9,7 @@ import { RAILWAY_PICKER_ITEMS, DECORATION_PICKER_ITEMS } from './BrowserElementP
 import { ELEMENT_TYPES, type ElementType } from './preview-webui/domain/layout/elementTypes';
 import { loadSavedViewState, saveViewState } from './preview-webui/track-canvas/trackCanvasViewStorage';
 import { getBridgePlacement } from './preview-webui/track-canvas/bridgePlacement';
+import { fitLayoutToView } from './preview-webui/track-canvas/trackCanvasLayoutBounds';
 
 type BrowserTool='cursor'|'draw';
 type Props={
@@ -103,6 +104,19 @@ export default function BrowserTrackCanvas({elements,onElementsChange,editMode,t
  const [drawTick,setDrawTick]=useState(0);
  const redraw=useCallback(()=>setDrawTick(n=>n+1),[]);
  const [message,setMessage]=useState('');
+
+ // Original TrackCanvas leaves no editable selection or ghost cursor in runtime mode.
+ useEffect(()=>{
+  if(editMode)return;
+  selectedIds.current.clear();
+  for(const model of modelsRef.current){model.selected=false;model.marked=false;}
+  cursorRef.current=null;
+  hover.current=null;
+  selectRect.current=null;
+  gesture.current=null;
+  onSelectionChange?.(null);
+  redraw();
+ },[editMode,onSelectionChange,redraw]);
  const modelsNow=()=>modelsRef.current;
  const selected=()=>modelsNow().filter(m=>selectedIds.current.has(m.id));
  const notifySelection=()=>{
@@ -147,13 +161,17 @@ export default function BrowserTrackCanvas({elements,onElementsChange,editMode,t
  };
  const fit=useCallback(()=>{
   const node=holderRef.current;if(!node)return;
-  const width=node.clientWidth,height=node.clientHeight,elems=modelsRef.current;
-  if(!elems.length){view.current={scale:1,offsetX:Math.round(width/2)-80,offsetY:Math.round(height/2)-80};saveViewState(view.current,VIEW_KEY);redraw();return;}
-  const bounds=elems.map(m=>m.getBounds());
-  const l=Math.min(...bounds.map(b=>b.x))*gridSize,t=Math.min(...bounds.map(b=>b.y))*gridSize;
-  const r=Math.max(...bounds.map(b=>b.x+b.width))*gridSize,b=Math.max(...bounds.map(b=>b.y+b.height))*gridSize;
-  const scale=Math.max(.2,Math.min(3,Math.min((width-60)/Math.max(40,r-l),(height-60)/Math.max(40,b-t))));
-  view.current={scale,offsetX:(width-(l+r)*scale)/2,offsetY:(height-(t+b)*scale)/2};
+  const width=node.clientWidth,height=node.clientHeight;
+  if(width<=0||height<=0)return;
+  const elements=modelsRef.current.filter(m=>m.visible);
+  if(!elements.length){
+   view.current={scale:1,offsetX:Math.round(width/2),offsetY:Math.round(height/2)};
+  }else{
+   // The exact original web-ui TrackCanvas fitLayoutToView algorithm.
+   const layout={gridSize,track:{elements},sensors:{elements:[]},signals:{elements:[]},
+    blocks:{elements:[]},buildings:{elements:[]},buttons:{elements:[]}};
+   fitLayoutToView(layout as never,view.current,width,height);
+  }
   saveViewState(view.current,VIEW_KEY);
   redraw();
  },[redraw]);
