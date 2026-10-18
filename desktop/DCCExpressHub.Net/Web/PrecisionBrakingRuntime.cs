@@ -112,7 +112,8 @@ public sealed class PrecisionBrakingRuntime
     // Unlike Snapshot(), this survives reopening the editor or restarting the Hub.
     public sealed record SavedProfile(
         bool Validated, string? UpdatedAt, int Samples,
-        IReadOnlyList<PrecisionBrakingProfile.LearnedPoint> Profile);
+        IReadOnlyList<PrecisionBrakingProfile.LearnedPoint> Profile,
+        int RawSamples = 0);
 
     public Task<SavedProfile> GetSavedProfileAsync(
         string locoId, CancellationToken token = default)
@@ -125,12 +126,18 @@ public sealed class PrecisionBrakingRuntime
             var root = JsonNode.Parse(await File.ReadAllTextAsync(LocoFile, token)) as JsonArray;
             var loco = root is null ? null : FindLoco(root, locoId);
             var saved = loco?["precisionBraking"] as JsonObject;
-            if (saved is null || saved["validated"]?.GetValue<bool>() != true)
-                return new SavedProfile(false, saved?["updatedAt"]?.ToString(), 0, []);
+            if (saved is null)
+                return new SavedProfile(false, null, 0, []);
 
+            // Historic braking measurements were saved without a validation flag.
+            // Display those existing samples, but NEVER grant braking authority
+            // from them. Only explicit operator approval certifies a profile.
+            var validated = saved["validated"] is JsonValue flag &&
+                flag.TryGetValue<bool>(out var approved) && approved;
             var trials = new List<PrecisionBrakingProfile.Trial>();
-            if (saved["trials"] is JsonArray entries)
-                foreach (var entry in entries.OfType<JsonObject>())
+            var raw = saved["trials"] as JsonArray;
+            if (raw is not null)
+                foreach (var entry in raw.OfType<JsonObject>())
                 {
                     try
                     {
@@ -139,13 +146,15 @@ public sealed class PrecisionBrakingRuntime
                         if (sample is not null && PrecisionBrakingProfile.ValidTrial(sample))
                             trials.Add(sample);
                     }
-                    catch (JsonException) { /* Ignore malformed individual samples. */ }
+                    catch (JsonException) { /* Skip unreadable legacy samples. */ }
                 }
 
-            if (trials.Count == 0)
-                return new SavedProfile(false, saved["updatedAt"]?.ToString(), 0, []);
-            return new SavedProfile(true, saved["updatedAt"]?.ToString(),
-                trials.Count, PrecisionBrakingProfile.Learn(trials));
+            return new SavedProfile(
+                validated && trials.Count > 0,
+                saved["updatedAt"]?.ToString(),
+                trials.Count,
+                PrecisionBrakingProfile.Learn(trials),
+                raw?.Count ?? 0);
         }, token);
     }
 
