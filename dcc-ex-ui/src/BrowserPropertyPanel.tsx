@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Button, Card, Group, NumberInput, ScrollArea, SimpleGrid, Stack, Text } from '@mantine/core';
+import { Button, Card, Group, NumberInput, ScrollArea, SimpleGrid, Stack, Text, Paper, Box } from '@mantine/core';
+import { IconSettings, IconTrafficLights } from '@tabler/icons-react';
 import type { TrackElement } from './storage';
 import type { IEditableProperty } from './preview-webui/models/editor/elements/PropertyDescriptor';
 import { restoreBrowserElement } from './BrowserTrackCanvas';
@@ -13,6 +14,10 @@ import VisibilitySettings, { type BrowserVisibility } from './property-panel/Vis
 import { originalText } from './property-panel/originalText';
 import ElementPreview from './preview-webui/models/editor/rendering/ElementPreviewRenderer';
 import type { BaseElement } from './preview-webui/models/editor/core/BaseElement';
+import { TrackSignalElement } from './preview-webui/models/editor/elements/TrackSignalElement';
+import { TrackLevelCrossingElement } from './preview-webui/models/editor/elements/TrackLevelCrossingElement';
+import { cloneSignalOutputConfiguration } from './preview-webui/domain/layout/signalOutput';
+import SignalOutputDialog from './property-panel/SignalOutputDialog';
 
 type Props={
  selected:TrackElement|null;selectedCount:number;
@@ -67,39 +72,67 @@ function ToggleProperty({prop,model,onChange}:{prop:IEditableProperty;model:Base
   <BitToggleElement value={Boolean(data[key])} onChange={value=>onChange(prop,value)}/>
  </Group>;
 }
-type SignalData={address?:number;protocol?:string;lampCount?:number;states?:Array<{id?:string;name?:string;label?:string;aspect?:number}>};
+function createStatePreview(signal:TrackSignalElement,index:number):TrackSignalElement{
+ const preview=signal instanceof TrackLevelCrossingElement
+  ? new TrackLevelCrossingElement(0,0):new TrackSignalElement(0,0);
+ preview.signalOutput=cloneSignalOutputConfiguration(signal.signalOutput);
+ preview.currentStateIndex=Math.max(0,Math.min(index,preview.signalOutput.states.length-1));
+ if(preview instanceof TrackLevelCrossingElement&&signal instanceof TrackLevelCrossingElement){
+  preview.barrierType=signal.barrierType;
+  preview.roadColor=signal.roadColor;
+  preview.lightsEnabled=signal.lightsEnabled;
+  preview.blinkingEnabled=false;
+  preview.rotation=signal.rotation;
+ }else{
+  preview.rotation=90;
+ }
+ return preview;
+}
 function SignalProperty({model,onPatch}:{model:BaseElement;onPatch:(patch:Partial<TrackElement>)=>void}){
- const source=(model as unknown as Record<string,unknown>).signalOutput as SignalData|undefined;
+ const signal=model as TrackSignalElement;
+ const crossing=signal instanceof TrackLevelCrossingElement;
  const [opened,setOpened]=useState(false);
- const [address,setAddress]=useState(source?.address??0);
- const states=source?.states??[];
- return <Stack gap="sm">
-  <Button size="sm" variant="light" onClick={()=>{setAddress(source?.address??0);setOpened(v=>!v);}}>
-   {english('ui.signalConfiguration')}
-  </Button>
-  {opened&&<Card withBorder p="xs"><Stack gap="xs">
-   <NumberInput min={0} max={2048} label={english('ui.accessoryAddress')} value={address}
-     onChange={v=>setAddress(Number(v)||0)}/>
-   <Group justify="flex-end"><Button size="xs" onClick={()=>{
-    onPatch({signalOutput:{...source,address}} as Partial<TrackElement>);
-    setOpened(false);
-   }}>Apply</Button></Group>
-  </Stack></Card>}
-  <Text size="xs" c="dimmed">
-   {source?.address?'Address '+source.address:'Output not configured'} · {source?.lampCount??0} lamps · {states.length} aspects ·
-   {source?.protocol==='dccext'?' DCC Extended':' DCC'}
-  </Text>
-  <Text size="xs" fw={700}>{english('ui.aspects')}</Text>
-  <SimpleGrid cols={2} spacing="xs">
-   {states.map((state,index)=><Card withBorder p="xs" key={state.id??index}>
-    <Stack gap={3}>
-     <Text size="xs" fw={600}>{state.name??state.label??('Aspect '+(index+1))}</Text>
-     <Text size="xs" c="dimmed">{state.aspect??index}</Text>
-     <ElementPreview element={model} label="" width={52} height={52}/>
-    </Stack>
-   </Card>)}
-  </SimpleGrid>
- </Stack>;
+ const previews=useMemo(
+  ()=>signal.signalOutput.states.map((_,index)=>createStatePreview(signal,index)),
+  [signal]);
+ return <>
+  <Stack gap="sm">
+   <Button variant="light" leftSection={<IconSettings size={17}/>} onClick={()=>setOpened(true)}>
+    {english(crossing?'ui.levelCrossingConfiguration':'ui.signalConfiguration')}
+   </Button>
+   <Button variant="light" color="yellow" disabled
+    title="Signal automation requires the Hub backend" leftSection={<IconTrafficLights size={17}/>}>
+    {english(crossing?'ui.levelCrossingAutomation':'ui.signalAutomation')}
+   </Button>
+   <Text size="xs" c="dimmed">
+    {signal.signalOutput.address>0?'Address '+signal.signalOutput.address:'Output not configured'}
+    {' · '}{signal.signalOutput.lampCount}{' lamps · '}{signal.signalOutput.states.length}
+    {' aspects · '}{signal.signalOutput.protocol==='dccext'?'DCC Extended':'DCC'}
+   </Text>
+   <Text size="xs" fw={700}>{english('ui.aspects')}</Text>
+   <ScrollArea.Autosize mah={260} offsetScrollbars scrollbarSize={8}>
+    <SimpleGrid cols={2} spacing="xs" verticalSpacing="xs">
+     {signal.signalOutput.states.map((state,index)=>
+      <Paper key={state.id} withBorder p={4} radius="sm"
+       style={{borderColor:index===signal.currentStateIndex?'var(--mantine-color-blue-5)':undefined}}>
+       <Stack gap={2} align="center">
+        <Box w="100%" style={{display:'flex',justifyContent:'center'}}>
+         <ElementPreview element={previews[index]!} label="" width={54} height={42} translateX={-8}/>
+        </Box>
+        <Text size="xs" fw={index===signal.currentStateIndex?700:500} ta="center" truncate w="100%">
+         {state.label}
+        </Text>
+       </Stack>
+      </Paper>)}
+    </SimpleGrid>
+   </ScrollArea.Autosize>
+   {signal.signalOutput.states.length===0&&
+    <Text size="xs" c="dimmed">{english(crossing?'ui.noLevelCrossingAspectsConfigured':'ui.noSignalAspectsConfigured')}</Text>}
+  </Stack>
+  <SignalOutputDialog opened={opened} value={cloneSignalOutputConfiguration(signal.signalOutput)}
+   onClose={()=>setOpened(false)}
+   onApply={value=>{onPatch({signalOutput:cloneSignalOutputConfiguration(value)});setOpened(false);}}/>
+ </>;
 }
 export default function BrowserPropertyPanel({selected,selectedCount,onPatch,settings,onSettingsChange}:Props){
  const element=useMemo(()=>selected?restoreBrowserElement(selected,0):null,[selected]);
