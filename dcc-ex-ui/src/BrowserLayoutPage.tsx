@@ -7,7 +7,8 @@ import {
  IconClipboardList,IconRobot,IconCalendarTime,IconInfoCircle,IconListDetails,
  IconVolume,IconUserShield,IconRoute,IconLockOpen
 } from '@tabler/icons-react';
-import type { Loco } from './storage';
+import type { Loco, TrackElement } from './storage';
+import BrowserTrackCanvas from './BrowserTrackCanvas';
 import LocoPanel from './loco-panel/LocoPanel';
 import AppModal from './components/common/AppModal';
 import BrowserElementPicker, { type BrowserPickerItem } from './BrowserElementPicker';
@@ -24,6 +25,7 @@ type Props={
  onBack:()=>void;onOpenLocoEditor:()=>void;onSave:()=>void;onReload:()=>void;
  onExport:()=>void;onImport:(file:File)=>void;onTogglePower:()=>void;
  powerOn:boolean;elementCount:number;
+ elements:TrackElement[];onElementsChange:(elements:TrackElement[])=>void;
 };
 const keyPrefix='dcc-ex-ui.layout.';
 function readNumber(key:string,fallback:number){
@@ -41,6 +43,9 @@ function store(key:string,value:string|number|boolean){
 
 export function BrowserLayoutPage(props:Props){
  const [editMode,setEditMode]=useState(false);
+ const [fitCounter,setFitCounter]=useState(0);
+ const [deleteCounter,setDeleteCounter]=useState(0);
+ const [selectedElement,setSelectedElement]=useState<TrackElement|null>(null);
  const [tool,setTool]=useState<'cursor'|'draw'>('cursor');
  const [leftWidth,setLeftWidth]=useState(()=>readNumber('left',380));
  const [rightWidth,setRightWidth]=useState(()=>readNumber('right',380));
@@ -117,10 +122,10 @@ export function BrowserLayoutPage(props:Props){
       {editMode&&<>
        <ActionIcon variant={tool==='cursor'?'filled':'light'} onClick={()=>{setTool('cursor');setDrawingElement(null);}} title="Select"><IconPointer size={18}/></ActionIcon>
        <ActionIcon variant={tool==='draw'?'filled':'light'} onClick={()=>setPickerOpened(true)} title="Add layout element"><IconPlus size={18}/></ActionIcon>
-       <ActionIcon variant="light" color="red" onClick={()=>placeholder('Delete selected element')} title="Delete selected"><IconTrash size={18}/></ActionIcon>
+       <ActionIcon variant="light" color="red" disabled={!selectedElement} onClick={()=>setDeleteCounter(v=>v+1)} title="Delete selected"><IconTrash size={18}/></ActionIcon>
       </>}
       <Divider orientation="vertical" className="lite-toolbar-divider"/>
-      <ActionIcon variant="light" onClick={()=>placeholder('Fit Layout')} title="Fit layout"><IconFocusCentered size={19}/></ActionIcon>
+      <ActionIcon variant="light" onClick={()=>setFitCounter(v=>v+1)} title="Fit layout"><IconFocusCentered size={19}/></ActionIcon>
       <ActionIcon variant="light" onClick={props.onReload} title="Reload"><IconRefresh size={19}/></ActionIcon>
       <ActionIcon color="teal" variant="light" onClick={props.onSave} title="Save"><IconDeviceFloppy size={19}/></ActionIcon>
       <ActionIcon color="blue" variant="light" onClick={props.onExport} title="Export layout / project JSON"><IconDownload size={19}/></ActionIcon>
@@ -158,13 +163,10 @@ export function BrowserLayoutPage(props:Props){
      </button>
     </div>
     <Card withBorder p={4} className="lite-track-card">
-     <div className="lite-canvas-placeholder">
-      <Text size="xs" c="dimmed" className="lite-canvas-caption">
-       {editMode&&tool==='draw'&&drawingElement
-        ? drawingElement.label+' selected · placement available when TrackCanvas is connected'
-        : 'TrackCanvas · layout editor will be connected here'}
-      </Text>
-     </div>
+     <BrowserTrackCanvas elements={props.elements} onElementsChange={props.onElementsChange}
+       editMode={editMode} tool={tool} drawingElement={drawingElement}
+       onToolChange={next=>{setTool(next);if(next==='cursor')setDrawingElement(null);}}
+       onSelectionChange={setSelectedElement} fitCounter={fitCounter} deleteCounter={deleteCounter}/>
     </Card>
     <div className="lite-panel-resizer lite-panel-resizer-right" onPointerDown={e=>beginResize('right',e)}>
      <button type="button" onPointerDown={e=>e.stopPropagation()} onClick={()=>setRightCollapsed(v=>!v)} title="Toggle property panel">
@@ -176,8 +178,15 @@ export function BrowserLayoutPage(props:Props){
      ? <div className="lite-property-panel lite-right-loco-panel">{locoPanel('right')}</div>
      : <Card withBorder p="sm" className="lite-property-panel">
        {editMode?
-        <><Title order={5} mb="sm">Display</Title>
-          <Text size="sm" c="dimmed">Select a layout element to edit its properties.</Text>
+        <><Title order={5} mb="sm">{selectedElement?'Properties':'Display'}</Title>
+          {selectedElement
+           ? <Stack gap={5}><Text size="sm" fw={600}>{selectedElement.type??selectedElement.kind}</Text>
+              <Text size="xs" c="dimmed">ID: {selectedElement.id}</Text>
+              <Text size="xs">X: {selectedElement.x} · Y: {selectedElement.y}</Text>
+              <Text size="xs">Rotation: {selectedElement.rotation??selectedElement.angle??0}°</Text>
+              <Text size="xs" c="dimmed">Drag to move · R to rotate · Del to delete</Text>
+             </Stack>
+           : <Text size="sm" c="dimmed">Select a layout element to edit its properties.</Text>}
         </>
        : <Tabs value={runtimeTab} onChange={setTab} className="lite-runtime-tabs">
           <Tabs.List grow mb="sm">

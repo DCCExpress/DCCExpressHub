@@ -135,6 +135,8 @@ export function App() {
           <Box px={8} py={8} style={{height:'100dvh',minHeight:0,overflow:'hidden'}}>
             <BrowserLayoutPage
               locos={project.locos}
+              elements={project.elements}
+              onElementsChange={elements=>setProject(previous=>({...previous,elements}))}
               activeAddress={Number(address)}
               onSelectLoco={value=>{if(speed===0)setAddress(value);else setError('Stop before changing locomotive.');}}
               connected={ready}

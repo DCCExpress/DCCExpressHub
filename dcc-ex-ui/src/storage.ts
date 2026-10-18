@@ -14,7 +14,7 @@ export interface Loco {
  counterSettings?:{maxScaleSpeedKmh:number};decoderProfile?:{cvValues:Record<string,number>;readAt?:string;source:'service'};
 }
 export type ElementKind = 'straight'|'curve'|'turnout'|'signal'|'station'|'block'|'text';
-export interface TrackElement { id:string; kind:ElementKind; x:number; y:number; angle:number; label:string; address?:number; }
+export interface TrackElement { id:number|string; type?:string; kind?:ElementKind; x:number; y:number; angle?:number; rotation?:number; label?:string; name?:string; address?:number; [key:string]:unknown; }
 export interface Project { version:1; elements:TrackElement[]; locos:Loco[]; functionBindings?:FunctionBinding[]; }
 const DB='dcc-ex-ui'; const STORE='projects'; const KEY='current';
 function open():Promise<IDBDatabase>{return new Promise((resolve,reject)=>{const request=indexedDB.open(DB,1);request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains(STORE)) request.result.createObjectStore(STORE);};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});}
