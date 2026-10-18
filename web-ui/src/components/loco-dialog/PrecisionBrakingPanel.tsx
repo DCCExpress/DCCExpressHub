@@ -311,7 +311,7 @@ export default function PrecisionBrakingPanel({
       <Text size="xs" c="dimmed" mb="sm">Base stop (0) is the measured stopping distance when speed 0 is commanded immediately at the sensor; it is shown separately for each speed and direction. Adaptive stop is the learned result. Deceleration is estimated as −v²/(2s) from the immediate speed-zero baseline; it is unavailable without that measurement. Not applied to normal Movement runs.</Text>
       {savedError && !showingTraining && <Alert color="red">Cannot load saved stopping profile: {savedError}</Alert>}
       {savedLoading && !showingTraining && <Text size="sm" c="dimmed">Loading saved stopping profile…</Text>}
-      {!savedLoading && !savedError && !showingTraining && savedProfile && !savedProfile.validated &&
+      {!savedLoading && !savedError && !showingTraining && !sessionPreview && savedProfile && !savedProfile.validated &&
         (savedProfile.samples > 0
           ? <Alert color="orange">These measurements exist on disk, but were never approved with OK. They are shown for reference only and cannot be used for automatic braking.</Alert>
           : (savedProfile.rawSamples ?? 0) > 0
