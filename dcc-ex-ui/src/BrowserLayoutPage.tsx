@@ -10,6 +10,7 @@ import {
 import type { Loco } from './storage';
 import LocoPanel from './loco-panel/LocoPanel';
 import AppModal from './components/common/AppModal';
+import BrowserElementPicker, { type BrowserPickerItem } from './BrowserElementPicker';
 import './browser-layout.css';
 
 type RuntimeTab='tasks'|'automation'|'timetable'|'info'|'log';
@@ -50,6 +51,10 @@ export function BrowserLayoutPage(props:Props){
   const tab=readText('runtimeTab','tasks');return ['tasks','automation','timetable','info','log'].includes(tab)?tab as RuntimeTab:'tasks';
  });
  const [pendingFeature,setPendingFeature]=useState<string|null>(null);
+ const [pickerOpened,setPickerOpened]=useState(false);
+ const [layoutElementPickerTab,setLayoutElementPickerTab]=useState<'railway'|'decorations'>(()=>
+  readText('elementPickerTab','railway')==='decorations'?'decorations':'railway');
+ const [drawingElement,setDrawingElement]=useState<BrowserPickerItem|null>(null);
  const fileRef=useRef<HTMLInputElement>(null);
  const drag=useRef<{side:'left'|'right';startX:number;startWidth:number}|null>(null);
  useEffect(()=>{
@@ -74,6 +79,7 @@ export function BrowserLayoutPage(props:Props){
  useEffect(()=>store('propertyCollapsed',rightCollapsed),[rightCollapsed]);
  useEffect(()=>store('rightMode',rightMode),[rightMode]);
  useEffect(()=>store('runtimeTab',runtimeTab),[runtimeTab]);
+ useEffect(()=>store('elementPickerTab',layoutElementPickerTab),[layoutElementPickerTab]);
  const beginResize=(side:'left'|'right',event:PointerEvent<HTMLDivElement>)=>{
   if(event.button!==0)return;
   drag.current={side,startX:event.clientX,startWidth:side==='left'?leftWidth:rightWidth};
@@ -109,8 +115,8 @@ export function BrowserLayoutPage(props:Props){
      <Group gap={6} wrap="nowrap" style={{flexShrink:0}}>
       <ActionIcon variant={editMode?'filled':'light'} color="violet" title="Edit mode" onClick={()=>{setEditMode(v=>!v);setTool('cursor');}}><IconEdit size={18}/></ActionIcon>
       {editMode&&<>
-       <ActionIcon variant={tool==='cursor'?'filled':'light'} onClick={()=>setTool('cursor')} title="Select"><IconPointer size={18}/></ActionIcon>
-       <ActionIcon variant={tool==='draw'?'filled':'light'} onClick={()=>{setTool('draw');placeholder('Add Layout Element');}} title="Add layout element"><IconPlus size={18}/></ActionIcon>
+       <ActionIcon variant={tool==='cursor'?'filled':'light'} onClick={()=>{setTool('cursor');setDrawingElement(null);}} title="Select"><IconPointer size={18}/></ActionIcon>
+       <ActionIcon variant={tool==='draw'?'filled':'light'} onClick={()=>setPickerOpened(true)} title="Add layout element"><IconPlus size={18}/></ActionIcon>
        <ActionIcon variant="light" color="red" onClick={()=>placeholder('Delete selected element')} title="Delete selected"><IconTrash size={18}/></ActionIcon>
       </>}
       <Divider orientation="vertical" className="lite-toolbar-divider"/>
@@ -153,7 +159,11 @@ export function BrowserLayoutPage(props:Props){
     </div>
     <Card withBorder p={4} className="lite-track-card">
      <div className="lite-canvas-placeholder">
-      <Text size="xs" c="dimmed" className="lite-canvas-caption">TrackCanvas · layout editor will be connected here</Text>
+      <Text size="xs" c="dimmed" className="lite-canvas-caption">
+       {editMode&&tool==='draw'&&drawingElement
+        ? drawingElement.label+' selected · placement available when TrackCanvas is connected'
+        : 'TrackCanvas · layout editor will be connected here'}
+      </Text>
      </div>
     </Card>
     <div className="lite-panel-resizer lite-panel-resizer-right" onPointerDown={e=>beginResize('right',e)}>
@@ -237,6 +247,13 @@ export function BrowserLayoutPage(props:Props){
     </Group>
    </Card>
 
+   <BrowserElementPicker opened={pickerOpened} tab={layoutElementPickerTab}
+      onTabChange={setLayoutElementPickerTab} onClose={()=>setPickerOpened(false)}
+      onSelect={item=>{
+        setTool('draw');
+        setDrawingElement(item);
+        setPickerOpened(false);
+      }}/>
    <AppModal opened={pendingFeature!==null} onClose={()=>setPendingFeature(null)}
       title={pendingFeature??'Feature'} size="sm" centered draggable>
     <Stack gap="sm">

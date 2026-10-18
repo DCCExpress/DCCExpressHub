@@ -1,4 +1,5 @@
 import { Box, Card, ScrollArea, SimpleGrid, Stack, Tabs, Text } from '@mantine/core';
+import type { ReactNode } from 'react';
 import AppModal from './components/common/AppModal';
 
 /**
@@ -56,7 +57,7 @@ function ElementThumbnail({item}:{item:BrowserPickerItem}) {
   <path d="M3 25H61 M3 39H61" {...line}/>
  </>;
  const trackBranch=(direction:-1|1)=> <path d={direction===-1?'M5 25Q30 25 58 8 M5 39Q30 39 60 20':'M5 25Q30 25 58 44 M5 39Q30 39 60 56'} {...rail}/>;
- let graphic:React.ReactNode;
+ let graphic:ReactNode;
  switch(type){
   case 'trackstraight':graphic=straight;break;
   case 'trackdirection':graphic=<>{straight}<path d="M40 11h18m-6-5 6 5-6 5" stroke="#79d3ec" fill="none" strokeWidth="2.4"/></>;break;
