@@ -38,7 +38,7 @@ export function App() {
   const [, setLog] = useState<string[]>([]);
   const [error, setError] = useState('');
   const socket = useRef<WebSocket | null>(null);
-  const active = useRef({ address: 18, speed: 0, forward: true });
+  const active = useRef({ address: Number(address), speed: 0, forward: true });
   const append = useCallback((line: string) => setLog(lines => [line, ...lines].slice(0, 30)), []);
   const send = useCallback((command: string): boolean => {
     if (socket.current?.readyState !== WebSocket.OPEN) { setError('Not connected to a WebSocket endpoint.'); return false; }
