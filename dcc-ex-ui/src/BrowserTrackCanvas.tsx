@@ -6,7 +6,7 @@ import { drawScene } from './preview-webui/track-canvas/trackCanvasDraw';
 import { screenToGrid, getCenteredElementGridAnchor } from './preview-webui/track-canvas/trackCanvasGeometry';
 import type { ViewState, SelectionRect } from './preview-webui/track-canvas/TrackCanvas.types';
 import { RAILWAY_PICKER_ITEMS, DECORATION_PICKER_ITEMS } from './BrowserElementPicker';
-import { ELEMENT_TYPES } from './preview-webui/domain/layout/elementTypes';
+import { ELEMENT_TYPES, type ElementType } from './preview-webui/domain/layout/elementTypes';
 
 type BrowserTool='cursor'|'draw';
 type Props={
@@ -186,7 +186,7 @@ export default function BrowserTrackCanvas({elements,onElementsChange,editMode,t
    }
   }};
   drawScene(ctx,canvasSize.width,canvasSize.height,editMode,'dark',view.current,
-   hover.current??{x:0,y:0},{mode:tool,elementType:cursorRef.current?.type??drawingElement?.type??'general'},
+   hover.current??{x:0,y:0},{mode:tool,elementType:(cursorRef.current?.type??drawingElement?.type??ELEMENT_TYPES.GENERAL) as ElementType},
    hover.current,editMode&&tool==='draw'?cursorRef.current:null,
    layout as never,{showGrid:true,showBuildings:true,showSegments:false,showBlockNames:true,
     showOccupacySensorAddress:false,showSensorAddress:false,showSignalAddress:false,showTurnoutAddress:false} as never,
