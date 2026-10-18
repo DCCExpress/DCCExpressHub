@@ -1,4 +1,17 @@
-export interface Loco { id:string; address:number; name:string; manufacturer:string; notes:string; image?:Blob; }
+export interface LocoFunction { id:string; number:number; name:string; icon:string; momentary:boolean; showOnLocoCard:boolean; startupActive:boolean; iconTintMode?:'original'|'tint'; iconColor?:string; }
+export type LocoActionHook='beforeStart'|'afterStart'|'beforeStop'|'afterStop';
+export type LocoAction={id:string;type:'setFunction'|'momentaryFunction'|'wait';functionNumber:number;active:boolean;ms:number};
+export interface Loco {
+ id:string;address:number;name:string;manufacturer:string;notes:string;image?:Blob;
+ active?:boolean;maxSpeed?:number;cruisingSpeed?:number;invert?:boolean;length?:number;
+ locomotiveLengthMm?:number;wagonsLengthMm?:number;trainConsistMode?:'pull'|'push';
+ trainType?:'passenger'|'freight'|'mixed'|'maintenance'|'other';
+ occupancyDetectionPosition?:'forward'|'reverse'|'both';trainDetectionOffsetMm?:number;
+ trainClearanceMarginMm?:number;entireTrainDetectable?:boolean;
+ functions?:LocoFunction[];actions?:Partial<Record<LocoActionHook,LocoAction[]>>;
+ odometerKm?:number;operatingHours?:number;lastRunAt?:string;
+ counterSettings?:{maxScaleSpeedKmh:number};decoderProfile?:{cvValues:Record<string,number>;readAt?:string;source:'service'};
+}
 export type ElementKind = 'straight'|'curve'|'turnout'|'signal'|'station'|'block'|'text';
 export interface TrackElement { id:string; kind:ElementKind; x:number; y:number; angle:number; label:string; address?:number; }
 export interface Project { version:1; elements:TrackElement[]; locos:Loco[]; }
