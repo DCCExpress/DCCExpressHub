@@ -5,6 +5,7 @@ import type {
 } from "react";
 import type { LocoFunction } from "../storage";
 import FunctionIconAsset from "../loco-dialog/FunctionIconAsset";
+import { getBuiltinFunctionIcon } from "../loco-dialog/FunctionIconRegistry";
 
 import { useFunctionButtonDisplayMode } from "../loco-dialog/functionButtonDisplayMode";
 
@@ -29,9 +30,9 @@ export default function LocoFunctionButton({
   onFunctionCommand,
 }: LocoFunctionButtonProps) {
   const displayMode = useFunctionButtonDisplayMode();
-  const hasIcon = !!fn?.icon && (fn.icon.startsWith("builtin:") || fn.icon.startsWith("custom:"));
+  const hasIcon = !!fn?.icon && (fn.icon.startsWith("custom:") || !!getBuiltinFunctionIcon(fn.icon));
   const showIcon = displayMode !== "default" && displayMode !== "text" && hasIcon;
-  const showNumber = displayMode === "default" || (displayMode === "icon" && !hasIcon);
+  const showNumber = displayMode === "default" || ((displayMode === "icon" || displayMode === "icon-text") && !hasIcon);
   const showName = displayMode === "text" || displayMode === "icon-text";
   const hasName =
     !!fn?.name?.trim();

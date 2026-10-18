@@ -8,7 +8,7 @@ export function getFunctionButtonDisplayMode(): FunctionButtonDisplayMode {
     const value = window.localStorage.getItem(KEY);
     if (value === "icon" || value === "icon-text" || value === "text") return value;
   } catch { /* storage unavailable */ }
-  return "default";
+  return "icon-text";
 }
 export function setFunctionButtonDisplayMode(value: FunctionButtonDisplayMode): void {
   try { window.localStorage.setItem(KEY, value); } catch { /* storage unavailable */ }
