@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, AppShell, Badge, Button, Card, Container, Group, FileButton, Modal, SimpleGrid, Stack, Text, TextInput, Title, ThemeIcon, ActionIcon } from '@mantine/core';
-import { IconAlertTriangle, IconPlugConnected, IconTrain, IconWifiOff, IconMap, IconSettings, IconHome, IconEdit, IconDownload, IconUpload } from '@tabler/icons-react';
+import { Alert, AppShell, Badge, Box, Button, Card, Container, Group, FileButton, Modal, SimpleGrid, Stack, Text, TextInput, Title, ThemeIcon } from '@mantine/core';
+import { IconAlertTriangle, IconPlugConnected, IconTrain, IconWifiOff, IconMap, IconSettings, IconDownload, IconUpload } from '@tabler/icons-react';
 import { functionCommand, parseFrames, throttleCommand } from './dccex';
 import { LocoEditor } from './LocoEditor';
 import AppModal from './components/common/AppModal';
@@ -130,17 +130,7 @@ export function App() {
             </Stack>
           </Container>
         ) : (
-          <Stack gap={6} px={8} py={6} style={{height:'calc(100dvh - 66px)',minHeight:560}}>
-            <Card withBorder p="xs" radius="sm">
-              <Group justify="space-between" wrap="nowrap">
-                <Group gap="xs">
-                  <ActionIcon variant="light" size="lg" title="Home" onClick={()=>setPage('home')}><IconHome size={18}/></ActionIcon>
-                  <Button variant="subtle" size="compact-sm" leftSection={<IconEdit size={16}/>}>Layout editor</Button>
-                  <Button variant="subtle" size="compact-sm" onClick={()=>setLocoEditorOpen(true)}>Locomotives</Button>
-                </Group>
-                <Group gap="xs"><Badge variant="light">{project.locos.length} locos</Badge><Badge color={ready?'green':'gray'}>{ready?'Online':'Offline'}</Badge></Group>
-              </Group>
-            </Card>
+          <Box px={8} py={8} style={{height:'calc(100dvh - 66px)',minHeight:0,overflow:'hidden'}}>
             <BrowserLayoutPage
               locos={project.locos}
               activeAddress={Number(address)}
@@ -162,8 +152,24 @@ export function App() {
               }}
               emergencyStop={power===false}
               light={light}
+              onBack={()=>setPage('home')}
+              onOpenLocoEditor={()=>setLocoEditorOpen(true)}
+              onSave={()=>saveProject(project).catch(e=>setError('Save failed: '+String(e)))}
+              onReload={()=>loadProject().then(p=>setProject(p)).catch(e=>setError('Reload failed: '+String(e)))}
+              onExport={()=>exportProject(project).catch(e=>setError('Export failed: '+String(e)))}
+              onImport={file=>{
+                importProject(file).then(p=>{
+                  if(window.confirm('Replace the current project with the imported project?'))setProject(p);
+                }).catch(e=>setError('Import failed: '+String(e)));
+              }}
+              onTogglePower={()=>{
+                const nextPower=power!==true;
+                if(send(nextPower?'<1>':'<0>')){setPower(nextPower);if(!nextPower){active.current.speed=0;setSpeed(0);}}
+              }}
+              powerOn={power===true}
+              elementCount={project.elements.length}
             />
-          </Stack>
+          </Box>
         )}
         {error&&<Alert color="red" icon={<IconAlertTriangle size={17}/>} title="Error" withCloseButton onClose={()=>setError('')} mx="md" my="xs">{error}</Alert>}
       </AppShell.Main>
