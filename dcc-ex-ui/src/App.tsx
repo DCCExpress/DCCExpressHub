@@ -136,6 +136,17 @@ export function App() {
             <BrowserLayoutPage
               locos={project.locos}
               elements={project.elements}
+              stations={project.stations??[]}
+              onSaveStations={(stations,blockId,stationId)=>{
+                setProject(previous=>{
+                  const ids=new Set(stations.map(station=>station.id));
+                  return {...previous,stations,elements:previous.elements.map(element=>{
+                    if(String(element.id)===blockId)return {...element,stationId};
+                    return typeof element.stationId==='string'&&!ids.has(element.stationId)
+                      ? {...element,stationId:null}:element;
+                  })};
+                });
+              }}
               onElementsChange={elements=>setProject(previous=>({...previous,elements}))}
               activeAddress={Number(address)}
               onSelectLoco={value=>{if(speed===0)setAddress(value);else setError('Stop before changing locomotive.');}}

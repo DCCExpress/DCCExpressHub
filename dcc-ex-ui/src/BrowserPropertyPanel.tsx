@@ -18,11 +18,14 @@ import { TrackSignalElement } from './preview-webui/models/editor/elements/Track
 import { TrackLevelCrossingElement } from './preview-webui/models/editor/elements/TrackLevelCrossingElement';
 import { cloneSignalOutputConfiguration } from './preview-webui/domain/layout/signalOutput';
 import SignalOutputDialog from './property-panel/SignalOutputDialog';
+import StationSelectPropertyEditor from './property-panel/StationSelectPropertyEditor';
+import type { Station } from './storage';
 
 type Props={
  selected:TrackElement|null;selectedCount:number;
  onPatch:(patch:Partial<TrackElement>)=>void;
  settings:BrowserVisibility;onSettingsChange:(patch:Partial<BrowserVisibility>)=>void;
+ stations:Station[];onSaveStations:(stations:Station[],stationId:string|null)=>void;
 };
 const english=(value:string)=>originalText(value);
 const numeric=(v:unknown,fallback=0)=>typeof v==='number'&&Number.isFinite(v)?v:Number(v)||fallback;
@@ -134,7 +137,7 @@ function SignalProperty({model,onPatch}:{model:BaseElement;onPatch:(patch:Partia
    onApply={value=>{onPatch({signalOutput:cloneSignalOutputConfiguration(value)});setOpened(false);}}/>
  </>;
 }
-export default function BrowserPropertyPanel({selected,selectedCount,onPatch,settings,onSettingsChange}:Props){
+export default function BrowserPropertyPanel({selected,selectedCount,onPatch,settings,onSettingsChange,stations,onSaveStations}:Props){
  const element=useMemo(()=>selected?restoreBrowserElement(selected,0):null,[selected]);
  const props=useMemo(()=>element?.getEditableProperties()??[],[element]);
  const update=(prop:IEditableProperty,value:unknown)=>{
@@ -165,7 +168,10 @@ export default function BrowserPropertyPanel({selected,selectedCount,onPatch,set
       <BlockTypeSelectPropertyEditor prop={translated} selectedElement={element} onChange={update}/>:
      prop.type==='signal2'?
       <SignalProperty key={String(selected.id)} model={element} onPatch={onPatch}/>:
-     prop.type==='stationSelect'||prop.type==='turnoutSelection'?
+     prop.type==='stationSelect'?
+      <StationSelectPropertyEditor stationId={typeof selected.stationId==='string'?selected.stationId:null}
+       stations={stations} onSave={onSaveStations}/>:
+     prop.type==='turnoutSelection'?
       <Text size="sm" fw={500}>{translated.label}</Text>:
       <BasicPropertyEditor prop={translated} selectedElement={element} onChange={update}/>
     }

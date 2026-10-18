@@ -7,7 +7,7 @@ import {
  IconClipboardList,IconRobot,IconCalendarTime,IconInfoCircle,IconListDetails,
  IconVolume,IconUserShield,IconRoute,IconLockOpen
 } from '@tabler/icons-react';
-import type { Loco, TrackElement } from './storage';
+import type { Loco, TrackElement, Station } from './storage';
 import BrowserTrackCanvas from './BrowserTrackCanvas';
 import BrowserPropertyPanel from './BrowserPropertyPanel';
 import { loadBrowserVisibility, type BrowserVisibility } from './property-panel/VisibilitySettings';
@@ -28,6 +28,7 @@ type Props={
  onExport:()=>void;onImport:(file:File)=>void;onTogglePower:()=>void;
  powerOn:boolean;elementCount:number;
  elements:TrackElement[];onElementsChange:(elements:TrackElement[])=>void;
+ stations:Station[];onSaveStations:(stations:Station[],blockId:string,stationId:string|null)=>void;
 };
 const keyPrefix='dcc-ex-ui.layout.';
 function readNumber(key:string,fallback:number){
@@ -56,6 +57,11 @@ export function BrowserLayoutPage(props:Props){
    try{localStorage.setItem('dcc-ex-ui.layout.visibility',JSON.stringify(next));}catch{/* browser preferences optional */}
    return next;
   });
+ };
+ const saveStations=(stations:Station[],stationId:string|null)=>{
+  if(!selectedElement)return;
+  props.onSaveStations(stations,String(selectedElement.id),stationId);
+  setSelectedElement(current=>current?{...current,stationId}:null);
  };
  const patchSelected=(patch:Partial<TrackElement>)=>{
   if(!selectedElement)return;
@@ -201,7 +207,8 @@ export function BrowserLayoutPage(props:Props){
      : <Card withBorder p="sm" className="lite-property-panel">
        {editMode?
         <BrowserPropertyPanel selected={selectedElement} selectedCount={selectedCount} onPatch={patchSelected}
-           settings={visibility} onSettingsChange={updateVisibility}/>
+           settings={visibility} onSettingsChange={updateVisibility}
+           stations={props.stations} onSaveStations={saveStations}/>
        : <Tabs value={runtimeTab} onChange={setTab} className="lite-runtime-tabs">
           <Tabs.List grow mb="sm">
            <Tooltip label="TaskMan" withArrow><Tabs.Tab value="tasks" aria-label="TaskMan"><IconClipboardList size={20}/></Tabs.Tab></Tooltip>
