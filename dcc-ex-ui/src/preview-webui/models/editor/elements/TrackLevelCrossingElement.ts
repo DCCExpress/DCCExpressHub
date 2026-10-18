@@ -1,5 +1,5 @@
 // @ts-nocheck — original web-ui drawing implementation; browser-only dependency adapter
-import i18next from "../../../../i18next";
+import i18next from "../../../i18next";
 import { ELEMENT_TYPES } from "../../../domain/layout/elementTypes";
 import type { TrackLevelCrossingElementDto } from "../../../domain/layout/layoutDto";
 import type {

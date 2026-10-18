@@ -2,8 +2,8 @@
 import type {
   BlockType,
   ElementType,
-} from "../../../../domain/layout/elementTypes";
-import type { Loco } from "../../../../domain/types";
+} from "../../../domain/layout/elementTypes";
+import type { Loco } from "../../../domain/types";
 import type {
   AudioButtonElementDto,
   AudioListButtonElementDto,
@@ -34,7 +34,7 @@ import type {
   TrackTurnoutThreeWayElementDto,
   TrackTurnoutTwoWayElementDto,
   TreeElementDto,
-} from "../../../../domain/layout/layoutDto";
+} from "../../../domain/layout/layoutDto";
 
 export type EditorTool =
   | { mode: "cursor"; elementType: ElementType }

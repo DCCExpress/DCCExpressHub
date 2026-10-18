@@ -1,5 +1,5 @@
 // @ts-nocheck — original web-ui drawing implementation; browser-only dependency adapter
-import i18next from "../../../../i18next";
+import i18next from "../../../i18next";
 import type { TrackElementDto } from "../../../domain/layout/layoutDto";
 import { drawTextWithRoundedBackground } from "../../../graphics";
 import { wsClient } from "../../../services/wsClient";
