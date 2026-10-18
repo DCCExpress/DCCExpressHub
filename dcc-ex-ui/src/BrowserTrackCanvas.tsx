@@ -132,6 +132,7 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
  const redraw=useCallback(()=>setDrawTick(n=>n+1),[]);
  const [message,setMessage]=useState('');
  const [pointerCursor,setPointerCursor]=useState('default');
+ const [panActive,setPanActive]=useState(false);
  // Sensor and disconnect events update the original shared occupancy cache.
  // Repaint without changing the editor project or writing runtime state to IndexedDB.
  useEffect(()=>{
@@ -151,6 +152,7 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
   hover.current=null;
   selectRect.current=null;
   gesture.current=null;
+  setPanActive(false);
   onSelectionChange?.(null);
   onSelectionCountChange?.(0);
   redraw();
@@ -300,6 +302,8 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
    }
   }
   if(event.button===2 || event.pointerType==='touch'){
+   event.preventDefault();
+   setPanActive(true);
    event.currentTarget.setPointerCapture(event.pointerId);
    gesture.current={kind:'pan',pointerId:event.pointerId,startX:p.x,startY:p.y,startGrid:g,
     offsetX:view.current.offsetX,offsetY:view.current.offsetY,moving:[],dirty:false,additive:false};
@@ -383,7 +387,10 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
  const onPointerEnd=(event:PointerEvent<HTMLCanvasElement>)=>{
   const d=gesture.current;if(!d||d.pointerId!==event.pointerId)return;
   gesture.current=null;
-  if(d.kind==='pan')saveViewState(view.current,VIEW_KEY);
+  if(d.kind==='pan'){
+   setPanActive(false);
+   saveViewState(view.current,VIEW_KEY);
+  }
   if(d.kind==='select'&&selectRect.current){
    const r=selectRect.current;selectRect.current=null;
    const left=Math.min(r.startGridX,r.endGridX),right=Math.max(r.startGridX,r.endGridX);
@@ -462,7 +469,7 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
    onPointerCancel={onPointerEnd} onPointerLeave={()=>{pointerInside.current=false;setPointerCursor('default');if(!gesture.current)hover.current=null;redraw();}}
    onWheel={onWheel} onContextMenu={event=>event.preventDefault()}
    style={{width:'100%',height:'100%',display:'block',touchAction:'none',
-    outline:'none',cursor:editMode&&tool==='draw'&&cursorRef.current?'none':editMode?'default':pointerCursor}}/>
+    outline:'none',cursor:panActive?'grabbing':editMode&&tool==='draw'&&cursorRef.current?'none':editMode?'default':pointerCursor}}/>
   <TrackCanvasDoubleTurnoutPopover state={turnoutPopover}
    onClose={()=>setTurnoutPopover({opened:false,x:0,y:0,turnout:null})}
    onChanged={()=>{publish();setMessage('');}}/>

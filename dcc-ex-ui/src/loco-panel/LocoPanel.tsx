@@ -106,14 +106,9 @@ export default function LocoPanel(p:Props) {
         <LocoFunctionGrid key={currentLoco.id} loco={currentLoco}
           activeFunctions={{...fns,0:fns[0]??p.light}}
           disabled={!p.connected||p.emergencyStop}
-          onActiveFunctionsChange={set=>{
-            const next=typeof set==='function'?set(fns):set;
-            for(const [fn,value] of Object.entries(next)){
-              const num=Number(fn);
-              if(Number.isInteger(num)&&num>=0&&num<=28&&value!==fns[num])
-                commandFunction(currentLoco.address,num,value);
-            }
-          }}
+          // LocoFunctionButton already sends through onFunctionCommand.
+          // App updates the shared authoritative state; do not transmit twice.
+          onActiveFunctionsChange={()=>{}}
           onFunctionCommand={commandFunction}/>
        </div>
       </div>}
