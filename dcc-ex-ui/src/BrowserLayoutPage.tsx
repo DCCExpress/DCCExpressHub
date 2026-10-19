@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
 import { ActionIcon, Badge, Button, Card, Divider, Group, NumberInput, Stack, Tabs, Text, Title, Tooltip } from '@mantine/core';
-import { showNotification } from '@mantine/notifications';
 import {
  IconArrowLeft,IconChevronLeft,IconChevronRight,IconDeviceFloppy,IconDownload,IconEdit,
  IconFocusCentered,IconPlus,IconPointer,IconPower,IconRefresh,IconSettings,IconShieldCheck,
@@ -52,6 +51,7 @@ function store(key:string,value:string|number|boolean){
 }
 
 export function BrowserLayoutPage(props:Props){
+ const [timingSaveResult,setTimingSaveResult]=useState<'success'|'error'|null>(null);
  const [editMode,setEditMode]=useState(false);
  const [draftTiming,setDraftTiming]=useState<{sensorOffDelayMs:number|string;turnoutCommandIntervalMs:number|string;turnoutSettlingMs:number|string}>(()=>({
   sensorOffDelayMs:props.sensorOffDelayMs,
@@ -74,7 +74,7 @@ export function BrowserLayoutPage(props:Props){
    turnoutCommandIntervalMs:Number(draftTiming.turnoutCommandIntervalMs),
    turnoutSettlingMs:Number(draftTiming.turnoutSettlingMs),
   });
-  showNotification({color:ok?'green':'red',message:ok?'Settings saved':'Could not save settings to browser storage'});
+  setTimingSaveResult(ok?'success':'error');
  };
  const [fitCounter,setFitCounter]=useState(0);
  const [selectedElement,setSelectedElement]=useState<TrackElement|null>(null);
@@ -281,6 +281,7 @@ export function BrowserLayoutPage(props:Props){
                 value={draftTiming.turnoutSettlingMs} min={0} max={30000} step={50}
                 allowDecimal={false} clampBehavior="strict"
                 onChange={v=>setDraftTiming(current=>({...current,turnoutSettlingMs:v}))}/>
+              {timingSaveResult&&<Text size="xs" c={timingSaveResult==='success'?'green':'red'}>{timingSaveResult==='success'?'Settings saved':'Could not save settings to browser storage'}</Text>}
               <Group justify="flex-end">
                <Button size="xs" leftSection={<IconDeviceFloppy size={15}/>} disabled={!timingDirty||!timingValid} onClick={saveTiming}>Save</Button>
               </Group>
