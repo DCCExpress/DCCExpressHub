@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, AppShell, Badge, Box, Button, Card, Container, Group, FileButton, Modal, NumberInput, SimpleGrid, Stack, Text, TextInput, Title, ThemeIcon } from '@mantine/core';
+import { Alert, AppShell, Badge, Box, Button, Card, Container, Group, FileButton, Modal, SimpleGrid, Stack, Text, TextInput, Title, ThemeIcon } from '@mantine/core';
 import { IconAlertTriangle, IconPlugConnected, IconTrain, IconWifiOff, IconMap, IconSettings, IconDownload, IconUpload, IconTrash } from '@tabler/icons-react';
 import { emergencyStopCommand, emergencyResumeCommand, trackPowerCommand, functionCommand, locoStatusQuery, parseFrames, parseLocoStatus, throttleCommand, type LocoLiveState } from './dccex';
 import { registerTurnoutOutputSink } from './preview-webui/services/layoutOutput';
