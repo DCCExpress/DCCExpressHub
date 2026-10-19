@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
 import { ActionIcon, Badge, Button, Card, Divider, Group, NumberInput, Stack, Tabs, Text, Title, Tooltip } from '@mantine/core';
+import { showNotification } from '@mantine/notifications';
 import {
  IconArrowLeft,IconChevronLeft,IconChevronRight,IconDeviceFloppy,IconDownload,IconEdit,
  IconFocusCentered,IconPlus,IconPointer,IconPower,IconRefresh,IconSettings,IconShieldCheck,
@@ -19,9 +20,10 @@ import './browser-layout.css';
 
 type RuntimeTab='tasks'|'automation'|'timetable'|'info'|'log';
 type Props={
- sensorOffDelayMs:number;onSensorOffDelayMs:(value:number)=>void;
- turnoutCommandIntervalMs:number;onTurnoutCommandIntervalMs:(value:number)=>void;
- turnoutSettlingMs:number;onTurnoutSettlingMs:(value:number)=>void;
+ sensorOffDelayMs:number;
+ turnoutCommandIntervalMs:number;
+ turnoutSettlingMs:number;
+ onSaveTimingSettings:(values:{sensorOffDelayMs:number;turnoutCommandIntervalMs:number;turnoutSettlingMs:number})=>boolean;
  locos:Loco[];activeAddress:number;onSelectLoco:(address:number)=>void;connected:boolean;
  locoStates:Record<number,LocoLiveState>;
  speed:number;forward:boolean;onSpeed:(v:number)=>void;onDrive:(v:number,forward?:boolean)=>void;
@@ -51,6 +53,29 @@ function store(key:string,value:string|number|boolean){
 
 export function BrowserLayoutPage(props:Props){
  const [editMode,setEditMode]=useState(false);
+ const [draftTiming,setDraftTiming]=useState<{sensorOffDelayMs:number|string;turnoutCommandIntervalMs:number|string;turnoutSettlingMs:number|string}>(()=>({
+  sensorOffDelayMs:props.sensorOffDelayMs,
+  turnoutCommandIntervalMs:props.turnoutCommandIntervalMs,
+  turnoutSettlingMs:props.turnoutSettlingMs,
+ }));
+ useEffect(()=>setDraftTiming({
+  sensorOffDelayMs:props.sensorOffDelayMs,
+  turnoutCommandIntervalMs:props.turnoutCommandIntervalMs,
+  turnoutSettlingMs:props.turnoutSettlingMs,
+ }),[props.sensorOffDelayMs,props.turnoutCommandIntervalMs,props.turnoutSettlingMs]);
+ const timingValid=typeof draftTiming.sensorOffDelayMs==='number'&&Number.isInteger(draftTiming.sensorOffDelayMs)&&draftTiming.sensorOffDelayMs>=100&&draftTiming.sensorOffDelayMs<=1000
+  &&typeof draftTiming.turnoutCommandIntervalMs==='number'&&Number.isInteger(draftTiming.turnoutCommandIntervalMs)&&draftTiming.turnoutCommandIntervalMs>=0&&draftTiming.turnoutCommandIntervalMs<=1000
+  &&typeof draftTiming.turnoutSettlingMs==='number'&&Number.isInteger(draftTiming.turnoutSettlingMs)&&draftTiming.turnoutSettlingMs>=0&&draftTiming.turnoutSettlingMs<=30000;
+ const timingDirty=draftTiming.sensorOffDelayMs!==props.sensorOffDelayMs||draftTiming.turnoutCommandIntervalMs!==props.turnoutCommandIntervalMs||draftTiming.turnoutSettlingMs!==props.turnoutSettlingMs;
+ const saveTiming=()=>{
+  if(!timingValid)return;
+  const ok=props.onSaveTimingSettings({
+   sensorOffDelayMs:Number(draftTiming.sensorOffDelayMs),
+   turnoutCommandIntervalMs:Number(draftTiming.turnoutCommandIntervalMs),
+   turnoutSettlingMs:Number(draftTiming.turnoutSettlingMs),
+  });
+  showNotification({color:ok?'green':'red',message:ok?'Settings saved':'Could not save settings to browser storage'});
+ };
  const [fitCounter,setFitCounter]=useState(0);
  const [selectedElement,setSelectedElement]=useState<TrackElement|null>(null);
  const [selectedCount,setSelectedCount]=useState(0);
@@ -243,20 +268,23 @@ export function BrowserLayoutPage(props:Props){
               <Text fw={600} size="sm">Sensor and turnout timing</Text>
               <NumberInput label="Sensor OFF delay (ms)"
                 description="Sensor ON is immediate; a pending OFF is cancelled if ON arrives again."
-                value={props.sensorOffDelayMs} min={100} max={1000} step={50}
+                value={draftTiming.sensorOffDelayMs} min={100} max={1000} step={50}
                 allowDecimal={false} clampBehavior="strict"
-                onChange={v=>{if(typeof v==='number'&&Number.isInteger(v)&&v>=100&&v<=1000)props.onSensorOffDelayMs(v);}}/>
+                onChange={v=>setDraftTiming(current=>({...current,sensorOffDelayMs:v}))}/>
               <NumberInput label="Turnout command interval (ms)"
                 description="Minimum interval between queued DCC-EX commands; applies to normal commands including turnouts."
-                value={props.turnoutCommandIntervalMs} min={0} max={1000} step={25}
+                value={draftTiming.turnoutCommandIntervalMs} min={0} max={1000} step={25}
                 allowDecimal={false} clampBehavior="strict"
-                onChange={v=>{if(typeof v==='number'&&Number.isInteger(v)&&v>=0&&v<=1000)props.onTurnoutCommandIntervalMs(v);}}/>
+                onChange={v=>setDraftTiming(current=>({...current,turnoutCommandIntervalMs:v}))}/>
               <NumberInput label="Turnout settling time (ms)"
                 description="Stored locally for future route authority integration. Not active: dispatcher is not available in Browser Edition."
-                value={props.turnoutSettlingMs} min={0} max={30000} step={50}
+                value={draftTiming.turnoutSettlingMs} min={0} max={30000} step={50}
                 allowDecimal={false} clampBehavior="strict"
-                onChange={v=>{if(typeof v==='number'&&Number.isInteger(v)&&v>=0&&v<=30000)props.onTurnoutSettlingMs(v);}}/>
-              <Text size="xs" c="dimmed">Saved automatically in this browser. These are browser-side settings, not command-station configuration.</Text>
+                onChange={v=>setDraftTiming(current=>({...current,turnoutSettlingMs:v}))}/>
+              <Group justify="flex-end">
+               <Button size="xs" leftSection={<IconDeviceFloppy size={15}/>} disabled={!timingDirty||!timingValid} onClick={saveTiming}>Save</Button>
+              </Group>
+              <Text size="xs" c="dimmed">Changes take effect after Save. Settings are stored in this browser, not on the command station.</Text>
              </Stack>
             </Card>
             <Text size="sm" fw={600}>Command center</Text>
