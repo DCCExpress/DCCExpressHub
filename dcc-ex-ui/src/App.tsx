@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, AppShell, Badge, Box, Button, Card, Container, Group, FileButton, Modal, SimpleGrid, Stack, Text, TextInput, Title, ThemeIcon } from '@mantine/core';
+import { Alert, AppShell, Badge, Box, Button, Card, Container, Group, FileButton, Modal, NumberInput, SimpleGrid, Stack, Text, TextInput, Title, ThemeIcon } from '@mantine/core';
 import { IconAlertTriangle, IconPlugConnected, IconTrain, IconWifiOff, IconMap, IconSettings, IconDownload, IconUpload, IconTrash } from '@tabler/icons-react';
 import { emergencyStopCommand, emergencyResumeCommand, trackPowerCommand, functionCommand, locoStatusQuery, parseFrames, parseLocoStatus, throttleCommand, type LocoLiveState } from './dccex';
 import { registerTurnoutOutputSink } from './preview-webui/services/layoutOutput';
@@ -21,6 +21,34 @@ export function App() {
   const [url, setUrl] = useState(() => saved('dcc-ex-ui.wsUrl', DEFAULT_URL));
   const [address, setAddress] = useState<number | string>(() => Number(saved('dcc-ex-ui.loco', '18')));
   const [status, setStatus] = useState<Connection>('disconnected');
+  const [commandIntervalMs,setCommandIntervalMs]=useState(()=>{
+    const value=Number(saved('dcc-ex-ui.commandIntervalMs','25'));
+    return Number.isInteger(value)&&value>=0&&value<=1000?value:25;
+  });
+  const commandIntervalRef=useRef(commandIntervalMs);
+  commandIntervalRef.current=commandIntervalMs;
+  const normalQueue=useRef<string[]>([]);
+  const normalTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
+  const lastNormalSent=useRef(0);
+  const clearNormalQueue=useCallback(()=>{
+    normalQueue.current=[];
+    if(normalTimer.current!==null){clearTimeout(normalTimer.current);normalTimer.current=null;}
+    lastNormalSent.current=0;
+  },[]);
+  const flushNormalQueue=useCallback(()=>{
+    normalTimer.current=null;
+    const ws=socket.current;
+    if(!ws||ws.readyState!==WebSocket.OPEN){normalQueue.current=[];return;}
+    const command=normalQueue.current.shift();
+    if(!command)return;
+    ws.send(command);
+    lastNormalSent.current=Date.now();
+    if(normalQueue.current.length){
+      normalTimer.current=setTimeout(flushNormalQueue,commandIntervalRef.current);
+    }
+  },[]);
+  // Keep the configured interval across browser restarts.
+  useEffect(()=>{try{localStorage.setItem('dcc-ex-ui.commandIntervalMs',String(commandIntervalMs));}catch{/* optional */}},[commandIntervalMs]);
   const [speed, setSpeed] = useState(0);
   const [forward, setForward] = useState(true);
   const [light, setLight] = useState(false);
@@ -42,9 +70,25 @@ export function App() {
   const active = useRef({ address: Number(address), speed: 0, forward: true });
   const append = useCallback((line: string) => setLog(lines => [line, ...lines].slice(0, 30)), []);
   const send = useCallback((command: string): boolean => {
-    if (socket.current?.readyState !== WebSocket.OPEN) { setError('Not connected to a WebSocket endpoint.'); return false; }
-    socket.current.send(command); append('TX ' + command); return true;
-  }, [append]);
+    const ws=socket.current;
+    if(ws?.readyState!==WebSocket.OPEN){setError('Not connected to a WebSocket endpoint.');return false;}
+    // Priority safety commands bypass the normal command interval and discard stale movements.
+    if(command.startsWith('<!')||command==='<0>'){
+      clearNormalQueue();
+      ws.send(command);
+      append('TX '+command);
+      return true;
+    }
+    // Send normal commands in order, respecting the minimum command interval.
+    normalQueue.current.push(command);
+    if(normalTimer.current===null){
+      const elapsed=Date.now()-lastNormalSent.current;
+      const delay=lastNormalSent.current===0?0:Math.max(0,commandIntervalRef.current-elapsed);
+      normalTimer.current=setTimeout(flushNormalQueue,delay);
+    }
+    append('TX queued '+command);
+    return true;
+  },[append,clearNormalQueue,flushNormalQueue]);
   useEffect(()=>registerTurnoutOutputSink(send),[send]);
   // Ask about each saved DCC address once per connection; when a new loco is added,
   // ask for that address too. Queries never set speed or reserve a slot.
@@ -66,11 +110,11 @@ export function App() {
       const { address: a, forward: d } = active.current;
       socket.current.send(throttleCommand({ address: a, speed: 0, forward: d }));
     }
-    socket.current?.close(); socket.current = null; setStatus('disconnected'); setPower(null); setSpeed(0);
+    clearNormalQueue(); socket.current?.close(); socket.current = null; setStatus('disconnected'); setPower(null); setSpeed(0);
     setLocoStates({});
     publishConnectionStatus('disconnected');
-  }, []);
-  useEffect(() => () => { socket.current?.close(); }, []);
+  }, [clearNormalQueue]);
+  useEffect(() => () => { clearNormalQueue(); socket.current?.close(); }, [clearNormalQueue]);
   const connect = () => {
     setError('');
     try {
@@ -79,6 +123,7 @@ export function App() {
       // DCC-EX replies with Sec-WebSocket-Protocol: DCCEX. Browsers require us to request it.
       const ws = new WebSocket(parsed.href, 'DCCEX');
       queriedLocos.current.clear();
+      clearNormalQueue();
       setPower(null);
       setLocoStates({});
       setSpeed(0);setLight(false);
@@ -117,7 +162,7 @@ export function App() {
         }
       };
       ws.onerror = () => { if (socket.current === ws) setError('WebSocket connection failed. Verify that the station or bridge supports WebSocket, not just TCP.'); };
-      ws.onclose = () => { if (socket.current === ws) { socket.current = null; setStatus('disconnected'); setPower(null); publishConnectionStatus('disconnected'); setSpeed(0); setLocoStates({}); append('Disconnected'); } };
+      ws.onclose = () => { if (socket.current === ws) { clearNormalQueue(); socket.current = null; setStatus('disconnected'); setPower(null); publishConnectionStatus('disconnected'); setSpeed(0); setLocoStates({}); append('Disconnected'); } };
       try { localStorage.setItem('dcc-ex-ui.wsUrl', url); } catch { /* storage optional */ }
     } catch (e) { setStatus('disconnected'); publishConnectionStatus('disconnected'); setError(String(e)); }
   };
@@ -200,6 +245,9 @@ export function App() {
         <Modal opened={connectSettingsOpen} onClose={()=>setConnectSettingsOpen(false)} title="DCC-EX WebSocket connection" centered>
           <Stack>
             <TextInput label="WebSocket address" value={url} disabled={status!=='disconnected'} onChange={e=>setUrl(e.currentTarget.value)} description="DCC-EX native DCCEX WebSocket subprotocol, e.g. ws://192.168.1.145:2560/"/>
+            <NumberInput label="DCC-EX command interval" description="Minimum spacing between normal commands (including turnout switching); E-STOP and power OFF bypass the queue. Browser setting, not decoder pulse duration." value={commandIntervalMs}
+              min={0} max={1000} clampBehavior="strict" allowDecimal={false} allowNegative={false}
+              suffix=" ms" onChange={value=>{const n=Number(value);if(Number.isInteger(n)&&n>=0&&n<=1000)setCommandIntervalMs(n);}}/>
             <Group><Button disabled={status!=='disconnected'} leftSection={<IconPlugConnected size={17}/>} onClick={connect}>Connect</Button><Button variant="outline" color="gray" disabled={status==='disconnected'} leftSection={<IconWifiOff size={17}/>} onClick={disconnect}>Disconnect</Button></Group>
           </Stack>
         </Modal>
