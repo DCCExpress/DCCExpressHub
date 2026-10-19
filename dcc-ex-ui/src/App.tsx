@@ -175,11 +175,20 @@ export function App() {
         append('Connected: ' + parsed.href);
         ws.send('<s><Q>'); // Fetch power and current sensor states at connection
       };
-      ws.onmessage = event => {
+      ws.onmessage = async event => {
         if (socket.current !== ws) return;
-        if (typeof event.data !== 'string') return;
-        const frames = parseFrames(event.data);
-        for (const frame of frames.length ? frames : [event.data]) {
+        // Some DCC-EX WebSocket bridges send ASCII protocol frames in binary messages.
+        // Do not silently discard those sensor/status frames.
+        const raw = typeof event.data === 'string'
+          ? event.data
+          : event.data instanceof Blob
+            ? await event.data.text()
+            : event.data instanceof ArrayBuffer
+              ? new TextDecoder().decode(event.data)
+              : null;
+        if (socket.current !== ws || raw === null) return;
+        const frames = parseFrames(raw);
+        for (const frame of frames.length ? frames : [raw]) {
           append('RX ' + frame);
           if(frame.trim()==='<!PAUSED>')setEmergencyStop(true);
           else if(frame.trim()==='<!RESUMED>')setEmergencyStop(false);
