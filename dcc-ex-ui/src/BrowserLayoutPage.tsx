@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
-import { ActionIcon, Badge, Button, Card, Divider, Group, Stack, Tabs, Text, Title, Tooltip } from '@mantine/core';
+import { ActionIcon, Badge, Button, Card, Divider, Group, NumberInput, Stack, Tabs, Text, Title, Tooltip } from '@mantine/core';
 import {
  IconArrowLeft,IconChevronLeft,IconChevronRight,IconDeviceFloppy,IconDownload,IconEdit,
  IconFocusCentered,IconPlus,IconPointer,IconPower,IconRefresh,IconSettings,IconShieldCheck,
@@ -19,6 +19,9 @@ import './browser-layout.css';
 
 type RuntimeTab='tasks'|'automation'|'timetable'|'info'|'log';
 type Props={
+ sensorOffDelayMs:number;onSensorOffDelayMs:(value:number)=>void;
+ turnoutCommandIntervalMs:number;onTurnoutCommandIntervalMs:(value:number)=>void;
+ turnoutSettlingMs:number;onTurnoutSettlingMs:(value:number)=>void;
  locos:Loco[];activeAddress:number;onSelectLoco:(address:number)=>void;connected:boolean;
  locoStates:Record<number,LocoLiveState>;
  speed:number;forward:boolean;onSpeed:(v:number)=>void;onDrive:(v:number,forward?:boolean)=>void;
@@ -234,7 +237,29 @@ export function BrowserLayoutPage(props:Props){
           </Tabs.Panel>
           <Tabs.Panel value="timetable" className="lite-info-tab-panel"><Text size="sm" c="dimmed">Timetable · backend not available.</Text></Tabs.Panel>
           <Tabs.Panel value="info" className="lite-info-tab-panel">
-           <Stack gap="xs"><Text size="sm" fw={600}>Command center</Text>
+           <Stack gap="sm">
+            <Card withBorder p="sm">
+             <Stack gap="xs">
+              <Text fw={600} size="sm">Sensor and turnout timing</Text>
+              <NumberInput label="Sensor OFF delay (ms)"
+                description="Sensor ON is immediate; a pending OFF is cancelled if ON arrives again."
+                value={props.sensorOffDelayMs} min={100} max={1000} step={50}
+                allowDecimal={false} clampBehavior="strict"
+                onChange={v=>{if(typeof v==='number'&&Number.isInteger(v)&&v>=100&&v<=1000)props.onSensorOffDelayMs(v);}}/>
+              <NumberInput label="Turnout command interval (ms)"
+                description="Minimum interval between queued DCC-EX commands; applies to normal commands including turnouts."
+                value={props.turnoutCommandIntervalMs} min={0} max={1000} step={25}
+                allowDecimal={false} clampBehavior="strict"
+                onChange={v=>{if(typeof v==='number'&&Number.isInteger(v)&&v>=0&&v<=1000)props.onTurnoutCommandIntervalMs(v);}}/>
+              <NumberInput label="Turnout settling time (ms)"
+                description="Stored locally for future route authority integration. Not active: dispatcher is not available in Browser Edition."
+                value={props.turnoutSettlingMs} min={0} max={30000} step={50}
+                allowDecimal={false} clampBehavior="strict"
+                onChange={v=>{if(typeof v==='number'&&Number.isInteger(v)&&v>=0&&v<=30000)props.onTurnoutSettlingMs(v);}}/>
+              <Text size="xs" c="dimmed">Saved automatically in this browser. These are browser-side settings, not command-station configuration.</Text>
+             </Stack>
+            </Card>
+            <Text size="sm" fw={600}>Command center</Text>
             <Badge color={props.connected?'green':'gray'} w="fit-content">{props.connected?'Connected':'Disconnected'}</Badge>
             <Text size="xs" c="dimmed">DCC-EX · direct WebSocket</Text>
            </Stack>
