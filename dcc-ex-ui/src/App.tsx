@@ -25,6 +25,24 @@ export function App() {
     const value=Number(saved('dcc-ex-ui.commandIntervalMs','25'));
     return Number.isInteger(value)&&value>=0&&value<=1000?value:25;
   });
+  const [sensorOffDelayMs,setSensorOffDelayMs]=useState(()=>{
+    const value=Number(saved('dcc-ex-ui.sensorOffDelayMs','250'));
+    return Number.isInteger(value)&&value>=100&&value<=1000?value:250;
+  });
+  const sensorOffDelayRef=useRef(sensorOffDelayMs);
+  sensorOffDelayRef.current=sensorOffDelayMs;
+  const sensorOffTimers=useRef(new Map<number,ReturnType<typeof setTimeout>>());
+  const [turnoutSettlingMs,setTurnoutSettlingMs]=useState(()=>{
+    const value=Number(saved('dcc-ex-ui.turnoutSettlingMs','100'));
+    return Number.isInteger(value)&&value>=0&&value<=30000?value:100;
+  });
+  useEffect(()=>{try{localStorage.setItem('dcc-ex-ui.sensorOffDelayMs',String(sensorOffDelayMs));}catch{/* optional */}},[sensorOffDelayMs]);
+  useEffect(()=>{try{localStorage.setItem('dcc-ex-ui.turnoutSettlingMs',String(turnoutSettlingMs));}catch{/* optional */}},[turnoutSettlingMs]);
+  const clearSensorOffTimers=useCallback(()=>{
+    for(const timer of sensorOffTimers.current.values())clearTimeout(timer);
+    sensorOffTimers.current.clear();
+  },[]);
+  useEffect(()=>()=>clearSensorOffTimers(),[clearSensorOffTimers]);
   const commandIntervalRef=useRef(commandIntervalMs);
   commandIntervalRef.current=commandIntervalMs;
   const normalQueue=useRef<string[]>([]);
@@ -110,11 +128,11 @@ export function App() {
       const { address: a, forward: d } = active.current;
       socket.current.send(throttleCommand({ address: a, speed: 0, forward: d }));
     }
-    clearNormalQueue(); socket.current?.close(); socket.current = null; setStatus('disconnected'); setPower(null); setSpeed(0);
+    clearNormalQueue(); clearSensorOffTimers(); socket.current?.close(); socket.current = null; setStatus('disconnected'); setPower(null); setSpeed(0);
     setLocoStates({});
     publishConnectionStatus('disconnected');
-  }, [clearNormalQueue]);
-  useEffect(() => () => { clearNormalQueue(); socket.current?.close(); }, [clearNormalQueue]);
+  }, [clearNormalQueue,clearSensorOffTimers]);
+  useEffect(() => () => { clearNormalQueue(); clearSensorOffTimers(); socket.current?.close(); }, [clearNormalQueue,clearSensorOffTimers]);
   const connect = () => {
     setError('');
     try {
@@ -124,6 +142,7 @@ export function App() {
       const ws = new WebSocket(parsed.href, 'DCCEX');
       queriedLocos.current.clear();
       clearNormalQueue();
+      clearSensorOffTimers();
       setPower(null);
       setLocoStates({});
       setSpeed(0);setLight(false);
@@ -155,14 +174,23 @@ export function App() {
           const sensor = /^<([Qq])\s+(\d+)(?:\s|>)/.exec(frame.trim());
           if(sensor){
             const sensorAddress=Number(sensor[2]);
-            publishSensorFeedback(sensorAddress,sensor[1]==='Q');
+            const pending=sensorOffTimers.current.get(sensorAddress);
+            if(pending!==undefined){clearTimeout(pending);sensorOffTimers.current.delete(sensorAddress);}
+            if(sensor[1]==='Q')publishSensorFeedback(sensorAddress,true);
+            else {
+              const timer=setTimeout(()=>{
+                sensorOffTimers.current.delete(sensorAddress);
+                if(socket.current===ws)publishSensorFeedback(sensorAddress,false);
+              },sensorOffDelayRef.current);
+              sensorOffTimers.current.set(sensorAddress,timer);
+            }
           }
           const powerFeedback=/^<p([01])(?:\s+(MAIN|ALL))?>$/.exec(frame.trim());
           if(powerFeedback)setPower(powerFeedback[1]==='1');
         }
       };
       ws.onerror = () => { if (socket.current === ws) setError('WebSocket connection failed. Verify that the station or bridge supports WebSocket, not just TCP.'); };
-      ws.onclose = () => { if (socket.current === ws) { clearNormalQueue(); socket.current = null; setStatus('disconnected'); setPower(null); publishConnectionStatus('disconnected'); setSpeed(0); setLocoStates({}); append('Disconnected'); } };
+      ws.onclose = () => { if (socket.current === ws) { clearNormalQueue(); clearSensorOffTimers(); socket.current = null; setStatus('disconnected'); setPower(null); publishConnectionStatus('disconnected'); setSpeed(0); setLocoStates({}); append('Disconnected'); } };
       try { localStorage.setItem('dcc-ex-ui.wsUrl', url); } catch { /* storage optional */ }
     } catch (e) { setStatus('disconnected'); publishConnectionStatus('disconnected'); setError(String(e)); }
   };
@@ -306,6 +334,12 @@ export function App() {
         ) : (
           <Box px={8} py={8} style={{height:'100dvh',minHeight:0,overflow:'hidden'}}>
             <BrowserLayoutPage
+              sensorOffDelayMs={sensorOffDelayMs}
+              onSensorOffDelayMs={setSensorOffDelayMs}
+              turnoutCommandIntervalMs={commandIntervalMs}
+              onTurnoutCommandIntervalMs={setCommandIntervalMs}
+              turnoutSettlingMs={turnoutSettlingMs}
+              onTurnoutSettlingMs={setTurnoutSettlingMs}
               locos={project.locos}
               elements={project.elements}
               stations={project.stations??[]}
