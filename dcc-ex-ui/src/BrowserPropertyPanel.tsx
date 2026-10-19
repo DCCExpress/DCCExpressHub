@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Button, Card, ScrollArea, SimpleGrid, Stack, Text, Paper, Box } from '@mantine/core';
+import { Button, Card, NumberInput, ScrollArea, SimpleGrid, Stack, Text, Paper, Box } from '@mantine/core';
 import { IconSettings, IconTrafficLights } from '@tabler/icons-react';
 import type { TrackElement } from './storage';
 import type { IEditableProperty } from './preview-webui/models/editor/elements/PropertyDescriptor';
@@ -22,7 +22,7 @@ import StationSelectPropertyEditor from './property-panel/StationSelectPropertyE
 import type { Station } from './storage';
 
 type Props={
- selected:TrackElement|null;selectedCount:number;
+ selected:TrackElement|null;selectedCount:number;selectedElements:TrackElement[];
  onPatch:(patch:Partial<TrackElement>)=>void;
  settings:BrowserVisibility;onSettingsChange:(patch:Partial<BrowserVisibility>)=>void;
  stations:Station[];onSaveStations:(stations:Station[],stationId:string|null)=>void;
@@ -91,7 +91,7 @@ function SignalProperty({model,onPatch}:{model:BaseElement;onPatch:(patch:Partia
    onApply={value=>{onPatch({signalOutput:cloneSignalOutputConfiguration(value)});setOpened(false);}}/>
  </>;
 }
-export default function BrowserPropertyPanel({selected,selectedCount,onPatch,settings,onSettingsChange,stations,onSaveStations}:Props){
+export default function BrowserPropertyPanel({selected,selectedCount,selectedElements,onPatch,settings,onSettingsChange,stations,onSaveStations}:Props){
  const element=useMemo(()=>selected?restoreBrowserElement(selected,0):null,[selected]);
  const props=useMemo(()=>element?.getEditableProperties()??[],[element]);
  const update=(prop:IEditableProperty,value:unknown)=>{
@@ -102,8 +102,27 @@ export default function BrowserPropertyPanel({selected,selectedCount,onPatch,set
   onPatch({[prop.key]:actual} as Partial<TrackElement>);
  };
  if(!selected||!element){
-  if(selectedCount>1)return <Stack gap="xs"><Text fw={800}>{english('ui.properties')}</Text>
-   <Text size="sm" c="dimmed">{english('ui.noCommonEditableProperty')}</Text></Stack>;
+  if(selectedCount>1){
+   const editable=selectedElements.filter(item=>restoreBrowserElement(item,0)?.hasOccupancySensor);
+   const values=editable.map(item=>Number(item.address??0));
+   const common=values.every(value=>value===values[0])?values[0]:undefined;
+   return <Stack gap="xs">
+    <Text fw={800}>{english('ui.properties')} · {selectedCount} selected</Text>
+    {editable.length===selectedCount&&editable.length>0?<Card withBorder p="xs">
+     <NumberInput key={editable.map(item=>item.id).join(',')+':'+String(common)} label="Occupancy sensor address"
+      description="Apply a sensor address to all selected track elements."
+      min={0} max={65535} allowDecimal={false} placeholder="Mixed values"
+      defaultValue={common}
+      onBlur={event=>{
+       const raw=event.currentTarget.value.trim();
+       if(raw==='')return;
+       const value=Number(raw);
+       if(!Number.isInteger(value)||value<0||value>65535)return;
+       onPatch({address:value});
+      }}/>
+    </Card>:<Text size="sm" c="dimmed">{english('ui.noCommonEditableProperty')}</Text>}
+   </Stack>;
+  }
   return <ScrollArea h="100%"><Stack gap="xs">
    <VisibilitySettings title={english('ui.layoutVisibility')} settings={settings} updateSettings={onSettingsChange}/>
    <EditorShortcutsHelp/>
