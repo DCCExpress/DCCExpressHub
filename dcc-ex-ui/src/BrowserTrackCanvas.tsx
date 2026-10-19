@@ -26,7 +26,7 @@ type Props={
  editMode:boolean;tool:BrowserTool;drawingElement:BrowserPickerItem|null;
  onToolChange:(tool:BrowserTool)=>void;fitCounter?:number;
  onSelectionChange?:(selected:TrackElement|null)=>void;
- onSelectionCountChange?:(count:number)=>void;visibility:BrowserVisibility;
+ onSelectionCountChange?:(count:number)=>void;onSelectionIdsChange?:(ids:number[])=>void;visibility:BrowserVisibility;
  onSave?:()=>void;onToggleEditMode?:()=>void;
 };
 type GridPoint={x:number;y:number};
@@ -105,7 +105,7 @@ const allocateId=(models:BaseElement[])=>{
  throw new Error('Layout is full (65535 IDs)');
 };
 export default function BrowserTrackCanvas({elements,onElementsChange,connected,onEmergencyStop,editMode,tool,drawingElement,onToolChange,
- fitCounter,onSelectionChange,onSelectionCountChange,visibility,onSave,onToggleEditMode}:Props){
+ fitCounter,onSelectionChange,onSelectionCountChange,onSelectionIdsChange,visibility,onSave,onToggleEditMode}:Props){
  const canvasRef=useRef<HTMLCanvasElement>(null);
  const holderRef=useRef<HTMLDivElement>(null);
  const selectedIds=useRef(new Set<number>());
@@ -156,6 +156,7 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
   setPanActive(false);
   onSelectionChange?.(null);
   onSelectionCountChange?.(0);
+  onSelectionIdsChange?.([]);
   redraw();
  },[editMode,onSelectionChange,onSelectionCountChange,redraw]);
  const modelsNow=()=>modelsRef.current;
@@ -163,6 +164,7 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
  const notifySelection=()=>{
   const one=selected();onSelectionChange?.(one.length===1?serialize(one[0]!):null);
   onSelectionCountChange?.(one.length);
+  onSelectionIdsChange?.(one.map(m=>m.id));
   redraw();
  };
  const selectIds=(ids:Iterable<number>)=>{
@@ -188,6 +190,7 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
   modelsRef.current=snapshot.map(restoreBrowserElement).filter((e):e is BaseElement=>e!==null);
   onSelectionChange?.(null);
   onSelectionCountChange?.(0);
+  onSelectionIdsChange?.([]);
   publish();
  };
  const canPlace=(element:BaseElement,x:number,y:number,ignored=new Set<number>())=>{
@@ -242,6 +245,7 @@ export default function BrowserTrackCanvas({elements,onElementsChange,connected,
   gesture.current=null;
   onSelectionChange?.(null);
   onSelectionCountChange?.(0);
+  onSelectionIdsChange?.([]);
   redraw();
  },[editMode,tool,onSelectionChange,onSelectionCountChange,redraw]);
  useEffect(()=>{
