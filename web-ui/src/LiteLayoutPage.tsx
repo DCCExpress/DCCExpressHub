@@ -435,7 +435,7 @@ const LAYOUT_ELEMENT_PICKER_TAB_KEY = "dcc-express-lite.layout.elementPickerTab"
 
 type LayoutElementPickerTab = "railway" | "decorations";
 type RightPanelMode = "property" | "loco";
-type RuntimeTab = "tasks" | "automation" | "timetable" | "info" | "log";
+type RuntimeTab = "tasks" | "automation" | "timetable" | "info" | "settings" | "log";
 
 type SwitchManLockSnapshotItem = {
   address?: unknown;
@@ -534,7 +534,7 @@ function readStoredRuntimeTab(): RuntimeTab {
     // Storage may be disabled; the UI still works with its default tab.
   }
   return value === "tasks" || value === "automation" ||
-    value === "timetable" || value === "info" || value === "log"
+    value === "timetable" || value === "info" || value === "settings" || value === "log"
     ? value : "automation";
 }
 
@@ -952,7 +952,7 @@ function SensorSettingsCard() {
   return (
     <Card withBorder p="sm" bg="var(--mantine-color-body)">
       <Stack gap="xs">
-        <Group gap="xs"><IconSettings size={17} /><Text fw={600}>Settings</Text></Group>
+        <Group gap="xs"><IconSettings size={17} /><Text fw={600}>Sensor and turnout timing</Text></Group>
         <NumberInput
           label="Sensor OFF delay (ms)"
           description="ON is immediate; OFF must remain stable for this time."
@@ -2238,6 +2238,7 @@ export default function LiteLayoutPage({
                       value === "timetable" ||
                       value === "tasks" ||
                       value === "info" ||
+                      value === "settings" ||
                       value === "log"
                         ? value
                         : "automation";
@@ -2260,6 +2261,12 @@ export default function LiteLayoutPage({
                     <Tooltip label={i18next.t("ui.info")} withArrow>
                       <Tabs.Tab value="info" aria-label={i18next.t("ui.info")}><IconInfoCircle size={20} aria-hidden="true" /></Tabs.Tab>
                     </Tooltip>
+                    <Tooltip label={i18next.t("ui.settings")} withArrow>
+
+                      <Tabs.Tab value="settings" aria-label={i18next.t("ui.settings")}><IconSettings size={20} aria-hidden="true" /></Tabs.Tab>
+
+                    </Tooltip>
+
                     <Tooltip label={i18next.t("ui.log")} withArrow>
                       <Tabs.Tab value="log" aria-label={i18next.t("ui.log")}><IconListDetails size={20} aria-hidden="true" /></Tabs.Tab>
                     </Tooltip>
@@ -2340,7 +2347,6 @@ export default function LiteLayoutPage({
                   <Tabs.Panel value="info" className="lite-info-tab-panel">
                     <ScrollArea h="100%" type="auto" scrollbarSize={9} className="lite-info-scroll">
                       <Stack gap="sm">
-                        <SensorSettingsCard />
                         <SystemInfoPanel
                           status={dccExStatus}
                           wsStatus={wsStatus}
@@ -2350,6 +2356,21 @@ export default function LiteLayoutPage({
                       </Stack>
                     </ScrollArea>
                   </Tabs.Panel>
+
+                  <Tabs.Panel value="settings" className="lite-info-tab-panel">
+
+
+                    <ScrollArea h="100%" type="auto" scrollbarSize={9} className="lite-info-scroll">
+
+
+                      <SensorSettingsCard />
+
+
+                    </ScrollArea>
+
+
+                  </Tabs.Panel>
+
 
                   <Tabs.Panel value="log" className="lite-info-tab-panel">
                     <LayoutRuntimeLogPanel />
