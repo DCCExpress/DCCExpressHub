@@ -2262,9 +2262,7 @@ export default function LiteLayoutPage({
                       <Tabs.Tab value="info" aria-label={i18next.t("ui.info")}><IconInfoCircle size={20} aria-hidden="true" /></Tabs.Tab>
                     </Tooltip>
                     <Tooltip label={i18next.t("ui.settings")} withArrow>
-
                       <Tabs.Tab value="settings" aria-label={i18next.t("ui.settings")}><IconSettings size={20} aria-hidden="true" /></Tabs.Tab>
-
                     </Tooltip>
 
                     <Tooltip label={i18next.t("ui.log")} withArrow>
@@ -2358,17 +2356,12 @@ export default function LiteLayoutPage({
                   </Tabs.Panel>
 
                   <Tabs.Panel value="settings" className="lite-info-tab-panel">
-
-
                     <ScrollArea h="100%" type="auto" scrollbarSize={9} className="lite-info-scroll">
-
-
                       <SensorSettingsCard />
 
 
+
                     </ScrollArea>
-
-
                   </Tabs.Panel>
 
 
