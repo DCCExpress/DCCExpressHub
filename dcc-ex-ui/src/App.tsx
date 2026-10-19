@@ -98,6 +98,7 @@ export function App() {
     setSpeed(state.speed);setForward(state.forward);setLight((state.functionsMask&1)!==0);
   };
   const [power, setPower] = useState<boolean | null>(null);
+  const lastReportedPower=useRef<boolean|null>(null);
   const [emergencyStop,setEmergencyStop] = useState(false);
   const [, setLog] = useState<string[]>([]);
   const [error, setError] = useState('');
@@ -145,7 +146,7 @@ export function App() {
       const { address: a, forward: d } = active.current;
       socket.current.send(throttleCommand({ address: a, speed: 0, forward: d }));
     }
-    clearNormalQueue(); clearSensorOffTimers(); socket.current?.close(); socket.current = null; setStatus('disconnected'); setPower(null); setSpeed(0);
+    clearNormalQueue(); clearSensorOffTimers(); socket.current?.close(); socket.current = null; lastReportedPower.current=null; setStatus('disconnected'); setPower(null); setSpeed(0);
     setLocoStates({});
     publishConnectionStatus('disconnected');
   }, [clearNormalQueue,clearSensorOffTimers]);
@@ -160,6 +161,7 @@ export function App() {
       queriedLocos.current.clear();
       clearNormalQueue();
       clearSensorOffTimers();
+      lastReportedPower.current=null;
       setPower(null);
       setLocoStates({});
       setSpeed(0);setLight(false);
@@ -171,7 +173,7 @@ export function App() {
         publishConnectionStatus('connected');
         publishSensorSnapshot([]);
         append('Connected: ' + parsed.href);
-        ws.send('<s><Q>'); // DCC-EX sensor snapshot request after connecting
+        ws.send('<s><Q>'); // Fetch power and current sensor states at connection
       };
       ws.onmessage = event => {
         if (socket.current !== ws) return;
@@ -203,11 +205,24 @@ export function App() {
             }
           }
           const powerFeedback=/^<p([01])(?:\s+(MAIN|ALL))?>$/.exec(frame.trim());
-          if(powerFeedback)setPower(powerFeedback[1]==='1');
+          if(powerFeedback){
+            const isOn=powerFeedback[1]==='1';
+            const wasOn=lastReportedPower.current===true;
+            lastReportedPower.current=isOn;
+            setPower(isOn);
+            // Re-fetch the full DCC-EX sensor state after track power becomes ON.
+            // Avoid repeated queries when the station broadcasts the same power state.
+            if(isOn&&!wasOn){
+              clearSensorOffTimers();
+              publishSensorSnapshot([]);
+              ws.send('<Q>');
+              append('TX <Q> (power on sensor refresh)');
+            }
+          }
         }
       };
       ws.onerror = () => { if (socket.current === ws) setError('WebSocket connection failed. Verify that the station or bridge supports WebSocket, not just TCP.'); };
-      ws.onclose = () => { if (socket.current === ws) { clearNormalQueue(); clearSensorOffTimers(); socket.current = null; setStatus('disconnected'); setPower(null); publishConnectionStatus('disconnected'); setSpeed(0); setLocoStates({}); append('Disconnected'); } };
+      ws.onclose = () => { if (socket.current === ws) { clearNormalQueue(); clearSensorOffTimers(); lastReportedPower.current=null; socket.current = null; setStatus('disconnected'); setPower(null); publishConnectionStatus('disconnected'); setSpeed(0); setLocoStates({}); append('Disconnected'); } };
       try { localStorage.setItem('dcc-ex-ui.wsUrl', url); } catch { /* storage optional */ }
     } catch (e) { setStatus('disconnected'); publishConnectionStatus('disconnected'); setError(String(e)); }
   };
@@ -290,9 +305,6 @@ export function App() {
         <Modal opened={connectSettingsOpen} onClose={()=>setConnectSettingsOpen(false)} title="DCC-EX WebSocket connection" centered>
           <Stack>
             <TextInput label="WebSocket address" value={url} disabled={status!=='disconnected'} onChange={e=>setUrl(e.currentTarget.value)} description="DCC-EX native DCCEX WebSocket subprotocol, e.g. ws://192.168.1.145:2560/"/>
-            <NumberInput label="DCC-EX command interval" description="Minimum spacing between normal commands (including turnout switching); E-STOP and power OFF bypass the queue. Browser setting, not decoder pulse duration." value={commandIntervalMs}
-              min={0} max={1000} clampBehavior="strict" allowDecimal={false} allowNegative={false}
-              suffix=" ms" onChange={value=>{const n=Number(value);if(Number.isInteger(n)&&n>=0&&n<=1000)setCommandIntervalMs(n);}}/>
             <Group><Button disabled={status!=='disconnected'} leftSection={<IconPlugConnected size={17}/>} onClick={connect}>Connect</Button><Button variant="outline" color="gray" disabled={status==='disconnected'} leftSection={<IconWifiOff size={17}/>} onClick={disconnect}>Disconnect</Button></Group>
           </Stack>
         </Modal>
