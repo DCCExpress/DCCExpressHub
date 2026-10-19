@@ -35,7 +35,7 @@ export function App() {
     if(normalTimer.current!==null){clearTimeout(normalTimer.current);normalTimer.current=null;}
     lastNormalSent.current=0;
   },[]);
-  const flushNormalQueue=useCallback(()=>{
+  const flushNormalQueue=useCallback(function flushNormalQueue(){
     normalTimer.current=null;
     const ws=socket.current;
     if(!ws||ws.readyState!==WebSocket.OPEN){normalQueue.current=[];return;}
