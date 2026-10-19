@@ -79,6 +79,7 @@ export function BrowserLayoutPage(props:Props){
  const [fitCounter,setFitCounter]=useState(0);
  const [selectedElement,setSelectedElement]=useState<TrackElement|null>(null);
  const [selectedCount,setSelectedCount]=useState(0);
+ const [selectedIds,setSelectedIds]=useState<number[]>([]);
  const [visibility,setVisibility]=useState<BrowserVisibility>(loadBrowserVisibility);
  const updateVisibility=(patch:Partial<BrowserVisibility>)=>{
   setVisibility(previous=>{
@@ -93,10 +94,10 @@ export function BrowserLayoutPage(props:Props){
   setSelectedElement(current=>current?{...current,stationId}:null);
  };
  const patchSelected=(patch:Partial<TrackElement>)=>{
-  if(!selectedElement)return;
-  const id=String(selectedElement.id);
-  const next=props.elements.map(item=>String(item.id)===id?{...item,...patch}:item);
-  props.onElementsChange(next);
+  const ids=selectedIds.length?selectedIds:(selectedElement?[Number(selectedElement.id)]:[]);
+  if(!ids.length)return;
+  const selectedSet=new Set(ids);
+  props.onElementsChange(props.elements.map(item=>selectedSet.has(Number(item.id))?{...item,...patch}:item));
   setSelectedElement(current=>current?{...current,...patch}:null);
  };
 
@@ -222,7 +223,7 @@ export function BrowserLayoutPage(props:Props){
        connected={props.connected}
        editMode={editMode} tool={tool} drawingElement={drawingElement}
        onToolChange={next=>{setTool(next);if(next!=='draw')setDrawingElement(null);}}
-       onSelectionChange={setSelectedElement} onSelectionCountChange={setSelectedCount} visibility={visibility}
+       onSelectionChange={setSelectedElement} onSelectionCountChange={setSelectedCount} onSelectionIdsChange={setSelectedIds} visibility={visibility}
        fitCounter={fitCounter}
        onSave={props.onSave}
        onToggleEditMode={()=>{setEditMode(v=>!v);setTool('cursor');setDrawingElement(null);setSelectedElement(null);}}/>
@@ -237,7 +238,7 @@ export function BrowserLayoutPage(props:Props){
      ? <div className="lite-property-panel lite-right-loco-panel">{locoPanel('right')}</div>
      : <Card withBorder p="sm" className="lite-property-panel">
        {editMode?
-        <BrowserPropertyPanel selected={selectedElement} selectedCount={selectedCount} onPatch={patchSelected}
+        <BrowserPropertyPanel selected={selectedElement} selectedCount={selectedCount} selectedElements={props.elements.filter(item=>selectedIds.includes(Number(item.id)))} onPatch={patchSelected}
            settings={visibility} onSettingsChange={updateVisibility}
            stations={props.stations} onSaveStations={saveStations}/>
        : <Tabs value={runtimeTab} onChange={setTab} className="lite-runtime-tabs">
