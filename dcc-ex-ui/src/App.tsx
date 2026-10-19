@@ -36,8 +36,7 @@ export function App() {
     const value=Number(saved('dcc-ex-ui.turnoutSettlingMs','100'));
     return Number.isInteger(value)&&value>=0&&value<=30000?value:100;
   });
-  useEffect(()=>{try{localStorage.setItem('dcc-ex-ui.sensorOffDelayMs',String(sensorOffDelayMs));}catch{/* optional */}},[sensorOffDelayMs]);
-  useEffect(()=>{try{localStorage.setItem('dcc-ex-ui.turnoutSettlingMs',String(turnoutSettlingMs));}catch{/* optional */}},[turnoutSettlingMs]);
+
   const clearSensorOffTimers=useCallback(()=>{
     for(const timer of sensorOffTimers.current.values())clearTimeout(timer);
     sensorOffTimers.current.clear();
@@ -65,8 +64,26 @@ export function App() {
       normalTimer.current=setTimeout(flushNormalQueue,commandIntervalRef.current);
     }
   },[]);
-  // Keep the configured interval across browser restarts.
-  useEffect(()=>{try{localStorage.setItem('dcc-ex-ui.commandIntervalMs',String(commandIntervalMs));}catch{/* optional */}},[commandIntervalMs]);
+  const saveTimingSettings=(values:{sensorOffDelayMs:number;turnoutCommandIntervalMs:number;turnoutSettlingMs:number}):boolean=>{
+    const {sensorOffDelayMs:off,turnoutCommandIntervalMs:interval,turnoutSettlingMs:settling}=values;
+    if(!Number.isInteger(off)||off<100||off>1000||
+       !Number.isInteger(interval)||interval<0||interval>1000||
+       !Number.isInteger(settling)||settling<0||settling>30000)return false;
+    const keys=['dcc-ex-ui.sensorOffDelayMs','dcc-ex-ui.commandIntervalMs','dcc-ex-ui.turnoutSettlingMs'];
+    const next=[String(off),String(interval),String(settling)];
+    try{
+      const previous=keys.map(key=>localStorage.getItem(key));
+      try{keys.forEach((key,i)=>localStorage.setItem(key,next[i]));}
+      catch(error){
+        keys.forEach((key,i)=>{try{if(previous[i]===null)localStorage.removeItem(key);else localStorage.setItem(key,previous[i]!);}catch{/* best effort rollback */}});
+        throw error;
+      }
+    }catch{return false;}
+    setSensorOffDelayMs(off);
+    setCommandIntervalMs(interval);
+    setTurnoutSettlingMs(settling);
+    return true;
+  };
   const [speed, setSpeed] = useState(0);
   const [forward, setForward] = useState(true);
   const [light, setLight] = useState(false);
@@ -335,11 +352,9 @@ export function App() {
           <Box px={8} py={8} style={{height:'100dvh',minHeight:0,overflow:'hidden'}}>
             <BrowserLayoutPage
               sensorOffDelayMs={sensorOffDelayMs}
-              onSensorOffDelayMs={setSensorOffDelayMs}
               turnoutCommandIntervalMs={commandIntervalMs}
-              onTurnoutCommandIntervalMs={setCommandIntervalMs}
               turnoutSettlingMs={turnoutSettlingMs}
-              onTurnoutSettlingMs={setTurnoutSettlingMs}
+              onSaveTimingSettings={saveTimingSettings}
               locos={project.locos}
               elements={project.elements}
               stations={project.stations??[]}
