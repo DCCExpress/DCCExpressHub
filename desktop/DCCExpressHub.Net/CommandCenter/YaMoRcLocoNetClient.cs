@@ -34,6 +34,7 @@ public sealed class YaMoRcLocoNetClient
     private readonly object _stateGate = new();
     private readonly Dictionary<int, bool> _loggedSensorStates = new();
     private readonly SemaphoreSlim _interrogateGate = new(1, 1);
+    private StreamWriter? _activeLbWriter;
 
     private bool _lbServerConnected;
     private DateTime _lbServerConnectedSinceUtc = DateTime.MinValue;
@@ -391,59 +392,30 @@ public sealed class YaMoRcLocoNetClient
     public async Task<bool> RequestSensorSnapshotAsync(
         CancellationToken ct = default)
     {
-        if (!_lbServerEnabled)
+        StreamWriter? writer;
+        lock (_stateGate)
+            writer = _activeLbWriter;
+
+        if (!_lbServerEnabled || writer is null)
+        {
+            _log.LogWarning("YaMoRC LocoNet snapshot requested without an active LBServer session");
             return false;
+        }
 
         try
         {
-            using var client =
-                new TcpClient
-                {
-                    NoDelay = true
-                };
-
-            using var connectCts =
-                CancellationTokenSource
-                    .CreateLinkedTokenSource(
-                        ct);
-
-            connectCts.CancelAfter(
-                TimeSpan.FromMilliseconds(
-                    ConnectTimeoutMs));
-
-            await client.ConnectAsync(
-                _host,
-                _lbServerPort,
-                connectCts.Token);
-
-            using var stream =
-                client.GetStream();
-
-            using var writer =
-                new StreamWriter(
-                    stream)
-                {
-                    AutoFlush = true,
-                    NewLine = "\r\n"
-                };
-
-            return await SendInterrogateAsync(
-                writer,
-                ct);
+            // Use the live reader/writer session so sensor reports are received
+            // on the same subscribed LBServer client. Do not suppress a
+            // power-on resync just because startup interrogation ran recently.
+            return await SendInterrogateAsync(writer, ct, force: true);
         }
-        catch (OperationCanceledException)
-            when (ct.IsCancellationRequested)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             throw;
         }
         catch (Exception ex)
         {
-            _log.LogWarning(
-                ex,
-                "YaMoRC LocoNet sensor interrogation failed: {Host}:{Port}",
-                _host,
-                _lbServerPort);
-
+            _log.LogWarning(ex, "YaMoRC LocoNet snapshot request failed");
             return false;
         }
     }
@@ -512,6 +484,9 @@ public sealed class YaMoRcLocoNetClient
                 // complete state; retry without marking missing inputs FREE.
                 using var sessionCts =
                     CancellationTokenSource.CreateLinkedTokenSource(ct);
+                lock (_stateGate)
+                    _activeLbWriter = writer;
+
                 var readTask =
                     ReadLbServerAsync(
                         reader,
@@ -562,6 +537,7 @@ public sealed class YaMoRcLocoNetClient
             {
                 lock (_stateGate)
                 {
+                    _activeLbWriter = null;
                     _lbServerConnected = false;
                     _lbServerConnectedSinceUtc =
                         DateTime.MinValue;
@@ -721,7 +697,8 @@ public sealed class YaMoRcLocoNetClient
 
     private async Task<bool> SendInterrogateAsync(
         StreamWriter writer,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool force = false)
     {
         await _interrogateGate.WaitAsync(
             ct);
@@ -732,6 +709,7 @@ public sealed class YaMoRcLocoNetClient
                 DateTime.UtcNow;
 
             if (
+                !force &&
                 _lastInterrogateUtc !=
                     DateTime.MinValue &&
                 now - _lastInterrogateUtc <
