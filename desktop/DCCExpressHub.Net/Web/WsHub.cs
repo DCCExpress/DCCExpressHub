@@ -190,6 +190,27 @@ public sealed class WsHub
 
         cc.RawInfo += raw =>
         {
+            // Temporary bridge for YaMoRC LocoNet RailCom feedback; kept
+            // separate from all occupancy and Dispatcher safety signals.
+            if (raw.StartsWith("RAILCOM_EVENT ", StringComparison.Ordinal))
+            {
+                var tokens = raw.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (tokens.Length == 4 &&
+                    int.TryParse(tokens[1], out var sensorAddress) &&
+                    int.TryParse(tokens[2], out var locomotiveAddress) &&
+                    sensorAddress is >= 1 and <= 65535 &&
+                    locomotiveAddress is >= 1 and <= 10239)
+                {
+                    QueueStateBroadcast("railComDetected", new
+                    {
+                        sensorAddress,
+                        locomotiveAddress,
+                        source = "LocoNet",
+                        @event = tokens[3]
+                    }, resyncOnDrop: false);
+                }
+                return;
+            }
             HandleProgrammingRawResponse(raw);
             if (CommandCenter.EmergencyPauseStateKnown && HubState.EmergencyStop != CommandCenter.EmergencyPaused)
             {
