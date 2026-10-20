@@ -688,6 +688,8 @@
   "editorShortcutRotate": "Element drehen",
   "editorShortcutSelect": "Auswahlwerkzeug",
   "editorShortcutSave": "Anlage speichern",
+  "editorShortcutUndo": "Letzte Änderung rückgängig machen",
+  "editorShortcutRedo": "Rückgängig gemachte Änderung wiederholen",
   "editorShortcutPan": "Ansicht verschieben",
   "editorShortcutZoom": "Vergrößern / verkleinern",
   "editorShortcutFit": "Anlage einpassen",
