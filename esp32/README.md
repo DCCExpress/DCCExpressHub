@@ -29,3 +29,11 @@ Incoming server JSON:
 Callbacks enqueue compact messages using a FreeRTOS queue; Arduino loop owns the Runtime and broadcasts events. The mock command center loops outgoing commands back into hardware feedback. No real DCC hardware interaction yet.
 
 **Not production safe:** no authentication, fixed test AP password, no TLS, no physical state verification, limited queue capacity, no automatic safety recovery from event overflow. The ArduinoJson and asynchronous WebSocket internals use dynamic allocation; the Runtime arrays and command/event queues remain fixed-capacity.
+
+## Command centers
+- `ICommandCenter` is hardware-neutral.
+- `MockCommandCenter` is the default and synthesizes feedback.
+- `DccExSerialCommandCenter` uses ESP32-S3 Serial1 UART (3.3V TTL), 115200 8N1. Define `HUB_USE_DCCEX_SERIAL=1` in firmware build_flags, with UART RX/TX pin macros defaulting to GPIO17/18.
+- Connect TX to RX, RX to TX, and GND with matched 3.3V logic; verify pins are free on your board. **USB to the DCC-EX Arduino needs an ESP32-S3 USB-host transport, not covered by this UART implementation.**
+- DCC-EX uses `<a LINEAR_ADDRESS ACTIVATE>` for a basic accessory command; this does not verify physical turnout state. Real mode does not fake feedback.
+- Periodic `<s>` probes establish serial responsiveness. The driver currently does not implement locomotive control or decoder programming.
