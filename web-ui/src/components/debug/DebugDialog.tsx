@@ -129,7 +129,7 @@ export default function DebugDialog({ opened, onClose }: Props) {
         </Tabs.Panel>
 
         <Tabs.Panel value="railcom" style={panelStyle}>
-          <RailComDebugTab opened={opened} connected={runtime.connected} />
+          <RailComDebugTab opened={opened} />
         </Tabs.Panel>
 
         <Tabs.Panel value="turnouts" style={panelStyle}>
