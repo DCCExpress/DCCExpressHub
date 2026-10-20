@@ -865,7 +865,8 @@ function LitePropertyPanel({
                 turnoutSelectionMode={turnoutSelectionMode}
                 setTurnoutSelectionMode={setTurnoutSelectionMode}
                 onLayoutChange={setLayout}
-                onUpdateSelectedElement={() => invalidate()}
+                onBeforeLayoutChange={onBeforeLayoutChange}
+                onUpdateSelectedElement={() => { onLayoutEdited(); invalidate(); }}
                 setBusy={setBusy}
                 routeSelectOpened={
                   routeSelectOpened
@@ -887,13 +888,15 @@ function LitePropertyPanel({
               <SignalAspectPropertyEditor
                 prop={property}
                 selectedElement={selectedElement}
-                onUpdateSelectedElement={invalidate}
+                onBeforeLayoutChange={onBeforeLayoutChange}
+                onUpdateSelectedElement={() => { onLayoutEdited(); invalidate(); }}
               />
             ) : property.type === "stationSelect" && selectedElement instanceof BlockElement ? (
               <StationSelectPropertyEditor
                 block={selectedElement}
                 layout={layout}
-                onChange={invalidate}
+                onBeforeLayoutChange={onBeforeLayoutChange}
+                onChange={() => { onLayoutEdited(); invalidate(); }}
               />
             ) : property.type === "blockTypeSelect" ? (
               <BlockTypeSelectPropertyEditor
