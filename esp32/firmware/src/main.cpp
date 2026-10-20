@@ -8,7 +8,8 @@
 #include "AccessoryRuntime.h"
 #include "ICommandCenter.h"
 #include "MockCommandCenter.h"
-#include "DccExSerialCommandCenter.h"
+#include "DccExTcpCommandCenter.h"
+#include <Preferences.h>
 
 // TEST BENCH ONLY: fixed AP password, plain WS, no authentication.
 static constexpr char AP_SSID[] = "Hub-ESP32-Test";
@@ -19,24 +20,20 @@ static constexpr size_t MaxIncomingCommands = 32;
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 AccessoryRuntime runtime;
-#ifndef HUB_USE_DCCEX_SERIAL
-#define HUB_USE_DCCEX_SERIAL 0
-#endif
-#ifndef HUB_DCCEX_RX_PIN
-#define HUB_DCCEX_RX_PIN 17
-#endif
-#ifndef HUB_DCCEX_TX_PIN
-#define HUB_DCCEX_TX_PIN 18
-#endif
-HardwareSerial ccSerial(1);
+void onFeedback(void*,uint16_t,bool);
 MockCommandCenter mockCC;
-DccExSerialCommandCenter dccExCC(ccSerial,HUB_DCCEX_RX_PIN,HUB_DCCEX_TX_PIN,115200);
-ICommandCenter* commandCenter =
-#if HUB_USE_DCCEX_SERIAL
-  &dccExCC;
-#else
-  &mockCC;
-#endif
+DccExTcpCommandCenter tcpCC;
+ICommandCenter* commandCenter=&mockCC;
+Preferences prefs;
+String stationSsid,stationPassword,tcpHost;
+uint16_t tcpPort=2560;
+bool useTcp=false;
+void configureDriver(){
+ commandCenter=useTcp?static_cast<ICommandCenter*>(&tcpCC):static_cast<ICommandCenter*>(&mockCC);
+ tcpCC.configure(tcpHost.c_str(),tcpPort);
+ commandCenter->onAccessoryFeedback(onFeedback,&runtime);
+ commandCenter->begin();
+}
 void onFeedback(void* context,uint16_t address,bool raw) {
   static_cast<AccessoryRuntime*>(context)->UpdateFromHardware(address,raw);
 }
@@ -44,12 +41,17 @@ void onFeedback(void* context,uint16_t address,bool raw) {
 
 // Network callbacks may execute outside Arduino loop().
 // They enqueue compact requests; only loop() reads/writes Runtime.
-enum class Action : uint8_t { Snapshot, Set, Feedback, Configure, Invalidate };
+enum class Action : uint8_t { Snapshot, Set, Feedback, Configure, Invalidate, CcGet, CcSet };
 struct Incoming {
   Action action;
   uint32_t clientId;
   uint16_t address;
   bool value;
+  bool tcp=false;
+  uint16_t port=2560;
+  char host[64]{};
+  char ssid[33]{};
+  char password[65]{};
 };
 QueueHandle_t incoming;
 
@@ -79,6 +81,7 @@ void sendSnapshot(uint32_t clientId) {
   doc["type"] = "snapshot";
   doc["commandCenter"] = commandCenter->name();
   doc["ccConnected"] = commandCenter->connected();
+  doc["wifiConnected"]=WiFi.status()==WL_CONNECTED;
   doc["sequence"] = runtime.sequence();
   doc["overflow"] = runtime.overflowed();
   JsonArray arr = doc["accessories"].to<JsonArray>();
@@ -96,6 +99,14 @@ void sendSnapshot(uint32_t clientId) {
   c->text(json);
 }
 
+void sendCcConfig(uint32_t id){
+ auto* c=ws.client(id);if(!c||!c->canSend())return;
+ JsonDocument d;d["type"]="cc.config";d["driver"]=useTcp?"dcc-ex-tcp":"mock";
+ d["host"]=tcpHost;d["port"]=tcpPort;d["wifiSsid"]=stationSsid;
+ d["wifiConnected"]=WiFi.status()==WL_CONNECTED;
+ d["ccConnected"]=commandCenter->connected();
+ String output;serializeJson(d,output);c->text(output);
+}
 void sendChanged(const AccessoryChanged& e) {
   JsonDocument doc;
   doc["type"] = "accessory.changed";
@@ -112,6 +123,7 @@ void onWsEvent(AsyncWebSocket* serverPtr, AsyncWebSocketClient* client,
                AwsEventType type, void* arg, uint8_t* data, size_t len) {
   if (type == WS_EVT_CONNECT) {
     enqueue({Action::Snapshot, client->id(), 0, false});
+    enqueue({Action::CcGet,client->id(),0,false});
     return;
   }
   if (type != WS_EVT_DATA) return;
@@ -131,6 +143,30 @@ void onWsEvent(AsyncWebSocket* serverPtr, AsyncWebSocketClient* client,
   if (strcmp(action, "snapshot.get") == 0) {
     if (!enqueue({Action::Snapshot, client->id(), 0, false}))
       sendError(client->id(), "queue_full");
+    return;
+  }
+  if(strcmp(action,"cc.config.get")==0){
+    if(!enqueue({Action::CcGet,client->id(),0,false}))sendError(client->id(),"queue_full");
+    return;
+  }
+  if(strcmp(action,"cc.config.set")==0){
+    const char* driver=msg["driver"]|"";
+    const char* host=msg["host"]|"";
+    const char* ssid=msg["wifiSsid"]|"";
+    const char* password=msg["wifiPassword"]|"";
+    if((strcmp(driver,"mock")!=0 && strcmp(driver,"dcc-ex-tcp")!=0) ||
+       strlen(host)>63 || strlen(ssid)>32 || strlen(password)>64 ||
+       !msg["port"].is<uint16_t>() || msg["port"].as<uint16_t>()==0){
+      sendError(client->id(),"invalid_config");return;
+    }
+    Incoming cmd{};
+    cmd.action=Action::CcSet;cmd.clientId=client->id();
+    cmd.tcp=strcmp(driver,"dcc-ex-tcp")==0;
+    cmd.port=msg["port"].as<uint16_t>();
+    strlcpy(cmd.host,host,sizeof(cmd.host));
+    strlcpy(cmd.ssid,ssid,sizeof(cmd.ssid));
+    strlcpy(cmd.password,password,sizeof(cmd.password));
+    if(!enqueue(cmd))sendError(client->id(),"queue_full");
     return;
   }
   Action op;
@@ -162,6 +198,25 @@ void processIncoming() {
     bool ok = false;
     switch (cmd.action) {
       case Action::Snapshot: sendSnapshot(cmd.clientId); continue;
+      case Action::CcGet: sendCcConfig(cmd.clientId);continue;
+      case Action::CcSet: {
+        useTcp=cmd.tcp;tcpHost=cmd.host;tcpPort=cmd.port;
+        bool changed=stationSsid!=cmd.ssid || cmd.password[0];
+        stationSsid=cmd.ssid;
+        if(cmd.password[0])stationPassword=cmd.password;
+        prefs.putBool("tcp",useTcp);prefs.putString("host",tcpHost);
+        prefs.putUShort("port",tcpPort);
+        prefs.putString("ssid",stationSsid);
+        if(cmd.password[0])prefs.putString("pass",stationPassword);
+        if(changed){
+          WiFi.disconnect();
+          if(!stationSsid.isEmpty())WiFi.begin(stationSsid.c_str(),stationPassword.c_str());
+        }
+        configureDriver();
+        sendCcConfig(cmd.clientId);
+        sendSnapshot(cmd.clientId);
+        continue;
+      }
       case Action::Set: ok = runtime.SetValue(cmd.address, cmd.value); break;
       case Action::Feedback: ok = runtime.UpdateFromHardware(cmd.address, cmd.value); break;
       case Action::Configure: ok = runtime.SetConfig({cmd.address, cmd.value}); break;
@@ -210,10 +265,16 @@ void setup() {
   if (!incoming) { Serial.println("Queue allocation failed"); abort(); }
   runtime.SetConfig({20, true});
   runtime.SetConfig({21, false});
-  commandCenter->onAccessoryFeedback(onFeedback,&runtime);
-  commandCenter->begin();
-  WiFi.mode(WIFI_AP);
+  prefs.begin("cc",false);
+  useTcp=prefs.getBool("tcp",false);
+  tcpHost=prefs.getString("host","");
+  tcpPort=prefs.getUShort("port",2560);
+  stationSsid=prefs.getString("ssid","");
+  stationPassword=prefs.getString("pass","");
+  WiFi.mode(WIFI_AP_STA);
   WiFi.softAP(AP_SSID, AP_PASS);
+  if(!stationSsid.isEmpty())WiFi.begin(stationSsid.c_str(),stationPassword.c_str());
+  configureDriver();
   ws.onEvent(onWsEvent);
   server.addHandler(&ws);
   server.on("/api/health", HTTP_GET, [](AsyncWebServerRequest* request) {
