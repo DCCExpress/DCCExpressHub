@@ -10,7 +10,7 @@ type RailComEvent = {
   source: string;
   event: string;
 };
-type Props = { opened: boolean; connected: boolean };
+type Props = { opened: boolean };
 
 function parseEvent(data: unknown): RailComEvent | null {
   if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
@@ -34,7 +34,7 @@ function elapsed(ms?: number) {
   return `${Math.round(ms / 1000)} s ago`;
 }
 
-export default function RailComDebugTab({ opened, connected }: Props) {
+export default function RailComDebugTab({ opened }: Props) {
   const [events, setEvents] = useState<RailComEvent[]>([]);
   const [total, setTotal] = useState(0);
   const [info, setInfo] = useState<CommandCenterInfo | null>(null);
@@ -92,9 +92,6 @@ export default function RailComDebugTab({ opened, connected }: Props) {
       <Group justify="space-between" wrap="wrap">
         <Title order={5}>RailCom diagnostics</Title>
         <Group gap="xs">
-          <Badge color={connected ? "green" : "red"} variant="light">
-            WebSocket: {connected ? "Connected" : "Disconnected"}
-          </Badge>
           <Badge color={ln?.lbServerConnected ? "green" : "gray"} variant="light">
             LocoNet: {transportStatus}
           </Badge>
