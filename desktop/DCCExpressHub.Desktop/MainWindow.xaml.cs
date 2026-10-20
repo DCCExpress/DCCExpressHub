@@ -1360,8 +1360,8 @@ namespace DCCExpressHub.Desktop
             {
                 if (!int.TryParse(
                         YaMoRcRBusOffsetText.Text.Trim(),
-                        out var rBusOffset) ||
-                    rBusOffset is < 0 or > 65375)
+                        out var yaMoRcRBusOffset) ||
+                    yaMoRcRBusOffset is < 0 or > 65375)
                 {
                     error = L("validationYaMoRcRBusOffset");
                     return false;
@@ -1376,7 +1376,7 @@ namespace DCCExpressHub.Desktop
                     return false;
                 }
 
-                settings.YaMoRcRBusOffset = rBusOffset;
+                settings.YaMoRcRBusOffset = yaMoRcRBusOffset;
                 settings.YaMoRcLocoNetOffset = locoNetOffset;
                 if (protocol == "yamorc7010")
                     settings.UseLocoNet = UseLocoNetCheckBox.IsChecked == true;
