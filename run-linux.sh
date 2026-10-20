@@ -407,7 +407,7 @@ main() {
             ensure_ui
             show_config
             cd "$BACKEND_DIR"
-            exec dotnet run --project "$PROJECT"
+            exec dotnet run --no-launch-profile --project "$PROJECT"
             ;;
         --show)
             load_env
@@ -447,7 +447,7 @@ main() {
     show_config
 
     cd "$BACKEND_DIR"
-    exec dotnet run --project "$PROJECT"
+    exec dotnet run --no-launch-profile --project "$PROJECT"
 }
 
 main "$@"
