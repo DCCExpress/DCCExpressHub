@@ -20,6 +20,9 @@ export type UseLayoutPageShortcutsParams = {
   setTool: EditorToolSetter;
   setEditMode: BooleanSetter;
   blockSelectionActive?: boolean;
+  editMode?: boolean;
+  undoLayout?: () => void;
+  redoLayout?: () => void;
 };
 
 export function useLayoutPageShortcuts({
@@ -27,6 +30,9 @@ export function useLayoutPageShortcuts({
   setTool,
   setEditMode,
   blockSelectionActive = false,
+  editMode = false,
+  undoLayout,
+  redoLayout,
 }: UseLayoutPageShortcutsParams): void {
   useEffect(() => {
     const onKeyDown = (
@@ -56,7 +62,17 @@ export function useLayoutPageShortcuts({
         target?.isContentEditable === true;
 
       if (isTypingField) {
-        return;
+        return; // Preserve native text-field undo/redo.
+      }
+
+      if (editMode && !blockSelectionActive && isCtrl && !ev.altKey) {
+        const key = ev.key.toLowerCase();
+        if (key === "z" || key === "y") {
+          ev.preventDefault();
+          if (key === "y" || ev.shiftKey) redoLayout?.();
+          else undoLayout?.();
+          return;
+        }
       }
 
       if (ev.key === "Escape") {
@@ -96,5 +112,8 @@ export function useLayoutPageShortcuts({
     setEditMode,
     setTool,
     blockSelectionActive,
+    editMode,
+    undoLayout,
+    redoLayout,
   ]);
 }
