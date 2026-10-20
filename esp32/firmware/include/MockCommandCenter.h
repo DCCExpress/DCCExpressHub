@@ -6,7 +6,7 @@ public:
   const char* name() const override { return "Mock"; }
   bool begin() override { return true; }
   void loop() override {}
-  bool connected() const override { return true; }
+  bool connected() override { return true; }
   bool sendAccessory(uint16_t address, bool rawValue) override {
     // In the mock, the physical device instantly reports its value.
     if (feedback_) feedback_(context_, address, rawValue);
