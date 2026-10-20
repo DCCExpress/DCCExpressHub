@@ -6,6 +6,9 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "AccessoryRuntime.h"
+#include "ICommandCenter.h"
+#include "MockCommandCenter.h"
+#include "DccExSerialCommandCenter.h"
 
 // TEST BENCH ONLY: fixed AP password, plain WS, no authentication.
 static constexpr char AP_SSID[] = "Hub-ESP32-Test";
@@ -16,6 +19,28 @@ static constexpr size_t MaxIncomingCommands = 32;
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 AccessoryRuntime runtime;
+#ifndef HUB_USE_DCCEX_SERIAL
+#define HUB_USE_DCCEX_SERIAL 0
+#endif
+#ifndef HUB_DCCEX_RX_PIN
+#define HUB_DCCEX_RX_PIN 17
+#endif
+#ifndef HUB_DCCEX_TX_PIN
+#define HUB_DCCEX_TX_PIN 18
+#endif
+HardwareSerial ccSerial(1);
+MockCommandCenter mockCC;
+DccExSerialCommandCenter dccExCC(ccSerial,HUB_DCCEX_RX_PIN,HUB_DCCEX_TX_PIN,115200);
+ICommandCenter* commandCenter =
+#if HUB_USE_DCCEX_SERIAL
+  &dccExCC;
+#else
+  &mockCC;
+#endif
+void onFeedback(void* context,uint16_t address,bool raw) {
+  static_cast<AccessoryRuntime*>(context)->UpdateFromHardware(address,raw);
+}
+
 
 // Network callbacks may execute outside Arduino loop().
 // They enqueue compact requests; only loop() reads/writes Runtime.
@@ -52,6 +77,8 @@ void sendSnapshot(uint32_t clientId) {
   if (!c || !c->canSend()) return;
   JsonDocument doc;
   doc["type"] = "snapshot";
+  doc["commandCenter"] = commandCenter->name();
+  doc["ccConnected"] = commandCenter->connected();
   doc["sequence"] = runtime.sequence();
   doc["overflow"] = runtime.overflowed();
   JsonArray arr = doc["accessories"].to<JsonArray>();
@@ -148,14 +175,15 @@ void processIncoming() {
   }
 }
 
-void processMockDriver() {
+void processCommandCenter() {
+  commandCenter->loop();
   AccessoryCommand c;
   if (!runtime.peekCommand(c)) return;
-  Serial.printf("[MOCK CC TX] address=%u raw=%u\n", c.address, c.rawValue);
-  AccessoryCommand removed;
-  runtime.popCommand(removed);
-  // Simulation ONLY. Replace with actual incoming hardware feedback.
-  runtime.UpdateFromHardware(c.address, c.rawValue);
+  if (!commandCenter->connected()) return;
+  if (commandCenter->sendAccessory(c.address,c.rawValue)) {
+    AccessoryCommand discarded;
+    runtime.popCommand(discarded);
+  }
 }
 
 void processEvents() {
@@ -182,6 +210,8 @@ void setup() {
   if (!incoming) { Serial.println("Queue allocation failed"); abort(); }
   runtime.SetConfig({20, true});
   runtime.SetConfig({21, false});
+  commandCenter->onAccessoryFeedback(onFeedback,&runtime);
+  commandCenter->begin();
   WiFi.mode(WIFI_AP);
   WiFi.softAP(AP_SSID, AP_PASS);
   ws.onEvent(onWsEvent);
@@ -196,7 +226,7 @@ void setup() {
 
 void loop() {
   processIncoming();
-  processMockDriver();
+  processCommandCenter();
   processEvents();
   ws.cleanupClients();
   delay(1);
