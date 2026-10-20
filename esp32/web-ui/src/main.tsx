@@ -6,7 +6,7 @@ import {MantineProvider, AppShell, Container, Title, Text, TextInput, Button, Gr
 type State='on'|'off'|'unknown';
 type Accessory={address:number;inverted:boolean;state:State};
 type Message=
-  |{type:'snapshot';accessories:Accessory[];sequence:number;overflow:boolean}
+  |{type:'snapshot';accessories:Accessory[];sequence:number;overflow:boolean;commandCenter?:string;ccConnected?:boolean}
   |{type:'accessory.changed';address:number;value:State;sequence:number}
   |{type:'resync.required'}
   |{type:'error';reason:string}
@@ -16,6 +16,8 @@ function App(){
   const [host,setHost]=useState('ws://192.168.4.1/ws');
   const [rows,setRows]=useState<Accessory[]>([]);
   const [connected,setConnected]=useState(false);
+  const [ccName,setCcName]=useState('—');
+  const [ccConnected,setCcConnected]=useState(false);
   const [seq,setSeq]=useState<number|null>(null);
   const [error,setError]=useState('');
   const [address,setAddress]=useState<number|string>(22);
@@ -41,6 +43,7 @@ function App(){
           const msg=JSON.parse(e.data as string) as Message;
           if(msg.type==='snapshot'){
             setRows(msg.accessories);seqRef.current=msg.sequence;setSeq(msg.sequence);
+            setCcName(msg.commandCenter??'Unknown');setCcConnected(msg.ccConnected??false);
             if(msg.overflow)setError('Event overflow: firmware requires resync/safe recovery.');
           }else if(msg.type==='accessory.changed'){
             if(seqRef.current!==null && msg.sequence!==seqRef.current+1){
@@ -66,7 +69,7 @@ function App(){
     <AppShell.Main><Container size="lg"><Stack>
       <Paper withBorder p="md"><Group align="end"><TextInput style={{flex:1}} label="WebSocket URL" value={host} onChange={e=>setHost(e.currentTarget.value)}/><Button disabled={!connected} onClick={()=>send({type:'snapshot.get'})}>Snapshot</Button></Group><Text size="xs" c="dimmed">Test AP: Hub-ESP32-Test / hub-test-1234. Mock command station only.</Text></Paper>
       {!!error&&<Alert color="red" title="Communication">{error}</Alert>}
-      <Paper withBorder p="md"><Group justify="space-between"><Title order={4}>Accessories</Title><Text size="sm">Sequence {seq??'—'}</Text></Group>
+      <Paper withBorder p="md"><Group justify="space-between"><Title order={4}>Accessories</Title><Badge color={ccConnected?'green':'orange'}>CC: {ccName} · {ccConnected?'Connected':'Disconnected'}</Badge><Text size="sm">Sequence {seq??'—'}</Text></Group>
         <Table striped><Table.Thead><Table.Tr><Table.Th>Address</Table.Th><Table.Th>Inverted</Table.Th><Table.Th>State</Table.Th><Table.Th>Logical command</Table.Th><Table.Th>Mock raw feedback</Table.Th></Table.Tr></Table.Thead>
         <Table.Tbody>{rows.map(a=><Table.Tr key={a.address}>
           <Table.Td>{a.address}</Table.Td><Table.Td>{String(a.inverted)}</Table.Td>
