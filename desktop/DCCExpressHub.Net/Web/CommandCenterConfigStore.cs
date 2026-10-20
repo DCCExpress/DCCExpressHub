@@ -1,0 +1,722 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using DCCExpressHub.Net.CommandCenter;
+
+namespace DCCExpressHub.Net.Web;
+
+public sealed class CommandCenterSettings
+{
+    public const int DccExSerialBaudRate = 115200;
+
+    public string Transport { get; init; } = "tcp";
+    public string TcpHost { get; init; } = "127.0.0.1";
+    public int TcpPort { get; init; } = 2560;
+    public string SerialPort { get; init; } = SerialPortName.PlatformDefault;
+    public bool PowerIncludesProgramming { get; init; } = true;
+    public int CommandIntervalMs { get; init; } = 25;
+    public int RBusOffset { get; init; } = 0;
+
+    [JsonIgnore]
+    public bool IsSerial =>
+        string.Equals(Transport, "serial", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(Transport, "loconet-serial", StringComparison.OrdinalIgnoreCase);
+
+    [JsonIgnore]
+    public bool IsZ21 =>
+        string.Equals(
+            Transport,
+            "z21",
+            StringComparison.OrdinalIgnoreCase);
+
+    public CommandCenterSettings()
+    {
+    }
+
+    // Legacy compatibility constructor.
+    // Old serial configs stored COMx in Host and baud in Port. The baud value
+    // is intentionally ignored: DCC-EX USB/serial uses 115200.
+    public CommandCenterSettings(
+        string host,
+        int port,
+        bool powerIncludesProgramming)
+    {
+        PowerIncludesProgramming =
+            powerIncludesProgramming;
+
+        if (LooksLikeSerialPort(host))
+        {
+            Transport = "serial";
+            SerialPort = host.Trim();
+        }
+        else
+        {
+            Transport = "tcp";
+            TcpHost = host.Trim();
+            TcpPort = port;
+        }
+    }
+
+    public static bool LooksLikeSerialPort(
+        string? value) =>
+        SerialPortName.LooksLikeSerialPort(
+            value);
+}
+
+public sealed class CommandCenterConfigStore
+{
+    private readonly string _path;
+    private readonly IConfiguration _configuration;
+    private readonly object _gate = new();
+    private CommandCenterSettings _current;
+
+    private static readonly JsonSerializerOptions Json =
+        new(JsonSerializerDefaults.Web)
+        {
+            PropertyNameCaseInsensitive = true,
+            WriteIndented = true
+        };
+
+    public CommandCenterConfigStore(
+        AppPaths env,
+        IConfiguration configuration)
+    {
+        _configuration =
+            configuration;
+
+        _path =
+            Path.Combine(
+                env.ContentRootPath,
+                "data",
+                "config",
+                "command-center.json");
+
+        _current =
+            Load();
+    }
+
+    public CommandCenterSettings Current
+    {
+        get
+        {
+            lock (_gate)
+                return _current;
+        }
+    }
+
+    private bool IsRocoZ21Runtime
+    {
+        get
+        {
+            var protocol =
+                (_configuration["CommandCenter:Protocol"] ?? "")
+                    .Trim();
+
+            return
+                string.Equals(
+                    protocol,
+                    "z21",
+                    StringComparison.OrdinalIgnoreCase) ||
+                (string.Equals(
+                    protocol,
+                    "yamorc7010",
+                    StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(protocol, "loconet-serial", StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    private string RuntimeTransport
+    {
+        get
+        {
+            var protocol =
+                (_configuration["CommandCenter:Protocol"] ?? "")
+                    .Trim();
+
+            if (string.Equals(protocol, "loconet-serial", StringComparison.OrdinalIgnoreCase))
+                return "loconet-serial";
+
+            if (string.Equals(protocol, "loconet", StringComparison.OrdinalIgnoreCase))
+                return "loconet";
+
+            if (
+                string.Equals(
+                    protocol,
+                    "z21",
+                    StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(
+                    protocol,
+                    "yamorc7010",
+                    StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                return "z21";
+            }
+
+            return
+                string.Equals(
+                    _configuration["DccEx:Transport"],
+                    "Serial",
+                    StringComparison.OrdinalIgnoreCase)
+                    ? "serial"
+                    : "tcp";
+        }
+    }
+
+    private CommandCenterSettings Load()
+    {
+        // The Windows Desktop launcher explicitly supplies the selected
+        // command-center protocol and endpoint on every start. In that case
+        // the launcher selection is authoritative; a stale persisted
+        // command-center.json must never switch protocol/COM/host behind it.
+        if (!string.IsNullOrWhiteSpace(
+                Environment.GetEnvironmentVariable(
+                    "CommandCenter__Protocol")) ||
+            !string.IsNullOrWhiteSpace(
+                Environment.GetEnvironmentVariable(
+                    "DccEx__Transport")))
+        {
+            var configured =
+                FromConfiguration();
+
+            var persistedPower =
+                ReadPersistedPowerPreference();
+
+            var persistedInterval =
+                ReadPersistedCommandIntervalPreference();
+
+            var persistedRBusOffset =
+                ReadPersistedRBusOffsetPreference();
+
+            return new CommandCenterSettings
+            {
+                Transport = configured.Transport,
+                TcpHost = configured.TcpHost,
+                TcpPort = configured.TcpPort,
+                SerialPort = configured.SerialPort,
+                PowerIncludesProgramming =
+                    configured.IsZ21
+                        ? false
+                        : persistedPower ??
+                          configured.PowerIncludesProgramming,
+                CommandIntervalMs =
+                    persistedInterval ??
+                    configured.CommandIntervalMs,
+
+                RBusOffset =
+                    IsRocoZ21Runtime
+                        ? persistedRBusOffset ??
+                          configured.RBusOffset
+                        : 0
+            };
+        }
+
+        try
+        {
+            if (File.Exists(_path))
+            {
+                var text =
+                    File.ReadAllText(_path);
+
+                using var document =
+                    JsonDocument.Parse(text);
+
+                var root =
+                    document.RootElement;
+
+                var isCurrentFormat =
+                    HasProperty(
+                        root,
+                        "transport",
+                        "Transport") ||
+                    HasProperty(
+                        root,
+                        "tcpHost",
+                        "TcpHost") ||
+                    HasProperty(
+                        root,
+                        "serialPort",
+                        "SerialPort");
+
+                if (isCurrentFormat)
+                {
+                    var parsed =
+                        JsonSerializer.Deserialize<CommandCenterSettings>(
+                            text,
+                            Json);
+
+                    var normalized =
+                        Normalize(parsed);
+
+                    if (IsCompatibleWithRuntime(
+                            normalized))
+                    {
+                        return normalized!;
+                    }
+                }
+                else
+                {
+                    // Legacy format:
+                    // { Host, Port, PowerIncludesProgramming }
+                    var host =
+                        GetString(
+                            root,
+                            "host",
+                            "Host");
+
+                    var port =
+                        GetInt(
+                            root,
+                            "port",
+                            "Port");
+
+                    var power =
+                        GetBool(
+                            root,
+                            true,
+                            "powerIncludesProgramming",
+                            "PowerIncludesProgramming");
+
+                    if (!string.IsNullOrWhiteSpace(host) &&
+                        port > 0)
+                    {
+                        var migrated =
+                            Normalize(
+                                new CommandCenterSettings(
+                                    host,
+                                    port,
+                                    power));
+
+                        if (IsCompatibleWithRuntime(
+                                migrated))
+                        {
+                            return migrated!;
+                        }
+                    }
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        // The Desktop launcher supplies DccEx__Transport / endpoint settings
+        // as environment variables. They are authoritative if a persisted file
+        // belongs to the other transport (for example stale TCP config while
+        // the user starts the backend in Serial mode).
+        return FromConfiguration();
+    }
+
+    private bool? ReadPersistedPowerPreference()
+    {
+        try
+        {
+            if (!File.Exists(_path))
+                return null;
+
+            using var document =
+                JsonDocument.Parse(
+                    File.ReadAllText(_path));
+
+            return GetNullableBool(
+                document.RootElement,
+                "powerIncludesProgramming",
+                "PowerIncludesProgramming");
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private int? ReadPersistedCommandIntervalPreference()
+    {
+        try
+        {
+            if (!File.Exists(_path))
+                return null;
+
+            using var document =
+                JsonDocument.Parse(
+                    File.ReadAllText(_path));
+
+            var value =
+                GetNullableInt(
+                    document.RootElement,
+                    "commandIntervalMs",
+                    "CommandIntervalMs");
+
+            return value is >= 0 and <= 1000
+                ? value
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private int? ReadPersistedRBusOffsetPreference()
+    {
+        try
+        {
+            if (!File.Exists(_path))
+                return null;
+
+            using var document =
+                JsonDocument.Parse(
+                    File.ReadAllText(_path));
+
+            var value =
+                GetNullableInt(
+                    document.RootElement,
+                    "rBusOffset",
+                    "RBusOffset");
+
+            return value is >= 0 and <= RocoZ21CommandCenter.MaxRBusOffset
+                ? value
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private bool IsCompatibleWithRuntime(
+        CommandCenterSettings? settings) =>
+        settings is not null &&
+        string.Equals(
+            settings.Transport,
+            RuntimeTransport,
+            StringComparison.OrdinalIgnoreCase);
+
+    private CommandCenterSettings FromConfiguration()
+    {
+        var transport =
+            RuntimeTransport;
+
+        var isZ21 =
+            string.Equals(
+                transport,
+                "z21",
+                StringComparison.OrdinalIgnoreCase);
+
+        var isLocoNet = string.Equals(
+            transport, "loconet", StringComparison.OrdinalIgnoreCase);
+
+        var settings =
+            new CommandCenterSettings
+            {
+                Transport =
+                    transport,
+
+                TcpHost =
+                    isLocoNet
+                        ? _configuration["LocoNet:Host"] ??
+                          _configuration["Z21:Host"] ??
+                          "127.0.0.1"
+                    : isZ21
+                        ? _configuration["Z21:Host"] ??
+                          _configuration["DccEx:Host"] ??
+                          "127.0.0.1"
+                        : _configuration["DccEx:Host"] ??
+                          "127.0.0.1",
+
+                TcpPort =
+                    isLocoNet
+                        ? _configuration.GetValue("LocoNet:LbServerPort", 1234)
+                    : isZ21
+                        ? _configuration.GetValue(
+                            "Z21:Port",
+                            RocoZ21CommandCenter.DefaultPort)
+                        : _configuration.GetValue(
+                            "DccEx:Port",
+                            2560),
+
+                SerialPort =
+                    string.Equals(transport, "loconet-serial", StringComparison.OrdinalIgnoreCase)
+                        ? _configuration["LocoNet:SerialPort"] ?? SerialPortName.PlatformDefault
+                        : _configuration["DccEx:SerialPort"] ?? SerialPortName.PlatformDefault,
+
+                PowerIncludesProgramming =
+                    !isZ21,
+
+                CommandIntervalMs =
+                    _configuration.GetValue(
+                        "DccEx:CommandIntervalMs",
+                        25),
+
+                RBusOffset =
+                    IsRocoZ21Runtime
+                        ? Math.Clamp(
+                            _configuration.GetValue(
+                                "Z21:RBusOffset",
+                                0),
+                            0,
+                            RocoZ21CommandCenter.MaxRBusOffset)
+                        : 0
+            };
+
+        return Normalize(settings) ??
+               new CommandCenterSettings
+               {
+                   Transport = transport
+               };
+    }
+
+    public async Task<bool> SaveAsync(
+        CommandCenterSettings settings)
+    {
+        var normalized =
+            Normalize(settings);
+
+        if (!IsCompatibleWithRuntime(
+                normalized))
+        {
+            return false;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(
+                Path.GetDirectoryName(_path)!);
+
+            var temp =
+                _path + ".tmp";
+
+            await File.WriteAllTextAsync(
+                temp,
+                JsonSerializer.Serialize(
+                    normalized,
+                    Json));
+
+            File.Move(
+                temp,
+                _path,
+                true);
+
+            lock (_gate)
+                _current = normalized!;
+
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static CommandCenterSettings? Normalize(
+        CommandCenterSettings? value)
+    {
+        if (value is null)
+            return null;
+
+        var isSerial =
+            string.Equals(value.Transport, "serial", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(value.Transport, "loconet-serial", StringComparison.OrdinalIgnoreCase);
+
+        var isZ21 =
+            string.Equals(
+                value.Transport,
+                "z21",
+                StringComparison.OrdinalIgnoreCase);
+
+        var tcpHost =
+            (value.TcpHost ?? "").Trim();
+
+        var serialPort =
+            (value.SerialPort ?? "").Trim();
+
+        var tcpPort =
+            value.TcpPort;
+
+        if (tcpHost.Length == 0)
+            tcpHost = "127.0.0.1";
+
+        if (tcpPort is < 1 or > 65535)
+        {
+            tcpPort =
+                isZ21
+                    ? RocoZ21CommandCenter.DefaultPort
+                    : 2560;
+        }
+
+        if (serialPort.Length == 0)
+            serialPort =
+                SerialPortName.PlatformDefault;
+
+        if (
+            isSerial &&
+            !SerialPortName
+                .IsValidForCurrentPlatform(
+                    serialPort)
+        )
+        {
+            return null;
+        }
+
+        return new CommandCenterSettings
+        {
+            Transport =
+                isSerial
+                    ? (string.Equals(value.Transport, "loconet-serial", StringComparison.OrdinalIgnoreCase) ? "loconet-serial" : "serial")
+                    : isZ21
+                        ? "z21"
+                        : "tcp",
+
+            TcpHost = tcpHost,
+            TcpPort = tcpPort,
+            SerialPort = serialPort,
+
+            PowerIncludesProgramming =
+                value.PowerIncludesProgramming,
+
+            CommandIntervalMs =
+                Math.Clamp(
+                    value.CommandIntervalMs,
+                    0,
+                    1000),
+
+            RBusOffset =
+                Math.Clamp(
+                    value.RBusOffset,
+                    0,
+                    RocoZ21CommandCenter.MaxRBusOffset)
+        };
+    }
+
+    private static bool HasProperty(
+        JsonElement root,
+        params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (root.TryGetProperty(
+                    name,
+                    out _))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string GetString(
+        JsonElement root,
+        params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (root.TryGetProperty(
+                    name,
+                    out var value) &&
+                value.ValueKind ==
+                JsonValueKind.String)
+            {
+                return value.GetString() ?? "";
+            }
+        }
+
+        return "";
+    }
+
+    private static int GetInt(
+        JsonElement root,
+        params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (root.TryGetProperty(
+                    name,
+                    out var value) &&
+                value.TryGetInt32(
+                    out var number))
+            {
+                return number;
+            }
+        }
+
+        return 0;
+    }
+
+    private static int? GetNullableInt(
+        JsonElement root,
+        params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (
+                root.TryGetProperty(
+                    name,
+                    out var value) &&
+                value.TryGetInt32(
+                    out var number))
+            {
+                return number;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool? GetNullableBool(
+        JsonElement root,
+        params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (!root.TryGetProperty(
+                    name,
+                    out var value))
+            {
+                continue;
+            }
+
+            if (value.ValueKind ==
+                JsonValueKind.True)
+            {
+                return true;
+            }
+
+            if (value.ValueKind ==
+                JsonValueKind.False)
+            {
+                return false;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool GetBool(
+        JsonElement root,
+        bool fallback,
+        params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (!root.TryGetProperty(
+                    name,
+                    out var value))
+            {
+                continue;
+            }
+
+            if (value.ValueKind ==
+                JsonValueKind.True)
+            {
+                return true;
+            }
+
+            if (value.ValueKind ==
+                JsonValueKind.False)
+            {
+                return false;
+            }
+        }
+
+        return fallback;
+    }
+}

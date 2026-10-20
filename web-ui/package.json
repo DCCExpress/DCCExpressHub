@@ -1,0 +1,42 @@
+{
+    "name": "dccexpress-hub-web-ui",
+    "version": "0.1.0-alpha.6",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "demo:seed": "node tools/prepare-demo-seed.mjs",
+        "dev:demo": "npm run demo:seed && vite --mode demo",
+        "typecheck": "tsc --noEmit",
+        "test:routes": "node --test tests/route-buttons.test.mjs",
+        "test:elements": "node --test tests/element-hierarchy.test.mjs",
+        "test": "node --test tests/*.test.mjs",
+        "build": "npm run typecheck && vite build",
+        "build:demo": "npm run demo:seed && npm run typecheck && vite build --mode demo",
+        "embed": "npm run build && node tools/embed.mjs"
+    },
+    "dependencies": {
+        "@codemirror/lang-javascript": "^6.2.5",
+        "@mantine/core": "^9.1.1",
+        "@mantine/notifications": "^9.1.1",
+        "@tabler/icons-react": "^3.42.0",
+        "@uiw/react-codemirror": "^4.25.9",
+        "i18next": "^26.0.5",
+        "prettier": "^3.8.3",
+        "react": "^19.2.6",
+        "react-dom": "^19.2.6",
+        "react-i18next": "^17.0.3",
+        "@xyflow/react": "^12.11.2"
+    },
+    "devDependencies": {
+        "@types/node": "^26.3.0",
+        "@types/react": "^19.2.6",
+        "@types/react-dom": "^19.2.3",
+        "@vitejs/plugin-react": "^6.0.1",
+        "typescript": "^6.0.3",
+        "vite": "^8.0.8"
+    },
+    "overrides": {
+        "source-map-js": "1.2.2"
+    }
+}

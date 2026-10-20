@@ -1,0 +1,57 @@
+name: Backend migration check
+
+on:
+  push:
+    branches:
+      - feature/windows-backend-movement-engine
+      - alpha3
+
+permissions:
+  contents: read
+
+jobs:
+  windows-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Build Windows backend
+        run: dotnet build desktop/DCCExpressHub.Net/DCCExpressHub.Net.csproj -c Release
+
+  esp32-s3:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install PlatformIO
+        run: pip install platformio
+      - name: Build ESP32-S3 firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          pio run -e sunton-8048s043-dccex
+          pio run -e sunton-8048s043-z21
+          pio run -e sunton-8048s043-yamorc7010
+
+  web-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web-ui/package-lock.json
+      - name: Install
+        run: npm ci --prefix web-ui
+      - name: Build
+        run: npm run build --prefix web-ui
+      - name: Backend migration regression
+        run: node --test web-ui/tests/windows-backend-automation-runtime.test.mjs
+      - name: Full regression suite
+        continue-on-error: true
+        run: npm test --prefix web-ui

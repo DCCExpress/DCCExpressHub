@@ -1,0 +1,755 @@
+31¦Pályafeszültség¦Gleisspannung
+32¦BE¦EIN
+33¦KI¦AUS
+35¦A fájlok betöltése nem sikerült (HTTP {{value1}}).¦Dateien konnten nicht geladen werden (HTTP {{value1}}).
+36¦A(z) {{value1}} feltöltése nem sikerült (HTTP {{value2}}).¦{{value1}} konnte nicht hochgeladen werden (HTTP {{value2}}).
+37¦Feltöltés kész¦Upload abgeschlossen
+38¦Feltöltött fájlok: {{value1}}.¦Hochgeladene Dateien: {{value1}}.
+39¦A(z) {{value1}} törlése nem sikerült (HTTP {{value2}}).¦{{value1}} konnte nicht gelöscht werden (HTTP {{value2}}).
+40¦A(z) {{value1}} megnyitása nem sikerült (HTTP {{value2}}).¦{{value1}} konnte nicht geöffnet werden (HTTP {{value2}}).
+41¦Szövegfájl¦Textdatei
+42¦Vissza a kezdőlapra¦Zurück zur Startseite
+43¦Fájlok¦Dateien
+44¦A teljes LittleFS fájlrendszer böngészése¦Das gesamte LittleFS-Dateisystem durchsuchen
+45¦gyökér¦Stammverzeichnis
+46¦elem¦Einträge
+47¦Frissítés¦Aktualisieren
+48¦Feltöltés¦Hochladen
+49¦Ez a mappa üres.¦Dieser Ordner ist leer.
+50¦mappa¦Ordner
+51¦Mappa¦Ordner
+52¦fájl¦Datei
+53¦{{value1}} megnyitása¦{{value1}} öffnen
+54¦{{value1}} törlése¦{{value1}} löschen
+56¦érvénytelen válasz¦ungültige Antwort
+57¦Nem sikerült adatokat olvasni a mentéshez. {{value1}}¦Keine Sicherungsdaten konnten gelesen werden. {{value1}}
+58¦Mentve: {{value1}}.{{value2}}¦Gespeichert: {{value1}}.{{value2}}
+59¦Az exportálás nem sikerült¦Export fehlgeschlagen
+60¦Ez nem érvényes DCCExpressLite biztonsági mentés.¦Dies ist keine gültige DCCExpressLite-Sicherungsdatei.
+61¦Ez nem DCCExpressLite biztonsági mentés.¦Dies ist keine DCCExpressLite-Sicherungsdatei.
+62¦A fájl nem tartalmaz ezzel a verzióval feldolgozható terepasztal-, mozdony-, kép-, jelzőlogikai vagy HAL-eszközadatokat.¦Die Datei enthält keine von dieser Version unterstützten Anlagen-, Lokomotiv-, Bild-, Signallogik- oder HAL-Gerätedaten.
+63¦Nem sikerült adatokat visszaállítani. {{value1}}¦Keine Daten konnten wiederhergestellt werden. {{value1}}
+64¦Visszaállítva: {{value1}}.{{value2}}¦Wiederhergestellt: {{value1}}.{{value2}}
+65¦Az importálás nem sikerült¦Import fehlgeschlagen
+66¦Exportálás / Importálás¦Export / Import
+67¦Az összes felhasználói adat mentése vagy visszaállítása¦Alle Benutzerdaten sichern oder wiederherstellen
+68¦Terepasztal, mozdonyok, képek, jelzőlogika és eszközök¦Anlage, Lokomotiven, Bilder, Signallogik und Geräte
+69¦A teljes terepasztal, mozdonylista, képek, jelzőautomatizálási szabályok és HAL-eszközbeállítások exportálása egy JSON-fájlba, vagy visszaállítás korábbi mentésből.¦Exportiere die gesamte Anlage, Lokomotivliste, Bilder, Signalautomatikregeln und HAL-Gerätekonfiguration in eine JSON-Datei oder stelle sie aus einer früheren Sicherung wieder her.
+70¦Biztonsági mentés exportálása¦Sicherung exportieren
+71¦Biztonsági mentés importálása¦Sicherung importieren
+72¦Az eszköz nem küldte vissza a hálózati beállításokat.¦Das Gerät hat keine Netzwerkeinstellungen zurückgegeben.
+73¦Hálózat mentve¦Netzwerk gespeichert
+74¦Az EX-CSB1 újraindul. Csatlakozz a helyi Wi-Fi hálózathoz, és nyisd meg a dccex.local címet.¦Die EX-CSB1 startet neu. Verbinde dich mit deinem lokalen WLAN und öffne dccex.local.
+75¦Törlöd a mentett hálózatot, és újraindítod az eszközt DCCEX hotspot módban?¦Gespeichertes Netzwerk löschen und im DCCEX-Hotspot-Modus neu starten?
+76¦Hotspot mód visszaállítva¦Hotspot-Modus wiederhergestellt
+77¦Az EX-CSB1 újraindul. Csatlakozz ismét a DCCEX hotspotjához.¦Die EX-CSB1 startet neu. Verbinde dich erneut mit ihrem DCCEX-Hotspot.
+78¦Beállítások¦Einstellungen
+79¦Eszköz és helyi hálózat¦Gerät und lokales Netzwerk
+80¦Helyi Wi-Fi hálózat¦Lokales WLAN
+81¦Biztonságosan tárolva az EX-CSB1-en¦Sicher auf der EX-CSB1 gespeichert
+82¦Helyi hálózat beállítva¦Lokales Netzwerk eingerichtet
+83¦Jelenleg mentve:¦Aktuell gespeichert:
+84¦Hálózati beállítások¦Netzwerkeinstellungen
+85¦Wi-Fi hálózat neve (SSID)¦WLAN-Name (SSID)
+86¦A helyi hálózatod¦Dein lokales Netzwerk
+87¦Wi-Fi jelszó¦WLAN-Passwort
+88¦Hagyd üresen a mentett jelszó megtartásához¦Leer lassen, um das gespeicherte Passwort beizubehalten
+89¦8–63 karakter¦8–63 Zeichen
+90¦A mentett jelszót az eszköz soha nem küldi vissza a böngészőnek.¦Das gespeicherte Passwort wird nie an den Browser zurückgesendet.
+91¦Mentés után az eszköz újraindul, és ez a hotspot megszűnik. Csatlakozz a helyi Wi-Fi hálózathoz, majd nyisd meg ezt a címet:¦Nach dem Speichern startet das Gerät neu und dieser Hotspot verschwindet. Verbinde dich mit deinem lokalen WLAN und öffne
+93¦vagy az EX-CSB1 kijelzőjén látható IP-címet.¦oder die auf dem EX-CSB1-Display angezeigte IP-Adresse.
+94¦Hálózat mentése és újraindítás¦Netzwerk speichern und neu starten
+95¦Helyreállítás¦Wiederherstellung
+96¦Visszatérés DCCEX hotspot módba¦Zum DCCEX-Hotspot-Modus zurückkehren
+97¦A mozdonyok betöltése az EX-CSB1-ről nem sikerült.¦Lokomotiven konnten nicht von der EX-CSB1 geladen werden.
+98¦A mozdonyok mentése az EX-CSB1-re nem sikerült.¦Lokomotiven konnten nicht auf der EX-CSB1 gespeichert werden.
+100¦Mozdonyok betöltése…¦Lokomotiven werden geladen…
+102¦Mozdonyok betöltése újra¦Lokomotiven erneut laden
+103¦Terepasztalpanel bezárása¦Anlagenpanel schließen
+104¦Terepasztalpanel megnyitása¦Anlagenpanel öffnen
+105¦Automatizálás befejezve¦Automatisierung abgeschlossen
+106¦Automatizálás megszakítva¦Automatisierung abgebrochen
+107¦Az automatizálás nem sikerült¦Automatisierung fehlgeschlagen
+108¦Automatizálás leállítva¦Automatisierung angehalten
+109¦A(z) {{value1}} a jelenlegi vagy a következő await delay() pontnál szünetel.¦{{value1}} pausiert am aktuellen oder nächsten await-delay()-Punkt.
+110¦Automatizálás folytatva¦Automatisierung fortgesetzt
+111¦Automatizálás megszakítása kérve¦Abbruch der Automatisierung angefordert
+112¦{{value1}} sor¦{{value1}} Zeilen
+113¦Üres szkript¦Leeres Skript
+114¦Név¦Name
+115¦Szkript szerkesztése¦Skript bearbeiten
+116¦Szkript törlése¦Skript löschen
+117¦Törlés előtt állítsd le vagy szakítsd meg a szkriptet¦Das Skript vor dem Löschen anhalten oder abbrechen
+118¦Indítás¦Starten
+119¦Leállítás¦Anhalten
+120¦Folytatás¦Fortsetzen
+121¦Megszakítás¦Abbrechen
+122¦Szünetel. A folytatás ugyanazt az aszinkron futást folytatja.¦Pausiert. Fortsetzen führt denselben asynchronen Lauf weiter.
+123¦Automatizálás · {{value1}}¦Automatisierung · {{value1}}
+124¦Automatizálási szkript mentve¦Automatisierungsskript gespeichert
+125¦A szerkesztő nyitva marad. A Hub automatizálási tárába íráshoz mentsd a projektet.¦Der Editor bleibt geöffnet. Speichere das Projekt, um das Skript im Automatisierungsspeicher des Hubs abzulegen.
+126¦Automatizálás törölve¦Automatisierung gelöscht
+127¦A törlés Hubon történő véglegesítéséhez mentsd a projektet.¦Speichere das Projekt, um die Löschung im Automatisierungsspeicher des Hubs zu übernehmen.
+128¦Automatizálási szkriptek¦Automatisierungsskripte
+132¦Új szkript¦Neues Skript
+133¦Nincsenek automatizálási szkriptek¦Keine Automatisierungsskripte
+134¦Hozz létre egy szkriptet, adj neki nevet, majd szerkeszd és futtasd önállóan.¦Erstelle ein Skript, gib ihm einen Namen und bearbeite oder starte es unabhängig.
+135¦A szkriptek a terepasztaltól külön, a /config/automations.json fájlban tárolódnak a /api/automations végponton keresztül.¦Skripte werden getrennt von der Anlage über /api/automations in /config/automations.json gespeichert.
+136¦A központ beállításainak betöltése nem sikerült (HTTP {{value1}}).¦Die Einstellungen der Zentrale konnten nicht geladen werden (HTTP {{value1}}).
+137¦Az IP-cím vagy gépnév megadása kötelező.¦IP-Adresse oder Hostname ist erforderlich.
+138¦A port értéke 1 és 65535 között lehet.¦Der Port muss zwischen 1 und 65535 liegen.
+139¦Érvénytelen kapcsolati beállítások.¦Ungültige Verbindungseinstellungen.
+140¦Érvénytelen tesztválasz (HTTP {{value1}}).¦Ungültige Testantwort (HTTP {{value1}}).
+141¦{{value1}} beállításai mentve¦Einstellungen für {{value1}} gespeichert
+143¦{{value1}} kapcsolat¦Verbindung mit {{value1}}
+144¦Jelenlegi kapcsolat¦Aktuelle Verbindung
+145¦Firmware:¦Firmware:
+146¦CSATLAKOZVA¦VERBUNDEN
+147¦NINCS KAPCSOLAT¦GETRENNT
+148¦IP-cím / gépnév¦IP-Adresse / Hostname
+149¦A pályafeszültség gomb a PROG vágányt is vezérli¦Die Gleisspannungstaste steuert auch das PROG-Gleis
+150¦A pályafeszültség kapcsolása a MAIN és PROG kimenetet is vezérli.¦Die Gleisspannungstaste steuert MAIN und PROG.
+151¦A pályafeszültség kapcsolása csak a MAIN kimenetet vezérli; a PROG független marad.¦Die Gleisspannungstaste steuert nur MAIN; PROG bleibt unabhängig.
+152¦TESZT¦TEST
+153¦Mégse¦Abbrechen
+154¦MENTÉS¦SPEICHERN
+155¦Húzd az áthelyezéshez • Dupla kattintás az alaphelyzethez¦Zum Verschieben ziehen • Doppelklick zum Zurücksetzen
+156¦Pályafeszültség BE¦Gleisspannung EIN
+157¦Pályafeszültség KI¦Gleisspannung AUS
+158¦Vészleállítás¦Notstopp
+159¦Központ állapota¦Status der Zentrale
+160¦VPIN BE¦VPIN EIN
+161¦VPIN KI¦VPIN AUS
+162¦Mozdony sebessége / iránya¦Lokgeschwindigkeit / Fahrtrichtung
+163¦Kiegészítő BE¦Zubehör EIN
+164¦Kiegészítő KI¦Zubehör AUS
+166¦WebSocket: {{value1}}¦WebSocket: {{value1}}
+168¦Soros kapcsolat: {{value1}}¦Serielle Verbindung: {{value1}}
+169¦Soros port csatlakoztatva · {{value1}} baud¦Seriell verbunden · {{value1}} Baud
+170¦A soros csatlakozás nem sikerült: {{value1}}¦Serielle Verbindung fehlgeschlagen: {{value1}}
+171¦Soros port leválasztva¦Serielle Verbindung getrennt
+172¦A soros leválasztás nem sikerült: {{value1}}¦Trennen der seriellen Verbindung fehlgeschlagen: {{value1}}
+173¦A parancs nincs elküldve. WebSocket: {{value1}}¦Befehl nicht gesendet. WebSocket: {{value1}}
+175¦A parancsot nem sikerült elküldeni.¦Der Befehl konnte nicht gesendet werden.
+176¦A parancs nincs elküldve: a soros port nincs csatlakoztatva.¦Befehl nicht gesendet: Der serielle Port ist nicht verbunden.
+177¦A soros írás nem sikerült: {{value1}}¦Serielles Schreiben fehlgeschlagen: {{value1}}
+178¦DCC-EX konzol¦DCC-EX-Konsole
+179¦Nyers DCC-EX parancskonzol¦Konsole für direkte DCC-EX-Befehle
+184¦Soros port¦Serieller Port
+186¦A Web Serial nem érhető el¦Web Serial ist nicht verfügbar
+187¦A Web Serial használatához Chrome vagy Edge és biztonságos környezet (localhost vagy HTTPS) szükséges.¦Web Serial benötigt Chrome oder Edge und einen sicheren Kontext wie localhost oder HTTPS.
+188¦Közvetlen USB-soros kapcsolat ·¦Direkte USB-Verbindung ·
+190¦Soros csatlakozás¦Seriell verbinden
+191¦Leválasztás¦Trennen
+192¦Vezérlők¦Steuerung
+193¦Feszültség BE¦Spannung EIN
+194¦Feszültség KI¦Spannung AUS
+195¦VÉSZSTOP¦NOTSTOPP
+196¦Gyorsparancsok¦Schnellbefehle
+197¦A parancsok közvetlenül szerkeszthetők. A módosítások automatikusan mentődnek ebben a böngészőben.¦Befehle direkt bearbeiten. Änderungen werden automatisch in diesem Browser gespeichert.
+198¦Küldés¦Senden
+199¦Parancs¦Befehl
+201¦Napló¦Protokoll
+202¦Küldés · fogadás · kapcsolati események¦Senden · Empfangen · Verbindungsereignisse
+203¦DCC-EX állapot¦DCC-EX-Status
+204¦Ürítés¦Leeren
+205¦Várakozás konzoleseményekre…¦Warten auf Konsolenaktivität…
+206¦Üdv a DCCExpressHubban¦Willkommen bei DCCExpressHub
+207¦A terepasztal készen áll a beállításra¦Deine Anlage kann jetzt eingerichtet werden
+208¦Még nincs mozdony beállítva, így ez új DCCExpressHub-telepítésnek tűnik.¦Es sind noch keine Lokomotiven eingerichtet. Dies scheint eine neue DCCExpressHub-Installation zu sein.
+209¦Van már DCCExpressHub biztonsági mentésed?¦Hast du bereits eine DCCExpressHub-Sicherung?
+210¦Állítsd vissza a korábbi mentést az Exportálás / Importálás oldalon. Ezzel visszaállíthatod a terepasztalt, mozdonyokat, képeket, jelzőlogikát és eszközbeállításokat.¦Stelle deine Sicherung unter Export / Import wieder her. Damit kannst du Anlage, Lokomotiven, Bilder, Signallogik und Gerätekonfiguration zurückholen.
+211¦Új terepasztalt kezdesz?¦Beginnst du eine neue Anlage?
+212¦Először add hozzá a mozdonyaidat a Kezdőlap → Mozdonyszerkesztő oldalon. Ezután rajzold meg a vágányhálózatot a terepasztal-szerkesztőben, és állítsd be a váltókat, jelzőket, érzékelőket, eszközöket és automatizálásokat.¦Füge zuerst unter Startseite → Lokomotiven-Editor deine Lokomotiven hinzu. Zeichne dann den Gleisplan im Anlageneditor und richte Weichen, Signale, Sensoren, Geräte und Automatisierungen ein.
+213¦Bezárás¦Schließen
+214¦Terepasztal-szerkesztő megnyitása¦Anlageneditor öffnen
+215¦Mentés visszaállítása¦Sicherung wiederherstellen
+217¦Projekt épségének ellenőrzése¦Projektintegrität prüfen
+218¦A projekt összes hivatkozása¦Alle Projektverweise
+219¦Terepasztal-azonosítók, útvonalváltók, automatikus útvonalak, jelzőszabályok és mozdonyok.¦Anlagen-IDs, Fahrstraßenweichen, automatische Fahrstraßen, Signalregeln und Lokomotiven.
+220¦Újraellenőrzés¦Erneut prüfen
+221¦A teljes projekt ellenőrzése…¦Gesamtes Projekt wird geprüft…
+222¦Az ellenőrzés {{value1}} hibát és {{value2}} figyelmeztetést talált.¦Die Prüfung hat {{value1}} Fehler und {{value2}} Warnungen gefunden.
+223¦Nincs hibás hivatkozás. Figyelmeztetések: {{value1}}.¦Keine fehlerhaften Verweise. Warnungen: {{value1}}.
+224¦Az ellenőrzés sikeres. Minden ellenőrzött hivatkozás érvényes.¦Prüfung bestanden. Alle geprüften Verweise sind gültig.
+225¦ellenőrizve¦geprüft
+226¦hiba¦Fehler
+227¦figyelmeztetés¦Warnungen
+232¦Élő parancs- és I/O-napló¦Live-Befehls- und I/O-Protokoll
+233¦Engedélyezve¦Aktiviert
+234¦Letiltva¦Deaktiviert
+235¦Nyers DCC-EX¦Direktes DCC-EX
+237¦Állapotlekérdezés¦Statusabfragen
+238¦Egyéb WS¦Sonstige WS
+241¦Várakozás a szűrésnek megfelelő üzenetekre…¦Warten auf passende Nachrichten…
+242¦Mozdony¦Lokomotive¦Locomotive
+245¦Művelet típusa¦Aktionstyp
+247¦Funkció¦Funktion
+248¦Aktív¦Aktiv
+250¦Időtartam (ms)¦Dauer (ms)
+252¦Hangfájl¦Audiodatei
+254¦Hangfájl kiválasztása¦Audiodatei auswählen
+255¦Hang tesztelése¦Audio testen
+257¦Várakozás (ms)¦Wartezeit (ms)
+258¦Lista tesztelése¦Liste testen
+259¦Pillanatkapcsoló¦Momentfunktion
+260¦Hang¦Audio
+261¦Várakozás¦Warten
+262¦Áthelyezés a végére¦Ans Ende verschieben
+263¦Még nincsenek műveletek. Adj hozzá funkciót, pillanatfunkciót vagy várakozást.¦Noch keine Aktionen. Füge eine Funktion, Momentfunktion oder Wartezeit hinzu.
+264¦Indulás előtt¦Vor dem Start
+265¦Mielőtt a feladat elindítja a mozdonyt.¦Wird ausgeführt, bevor die Aufgabe die Lokomotive startet.
+266¦Indulás után¦Nach dem Start
+267¦A mozdony indítási parancsának elküldése után.¦Wird nach dem Senden des Startbefehls ausgeführt.
+268¦Megállás előtt¦Vor dem Halt
+269¦A feladat normál megállítása előtt.¦Wird vor einem regulären Halt der Aufgabe ausgeführt.
+270¦Megállás után¦Nach dem Halt
+271¦A mozdony leállítási parancsának elküldése után.¦Wird nach dem Senden des Stoppbefehls ausgeführt.
+272¦Funkció BE/KI¦Funktion EIN/AUS
+273¦Pillanatfunkció¦Momentfunktion
+274¦Ikon¦Symbol¦Icon
+275¦Mozdonykép tükrözése ezen az eszközön¦Lokomotivbild auf diesem Gerät spiegeln
+276¦Csak ebben a böngészőben tárolódik. A DCC menetirányt nem módosítja.¦Wird nur in diesem Browser gespeichert. Die DCC-Fahrtrichtung bleibt unverändert.
+278¦F{{value1}} {{value2}} elküldve.¦F{{value1}} {{value2}} gesendet.¦F{{value1}} {{value2}} sent.
+279¦Az F{{value1}} parancs nem sikerült.¦Befehl F{{value1}} fehlgeschlagen.¦F{{value1}} command failed.
+280¦A kép feltöltése nem sikerült.¦Das Bild konnte nicht hochgeladen werden.¦Image upload failed.
+281¦A CV-súgó betöltése nem sikerült (HTTP {{value1}}).¦CV-Hilfe konnte nicht geladen werden (HTTP {{value1}}).
+282¦Érvénytelen CV-súgóadatbázis.¦Ungültige CV-Hilfedatenbank.
+283¦CV-súgó betöltése…¦CV-Hilfe wird geladen…
+285¦Ehhez a CV-hez nincs szabványos NMRA-súgóbejegyzés. Gyártóspecifikus lehet; írás előtt ellenőrizd a dekóder kézikönyvét.¦Für diese CV ist kein standardmäßiger NMRA-Hilfeeintrag vorhanden. Sie kann herstellerspezifisch sein; prüfe vor dem Schreiben das Decoderhandbuch.
+287¦általában csak olvasható¦normalerweise schreibgeschützt
+288¦A bitek jelentése a jelenlegi értéknél¦Bitbedeutungen für den aktuellen Wert
+289¦A bitek módosítása frissíti a CV-értéket. A dekóder csak a CV írása gomb megnyomásakor változik.¦Ändere hier ein Bit, um den CV-Wert anzupassen. Der Decoder wird erst mit CV schreiben geändert.
+291¦CV{{value1}} {{value2}}. bitjének beállítása¦CV{{value1}}, Bit {{value2}} setzen
+293¦Alapérték:¦Standardwert:
+294¦Tartomány:¦Bereich:
+295¦Kapcsolódó CV-k:¦Verwandte CVs:
+296¦Névvel ellátott aszinkron feladatot hoz létre, amely használhatja az await utasítást.¦Erstellt eine benannte asynchrone Aufgabe, die await verwenden kann.
+297¦A felület blokkolása nélkül vár. A szüneteltetés és folytatás az await pontoknál működik.¦Wartet, ohne die Oberfläche zu blockieren. Pause und Fortsetzen erfolgen kooperativ an await-Punkten.
+298¦Több aszinkron feladatot futtat párhuzamosan, és megvárja mindegyik befejezését.¦Führt mehrere asynchrone Aufgaben parallel aus und wartet auf alle.
+299¦Törli a mozdony hozzárendelését a megnevezett blokkból.¦Entfernt die Lokomotivzuordnung aus dem benannten Anlagenblock.
+300¦Törli a megnevezett blokk célmozdony-jelölését.¦Entfernt die Ziellokomotivmarkierung aus dem benannten Block.
+301¦Visszaadja a megnevezett blokk mozdonyának DCC-címét, üres blokk esetén 0-t.¦Gibt die DCC-Adresse der Lokomotive im benannten Block zurück, bei leerem Block 0.
+302¦Visszaadja a megnevezett blokkba tartó mozdony címét, célmozdony hiányában 0-t.¦Gibt die Adresse der zum benannten Block fahrenden Lokomotive zurück, ohne Zielzuordnung 0.
+303¦Törli az összes futásidejű blokk–mozdony hozzárendelést.¦Löscht alle Laufzeitzuordnungen zwischen Blöcken und Lokomotiven.
+304¦DCC-cím alapján áthelyezi a mozdony hozzárendelését a megnevezett blokkba.¦Verschiebt die Lokomotivzuordnung anhand der DCC-Adresse in den benannten Block.
+305¦A mozdonyt a megnevezett blokkba tartóként jelöli meg az érkezésig vagy a szkript megszakításáig.¦Markiert eine Lokomotive bis zur Ankunft oder zum Skriptabbruch als zum benannten Block unterwegs.
+306¦Visszaadja a helyileg tárolt érzékelőállapotot: true = BE/foglalt, false = KI/szabad.¦Gibt den lokal gespeicherten Sensorzustand zurück: true = EIN/belegt, false = AUS/frei.
+307¦Érzékelőállapotot állít be a Hub futásidejű API-ján keresztül. Fizikai S88-visszajelzéshez általában csak get/wait használható.¦Setzt einen Sensorzustand über die Laufzeit-API des Hubs. Physische S88-Rückmeldung nutzt normalerweise nur get/wait.
+308¦Eseményvezérelten vár, amíg a tárolt érzékelőállapot megfelel a kívánt értéknek. Az opcionális időkorlát milliszekundumban értendő.¦Wartet ereignisgesteuert, bis der gespeicherte Sensorzustand dem Sollwert entspricht. Das optionale Zeitlimit wird in Millisekunden angegeben.
+309¦Visszaadja a helyileg tárolt logikai váltóállapotot: true = CLOSED, false = THROWN.¦Gibt den lokal gespeicherten logischen Weichenzustand zurück: true = CLOSED, false = THROWN.
+310¦Igaz értéket ad, ha a beállított váltó logikailag CLOSED állapotú.¦Gibt true zurück, wenn die konfigurierte Weiche logisch CLOSED ist.
+311¦Igaz értéket ad, ha a beállított váltó logikailag THROWN állapotú.¦Gibt true zurück, wenn die konfigurierte Weiche logisch THROWN ist.
+312¦A terepasztal kimeneti beállításai alapján CLOSED állapotba állítja a váltót.¦Stellt die Weiche anhand ihrer Anlagen-Ausgangskonfiguration logisch auf CLOSED.
+313¦A terepasztal kimeneti beállításai alapján THROWN állapotba állítja a váltót.¦Stellt die Weiche anhand ihrer Anlagen-Ausgangskonfiguration logisch auf THROWN.
+314¦A terepasztal beállításai alapján állítja a logikai váltóállapotot. true = CLOSED, false = THROWN.¦Setzt den logischen Weichenzustand über die Anlagenkonfiguration. true = CLOSED, false = THROWN.
+315¦Megvárja, amíg a tárolt logikai váltóállapot CLOSED lesz.¦Wartet, bis der gespeicherte logische Weichenzustand CLOSED ist.
+316¦Megvárja, amíg a tárolt logikai váltóállapot THROWN lesz.¦Wartet, bis der gespeicherte logische Weichenzustand THROWN ist.
+317¦Megvárja, amíg a tárolt logikai váltóállapot eléri a kívánt CLOSED/THROWN értéket.¦Wartet, bis der gespeicherte logische Weichenzustand dem gewünschten CLOSED/THROWN-Wert entspricht.
+318¦Visszaadja a helyileg tárolt logikai jelzőállapot nevét, például Red, Green, Yellow vagy egyéni állapotnév.¦Gibt den lokal gespeicherten logischen Signalzustandsnamen zurück, etwa Red, Green, Yellow oder einen eigenen Namen.
+319¦Igaz értéket ad, ha a beállított jelző logikailag Green állapotú.¦Gibt true zurück, wenn das konfigurierte Signal logisch Green ist.
+320¦Igaz értéket ad, ha a beállított jelző logikailag Red állapotú.¦Gibt true zurück, wenn das konfigurierte Signal logisch Red ist.
+321¦Igaz értéket ad, ha a jelző tárolt logikai állapota megfelel a megadott állapotnévnek.¦Gibt true zurück, wenn der gespeicherte logische Signalzustand dem angegebenen Zustandsnamen entspricht.
+322¦Igaz értéket ad, ha a beállított jelző logikailag White állapotú.¦Gibt true zurück, wenn das konfigurierte Signal logisch White ist.
+323¦Igaz értéket ad, ha a beállított jelző logikailag Yellow állapotú.¦Gibt true zurück, wenn das konfigurierte Signal logisch Yellow ist.
+324¦Beállítja a konfigurált Green állapotot. A DCC-kimenetmintákat és a DCC Extended jelzésképeket a terepasztalból veszi.¦Setzt den konfigurierten Green-Zustand. DCC-Ausgabemuster und DCC-Extended-Signalbilder werden aus der Anlage ermittelt.
+325¦A jelző kimeneti beállításai alapján beállítja a konfigurált Red állapotot.¦Setzt den konfigurierten Red-Zustand anhand der Ausgangskonfiguration des Signals.
+326¦Alacsony szintű művelet: közvetlenül elküld egy 0–255 közötti DCC Extended jelzésképet.¦Direkter Zugriff: Sendet ein DCC-Extended-Signalbild zwischen 0 und 255.
+327¦Név alapján beállít egy konfigurált logikai jelzőállapotot. A terepasztal ezt DCC-kimenetekre vagy DCC Extended jelzésképre fordítja.¦Setzt einen konfigurierten logischen Signalzustand nach Namen. Die Anlage setzt ihn in DCC-Ausgänge oder ein DCC-Extended-Signalbild um.
+328¦Beállítja a konfigurált White jelzőállapotot.¦Setzt den konfigurierten White-Signalzustand.
+329¦Beállítja a konfigurált Yellow jelzőállapotot.¦Setzt den konfigurierten Yellow-Signalzustand.
+330¦Megvárja, amíg a tárolt logikai jelzőállapot Green lesz.¦Wartet, bis der gespeicherte logische Signalzustand Green ist.
+331¦Megvárja, amíg a tárolt logikai jelzőállapot Red lesz.¦Wartet, bis der gespeicherte logische Signalzustand Red ist.
+332¦Eseményvezérelten megvárja, amíg a jelző eléri a megadott nevű logikai állapotot.¦Wartet ereignisgesteuert, bis das Signal den angegebenen logischen Zustand erreicht.
+333¦Megvárja, amíg a tárolt logikai jelzőállapot White lesz.¦Wartet, bis der gespeicherte logische Signalzustand White ist.
+334¦Megvárja, amíg a tárolt logikai jelzőállapot Yellow lesz.¦Wartet, bis der gespeicherte logische Signalzustand Yellow ist.
+335¦Vészleállítási parancsot küld.¦Sendet einen Notstoppbefehl.
+336¦Nyers DCC-EX parancsot küld a Hubon keresztül.¦Sendet einen direkten DCC-EX-Befehl über den Hub.
+337¦Alacsony szintű DCC-kiegészítővezérlés.¦Direkte Steuerung eines DCC-Zubehördecoders.
+338¦Beállítja a mozdony sebességét és irányát. A sebességtartomány 0–126.¦Setzt Geschwindigkeit und Fahrtrichtung der Lokomotive. Geschwindigkeitsbereich: 0–126.
+339¦Be- vagy kikapcsolja a mozdony F0–F28 funkcióját.¦Schaltet eine Lokfunktion F0–F28 ein oder aus.
+340¦Be- vagy kikapcsolja a MAIN vágány feszültségét.¦Schaltet die MAIN-Gleisspannung ein oder aus.
+341¦Be- vagy kikapcsolja a programozóvágány feszültségét.¦Schaltet die Programmiergleisspannung ein oder aus.
+342¦Lejátssza az SD-kártya /sd/audio/<name>.mp3 fájlját. Csak az alap fájlnevet add meg, útvonal és .mp3 kiterjesztés nélkül.¦Spielt /sd/audio/<name>.mp3 von der SD-Karte ab. Nur den Basisdateinamen ohne Pfad oder .mp3-Erweiterung angeben.
+343¦Értékeket ír a böngésző konzoljára az automatizálás nevével előtagként.¦Schreibt Werte mit dem Automatisierungsnamen als Präfix in die Browserkonsole.
+344¦Ideiglenes üzenetet jelenít meg a futó automatizálás kártyáján. Egy későbbi hívás lecseréli.¦Zeigt eine vorübergehende Nachricht auf der Karte der laufenden Automatisierung an. Ein späterer Aufruf ersetzt sie.
+345¦Gyorsparancs-súgó¦Schnellbefehlshilfe
+346¦Szkriptsúgó¦Skripthilfe
+347¦JavaScript formázása · Shift+Alt+F¦JavaScript formatieren · Shift+Alt+F
+348¦JavaScript formázása¦JavaScript formatieren
+350¦Jelenlegi vázlat futtatása¦Aktuellen Entwurf ausführen
+351¦Szkript futtatása¦Skript ausführen
+353¦Szüneteltetés a következő együttműködő await pontnál¦Am nächsten kooperativen await-Punkt pausieren
+354¦Szkript szüneteltetése¦Skript pausieren
+356¦Szüneteltetett szkript folytatása¦Pausiertes Skript fortsetzen
+357¦Szkript folytatása¦Skript fortsetzen
+358¦Futás végleges megszakítása¦Diesen Lauf endgültig abbrechen
+359¦Szkript megszakítása¦Skript abbrechen
+360¦Ctrl+S: mentés · Shift+Alt+F: formázás · ESC letiltva¦Ctrl+S: speichern · Shift+Alt+F: formatieren · ESC deaktiviert
+361¦JavaScript-hiba¦JavaScript-Fehler
+362¦A szüneteltetés az await pontoknál történik. A megszakítás befejezi az aktív futást.¦Die Pause erfolgt kooperativ an await-Punkten. Abbrechen beendet den aktiven Lauf.
+363¦Futtatás¦Ausführen
+364¦Mentés¦Speichern
+365¦Szkript gyorssúgó¦Skript-Kurzhilfe
+366¦Kattints egy sorra a szintaxis beszúrásához a kurzornál vagy a kijelölés cseréjéhez.¦Klicke auf eine Zeile, um die Syntax am Cursor einzufügen oder die Auswahl zu ersetzen.
+367¦A parancsok kifejezett set/get/wait neveket használnak. A jelző- és váltósegédek a terepasztal beállításaiból dolgoznak, a get/is/wait pedig a helyi, eseményvezérelt futásidejű tárat olvassa.¦Die Befehle verwenden eindeutige set/get/wait-Namen. Signal- und Weichenhelfer nutzen die Anlagenkonfiguration; get/is/wait lesen den lokalen ereignisgesteuerten Laufzeitspeicher.
+368¦Szintaxis¦Syntax
+369¦Leírás¦Beschreibung
+370¦A bejegyzések szintaxis szerint betűrendben jelennek meg. A régi rövid beállítónevek nem szerepelnek a listában.¦Einträge sind alphabetisch nach Syntax sortiert. Alte kurze Setter-Aliase sind nicht aufgeführt.
+371¦Súgó bezárása¦Hilfe schließen
+373¦{{value1}} #{{value2}} · 1. motor{{value3}}¦{{value1}} #{{value2}} · Motor 1{{value3}}
+374¦{{value1}} #{{value2}} · 2. motor{{value3}}¦{{value1}} #{{value2}} · Motor 2{{value3}}
+375¦Váltó #{{value1}}{{value2}}¦Weiche #{{value1}}{{value2}}
+376¦Hármas váltó #{{value1}}-{{value2}}{{value3}}¦Dreiwegweiche #{{value1}}-{{value2}}{{value3}}
+377¦Kettős váltó #{{value1}}-{{value2}}{{value3}}¦Doppelkreuzungsweiche #{{value1}}-{{value2}}{{value3}}
+382¦Egyenes¦Gerade
+383¦Kitérő¦Abzweig
+384¦Érzékelő #{{value1}}{{value2}}¦Sensor #{{value1}}{{value2}}
+385¦A jelzőnek nincs alapállapotként használható jelzésképe.¦Dieses Signal hat kein konfiguriertes Signalbild, das als Standardzustand verwendet werden kann.
+387¦Jelzőautomatizálás¦Signalautomatik
+388¦Automatikus jelzőállapotok¦Automatische Signalzustände
+389¦Az első illeszkedő szabály érvényesül. Ha egyik sem illeszkedik, az alapállapot lép életbe.¦Die erste passende Regel gilt. Passt keine, wird der Standardzustand verwendet.
+390¦Jelzőautomatizálás betöltése…¦Signalautomatik wird geladen…
+391¦Alapállapot¦Standardzustand
+392¦Szabályok¦Regeln
+393¦Szabály hozzáadása¦Regel hinzufügen
+394¦Szabály¦Regel
+395¦Eredmény¦Ergebnis
+396¦Feltételek¦Bedingungen
+397¦Feltétel¦Bedingung
+398¦Váltó¦Weiche
+399¦Érzékelő¦Sensor
+400¦Inaktív¦Inaktiv
+401¦Feltétel törlése¦Bedingung löschen
+402¦Feltétel hozzáadása¦Bedingung hinzufügen
+403¦Szabály törlése¦Regel löschen
+404¦Jelző #{{value1}}{{value2}}¦Signal #{{value1}}{{value2}}
+405¦Váltó #{{value1}} · 1. csatorna{{value2}}¦Weiche #{{value1}} · Kanal 1{{value2}}
+406¦Váltó #{{value1}} · 2. csatorna{{value2}}¦Weiche #{{value1}} · Kanal 2{{value2}}
+407¦Mit szeretnél tenni az automatikus jelzővezérléssel?¦Was möchtest du mit der automatischen Signalsteuerung tun?
+408¦Automatizálás engedélyezése¦Automatik aktivieren
+409¦Automatizálás letiltása¦Automatik deaktivieren
+410¦Jelzőautomatizálás · {{value1}}¦Signalautomatik · {{value1}}
+411¦Az első illeszkedő szabály érvényesül. Ha egyik sem illeszkedik, a beállított alapállapot lép életbe.¦Die erste passende Regel gilt. Passt keine, wird der konfigurierte Standardzustand verwendet.
+412¦FUT¦LÄUFT
+413¦LEÁLLÍTVA¦ANGEHALTEN
+414¦Újratöltés¦Neu laden
+415¦Jelzőszabályok betöltése…¦Signalregeln werden geladen…
+416¦Jelzők¦Signale
+417¦Automatizálás hozzáadása ehhez a jelzőhöz¦Automatik für dieses Signal hinzufügen
+418¦Hiányzó jelzőazonosító: {{value1}}¦Fehlende Signal-ID {{value1}}
+419¦A jelző automatizálásának eltávolítása¦Automatik für dieses Signal entfernen
+420¦Adj hozzá automatizálási szabálycsoportot ehhez a jelzőhöz.¦Füge diesem Signal eine Automatikregelgruppe hinzu.
+421¦Jelző¦Signal
+424¦{{value1}}. lámpa színének módosítása¦Farbe von Lampe {{value1}} ändern
+425¦{{value1}}. jelzéskép¦Signalbild {{value1}}
+426¦Jelző beállításai¦Signalkonfiguration
+427¦Jelző meghatározása¦Signaldefinition
+428¦A fizikai lámpák, logikai állapotok és DCC-hozzárendelések egymástól függetlenek.¦Physische Lampen, logische Zustände und DCC-Zuordnung sind unabhängig.
+432¦DCC-cím¦DCC-Adresse
+433¦Kezdő DCC-cím¦DCC-Startadresse
+434¦Egylámpás megjelenítés¦Einzellampendarstellung
+435¦Tömör terepasztal-megjelenítés; a logikai állapotok és lámpabeállítások változatlanok¦Kompakte Anlagendarstellung; logische Zustände und Lampendefinitionen bleiben unverändert
+436¦Fizikai lámpák¦Physische Lampen
+437¦A terepasztalon megjelenő lámpák száma (legfeljebb {{value1}})¦Anzahl der auf der Anlage dargestellten Lampen (max. {{value1}})
+439¦DCC-kimeneti címek¦DCC-Ausgangsadressen
+440¦Egymást követő kiegészítőcímek¦Aufeinanderfolgende Zubehöradressen
+441¦Jelzőállapotok / jelzésképek¦Signalzustände / Signalbilder
+442¦Minden sor egy logikai állapot. Az állapotok száma eltérhet a lámpák számától.¦Jede Zeile ist ein logischer Zustand. Die Anzahl der Zustände muss nicht der Lampenanzahl entsprechen.
+443¦Jelzéskép hozzáadása¦Signalbild hinzufügen
+444¦Állapot¦Zustand
+445¦Előnézet¦Vorschau
+446¦Lámpa¦Lampe
+447¦Jelzéskép¦Signalbild
+448¦Teszt¦Test
+449¦Be¦Ein
+450¦Legalább két állapot szükséges¦Mindestens zwei Zustände erforderlich
+451¦Jelzéskép törlése¦Signalbild löschen
+452¦PARANCS ELŐNÉZETE¦BEFEHLSVORSCHAU
+453¦Alkalmazás¦Übernehmen
+454¦KRITIKUS¦KRITISCH
+455¦FIGYELMEZTETÉS¦WARNUNG
+456¦MELEG¦WARM
+457¦NORMÁL¦NORMAL
+459¦Célrendszer¦Zielsystem
+460¦DCC-EX verzió¦DCC-EX-Version
+461¦Processzor¦Prozessor
+462¦Motormeghajtó¦Motortreiber
+463¦Build¦Build
+464¦Maximális mozdonyhelyek¦Maximale Lokplätze
+465¦Pályafeszültség¦Gleisspannung
+466¦Összes pályaáram¦Gesamter Gleisstrom
+467¦{{value1}} vágány · {{value2}}¦Gleis {{value1}} · {{value2}}
+468¦Várakozás a DCC-EX TrackManager/áramfelvétel adataira…¦Warten auf DCC-EX-TrackManager-/Strommessdaten…
+469¦TCP-kapcsolat üzemideje¦TCP-Verbindungsdauer
+470¦A pályaáramot 1000 ms-onként kérdezzük le a DCC-EX-től. A „/” utáni érték a lekapcsolási áramhatár. A DCC-EX vágánykimenetenként ad áramértéket, nem dekóderenként. A távoli RAM, CPU-terhelés és chiphőmérséklet nem része a szabványos telemetriának, ezért itt nem jelenítünk meg becsült adatokat.¦Der Gleisstrom wird alle 1000 ms von DCC-EX abgefragt. Der Wert nach „/“ ist die Abschaltgrenze. DCC-EX meldet den Strom je Gleisausgang, nicht je Decoder. RAM, CPU-Auslastung und Chiptemperatur der Zentrale gehören nicht zur Standardtelemetrie und werden hier nicht geschätzt.
+472¦WS CSATLAKOZVA¦WS VERBUNDEN
+474¦Hub verzió¦Hub-Version
+475¦Gépnév¦Hostname
+476¦Hub IP-címe¦Hub-IP
+480¦0. CPU-mag¦CPU-Kern 0
+481¦1. CPU-mag¦CPU-Kern 1
+482¦Chiphőmérséklet¦Chiptemperatur
+483¦Üzemidő¦Betriebsdauer
+484¦Szabad / összes heap¦Heap frei / gesamt
+485¦Legkisebb szabad heap¦Minimaler freier Heap
+486¦Legnagyobb szabad blokk¦Größter freier Block
+487¦Szabad / összes PSRAM¦PSRAM frei / gesamt
+488¦WebSocket-kliensek¦WebSocket-Clients
+489¦Futásidejű objektumok¦Laufzeitobjekte
+490¦Flash chip¦Flash-Chip
+492¦LittleFS adatok¦LittleFS-Daten
+493¦Szabad LittleFS¦LittleFS frei
+495¦Újraindítás oka¦Neustartgrund
+496¦Másolva!¦Kopiert!
+497¦Másolás¦Kopieren
+498¦8 bites érték¦8-Bit-Wert
+499¦Decimális¦Dezimal
+500¦Bináris¦Binär
+501¦Hexadecimális¦Hexadezimal
+502¦Mind¦Alle
+503¦Invertálás¦Invertieren
+504¦Kattints egy bitre az átkapcsolásához.¦Klicke auf ein Bit, um es umzuschalten.
+505¦8 bites kalkulátor¦8-Bit-Rechner
+506¦Érték másolása¦Wert kopieren
+507¦Hanglista¦Audioliste
+508¦Nincsenek hangsorok beállítva.¦Keine Audioeinträge konfiguriert.
+509¦Nincs fájl kiválasztva¦Keine Datei ausgewählt
+510¦Hang lejátszása¦Audio abspielen
+512¦Blokk: {{value1}}¦Block: {{value1}}
+513¦Mozdony hozzárendelése a blokkhoz¦Lokomotive einem Block zuweisen
+514¦Bal¦Links
+515¦Egyenes¦Gerade
+516¦Jobb¦Rechts
+517¦Nincs aktív útvonalgomb¦Keine aktive Fahrstraßentaste¦No active route button
+518¦Konzol¦Konsole
+519¦{{value1}} diagnosztika¦{{value1}}-Diagnose
+520¦Központ diagnosztikája¦Zentralendiagnose
+521¦A(z) {{value1}} nyers parancskonzolja nem érhető el¦Die direkte Konsole für {{value1}} ist nicht verfügbar
+525¦Sebesség +¦Geschwindigkeit +
+526¦Sebesség −¦Geschwindigkeit −
+527¦Előre¦Vorwärts
+528¦Hátra¦Rückwärts
+529¦F0 funkció¦Funktion F0
+530¦F1 funkció¦Funktion F1
+531¦F2 funkció¦Funktion F2
+532¦F3 funkció¦Funktion F3
+535¦16 csatornás PWM-/szervóvezérlő¦16-Kanal-PWM-/Servocontroller
+537¦16 csatornás digitális I/O-bővítő¦16-Kanal-Digital-I/O-Erweiterung
+539¦8 csatornás digitális I/O-bővítő¦8-Kanal-Digital-I/O-Erweiterung
+541¦Érvénytelen eszközkonfigurációs válasz¦Ungültige Antwort zur Gerätekonfiguration
+542¦Eszközkonfiguráció mentve¦Gerätekonfiguration gespeichert
+543¦Az eszközkonfiguráció mentése nem sikerült¦Gerätekonfiguration konnte nicht gespeichert werden
+544¦I2C HAL-eszköz szerkesztése¦I2C-HAL-Gerät bearbeiten
+545¦I2C HAL-eszköz hozzáadása¦I2C-HAL-Gerät hinzufügen
+546¦Illesztőprogram¦Treiber
+547¦I2C-cím¦I2C-Adresse
+548¦Első VPIN¦Erster VPIN
+550¦PWM-frekvencia¦PWM-Frequenz
+551¦Megszakítás GPIO-ja (opcionális)¦Interrupt-GPIO (optional)
+552¦Vázlat mentése¦Entwurf speichern
+553¦Eszköz törlése¦Gerät löschen
+554¦Eltávolítás¦Entfernen
+556¦Törlés¦Löschen
+557¦Vissza¦Zurück
+558¦Eszközkonfiguráció¦Gerätekonfiguration
+559¦S88 foglaltságérzékelő adapter és külső I2C-eszközök¦S88-Belegtmeldeadapter und externe I2C-Geräte
+560¦Betöltés¦Laden
+561¦Nem mentett módosítások¦Ungespeicherte Änderungen
+562¦Mentve¦Gespeichert
+563¦Mentés és alkalmazás¦Speichern und anwenden¦Save & apply
+564¦S88 foglaltságérzékelő adapter¦S88-Belegtmeldeadapter
+566¦FÜGGŐBEN¦AUSSTEHEND
+567¦ADAT¦DATEN
+568¦ÉLŐ¦LIVE
+569¦ELAVULT¦VERALTET
+571¦S88 állapot frissítése¦S88-Status aktualisieren
+572¦A Hub ezt a címet használja az adapter eléréséhez¦Adresse, über die der Hub den Adapter findet
+573¦Adapter firmware¦Adapter-Firmware
+574¦Az S88-adapter INFO-csomagjából¦Vom INFO-Paket des S88-Adapters gemeldet
+575¦S88-adatok¦S88-Nutzdaten
+576¦Az adapter határozza meg és jelenti¦Vom Adapter verwaltet und gemeldet
+577¦Protokoll¦Protokoll
+578¦Csak olvasható adapterképesség-információ¦Schreibgeschützte Informationen zu den Adapterfähigkeiten
+579¦S88-adapter engedélyezve¦S88-Adapter aktiviert
+580¦Bemeneti tartomány:¦Eingangsbereich:
+582¦Várakozás INFO-csomagra¦Warten auf INFO
+583¦Az S88-adatok bájthosszát az Arduino adapter kezeli; ez az USB-soros portján állítható be. A DCCExpressHub csak az adapter I2C-címét tárolja, beolvassa az INFO-csomagot, majd pontosan a jelzett számú S88-bájtot kéri le. A Hub nem módosítja az adapter beállításait.¦Die S88-Bytelänge wird vom Arduino-Adapter verwaltet und über dessen USB-Port konfiguriert. DCCExpressHub speichert nur die I2C-Adresse, liest das INFO-Paket und fordert genau die gemeldete Anzahl an S88-Bytes an. Der Hub ändert die Adapterkonfiguration nicht.
+584¦Élő S88-érzékelők¦S88-Sensoren live
+585¦Piros = foglalt, zöld = szabad, szürke = még ismeretlen¦Rot = belegt, Grün = frei, Grau = noch unbekannt
+586¦{{value1}} állapot érhető el¦{{value1}} Zustände verfügbar
+587¦Várakozás állapotképre¦Warten auf Zustandsdaten
+588¦Várakozás az adapter INFO-csomagjára¦Warten auf Adapter-INFO
+589¦Csoport¦Gruppe
+590¦FOGLALT¦BELEGT
+591¦SZABAD¦FREI
+592¦Egyéb I2C HAL-eszközök¦Weitere I2C-HAL-Geräte
+593¦PCA9685, MCP23017 és PCF-bővítők¦PCA9685-, MCP23017- und PCF-Erweiterungen
+594¦I2C-eszköz hozzáadása¦I2C-Gerät hinzufügen
+595¦Nincs további I2C HAL-eszköz beállítva.¦Keine weiteren I2C-HAL-Geräte konfiguriert.
+597¦Az eszköz nem engedélyezhető¦Gerät kann nicht aktiviert werden
+598¦Eszköz szerkesztése¦Gerät bearbeiten
+599¦Az alapvető eszköztulajdonságok szerkesztése megőrzi a meglévő servoChannels és digitalChannels beállításokat. Az oldal tömör eszközáttekintést biztosít.¦Beim Bearbeiten der grundlegenden Geräteeigenschaften bleiben vorhandene servoChannels- und digitalChannels-Definitionen erhalten. Die Seite bietet eine kompakte Geräteübersicht.
+621¦CSATLAKOZVA #{{value1}}: {{value2}}¦VERBUNDEN #{{value1}}: {{value2}}
+622¦LEVÁLASZTVA #{{value1}}: {{value2}}¦GETRENNT #{{value1}}: {{value2}}
+623¦AKTÍV #{{value1}}: {{value2}}¦AKTIV #{{value1}}: {{value2}}
+624¦TENGELY {{value1}}: {{value2}}¦ACHSE {{value1}}: {{value2}}
+626¦Gamepad diagnosztika¦Gamepad-Diagnose
+627¦Bluetooth / USB játékvezérlő¦Bluetooth-/USB-Controller
+628¦Csatlakoztatva¦Verbunden
+629¦Várakozás¦Warten
+630¦Aktív játékvezérlő¦Aktiver Controller
+631¦Ezen az eszközön csak ez a játékvezérlő irányíthatja a mozdonyt.¦Nur dieser Controller kann die Lokomotive auf diesem Gerät steuern.
+632¦Nem található játékvezérlő¦Kein Controller erkannt
+633¦Ez a böngésző nem támogatja a Gamepad API-t.¦Dieser Browser unterstützt die Gamepad-API nicht.
+634¦Index: {{value1}} · {{value2}} tengely · {{value3}} gomb · kiosztás: {{value4}}¦Index {{value1}} · {{value2}} Achsen · {{value3}} Tasten · Belegung: {{value4}}
+635¦Párosítsd a játékvezérlőt, majd nyomd meg bármelyik gombját.¦Verbinde den Controller und drücke eine beliebige Taste.
+636¦Lenyomva:¦Gedrückt:
+638¦A gombkiosztás ebben a böngészőben tárolódik. Egy funkció csak egy gombhoz rendelhető.¦Tastenbelegungen werden in diesem Browser gespeichert. Jede Funktion kann nur einer Taste zugeordnet sein.
+639¦ALAPÉRTELMEZETT KIOSZTÁS VISSZAÁLLÍTVA¦STANDARD-BELEGUNG WIEDERHERGESTELLT
+640¦Alapértékek visszaállítása¦Standardwerte wiederherstellen
+641¦Tengelyek¦Achsen
+642¦Tengely¦Achse
+643¦Gombkiosztás¦Tastenbelegung
+644¦Válaszd ki az egyes fizikai gombok funkcióját. A kijelölés törlése letiltja a gombot.¦Wähle die Funktion für jede physische Taste. Eine leere Auswahl deaktiviert die Taste.
+645¦LENYOMVA¦GEDRÜCKT
+646¦{{value1}}. gomb funkciója¦Funktion von Taste {{value1}}
+647¦Nincs funkció¦Keine Funktion
+648¦Bemeneti napló¦Eingabeprotokoll
+649¦Gomb- és botkormányesemények¦Tasten- und Joystickereignisse
+650¦Várakozás játékvezérlő-bemenetre…¦Warten auf Gamepad-Eingaben…
+651¦Vészleállítás¦Notstopp
+654¦Hang kiválasztása a Hub SD-kártyájáról¦Audio von der SD-Karte des Hubs auswählen
+655¦Kiválasztva:¦Ausgewählt:
+656¦. A választó közvetlenül a Hub SD-kártyájáról olvassa a hangfájlokat.¦. Die Auswahl liest Audiodateien direkt von der SD-Karte des Hubs.
+657¦Hang kiválasztása az SD-kártyáról¦Audio von der SD-Karte auswählen
+658¦Szülőmappa¦Übergeordneter Ordner
+659¦Itt nem találhatók támogatott hangfájlok vagy mappák.¦Hier wurden keine unterstützten Audiodateien oder Ordner gefunden.
+660¦HANG¦AUDIO
+661¦SD gyökérmappa¦SD-Stammverzeichnis
+662¦Nincs¦Keine
+663¦Fél¦Halb
+664¦Teljes¦Voll
+665¦Kijelölés befejezése¦Auswahl beenden
+666¦Váltók hozzáadása¦Weichen hinzufügen
+667¦Útvonal tesztelése¦Fahrstraße testen
+668¦Kattints a terepasztal váltóira a hozzáadáshoz, majd válaszd a Kijelölés befejezése gombot.¦Klicke auf Weichen in der Anlage, um sie hinzuzufügen, und dann auf Auswahl beenden.
+669¦A Váltók hozzáadása gombbal választhatsz a terepasztal váltói közül. Az előnézetre kattintva csak az útvonalban tárolt váltóállapot változik. Az Útvonal tesztelése ugyanazokat a váltóparancsokat küldi, mint az útvonalgomb.¦Mit Weichen hinzufügen wählst du Weichen aus der Anlage. Ein Klick auf eine Vorschau ändert nur den gespeicherten Fahrstraßenzustand. Fahrstraße testen sendet dieselben Weichenbefehle wie die Fahrstraßentaste.
+670¦Nincs váltó kiválasztva¦Keine Weichen ausgewählt
+671¦Hiányzó váltó:¦Fehlende Weiche:
+673¦Útvonalállapot:¦Fahrstraßenzustand:
+674¦Váltó eltávolítása¦Weiche entfernen
+675¦A szkriptszerkesztő csak szkriptgombokhoz érhető el.¦Der Skripteditor ist nur für Skripttasten verfügbar.
+676¦Szkript befejezve¦Skript abgeschlossen
+677¦Szkript megszakítva¦Skript abgebrochen
+678¦A szkript futtatása nem sikerült¦Skript fehlgeschlagen
+679¦Szkript leállítva¦Skript angehalten
+680¦A futás a jelenlegi vagy a következő await delay() pontnál szünetel.¦Die Ausführung pausiert am aktuellen oder nächsten await-delay()-Punkt.
+681¦Szkript folytatva¦Skript fortgesetzt
+682¦Szkript megszakítása kérve¦Skriptabbruch angefordert
+684¦Szerkesztés¦Bearbeiten
+685¦Szünetel. A folytatás ugyanazt az aszinkron futást folytatja a várakozási ponttól.¦Pausiert. Fortsetzen führt denselben asynchronen Lauf ab seinem Wartepunkt weiter.
+686¦Szkript · {{value1}}¦Skript · {{value1}}
+687¦Szkript mentve¦Skript gespeichert
+688¦A szerkesztő nyitva marad. A Hubon történő tároláshoz mentsd a terepasztalt.¦Der Editor bleibt geöffnet. Speichere die Anlage, um die Änderung auf dem Hub abzulegen.
+689¦A mentett terepasztalt nem sikerült betölteni a jelzőautomatizáláshoz.¦Die gespeicherte Anlage konnte nicht für die Signalautomatik geladen werden.
+690¦A jelző automatizálásának beállítása előtt mentsd a terepasztalt.¦Speichere die Anlage, bevor du die Automatik für dieses Signal konfigurierst.
+691¦Vasúti átjáró beállításai¦Bahnübergang konfigurieren
+692¦Vasúti átjáró automatizálása¦Bahnübergangsautomatik
+696¦Jelzésképek¦Signalbilder
+697¦Jelzéskép tesztelése: {{value1}}¦Signalbild testen: {{value1}}
+698¦Nincsenek átjáróállapotok beállítva.¦Keine Bahnübergangszustände konfiguriert.
+699¦Nincsenek jelzésképek beállítva.¦Keine Signalbilder konfiguriert.
+700¦BE érték¦EIN-Wert
+701¦KI érték¦AUS-Wert
+702¦DCC-kiegészítő értékei¦DCC-Zubehörwerte
+703¦BE tesztelése¦EIN testen
+704¦KI tesztelése¦AUS testen
+705¦Kiterjesztett kiegészítő jelzésképei¦Erweiterte Zubehör-Signalbilder
+706¦BE jelzéskép¦EIN-Signalbild
+707¦BE jelzéskép tesztelése¦EIN-Signalbild testen
+708¦KI jelzéskép¦AUS-Signalbild
+709¦KI jelzéskép tesztelése¦AUS-Signalbild testen
+710¦Váltóállások¦Weichenstellungen
+711¦Egyenes állás jelzésképe¦Signalbild für Gerade
+712¦Kitérő¦Abzweig
+713¦Kitérő állás jelzésképe¦Signalbild für Abzweig
+714¦Hármas váltó állásai¦Stellungen der Dreiwegweiche
+715¦Minden állás a saját két fizikai kimeneti bitjét tárolja. Egy sor módosítása nem változtatja meg a többit.¦Jede Stellung speichert zwei eigene physische Ausgangsbits. Änderungen einer Zeile verändern keine andere.
+716¦1. váltó egyenes¦Weiche 1 gerade
+717¦1. váltó kitérő¦Weiche 1 Abzweig
+718¦2. váltó egyenes¦Weiche 2 gerade
+719¦2. váltó kitérő¦Weiche 2 Abzweig
+720¦Állások tesztelése¦Stellungen testen
+721¦Kettős váltó állásai¦Stellungen der Doppelkreuzungsweiche
+722¦Minden előnézeti sor a saját két fizikai kimeneti bitjét tárolja. Egy bit módosítása nem változtatja meg a többi sort.¦Jede Vorschauzeile speichert zwei eigene physische Ausgangsbits. Änderungen eines Bits verändern keine andere Zeile.
+723¦Vágányvég¦Gleisende
+724¦Sarok¦Ecke
+725¦Ív¦Bogen
+726¦Keresztezés¦Kreuzung
+727¦Vasúti átjáró¦Bahnübergang
+728¦Balos váltó¦Linksweiche
+729¦Jobbos váltó¦Rechtsweiche
+730¦Y-váltó¦Y-Weiche
+731¦W / hármas váltó¦W- / Dreiwegweiche
+732¦Kettős váltó¦Doppelkreuzungsweiche
+733¦Blokk¦Block
+734¦Kimeneti gomb¦Ausgangstaste
+735¦Útvonal¦Fahrstraße
+736¦Hanggomb¦Audiotaste
+737¦Felirat¦Beschriftung
+738¦Terepasztal láthatósága¦Anlagensichtbarkeit
+743¦A terepasztal betöltése az EX-CSB1-ről nem sikerült.¦Die Anlage konnte nicht von der EX-CSB1 geladen werden.
+744¦A flashmemória adatai nem érhetők el.¦Flash-Informationen sind nicht verfügbar.
+745¦A pályafeszültség ki van kapcsolva¦Die Gleisspannung ist ausgeschaltet
+746¦Váltóállítás előtt kapcsold be a pályafeszültséget.¦Schalte vor dem Betätigen einer Weiche die Gleisspannung ein.
+747¦Érvénytelen váltócím¦Ungültige Weichenadresse
+748¦Adj meg 1 és 2048 közötti lineáris DCC-kiegészítőcímet.¦Verwende eine lineare DCC-Zubehöradresse zwischen 1 und 2048.
+749¦A terepasztal mentése az EX-CSB1-re nem sikerült.¦Die Anlage konnte nicht auf der EX-CSB1 gespeichert werden.
+750¦Projekt mentve¦Projekt gespeichert
+751¦A terepasztal és az automatizálási szkriptek a Hub külön táraiba kerültek.¦Anlage und Automatisierungsskripte wurden in getrennten Hub-Speichern abgelegt.
+752¦Az importált terepasztal mentése a Hubra nem sikerült.¦Die importierte Anlage konnte nicht auf dem Hub gespeichert werden.
+753¦Projekt importálva¦Projekt importiert
+754¦A terepasztal és {{value1}} automatizálási szkript visszaállítva.¦Anlage und {{value1}} Automatisierungsskripte wurden wiederhergestellt.
+755¦Kezdőlap¦Startseite
+756¦Terepasztal¦Anlagensteuerung
+757¦Szerkesztési mód¦Bearbeitungsmodus
+758¦Kijelölés¦Auswählen
+759¦Terepasztalelem hozzáadása¦Anlagenelement hinzufügen
+760¦Kijelölt elem törlése¦Auswahl löschen
+761¦Terepasztal nézethez igazítása¦Anlage einpassen
+762¦Terepasztal újratöltése¦Anlage neu laden
+763¦Terepasztal mentése¦Anlage speichern
+764¦Terepasztal exportálása¦Anlage exportieren
+765¦Terepasztal exportálása JSON-fájlba¦Anlage als JSON exportieren
+766¦Projekt importálása¦Projekt importieren
+767¦Projekt importálása JSON-fájlból¦Projekt aus JSON importieren
+768¦Pályafeszültség kikapcsolása¦Gleisspannung ausschalten
+769¦Pályafeszültség bekapcsolása¦Gleisspannung einschalten
+770¦Mozdonyok szerkesztése¦Lokomotiven bearbeiten
+771¦MOZDONYOK¦LOKS
+772¦Automatikus jelzésképek¦Automatische Signalbilder
+773¦JELZŐK¦SIGNALE
+774¦A projekt összes hivatkozásának ellenőrzése¦Alle Projektverweise prüfen
+775¦ELLENŐRZÉS¦PRÜFEN
+776¦DCCExpressLite online dokumentáció megnyitása¦DCCExpressLite-Onlinedokumentation öffnen
+777¦SÚGÓ¦HILFE
+778¦Mozdonypanel megjelenítése/elrejtése¦Lokpanel ein-/ausblenden
+779¦Tulajdonságpanel megjelenítése/elrejtése¦Eigenschaften ein-/ausblenden
+781¦Tulajdonságok¦Eigenschaften
+782¦Megjelenítés¦Darstellung
+783¦Automatizálás¦Automatisierung
+784¦Információ¦Information
+785¦WebSocket csatlakoztatva¦WebSocket verbunden
+786¦WebSocket: {{value1}} — automatikus újracsatlakozás¦WebSocket: {{value1}} — automatische Neuverbindung
+788¦WS ÚJRA¦WS NEUVERBINDUNG
+789¦WS MEGSZAKADT¦WS GETRENNT
+790¦VÉSZSTOP¦NOTSTOPP
+791¦TÚLTERHELÉS: {{value1}} vágány¦ÜBERLAST: Gleis {{value1}}
+792¦Nincs pályatúlterhelés¦Keine Gleisüberlast
+793¦TÚLTERHELÉS¦ÜBERLAST
+794¦ZÁROLVA¦GESPERRT
+795¦Jobb oldali mozdonypanel megjelenítése/elrejtése¦Rechtes Lokpanel ein-/ausblenden
+796¦Jobb panel: mozdonyvezérlés¦Rechtes Panel: Loksteuerung
+797¦Jobb panel: tulajdonságok¦Rechtes Panel: Eigenschaften
+800¦Kritikus Hub ESP32-hőmérséklet¦Kritische ESP32-Temperatur des Hubs
+801¦A DCCExpressHub hőmérséklete kritikus¦Die Temperatur des DCCExpressHub ist kritisch
+804¦Ez az ESP32 belső szilíciumhőmérséklete, nem szobahőmérséklet és nem CPU-magonkénti külön mérés.¦Dies ist die interne Siliziumtemperatur des ESP32, nicht die Raumtemperatur und kein separater Messwert je CPU-Kern.
+805¦Nyugtázás¦Bestätigen
+807¦Foglaltságérzékelő címe¦Adresse des Belegtmelders
+808¦Aktív szín¦Aktive Farbe
+809¦Háttér¦Hintergrund
+810¦Előtér¦Vordergrund
+811¦Blokk típusa¦Blocktyp
+812¦Hossz¦Länge
+813¦BE szín¦EIN-Farbe
+814¦Alap kiegészítő · <a address 0|1>¦Standardzubehör · <a address 0|1>
+815¦Kiterjesztett kiegészítő · <A address aspect>¦Erweitertes Zubehör · <A address aspect>
+816¦Kimenet típusa¦Ausgangstyp
+817¦Gomb működése¦Tastenverhalten
+818¦Kapcsoló · váltakozó BE / KI¦Umschalter · abwechselnd EIN / AUS
+819¦Nyomógomb · időzített impulzus¦Drucktaste · zeitgesteuerter Impuls
+820¦Pillanatkapcsoló · nyomva tartás alatt aktív¦Momenttaster · aktiv, solange gedrückt
+821¦Impulzus időtartama (ms)¦Impulsdauer (ms)
+822¦Kiegészítő címe¦Zubehöradresse
+823¦Kimeneti állapotok¦Ausgangszustände
+824¦BE szöveg¦EIN-Text
+825¦KI szöveg¦AUS-Text
+826¦BE szín¦EIN-Farbe
+827¦KI szín¦AUS-Farbe
+828¦Gomb színe¦Tastenfarbe
+829¦Induló blokk¦Startblock
+830¦Célblokk¦Zielblock
+831¦Szöveg¦Text
+832¦Szín¦Farbe
+833¦Betűméret¦Schriftgröße
+834¦Y-eltolás¦Y-Versatz
+835¦X-eltolás¦X-Versatz
+836¦Váltók¦Weichen
+837¦Nyitva¦Offen
+838¦Út színe¦Straßenfarbe
+839¦Sorompó típusa¦Schrankentyp
+840¦Fényjelzés engedélyezve¦Lichter aktiviert
+841¦Villogás engedélyezve¦Blinken aktiviert
+842¦Érzékelő címe¦Sensoradresse
+843¦Sugár¦Radius
+846¦1. váltó kiegészítőcíme¦Zubehöradresse Weiche 1
+847¦2. váltó kiegészítőcíme¦Zubehöradresse Weiche 2
+848¦Kettős váltó állásai¦Stellungen der Doppelkreuzungsweiche
+849¦2. váltó egyenes állásának értéke¦Gerade-Wert für Weiche 2
+850¦Bal motor címe / VPIN¦Adresse / VPIN des linken Motors
+851¦Jobb motor címe / VPIN¦Adresse / VPIN des rechten Motors
+852¦Jobb motor egyenes állásának értéke¦Gerade-Wert des rechten Motors
+859¦Parancs végrehajtva.¦Befehl ausgeführt.
+860¦A parancs nem sikerült.¦Befehl fehlgeschlagen.
+861¦Visszaadott érték:¦Zurückgegebener Wert:
+862¦Dekóderprogramozás¦Decoderprogrammierung
+863¦A programozás nem érhető el a(z) {{value1}} firmware-ben¦Programmierung ist in der Firmware {{value1}} nicht verfügbar
+864¦A DCCExpressHub programozófelülete DCC-EX szervizmód- és POM-parancsokat használ. Ez a firmware nem biztosítja ezt a DCC-EX programozási felületet. A normál menetvezérlés, váltó-, kiegészítő-, jelző- és feszültségvezérlés továbbra is elérhető.¦Die Programmieroberfläche von DCCExpressHub nutzt DCC-EX-Service-Mode- und POM-Befehle. Diese Firmware bietet diese DCC-EX-Programmierschnittstelle nicht an. Fahr-, Weichen-, Zubehör-, Signal- und Spannungssteuerung bleiben verfügbar.
+865¦Nincs kapcsolat¦Offline
+866¦Mozdony-, kiegészítő- és DigiTools-beállítások¦Lokomotiv-, Zubehör- und DigiTools-Einrichtung
+867¦Programozási parancsok küldése előtt csatlakozz a DCC-EX központhoz.¦Verbinde dich vor dem Senden von Programmierbefehlen mit der DCC-EX-Zentrale.
+868¦Mozdony¦Lokomotive
+869¦Kiegészítő¦Zubehör
+871¦Programozóvágány biztonsága¦Sicherheit am Programmiergleis
+872¦A szervizmódú műveletek a parancs idejére automatikusan bekapcsolják az elszigetelt PROG kimenetet, majd kikapcsolják. Csak a programozott dekóder legyen ezen a vágányon.¦Service-Mode-Befehle schalten den isolierten PROG-Ausgang automatisch ein und anschließend wieder aus. Auf diesem Gleis darf sich nur der zu programmierende Decoder befinden.
+873¦Mozdonycím¦Lokomotivadresse
+874¦Cím¦Adresse
+875¦Cím olvasása¦Adresse lesen
+876¦Cím írása¦Adresse schreiben
+877¦Konfigurációs változó¦Konfigurationsvariable
+878¦Egyszerre egy CV olvasása vagy írása¦Eine CV auf einmal lesen oder schreiben
+879¦POM / fővágány¦POM / Hauptgleis
+880¦A POM képes írni, de az eredményt általában nem tudja ellenőrizni. Mozdonycímet soha ne módosíts POM-mal.¦POM kann schreiben, das Ergebnis aber normalerweise nicht bestätigen. Ändere eine Lokadresse niemals mit POM.
+881¦Érték¦Wert
+882¦CV olvasása¦CV lesen
+883¦CV írása¦CV schreiben
+884¦Két különböző programozási módszer¦Zwei verschiedene Programmiermethoden
+885¦A CV-programozás az elszigetelt PROG kimenetet használja. A címtanítás a MAIN vágányon történik: először nyomd meg a dekóder tanító/programozó gombját, majd küldd el az alábbi kiegészítőirányok egyikét.¦CV-Programmierung nutzt den isolierten PROG-Ausgang. Das Einlernen der Adresse erfolgt am MAIN-Gleis: Drücke zuerst die Lern-/Programmiertaste des Decoders und sende dann eine der folgenden Zubehörrichtungen.¦CV programming uses the isolated PROG output. Address learning uses the MAIN track: press the decoder's learn/program button first, then send one accessory direction below.
+886¦Kiegészítődekóder CV-je¦Zubehördecoder-CV
+887¦Címtanítás¦Adresse einlernen
+888¦Lineáris kiegészítőcím¦Lineare Zubehöradresse
+889¦DCC-EX tartomány: 1–2044¦DCC-EX-Bereich: 1–2044
+890¦0-s irány küldése¦Richtung 0 senden
+891¦1-es irány küldése¦Richtung 1 senden
+892¦Először állítsd programozási módba az eszközt¦Gerät zuerst in den Programmiermodus versetzen
+893¦Ezek a gombok normál kiegészítőirányt küldenek a MAIN vágányra, nem írnak CV-t. A cím beállításához röviden nyomd meg a PRG gombot. A DigiSwitch időzítéséhez tartsd nyomva több mint három másodpercig.¦Diese Tasten senden eine normale Zubehörrichtung an das MAIN-Gleis; sie schreiben keine CVs. Zum Einstellen der Adresse PRG kurz drücken. Für die DigiSwitch-Zeitsteuerung PRG länger als drei Sekunden halten.
+895¦Egy cím beállítja az első kimenetet; a következő három cím automatikusan követi.¦Eine Adresse legt den ersten Ausgang fest; die nächsten drei Adressen folgen automatisch.
+896¦Cím vagy időzítési érték¦Adresse oder Zeitwert
+897¦Rövid PRG-nyomás · cím¦PRG kurz drücken · Adresse
+898¦K1–K4 cím beállítása¦K1–K4-Adresse setzen
+899¦K5–K8 cím beállítása¦K5–K8-Adresse setzen
+900¦PRG nyomva 3+ mp · időzítés¦PRG 3+ Sek. halten · Zeitsteuerung
+901¦K1–K4 időzítés beállítása¦K1–K4-Zeitsteuerung setzen
+902¦K5–K8 időzítés beállítása¦K5–K8-Zeitsteuerung setzen
+904¦Minden jelzőcsoport egyetlen kiegészítőparancsból tanulja meg a kezdőcímét.¦Jede Signalgruppe lernt ihre Startadresse aus einem einzigen Zubehörbefehl.
+905¦Kezdőcím¦Startadresse
+906¦A–B cím beállítása¦A–B-Adresse setzen
+907¦C–D cím beállítása¦C–D-Adresse setzen
+908¦Terepasztal középre igazítása¦Anlagenansicht zentrieren
+909¦Terepasztal nézethez igazítása¦Anlagenansicht einpassen
+910¦Vészleállítás feloldása¦Notstopp aufheben
+918¦Ez nem érvényes DCCExpressHub biztonsági mentés.¦Dies ist keine gültige DCCExpressHub-Sicherungsdatei.
+919¦Ez nem DCCExpressHub biztonsági mentés.¦Dies ist keine DCCExpressHub-Sicherungsdatei.
+920¦A fájl nem tartalmaz ezzel a verzióval feldolgozható terepasztal-, mozdony-, kép-, jelzőlogikai, HAL-eszköz- vagy automatizálási adatokat.¦Die Datei enthält keine von dieser Version unterstützten Anlagen-, Lokomotiv-, Bild-, Signallogik-, HAL-Geräte- oder Automatisierungsdaten.
+948¦DCC-kiegészítő · <a address 0|1>¦DCC-Zubehör · <a address 0|1>

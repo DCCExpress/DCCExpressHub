@@ -1,0 +1,64 @@
+#pragma once
+
+#include <Arduino.h>
+
+#ifndef HUB_USE_DISPLAY
+#define HUB_USE_DISPLAY 0
+#endif
+
+#ifndef HUB_DISPLAY_SUNTON_8048S043
+#define HUB_DISPLAY_SUNTON_8048S043 0
+#endif
+
+#if HUB_USE_DISPLAY
+  #if HUB_DISPLAY_SUNTON_8048S043
+    #include "Sunton8048S043Display.h"
+    using HubDisplayDevice = Sunton8048S043Display;
+  #else
+    #error "HUB_USE_DISPLAY=1 requires HUB_DISPLAY_SUNTON_8048S043=1"
+  #endif
+#endif
+
+class HubDisplay {
+public:
+  void begin();
+  void showBoot();
+  void showWifiConnecting(const String& ssid);
+  void showWifiConnected(const String& ip, uint16_t httpPort);
+  void showWifiFailed();
+  void showCommandCenter(const String& host, uint16_t port, bool connected);
+  void showFeedbackLink(const String& name, bool connected);
+  void showEmergencyStopActive(bool active);
+  void showPowerActive(bool active);
+  void loop();
+  bool takeEmergencyStopRequest();
+  bool takePowerToggleRequest();
+  bool takeInfoRequest();
+
+private:
+#if HUB_USE_DISPLAY
+  HubDisplayDevice _display;
+  String _ip;
+  uint16_t _httpPort = 80;
+  String _ccHost;
+  uint16_t _ccPort = 0;
+  bool _ccConnected = false;
+  String _feedbackLinkName;
+  bool _feedbackLinkConnected = false;
+  bool _initialized = false;
+  bool _dirty = false;
+  bool _infoPage = false;
+  bool _emergencyStopRequest = false;
+  bool _powerToggleRequest = false;
+  bool _infoRequest = false;
+  bool _emergencyStopActive = false;
+  bool _powerActive = false;
+
+  void redraw();
+  void redrawInfoPage();
+  void redrawEmergencyButton();
+  void redrawPowerButton();
+  void redrawInfoButton();
+  void redrawControlButtons();
+#endif
+};

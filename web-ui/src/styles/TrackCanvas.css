@@ -1,0 +1,27 @@
+.track-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: default;
+  touch-action: none;
+  outline: none;
+}
+
+.track-canvas:focus,
+.track-canvas:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.signal-aspect-button {
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+  line-height: 0;
+}
+
+.signal-aspect-button * {
+  cursor: pointer !important;
+}

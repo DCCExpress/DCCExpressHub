@@ -1,0 +1,306 @@
+#pragma once
+
+#include <Arduino.h>
+#include <deque>
+#include <utility>
+#include <WiFiClient.h>
+
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+
+#include "ICommandCenter.h"
+
+class DccExBridge
+    : public ICommandCenter {
+public:
+  void begin(
+      const String& host,
+      uint16_t port) override;
+
+  void loop() override;
+
+  bool connected() override;
+  bool ensureConnected() override;
+
+  void setEndpoint(
+      const String& host,
+      uint16_t port) override;
+
+  const String& host() const override {
+    return _host;
+  }
+
+  uint16_t port() const override {
+    return _port;
+  }
+
+  const char* type() const override {
+    return "dcc-ex-tcp";
+  }
+
+  const char* name() const override {
+    return "DCC-EX CommandStation";
+  }
+
+  void setCommandIntervalMs(
+      uint16_t intervalMs) override;
+
+  uint16_t commandIntervalMs() const override {
+    return _commandIntervalMs;
+  }
+
+  void onRawInfo(
+      RawInfoCallback callback) override {
+    _rawInfoCallback =
+        std::move(callback);
+  }
+
+  void onStationInfo(
+      StationInfoCallback callback) override {
+    _stationInfoCallback =
+        std::move(callback);
+  }
+
+  void onTrackConfiguration(
+      TrackConfigurationCallback callback) override {
+    _trackConfigurationCallback =
+        std::move(callback);
+  }
+
+  void onCurrentTelemetry(
+      CurrentTelemetryCallback callback) override {
+    _currentTelemetryCallback =
+        std::move(callback);
+  }
+
+  void onTripTelemetry(
+      TripTelemetryCallback callback) override {
+    _tripTelemetryCallback =
+        std::move(callback);
+  }
+
+  void onPowerFeedback(
+      PowerFeedbackCallback callback) override {
+    _powerFeedbackCallback =
+        std::move(callback);
+  }
+
+  void onLocoFeedback(
+      LocoFeedbackCallback callback) override {
+    _locoFeedbackCallback =
+        std::move(callback);
+  }
+
+  void onSensorFeedback(
+      SensorFeedbackCallback callback) override {
+    _sensorFeedbackCallback =
+        std::move(callback);
+  }
+
+  bool setTrackPower(
+      bool on,
+      bool includeProgramming = true) override;
+
+  bool setProgrammingPower(
+      bool on) override;
+
+  bool emergencyStop() override;
+
+  bool setLoco(
+      uint16_t address,
+      uint8_t speed,
+      bool forward) override;
+
+  bool requestLocoState(
+      uint16_t address,
+      bool logCommand = false) override;
+
+  bool setLocoFunction(
+      uint16_t address,
+      uint8_t functionNumber,
+      bool active) override;
+
+  bool setTurnout(
+      uint16_t address,
+      bool closed) override;
+
+  bool setAccessory(
+      uint16_t address,
+      bool active) override;
+
+  bool setSignalAspect(
+      uint16_t address,
+      int16_t aspect) override;
+
+  bool setVPin(
+      uint16_t vpin,
+      bool active) override;
+
+  bool requestTrackConfiguration(
+      bool logCommand = false) override;
+
+  bool requestCurrentTelemetry(
+      bool logCommand = false) override;
+
+  bool requestTripTelemetry(
+      bool logCommand = false) override;
+
+  bool requestSensorSnapshot(
+      bool logCommand = false) override;
+
+  bool supportsRawCommand() const override {
+    return true;
+  }
+
+  bool sendRawCommand(
+      String command,
+      bool logCommand = true) override;
+
+  bool sendCommand(
+      String command,
+      bool logCommand = true) override;
+
+protected:
+  bool sendPriorityCommand(
+      String command,
+      bool logCommand = true);
+
+  bool sendBackgroundCommand(
+      String command,
+      bool logCommand = false);
+
+  void discardPendingLocoCommands();
+
+private:
+  struct PendingTxCommand {
+    PendingTxCommand()
+        : command(),
+          logCommand(
+              true) {
+    }
+
+    PendingTxCommand(
+        String commandValue,
+        bool logCommandValue)
+        : command(
+              std::move(
+                  commandValue)),
+          logCommand(
+              logCommandValue) {
+    }
+
+    String command;
+    bool logCommand;
+  };
+
+  WiFiClient _client;
+
+  SemaphoreHandle_t _txQueueMutex =
+      nullptr;
+
+  std::deque<PendingTxCommand>
+      _priorityTxQueue;
+
+  std::deque<PendingTxCommand>
+      _txQueue;
+
+  std::deque<PendingTxCommand>
+      _backgroundTxQueue;
+
+  uint16_t _commandIntervalMs =
+      25;
+
+  unsigned long _nextCommandTxAt =
+      0;
+
+  String _host;
+  uint16_t _port = 2560;
+
+  bool _insideFrame = false;
+  String _frame;
+
+  RawInfoCallback
+      _rawInfoCallback;
+
+  StationInfoCallback
+      _stationInfoCallback;
+
+  TrackConfigurationCallback
+      _trackConfigurationCallback;
+
+  CurrentTelemetryCallback
+      _currentTelemetryCallback;
+
+  TripTelemetryCallback
+      _tripTelemetryCallback;
+
+  PowerFeedbackCallback
+      _powerFeedbackCallback;
+
+  LocoFeedbackCallback
+      _locoFeedbackCallback;
+
+  SensorFeedbackCallback
+      _sensorFeedbackCallback;
+
+  CommandCenterStationInfo
+      _stationInfo;
+
+  bool _heartbeatAlive = false;
+
+  unsigned long _connectedAt = 0;
+  unsigned long _lastHeartbeatReplyAt = 0;
+  unsigned long _nextHeartbeatAt = 0;
+  unsigned long _nextReconnectAt = 0;
+
+  static constexpr unsigned long
+      RECONNECT_MS = 3000;
+
+  static constexpr unsigned long
+      HEARTBEAT_INTERVAL_MS = 1000;
+
+  static constexpr unsigned long
+      HEARTBEAT_TIMEOUT_MS = 3000;
+
+  static constexpr unsigned long
+      HEARTBEAT_RECONNECT_MS = 6000;
+
+  static constexpr size_t
+      MAX_TX_QUEUE_DEPTH = 128;
+
+  static constexpr uint16_t
+      MAX_COMMAND_INTERVAL_MS = 1000;
+
+  void processByte(char c);
+  void processFrame(
+      const String& frame);
+
+  void emitStationInfo();
+
+  void sendHeartbeat();
+  void resetHeartbeatState();
+
+  bool enqueueCommand(
+      String command,
+      bool logCommand,
+      bool priority,
+      bool background);
+
+  bool writeDirect(
+      const String& command,
+      bool logCommand);
+
+  void processTxQueue();
+  void clearTxQueue();
+
+  static void normalizeCommand(
+      String& command);
+
+  static size_t parseIntegerList(
+      const String& text,
+      int32_t* values,
+      size_t maxValues);
+
+  static String cleanVersion(
+      String value);
+};

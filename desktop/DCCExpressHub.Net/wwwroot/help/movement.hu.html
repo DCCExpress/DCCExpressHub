@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Movement súgó</title>
+<style>
+:root{color-scheme:light dark;font-family:Inter,Segoe UI,Arial,sans-serif}
+body{margin:0;padding:18px;line-height:1.55;background:transparent;color:CanvasText}
+h1{margin:0 0 8px;font-size:1.35rem}h2{margin:0 0 8px;font-size:1rem}
+p{margin:0 0 8px}.intro{opacity:.75;margin-bottom:16px}
+section{border:1px solid color-mix(in srgb,CanvasText 16%,transparent);border-radius:8px;padding:12px 14px;margin:0 0 12px;background:color-mix(in srgb,Canvas 94%,CanvasText 6%)}
+code{font-family:Consolas,monospace;background:color-mix(in srgb,CanvasText 9%,transparent);padding:1px 5px;border-radius:4px}
+.note{opacity:.78;font-size:.92rem}
+</style>
+</head>
+<body>
+<h1>Movement súgó</h1>
+<p class="intro">A Movement azt írja le, hogyan halad végig egy mozdony egy kiválasztott fizikai útvonalon. A futás blokk-, szegmens-, váltó-, szenzor-, esemény- és akcióinformációkból épül fel.</p>
+<section><h2>1. Útvonal kiválasztása</h2><p>A Movement mindig egy konkrét, generált fizikai útvonalat használ. Az útvonal rögzíti a kiinduló blokkot, a köztes blokkokat, a célblokkot, a pályaszakaszokat, a váltóátmeneteket és a haladási irányt. Többértelmű útvonal esetén nem találgatunk.</p></section>
+<section><h2>2. Útvonalvektor</h2><p>Az útvonalvektor futási sorrendben mutatja a fizikai erőforrásokat. Blokk, szegmens és váltóátmenet külön elemként jelenhet meg. A blokkoknál látszik a blokktípus és a foglaltsági szenzor, a szegmenseknél a kapcsolódó szenzorok. Egy elemre kattintva annak részletes beállításai nyílnak meg.</p></section>
+<section><h2>3. Blokkok és blokktípusok</h2><p>Az átmenő blokk alapból folyamatos továbbhaladásra szolgál. A megálló/állomás blokk természetes megállási pont. Új Movementnél egy állomási blokkhoz alapból 10 másodperc fix és további véletlen 0–5 másodperc várakozás kerül az <strong>INDULÁS ELŐTT</strong> eseményre.</p></section>
+<section><h2>4. Feltételek és események</h2><p>Egy blokkhoz külön MEGKÖZELÍTÉS, MEGÉRKEZÉS, INDULÁS és ELHAGYÁS feltétel adható meg. A feltételek szenzorállapotokból állnak. Ha nincs egyedi feltétel, a Movement a beépített alapértelmezést használja, például a blokk saját foglaltságérzékelőjét a megérkezéshez.</p><p class="note">Egyedi feltétel akkor hasznos, ha egy blokkon vagy szakaszon több szenzor van, külön megközelítési pontot használsz, vagy pontosabb fizikai eseményt akarsz.</p></section>
+<section><h2>5. Akcióesemények</h2><p><strong>MEGKÖZELÍTÉS:</strong> még a megérkezés előtt fut.</p><p><strong>MEGÉRKEZÉS:</strong> az érkezés feldolgozásának része. Blokkoló várakozás itt magát a megérkezést késlelteti.</p><p><strong>INDULÁS ELŐTT:</strong> a vonat már megérkezett és áll; ide való az állomási várakozás.</p><p><strong>INDULÁS:</strong> az elindulás kezdetén fut.</p><p><strong>BELÉPÉS / ELHAGYÁS:</strong> fizikai szegmenshez vagy váltóátmenethez köthető.</p><p><strong>ELHAGYÁS UTÁN:</strong> a blokk teljes felszabadítása után fut.</p></section>
+<section><h2>6. Akciók</h2><p>Akció lehet sebességbeállítás, mozdonyfunkció, kürtimpulzus, fix várakozás, véletlen várakozás, hang lejátszása vagy naplóüzenet. Egy szekvencián belül az akciók sorrendje számít.</p></section>
+<section><h2>7. Blokkoló és háttérszekvencia</h2><p>A <strong>blokkoló</strong> szekvenciát a Movement megvárja. Ezzel lehet például állomási várakozást vagy kötelező lépést megvalósítani. A <strong>háttér</strong> szekvencia párhuzamosan fut tovább, ezért hanghoz vagy olyan effektushoz való, amely nem tarthatja fel a vonatot.</p></section>
+<section><h2>8. Biztonsági szenzorok</h2><p>Egy Movement-szakasz indulása előtt ellenőrizhetők a fizikailag érintett biztonsági szenzorok. Az ellenőrzött szenzor állapotának ismertnek és KI-nak kell lennie. Szenzort csak akkor hagyj figyelmen kívül, ha azt a jelenlegi vonat a pálya geometriája miatt jogosan foglalva tarthatja.</p></section>
+<section><h2>9. Gördülő foglalás</h2><p>Példa: <code>A1 → B1 → C1</code>. A1→B1 indulásakor csak az A1 és B1 közötti szükséges szakaszt kell ellenőrizni és foglalni. A B1→C1 szakaszt még nem. Így a Movement nem zárja el indokolatlanul a pályát más vonatok elől.</p></section>
+<section><h2>10. Példa: állomási megállás</h2><p>A vonat eléri az állomási blokkot, bekövetkezik a MEGÉRKEZÉS, lefutnak az érkezési akciók, majd a vonat álló helyzetben eljut az INDULÁS ELŐTT eseményhez. Itt lefut a 10 másodperc fix + 0–5 másodperc véletlen blokkoló várakozás. Csak ezután következik az INDULÁS és a következő szakasz.</p></section>
+</body>
+</html>

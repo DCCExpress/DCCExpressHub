@@ -1,0 +1,48 @@
+// DCC-EX sensor definitions for 32 S88 inputs.
+//
+// IMPORTANT:
+// The HAL driver provides VPINs. <Q>/<q> messages are produced by DCC-EX
+// Sensor objects, so each S88 input that should be broadcast must have a
+// Sensor definition.
+//
+// Put equivalent definitions in config/automation as appropriate for your
+// DCC-EX setup, or issue/store these sensor definitions once:
+//
+// <S ID PIN PULLUP>
+// We use ID == VPIN and PULLUP=0.
+
+<S 1001 1001 0>
+<S 1002 1002 0>
+<S 1003 1003 0>
+<S 1004 1004 0>
+<S 1005 1005 0>
+<S 1006 1006 0>
+<S 1007 1007 0>
+<S 1008 1008 0>
+<S 1009 1009 0>
+<S 1010 1010 0>
+<S 1011 1011 0>
+<S 1012 1012 0>
+<S 1013 1013 0>
+<S 1014 1014 0>
+<S 1015 1015 0>
+<S 1016 1016 0>
+<S 1017 1017 0>
+<S 1018 1018 0>
+<S 1019 1019 0>
+<S 1020 1020 0>
+<S 1021 1021 0>
+<S 1022 1022 0>
+<S 1023 1023 0>
+<S 1024 1024 0>
+<S 1025 1025 0>
+<S 1026 1026 0>
+<S 1027 1027 0>
+<S 1028 1028 0>
+<S 1029 1029 0>
+<S 1030 1030 0>
+<S 1031 1031 0>
+<S 1032 1032 0>
+
+// After defining through commands, <E> stores the sensor definitions.
+// DCC-EX will then emit normal <Q ID> / <q ID> transitions.

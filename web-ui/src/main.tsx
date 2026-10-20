@@ -1,0 +1,92 @@
+import React from "react";
+import ReactDOM from "react-dom/client";
+import {
+  ColorSchemeScript,
+  MantineProvider,
+} from "@mantine/core";
+import {
+  Notifications,
+} from "@mantine/notifications";
+
+import "@mantine/core/styles.css";
+import "@mantine/notifications/styles.css";
+import "@/i18n";
+
+import {
+  CommandCenterProvider,
+} from "@/context/CommandCenterContext";
+import {
+  EditorSettingsProvider,
+} from "@/context/EditorSettingsContext";
+import {
+  GamepadProvider,
+} from "@/context/GamepadContext";
+import {
+  installDemoRuntime,
+} from "@/demo/demoBackend";
+import {
+  resetDemoStorageOnStartup,
+} from "@/demo/demoReset";
+import {
+  installSignalLogicStatusIndicator,
+} from "@/services/signalLogicStatusIndicator";
+import {
+  installCommandCenterStatusIndicator,
+} from "@/services/commandCenterStatusIndicator";
+import {
+  installFileViewerEnhancer,
+} from "@/services/fileViewerEnhancer";
+import {
+  installBlockTargetLocoRuntime,
+} from "@/services/blockTargetLocoRuntime";
+import {
+  installApiFetchTimeout,
+} from "@/services/apiFetchTimeout";
+
+import SandboxEntry from "./SandboxEntry";
+import MovementStartErrorDialog from "./components/movement/MovementStartErrorDialog";
+import FirstRunWelcome from "@/components/FirstRunWelcome";
+import "./styles.css";
+import "./mobile-drive-split.css";
+
+resetDemoStorageOnStartup();
+installDemoRuntime();
+
+// Install after the demo runtime so both the real backend and the local
+// development/demo backend get the same fast JSON/API timeout behaviour.
+installApiFetchTimeout();
+
+installFileViewerEnhancer();
+installSignalLogicStatusIndicator();
+installCommandCenterStatusIndicator();
+installBlockTargetLocoRuntime();
+
+ReactDOM.createRoot(
+  document.getElementById("root")!
+).render(
+  <React.StrictMode>
+    <ColorSchemeScript
+      defaultColorScheme="dark"
+    />
+
+    <MantineProvider
+      defaultColorScheme="dark"
+    >
+      <Notifications
+        position="bottom-center"
+        autoClose={2500}
+      />
+
+      <MovementStartErrorDialog />
+
+      <CommandCenterProvider>
+        <EditorSettingsProvider>
+          <GamepadProvider>
+            <SandboxEntry />
+            <FirstRunWelcome />
+          </GamepadProvider>
+        </EditorSettingsProvider>
+      </CommandCenterProvider>
+    </MantineProvider>
+  </React.StrictMode>
+);

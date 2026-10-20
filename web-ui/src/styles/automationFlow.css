@@ -1,0 +1,342 @@
+.automation-flow-dialog-body {
+  height: calc(100dvh - 68px);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.automation-flow-dialog-stack {
+  flex: 1;
+  min-height: 0;
+}
+
+.automation-flow-workspace {
+  flex: 1 1 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns:
+    var(--automation-flow-left-width, 220px)
+    10px
+    minmax(0, 1fr)
+    10px
+    var(--automation-flow-right-width, 340px);
+  gap: 0;
+}
+
+.automation-flow-sidebar,
+.automation-flow-properties {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.automation-flow-splitter {
+  position: relative;
+  min-width: 10px;
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
+  z-index: 5;
+}
+
+.automation-flow-splitter::before {
+  content: "";
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 50%;
+  width: 2px;
+  border-radius: 999px;
+  transform: translateX(-50%);
+  background: var(--mantine-color-default-border);
+  opacity: 0.65;
+  transition:
+    width 120ms ease,
+    opacity 120ms ease,
+    background 120ms ease;
+}
+
+.automation-flow-splitter:hover::before,
+body.automation-flow-panel-resizing .automation-flow-splitter::before {
+  width: 4px;
+  opacity: 1;
+  background: var(--mantine-color-violet-6);
+}
+
+body.automation-flow-panel-resizing,
+body.automation-flow-panel-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+
+.automation-flow-canvas {
+  height: 100%;
+  min-height: 0;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-md);
+  overflow: hidden;
+  background:
+    radial-gradient(
+      circle at 20% 10%,
+      rgba(121, 80, 242, 0.08),
+      transparent 28%
+    ),
+    var(--mantine-color-body);
+}
+
+.automation-flow-canvas > .react-flow {
+  width: 100%;
+  height: 100%;
+}
+
+.automation-flow-canvas .react-flow__edge {
+  cursor: pointer;
+}
+
+.automation-flow-canvas .react-flow__edge-path {
+  stroke: rgba(173, 181, 189, 0.72);
+  stroke-width: 1.8;
+  transition:
+    stroke 120ms ease,
+    stroke-width 120ms ease,
+    opacity 120ms ease;
+}
+
+.automation-flow-canvas .react-flow__edge:hover .react-flow__edge-path {
+  stroke: var(--mantine-color-blue-4);
+  stroke-width: 2.5;
+}
+
+.automation-flow-canvas .react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--mantine-color-violet-5);
+  stroke-width: 3;
+}
+
+.automation-flow-canvas .react-flow__edge.selected .react-flow__edge-interaction {
+  stroke-width: 28;
+}
+
+.automation-flow-canvas .react-flow__connection-path {
+  stroke: var(--mantine-color-violet-4);
+  stroke-width: 2;
+  opacity: 0.9;
+}
+
+.automation-flow-node {
+  width: 188px;
+  min-height: 0;
+  overflow: visible;
+  background: var(--mantine-color-body);
+}
+
+.automation-flow-node-header {
+  height: 38px;
+  padding: 0 8px;
+  border-radius:
+    calc(var(--mantine-radius-md) - 1px)
+    calc(var(--mantine-radius-md) - 1px)
+    0
+    0;
+  background: rgba(0, 0, 0, 0.16);
+  border-bottom: 1px solid rgba(127, 127, 127, 0.16);
+  cursor: grab;
+  user-select: none;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease;
+}
+
+.automation-flow-node-header:hover {
+  background: rgba(0, 0, 0, 0.23);
+  border-bottom-color: rgba(127, 127, 127, 0.26);
+}
+
+.automation-flow-node-header:focus-visible {
+  outline: 2px solid var(--mantine-color-violet-5);
+  outline-offset: -2px;
+}
+
+.automation-flow-node-body {
+  padding: 8px 10px 10px;
+}
+
+.automation-flow-node-collapse-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  opacity: 0.55;
+}
+
+.automation-flow-node-collapsed .automation-flow-node-header {
+  border-bottom: 0;
+  border-radius:
+    calc(var(--mantine-radius-md) - 1px);
+}
+
+.automation-flow-node-smart {
+  width: 260px;
+  border-width: 2px;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(121, 80, 242, 0.12),
+      rgba(34, 139, 230, 0.06)
+    ),
+    var(--mantine-color-body);
+}
+
+.automation-flow-handle {
+  width: 10px;
+  height: 10px;
+  background: var(--mantine-color-violet-6);
+  border: 2px solid var(--mantine-color-body);
+}
+
+.automation-flow-palette-group-header {
+  min-height: 36px;
+  padding: 0 9px;
+  border-radius:
+    calc(var(--mantine-radius-md) - 1px)
+    calc(var(--mantine-radius-md) - 1px)
+    0
+    0;
+  background: rgba(0, 0, 0, 0.14);
+  border-bottom: 1px solid rgba(127, 127, 127, 0.14);
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease;
+}
+
+.automation-flow-palette-group-header:hover {
+  background: rgba(0, 0, 0, 0.21);
+  border-bottom-color: rgba(127, 127, 127, 0.24);
+}
+
+.automation-flow-palette-group-header[aria-expanded="false"] {
+  border-bottom: 0;
+  border-radius:
+    calc(var(--mantine-radius-md) - 1px);
+}
+
+.automation-flow-palette-group-header:focus-visible {
+  outline: 2px solid var(--mantine-color-violet-5);
+  outline-offset: -2px;
+}
+
+.automation-flow-palette-group-body {
+  padding: 0 8px 8px;
+}
+
+.automation-flow-palette-button {
+  justify-content: flex-start;
+}
+
+.automation-flow-page-tabs {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.automation-flow-generated-code {
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+  font-size: 12px;
+}
+
+@media (max-width: 1050px) {
+  .automation-flow-workspace {
+    grid-template-columns:
+      var(--automation-flow-left-width, 190px)
+      10px
+      minmax(0, 1fr);
+  }
+
+  .automation-flow-properties,
+  .automation-flow-splitter-right {
+    display: none;
+  }
+}
+
+
+/* Keep React Flow chrome visually consistent with the Hub instead of the
+ * library's bright defaults. */
+.automation-flow-canvas .react-flow__controls {
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.automation-flow-canvas .react-flow__controls-button {
+  background: rgba(24, 24, 28, 0.94);
+  color: rgba(255, 255, 255, 0.82);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.automation-flow-canvas .react-flow__controls-button:hover {
+  background: rgba(45, 45, 52, 0.98);
+}
+
+.automation-flow-canvas .react-flow__controls-button svg {
+  fill: currentColor;
+}
+
+.automation-flow-canvas .react-flow__minimap {
+  background: rgba(18, 18, 22, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.automation-flow-canvas .react-flow__minimap-node {
+  fill: rgba(121, 80, 242, 0.72);
+  stroke: rgba(255, 255, 255, 0.12);
+}
+
+.automation-flow-canvas .react-flow__panel {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+
+.automation-flow-inspector-tabs {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.automation-flow-inspector-tabs > .mantine-Tabs-list {
+  flex: 0 0 auto;
+}
+
+.automation-flow-inspector-panel {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.automation-flow-log-line {
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.automation-flow-log-info {
+  border-left: 2px solid var(--mantine-color-blue-5);
+}
+
+.automation-flow-log-log {
+  border-left: 2px solid var(--mantine-color-gray-5);
+}
+
+.automation-flow-log-error {
+  border-left: 2px solid var(--mantine-color-red-6);
+  background: rgba(250, 82, 82, 0.07);
+}

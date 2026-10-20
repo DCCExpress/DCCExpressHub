@@ -1,0 +1,100 @@
+import {
+  Button,
+  Card,
+  Divider,
+  Group,
+  ScrollArea,
+  Stack,
+  Checkbox,
+  Text,
+} from "@mantine/core";
+
+import {
+  IconPlus,
+  IconTrash,
+} from "@tabler/icons-react";
+
+import type { Loco } from "@domain/types";
+import LocoImage from "../loco/LocoImage";
+
+type LocoListPanelProps = {
+  locos: Loco[];
+  selectedId: string;
+  onSelect: (id: string) => void;
+  onActiveChange: (id: string, active: boolean) => void;
+  onAdd: () => void;
+  onDeleteSelected: () => void;
+  hasSelectedLoco: boolean;
+  t: (key: string) => string;
+};
+
+export default function LocoListPanel({
+  locos,
+  selectedId,
+  onSelect,
+  onActiveChange,
+  onAdd,
+  onDeleteSelected,
+  hasSelectedLoco,
+  t,
+}: LocoListPanelProps) {
+  return (
+    <Card className="loco-dialog-list-panel" withBorder p="sm" style={{ width: 320, display: "flex", flexDirection: "column" }}>
+      <Group justify="space-between" mb="sm">
+        <Text fw={600}>{t("locodialog.mozdonylista")}</Text>
+        <Button size="xs" leftSection={<IconPlus size={14} />} onClick={onAdd}>
+          {t("locodialog.newloco")}
+        </Button>
+      </Group>
+
+      <ScrollArea type="auto" style={{ flex: 1, minHeight: 0 }}>
+        <Stack gap="xs">
+          {locos.map(loco => (
+            <Card
+              key={loco.id}
+              withBorder
+              p="sm"
+              onClick={() => onSelect(loco.id)}
+              style={{
+                cursor: "pointer",
+                borderColor: loco.id === selectedId ? "var(--mantine-color-blue-5)" : undefined,
+                backgroundColor: loco.id === selectedId ? "var(--mantine-color-default-hover)" : undefined,
+              }}
+            >
+              <Group wrap="nowrap">
+                <LocoImage
+                  locoId={loco.id}
+                  image={loco.image}
+                  name={loco.name}
+                  width={110}
+                  height={42}
+                />
+
+                <Stack gap={0} style={{ minWidth: 0 }}>
+                  <Text fw={600} truncate>{loco.name || t("locodialog.unknownloco")}</Text>
+                  <Text size="sm" c={loco.active === false ? "orange" : "dimmed"}>{t("locodialog.locoaddress")}: {loco.address}{loco.active === false ? " · Inactive" : ""}</Text>
+                  <Text size="sm" c="dimmed">{t("locodialog.loco_speed_max")}: {loco.maxSpeed}</Text>
+                  <Checkbox size="xs" mt={4} label="Active on layout" checked={loco.active !== false}
+                    onClick={event => event.stopPropagation()}
+                    onChange={event => onActiveChange(loco.id, event.currentTarget.checked)} />
+                </Stack>
+              </Group>
+            </Card>
+          ))}
+        </Stack>
+      </ScrollArea>
+
+      <Divider my="sm" />
+
+      <Button
+        variant="light"
+        color="red"
+        leftSection={<IconTrash size={14} />}
+        onClick={onDeleteSelected}
+        disabled={!hasSelectedLoco}
+      >
+        {t("locodialog.delete")}
+      </Button>
+    </Card>
+  );
+}
