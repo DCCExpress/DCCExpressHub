@@ -81,7 +81,7 @@ export default function RailComDebugTab({ opened, connected }: Props) {
             {events.length === 0 ? (
               <Table.Tr><Table.Td colSpan={5}>
                 <Text c="dimmed" ta="center" py="lg">
-                  No RailCom events received. Protocol decoding is not yet implemented.
+                  No RailCom events received. Check cutout, decoder RailCom and LocoNet feedback.
                 </Text>
               </Table.Td></Table.Tr>
             ) : events.map((event, index) => (
