@@ -13,6 +13,7 @@ import {
   IconActivity,
   IconRefresh,
   IconRoute,
+  IconBroadcast,
   IconSwitch3,
   IconToggleLeft,
   IconTrafficLights,
@@ -24,6 +25,7 @@ import BasicAccessoryDebugTab from "./BasicAccessoryDebugTab";
 import SystemDiagnosticsTab from "./SystemDiagnosticsTab";
 import ExtendedAccessoryDebugTab from "./ExtendedAccessoryDebugTab";
 import SensorDebugTab from "./SensorDebugTab";
+import RailComDebugTab from "./RailComDebugTab";
 import TurnoutDebugTab from "./TurnoutDebugTab";
 import { useRuntimeDebugState } from "./useRuntimeDebugState";
 
@@ -98,6 +100,10 @@ export default function DebugDialog({ opened, onClose }: Props) {
             Sensors ({runtime.sensors.size})
           </Tabs.Tab>
 
+          <Tabs.Tab value="railcom" leftSection={<IconBroadcast size={16} />}>
+            RailCom
+          </Tabs.Tab>
+
           <Tabs.Tab value="turnouts" leftSection={<IconSwitch3 size={16} />}>
             Turnouts ({runtime.turnouts.size})
           </Tabs.Tab>
@@ -120,6 +126,10 @@ export default function DebugDialog({ opened, onClose }: Props) {
             sensors={runtime.sensors}
             layoutOwners={runtime.sensorLayoutOwners}
           />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="railcom" style={panelStyle}>
+          <RailComDebugTab opened={opened} connected={runtime.connected} />
         </Tabs.Panel>
 
         <Tabs.Panel value="turnouts" style={panelStyle}>
