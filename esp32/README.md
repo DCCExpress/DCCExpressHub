@@ -37,3 +37,23 @@ Callbacks enqueue compact messages using a FreeRTOS queue; Arduino loop owns the
 - Connect TX to RX, RX to TX, and GND with matched 3.3V logic; verify pins are free on your board. **USB to the DCC-EX Arduino needs an ESP32-S3 USB-host transport, not covered by this UART implementation.**
 - DCC-EX uses `<a LINEAR_ADDRESS ACTIVATE>` for a basic accessory command; this does not verify physical turnout state. Real mode does not fake feedback.
 - Periodic `<s>` probes establish serial responsiveness. The driver currently does not implement locomotive control or decoder programming.
+
+## DCC-EX TCP configuration (new)
+
+Default driver is Mock. The React/Mantine UI now offers **Command Center connection**:
+- Driver: Mock or DCC-EX TCP
+- TCP host/IP and port (default 2560; verify against your station)
+- Wi-Fi SSID/password for the ESP32 station connection
+
+Press **Save & reconnect** to persist settings using ESP32 Preferences/NVS and reconfigure the command-center driver. The ESP32 keeps its bench access point (`Hub-ESP32-Test`) active while attempting to join the configured Wi-Fi network (AP+STA). The DCC-EX host must be reachable on that Wi-Fi network. If you are using the device's AP only, a remote TCP command station on another network is not reachable without configuring STA connectivity.
+
+The WebSocket settings protocol is:
+- `{"type":"cc.config.get"}`
+- `{"type":"cc.config.set","driver":"dcc-ex-tcp","host":"192.168.1.100","port":2560,"wifiSsid":"YourNetwork","wifiPassword":"YourPassword"}`
+- `{"type":"cc.config","driver":"dcc-ex-tcp","host":"192.168.1.100","port":2560,"wifiSsid":"YourNetwork","wifiConnected":true,"ccConnected":true}`
+
+Blank password in a setting update preserves the previously stored password; no password is sent in config snapshots. Do not expose this unauthenticated bench-only WebSocket to untrusted clients. The previous UART driver source is retained for reference, but the running firmware now selects Mock/TCP and does not instantiate the UART driver.
+
+DCC-EX TCP uses `<s>` status probes and `<a address 0|1>` accessory commands. The connection status reports responsiveness, **not** verified physical turnout position. A real DCC-EX connection does not fabricate hardware feedback: accessory state remains Unknown unless actual feedback handling is added.
+
+This is an initial implementation without a verified ESP32-S3/PlatformIO hardware build. 
