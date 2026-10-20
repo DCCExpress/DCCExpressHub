@@ -13,7 +13,7 @@ public:
   const char* host() const {return host_;}
   uint16_t port() const{return port_;}
   bool begin() override {nextTry_=0;return true;}
-  bool connected() const override {return client_.connected() && responsive_;}
+  bool connected() override {return client_.connected() && responsive_;}
   void disconnect() {client_.stop();responsive_=false;receiving_=false;len_=0;nextTry_=millis()+1500;}
   void loop() override {
     if(WiFi.status()!=WL_CONNECTED || !port_ || !host_[0]) {
