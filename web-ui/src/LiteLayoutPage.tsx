@@ -574,6 +574,8 @@ function LitePropertyPanel({
   selectedElement,
   layout,
   setLayout,
+  onBeforeLayoutChange,
+  onLayoutEdited,
   turnoutSelectionMode,
   setTurnoutSelectionMode,
   setBusy,
@@ -583,6 +585,8 @@ function LitePropertyPanel({
   selectedElement: BaseElement | null;
   layout: LayoutView;
   setLayout: React.Dispatch<React.SetStateAction<LayoutView>>;
+  onBeforeLayoutChange: () => void;
+  onLayoutEdited: () => void;
   turnoutSelectionMode: boolean;
   setTurnoutSelectionMode: (on: boolean) => void;
   setBusy: (busy: boolean, text?: string) => void;
@@ -736,6 +740,8 @@ function LitePropertyPanel({
                       return;
                     }
 
+                    if (bulkOccupancyTracks.every(element => element.address === numeric)) return;
+                    onBeforeLayoutChange();
                     for (
                       const element of
                       bulkOccupancyTracks
@@ -743,7 +749,7 @@ function LitePropertyPanel({
                       element.address =
                         numeric;
                     }
-
+                    onLayoutEdited();
                     invalidate();
                   }
                 }
@@ -803,7 +809,10 @@ function LitePropertyPanel({
   }
 
   const onChange = (property: IEditableProperty, value: unknown) => {
+    if (property.readonly) return;
+    onBeforeLayoutChange();
     updateProperty(selectedElement, property, value);
+    onLayoutEdited();
     invalidate();
   };
 
@@ -1191,6 +1200,54 @@ export default function LiteLayoutPage({
 
   const invalidate = useCallback(() => setInvalidateCounter(value => value + 1), []);
 
+  // Editor-only undo/redo. History contains serialized layout states, never DCC commands.
+  const historyLayoutRef = useRef(layout);
+  historyLayoutRef.current = layout;
+  const undoHistoryRef = useRef<string[]>([]);
+  const redoHistoryRef = useRef<string[]>([]);
+  const pendingHistoryRef = useRef<string | null>(null);
+  const commitLayoutHistory = useCallback(() => {
+    const before = pendingHistoryRef.current;
+    pendingHistoryRef.current = null;
+    if (before === null) return;
+    const after = JSON.stringify(historyLayoutRef.current);
+    if (before === after) return; // e.g. click without dragging
+    const stack = undoHistoryRef.current;
+    if (stack[stack.length - 1] !== before) stack.push(before);
+    if (stack.length > 60) stack.shift();
+    redoHistoryRef.current = [];
+  }, []);
+  const beforeLayoutChange = useCallback(() => {
+    commitLayoutHistory();
+    pendingHistoryRef.current = JSON.stringify(historyLayoutRef.current);
+  }, [commitLayoutHistory]);
+  const onCanvasLayoutChange = useCallback<React.Dispatch<React.SetStateAction<LayoutView>>>(
+    update => {
+      commitLayoutHistory();
+      setLayout(update);
+    }, [commitLayoutHistory]
+  );
+  const restoreHistory = useCallback((direction: "undo" | "redo") => {
+    commitLayoutHistory();
+    const source = direction === "undo" ? undoHistoryRef.current : redoHistoryRef.current;
+    const destination = direction === "undo" ? redoHistoryRef.current : undoHistoryRef.current;
+    const current = JSON.stringify(historyLayoutRef.current);
+    let previous: string | undefined;
+    do { previous = source.pop(); } while (previous === current);
+    if (previous === undefined) return;
+    destination.push(current);
+    if (destination.length > 60) destination.shift();
+    const restored = LayoutView.fromJSON(JSON.parse(previous));
+    historyLayoutRef.current = restored;
+    setLayout(restored);
+    setSelectedElement(null);
+    setSelectionRevision(value => value + 1);
+    setTurnoutSelectionMode(false);
+    invalidate();
+  }, [commitLayoutHistory, invalidate]);
+  const undoLayout = useCallback(() => restoreHistory("undo"), [restoreHistory]);
+  const redoLayout = useCallback(() => restoreHistory("redo"), [restoreHistory]);
+
   const handleSelectedElementChange =
     useCallback(
       (
@@ -1487,6 +1544,11 @@ export default function LiteLayoutPage({
       );
 
       nextLayout.checkRoutes();
+      // A freshly loaded layout starts a new editing session.
+      pendingHistoryRef.current = null;
+      undoHistoryRef.current = [];
+      redoHistoryRef.current = [];
+      historyLayoutRef.current = nextLayout;
       setLayout(nextLayout);
       setAutomationScripts(
         storedAutomations.length > 0
@@ -1968,6 +2030,9 @@ export default function LiteLayoutPage({
     setTool,
     setEditMode,
     blockSelectionActive,
+    editMode,
+    undoLayout,
+    redoLayout,
   });
 
   const beginResize = (side: "left" | "right", event: React.PointerEvent<HTMLDivElement>) => {
@@ -2172,7 +2237,8 @@ export default function LiteLayoutPage({
             tool={tool}
             onToolChange={setTool}
             layout={layout}
-            onLayoutChange={setLayout}
+            onLayoutChange={onCanvasLayoutChange}
+            onBeforeLayoutChange={beforeLayoutChange}
             selectedElement={selectedElement}
             onSelectedElementChange={handleSelectedElementChange}
             invalidateCounter={invalidateCounter}
@@ -2220,7 +2286,9 @@ export default function LiteLayoutPage({
                   <LitePropertyPanel
                     selectedElement={selectedElement}
                     layout={layout}
-                    setLayout={setLayout}
+                    setLayout={onCanvasLayoutChange}
+                    onBeforeLayoutChange={beforeLayoutChange}
+                    onLayoutEdited={commitLayoutHistory}
                     turnoutSelectionMode={turnoutSelectionMode}
                     setTurnoutSelectionMode={setTurnoutSelectionMode}
                     setBusy={setBusy}
