@@ -6,9 +6,9 @@ import type { LayoutView } from "@/models/editor/core/LayoutView";
 import { BlockElement } from "@/models/editor/elements/BlockElement";
 
 type Station = { id: string; name: string };
-type Props = { block: BlockElement; layout: LayoutView; onChange: () => void };
+type Props = { block: BlockElement; layout: LayoutView; onChange: () => void; onBeforeLayoutChange?: () => void };
 
-export default function StationSelectPropertyEditor({ block, layout, onChange }: Props) {
+export default function StationSelectPropertyEditor({ block, layout, onChange, onBeforeLayoutChange }: Props) {
   const [opened, setOpened] = useState(false);
   const [draft, setDraft] = useState<Station[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -32,6 +32,7 @@ export default function StationSelectPropertyEditor({ block, layout, onChange }:
     if (cleaned.some(station => !station.name) ||
         new Set(cleaned.map(station => station.name.toLowerCase())).size !== cleaned.length) return;
     const ids = new Set(cleaned.map(station => station.id));
+    onBeforeLayoutChange?.();
     layout.stations = cleaned;
     block.stationId = selectedId && ids.has(selectedId) ? selectedId : null;
     for (const element of layout.blocks.elements) {
