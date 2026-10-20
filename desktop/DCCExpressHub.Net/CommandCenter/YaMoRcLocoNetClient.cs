@@ -1093,6 +1093,16 @@ public sealed class YaMoRcLocoNetClient
             ProcessInputReport(
                 packet);
         }
+
+        // RailCom identification is not an occupancy change.
+        // Keep a distinct event, carried to the WebSocket diagnostics bridge.
+        if (RailComFrameDecoder.TryDecode(packet, out var detection))
+        {
+            var hubSensor = detection.SensorAddress + _sensorOffset;
+            if (hubSensor is >= 1 and <= 65535)
+                RawInfo?.Invoke(
+                    $"RAILCOM_EVENT {hubSensor} {detection.LocomotiveAddress} {(detection.Present ? "Detected" : "Lost")}");
+        }
     }
 
     private void ProcessInputReport(
