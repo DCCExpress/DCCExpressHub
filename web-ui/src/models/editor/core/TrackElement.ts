@@ -22,6 +22,7 @@ export const TrackColors = {
   routeOccupied: "#ff3333",
   busy: "orange",
   transit: "#fd2020",
+  unknown: "#ff69b4",
 };
 
 // Central occupancy cache fed by the existing Hub sensorChanged /
@@ -115,6 +116,11 @@ export abstract class TrackElement extends BaseElement {
     );
   }
 
+  protected isSensorAddressUnknown(address: unknown): boolean {
+    const normalizedAddress = normalizeOccupancyAddress(address);
+    return normalizedAddress > 0 && !occupancyByAddress.has(normalizedAddress);
+  }
+
   isTrackOccupied(): boolean {
     return (
       this.isSensorAddressOccupied(this.address) ||
@@ -133,6 +139,7 @@ export abstract class TrackElement extends BaseElement {
      * occupied         -> red
      * transit          -> transit red
      * busy/reserved    -> orange
+     * unknown sensor   -> pink (unless occupied / transit / reserved)
      * route            -> yellow
      * selected         -> yellow
      * free             -> light gray
@@ -153,6 +160,10 @@ export abstract class TrackElement extends BaseElement {
 
     if (this.isBusy) {
       return TrackColors.busy;
+    }
+
+    if (this.hasOccupancySensor && this.isSensorAddressUnknown(this.address)) {
+      return TrackColors.unknown;
     }
 
     if (isRoute) {
