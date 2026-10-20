@@ -11,7 +11,7 @@ public:
   virtual const char* name() const = 0;
   virtual bool begin() = 0;
   virtual void loop() = 0;
-  virtual bool connected() const = 0;
+  virtual bool connected() = 0;
   virtual bool sendAccessory(uint16_t address, bool rawValue) = 0;
 
   // Callback is reserved for genuine observable feedback.
