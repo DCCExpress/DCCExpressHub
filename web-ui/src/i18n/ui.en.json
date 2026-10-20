@@ -688,6 +688,8 @@
   "editorShortcutRotate": "Rotate element",
   "editorShortcutSelect": "Select tool",
   "editorShortcutSave": "Save layout",
+  "editorShortcutUndo": "Undo last edit",
+  "editorShortcutRedo": "Redo last edit",
   "editorShortcutPan": "Pan canvas",
   "editorShortcutZoom": "Zoom in/out",
   "editorShortcutFit": "Fit to view",
