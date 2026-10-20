@@ -507,17 +507,36 @@ public sealed class YaMoRcLocoNetClient
                         NewLine = "\r\n"
                     };
 
+                // Keep interrogation on the live feedback connection.
+                // The initial burst is not guaranteed to return every module's
+                // complete state; retry without marking missing inputs FREE.
+                using var sessionCts =
+                    CancellationTokenSource.CreateLinkedTokenSource(ct);
                 var readTask =
                     ReadLbServerAsync(
                         reader,
-                        ct);
+                        sessionCts.Token);
 
-                _ =
-                    await SendInterrogateAsync(
-                        writer,
-                        ct);
+                var retryTask = Task.Run(async () =>
+                {
+                    foreach (var delay in new[] { 0, 20_000, 40_000 })
+                    {
+                        if (delay > 0)
+                            await Task.Delay(delay, sessionCts.Token);
+                        await SendInterrogateAsync(writer, sessionCts.Token);
+                    }
+                }, sessionCts.Token);
 
-                await readTask;
+                try
+                {
+                    await readTask;
+                }
+                finally
+                {
+                    await sessionCts.CancelAsync();
+                    try { await retryTask; }
+                    catch (OperationCanceledException) when (sessionCts.IsCancellationRequested) { }
+                }
             }
             catch (OperationCanceledException)
                 when (ct.IsCancellationRequested)
