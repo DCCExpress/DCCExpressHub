@@ -20,7 +20,7 @@ public:
     return true;
   }
 
-  bool connected() const override {
+  bool connected() override {
     return started_ && seenStatus_ && (uint32_t)(millis()-lastStatusReply_)<10000;
   }
 
