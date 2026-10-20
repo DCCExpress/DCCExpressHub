@@ -688,6 +688,8 @@
   "editorShortcutRotate": "Elem forgatása",
   "editorShortcutSelect": "Kijelölő eszköz",
   "editorShortcutSave": "Terepasztal mentése",
+  "editorShortcutUndo": "Utolsó módosítás visszavonása",
+  "editorShortcutRedo": "Visszavont módosítás újraalkalmazása",
   "editorShortcutPan": "Vászon mozgatása",
   "editorShortcutZoom": "Nagyítás / kicsinyítés",
   "editorShortcutFit": "Pálya igazítása",
