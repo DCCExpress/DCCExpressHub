@@ -79,8 +79,7 @@ private:
   void parseFrame(const char* frame) {
     // <s> gives <i ...> info, <p...> power, and possibly <l...>/<H...>.
     // A power/info frame counts as proof the station responded.
-    if ((frame[0]=='i' || frame[0]=='p' || frame[0]=='j') &&
-         (frame[1]==' ' || frame[1]==0 || frame[1]=='0' || frame[1]=='1')) {
+    if (frame[0]=='i' || frame[0]=='p') {
       seenStatus_ = true;
       lastStatusReply_ = millis();
     }
