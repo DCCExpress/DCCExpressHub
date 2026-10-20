@@ -31,6 +31,7 @@ public sealed class LocoNetCommandCenter : BackgroundService, ICommandCenter
     // An explicit opt-in enables retries for stations that occasionally miss ACKs.
     // One read attempt by default: surface the first real NO DECODER response.
     private readonly int _serviceReadAttempts;
+    private readonly int _sensorOffset;
     private readonly object _programmingSync = new();
     private TaskCompletionSource<ProgrammingReply>? _pendingProgramming;
     private int _pendingProgrammingCv;
@@ -49,6 +50,10 @@ public sealed class LocoNetCommandCenter : BackgroundService, ICommandCenter
         _log = log;
         _serviceReadAttempts = Math.Clamp(
             config.GetValue("LocoNet:ServiceReadAttempts", 1), 1, 3);
+        // Both native transports publish the same offset-adjusted Hub addresses.
+        _sensorOffset = Math.Clamp(
+            config.GetValue("LocoNet:SensorOffset", 0),
+            0, YaMoRcLocoNetClient.MaxSensorOffset);
         _transport.ConnectionChanged += OnConnectionChanged;
         _transport.Information += message => RawInfo?.Invoke(message);
     }
@@ -256,8 +261,9 @@ public sealed class LocoNetCommandCenter : BackgroundService, ICommandCenter
         else if (packet[0] == 0xB2 && packet.Length == 4)
         {
             // OPC_INPUT_REP: LocoNet sensor numbering is 1-based.
-            var address = ((packet[2] & 0x0F) << 7) | (packet[1] & 0x7F);
-            address = (address << 1) + ((packet[2] & 0x20) != 0 ? 2 : 1);
+            var rawAddress = ((packet[2] & 0x0F) << 7) | (packet[1] & 0x7F);
+            rawAddress = (rawAddress << 1) + ((packet[2] & 0x20) != 0 ? 2 : 1);
+            var address = rawAddress + _sensorOffset;
             var occupied = (packet[2] & 0x10) != 0;
             bool changed;
             lock (_slotSync)
@@ -268,8 +274,8 @@ public sealed class LocoNetCommandCenter : BackgroundService, ICommandCenter
             if (changed)
             {
                 _log.LogInformation(
-                    "LocoNet sensor RX OPC_INPUT_REP: raw={RawPacket}, address=#{Address}, state={State}",
-                    Convert.ToHexString(packet.ToArray()), address, occupied ? "ON" : "OFF");
+                    "LocoNet sensor RX OPC_INPUT_REP: raw={RawPacket}, input=#{RawAddress}, Hub address=#{Address}, state={State}",
+                    Convert.ToHexString(packet.ToArray()), rawAddress, address, occupied ? "ON" : "OFF");
                 SensorFeedbackChanged?.Invoke(address, occupied);
             }
         }
