@@ -26,7 +26,7 @@ public:
       nextTry_=now+3000;
       // Short timeout to avoid stalling UI/Runtime for too long.
       if(client_.connect(host_,port_,250)){
-        lastProbe_=now;client_.print("<s>\n");
+        lastProbe_=now;connectedAt_=now;client_.print("<s>\n");
       }
       return;
     }
@@ -45,7 +45,7 @@ public:
       lastProbe_=now;client_.print("<s>\n");
     }
     if(responsive_ && (uint32_t)(now-lastResponse_)>10000)disconnect();
-    if(!responsive_ && (uint32_t)(now-lastProbe_)>7000)disconnect();
+    if(!responsive_ && (uint32_t)(now-connectedAt_)>7000)disconnect();
   }
   bool sendAccessory(uint16_t address,bool rawValue) override{
     if(!connected()||address==0||address>2044)return false;
@@ -64,7 +64,7 @@ private:
   char host_[64]{};
   uint16_t port_=2560;
   bool responsive_=false,receiving_=false;
-  uint32_t nextTry_=0,lastProbe_=0,lastResponse_=0;
+  uint32_t nextTry_=0,lastProbe_=0,lastResponse_=0,connectedAt_=0;
   char frame_[160]{};
   size_t len_=0;
   FeedbackCallback feedback_=nullptr;
