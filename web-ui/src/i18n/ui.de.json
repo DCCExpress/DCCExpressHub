@@ -1391,6 +1391,8 @@
   "movementRouteEndpointsMissing": "VON-/NACH-Block fehlt",
   "movementRouteMissingBlock": "Fahrstraße verweist auf einen fehlenden Block",
   "movementSavedMovements": "Gespeicherte Movements",
+  "movementSavedStationRoutes": "Gespeicherte Stationsrouten",
+  "movementSavedSequences": "Gespeicherte Sequenzen",
   "movementEnabledCount": "Aktiviert: {{count}}",
   "movementEditorButton": "Movement-Editor",
   "movementNew": "Neu",
