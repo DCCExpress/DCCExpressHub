@@ -2385,6 +2385,7 @@ export default function LiteLayoutPage({
                           stationRoutes={layout.stationRoutes}
                           layout={layout}
                           stationNames={layout.stations}
+                          onPersistRouteTopology={persistRouteTopology}
                           onOpenStationRoutes={routeId => {
                             setStationRouteEditId(routeId);
                             setRoutesMovementPageId(null);
