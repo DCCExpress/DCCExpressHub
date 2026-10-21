@@ -30,6 +30,8 @@ const createStep = (blockId: number, direction: "forward" | "reverse" = "forward
 function compileSegments(layout: LayoutView, steps: SequentialMovementStep[]): SequentialMovementSegment[] {
   if (steps.length < 2 || steps.length > 64 || steps.some(s => !s.blockId))
     throw new Error("Choose at least two valid blocks (maximum 64).");
+  if (steps[0]?.direction !== steps[1]?.direction)
+    throw new Error("The first row direction must match the direction into the second block.");
   if (steps.some((s, i) => i > 0 && s.blockId === steps[i - 1]?.blockId))
     throw new Error("Adjacent steps cannot refer to the same block.");
   if (steps.some(s => s.minSeconds > s.maxSeconds))
