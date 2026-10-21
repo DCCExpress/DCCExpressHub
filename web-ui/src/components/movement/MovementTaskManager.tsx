@@ -1,6 +1,6 @@
 import type { TrainDriverStatePayload, SequentialMovementStatePayload } from "@/domain/wsTypes";
 import { ActionIcon, Badge, Button, Group, Paper, Stack, Text, Tooltip, Divider, SimpleGrid, ScrollArea } from "@mantine/core";
-import { IconAlertTriangle, IconPlayerStop, IconPlayerPlay, IconFlag } from "@tabler/icons-react";
+import { IconX, IconPlayerStop, IconPlayerPlay, IconFlag } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import type { MovementDocument } from "../../domain/movement";
 import type { Loco } from "../../domain/domainTypes";
@@ -165,7 +165,7 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
                 stopMovement(task.pageId);
               for (const sequence of activeSequences) commandSequence("sequenceStop", sequence.sequenceId);
             }}>Stop All</Button>
-          <Button size="xs" color="red" variant="light" leftSection={<IconAlertTriangle size={14} />}
+          <Button size="xs" color="red" variant="light" leftSection={<IconX size={14} />}
             disabled={!active.length && !activeSequences.length} onClick={() => {
               abortAllMovements();
               for (const sequence of activeSequences) commandSequence("sequenceAbort", sequence.sequenceId);
@@ -247,7 +247,7 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
                     <IconPlayerStop size={17}/></ActionIcon></Tooltip>
                   <Tooltip label="Abort sequence (E-STOP)"><ActionIcon color="red" variant="light"
                     aria-label="Abort sequential task" onClick={() => commandSequence("sequenceAbort", state.sequenceId)}>
-                    <IconAlertTriangle size={17}/></ActionIcon></Tooltip>
+                    <IconX size={17}/></ActionIcon></Tooltip>
                 </Group>
               </Group>
             </Paper>;
@@ -315,7 +315,7 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
                 </Tooltip>
                 <Tooltip label="Abort movement (E-STOP)">
                   <ActionIcon aria-label="Abort movement (E-STOP)" variant="light" color="red"
-                    onClick={() => driver ? wsClient.send({type:"trainDriverCommand", data:{requestId:`driver-abort-${Date.now()}`,action:"abort",taskId:driver.taskId}}) : abortMovement(pageId)}><IconAlertTriangle size={17} /></ActionIcon>
+                    onClick={() => driver ? wsClient.send({type:"trainDriverCommand", data:{requestId:`driver-abort-${Date.now()}`,action:"abort",taskId:driver.taskId}}) : abortMovement(pageId)}><IconX size={17} /></ActionIcon>
                 </Tooltip>
               </Group>
             </Group>
