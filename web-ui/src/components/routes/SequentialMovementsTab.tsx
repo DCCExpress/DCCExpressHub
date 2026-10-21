@@ -3,7 +3,7 @@ import {
   ActionIcon, Badge, Button, Collapse, Group, Menu, ScrollArea, Select,
   Paper, Stack, Table, Text, Tooltip,
 } from "@mantine/core";
-import { IconChevronDown, IconChevronUp, IconDotsVertical, IconEdit, IconFlag, IconPlayerPlay, IconPlayerStop, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
+import { IconChevronDown, IconChevronUp, IconDotsVertical, IconEdit, IconFlag, IconPlayerPlay, IconPlayerStop, IconPlus, IconTrash, IconX, IconSquare, IconSquareCheck } from "@tabler/icons-react";
 import type { LayoutView } from "@/models/editor/core/LayoutView";
 import type { Loco } from "@/domain/domainTypes";
 import { BlockElement } from "@/models/editor/elements/BlockElement";
@@ -381,6 +381,22 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
 
   const sequenceControls = (sequence: SequentialMovementDefinition) => (
     <Group gap={4} wrap="nowrap">
+      <Tooltip label={sequence.enabled ? "Disable sequence" : "Enable sequence"}>
+        <ActionIcon
+          aria-label={sequence.enabled ? "Disable sequence" : "Enable sequence"}
+          aria-pressed={sequence.enabled}
+          color={sequence.enabled ? "teal" : "gray"}
+          variant={sequence.enabled ? "light" : "subtle"}
+          disabled={busy || active(sequence.id)}
+          onClick={() => void persist({
+            ...movements,
+            sequences: movements.sequences.map(item =>
+              item.id === sequence.id ? { ...item, enabled: !item.enabled } : item),
+          })}
+        >
+          {sequence.enabled ? <IconSquareCheck size={17}/> : <IconSquare size={17}/>}
+        </ActionIcon>
+      </Tooltip>
       <Tooltip label="Start normally from first block">
         <ActionIcon aria-label="Start sequence normally" color="green" variant="light"
           disabled={busy || !sequence.enabled || sequence.directionMode !== "departure" || active(sequence.id)}
