@@ -529,6 +529,15 @@ public sealed class SequentialMovementRuntime
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Sequential Movement {Id} failed", run.Definition.Id);
+            // Movement may publish an error before its physical stop/cleanup
+            // completes. Keep exclusive loco ownership until cleanup finishes.
+            if (run.ChildId is { } child && run.LocoAddress is > 0 &&
+                _movement.IsLocoExecutionRunning(run.LocoAddress.Value))
+            {
+                _movement.Stop(child);
+                while (_movement.IsLocoExecutionRunning(run.LocoAddress.Value))
+                    await Task.Delay(100);
+            }
             Publish(run, "error", run.State.StepIndex, "Sequence failed", ex.Message);
         }
         finally
