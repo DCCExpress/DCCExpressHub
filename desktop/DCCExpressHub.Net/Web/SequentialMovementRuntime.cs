@@ -83,6 +83,11 @@ public sealed class SequentialMovementRuntime
 
     void Publish(Run run, string status, int index, string? info, string? error = null)
     {
+        if (run.FinishRequested && status is "running" or "waiting")
+        {
+            status = "finishing";
+            info = "Finishing at next safe block";
+        }
         var state = new State(run.Definition.Id, run.Definition.Name, status,
             index, run.Definition.Steps.Length, run.LocoAddress, info, error);
         lock (_gate)
@@ -442,6 +447,8 @@ public sealed class SequentialMovementRuntime
                 var first = _movement.StartTransient(ChildPage(run, 0), calibrationBypass: false);
                 if (!first.Ok)
                     throw new InvalidOperationException(first.Error ?? "sequence_segment_start_failed");
+                if (run.FinishRequested)
+                    _movement.FinishAtNextBlock(run.ChildId);
                 Publish(run, "running", 1, "Running route 1/" + run.Definition.Segments.Length);
             }
 
@@ -512,6 +519,8 @@ public sealed class SequentialMovementRuntime
                 var next = _movement.StartTransient(ChildPage(run, index + 1), calibrationBypass: false);
                 if (!next.Ok)
                     throw new InvalidOperationException(next.Error ?? "sequence_segment_start_failed");
+                if (run.FinishRequested)
+                    _movement.FinishAtNextBlock(run.ChildId);
                 Publish(run, "running", endIndex + 1, "Running route " +
                     (index + 2) + "/" + run.Definition.Segments.Length);
             }
