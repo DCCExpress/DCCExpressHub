@@ -31,6 +31,7 @@ import {
 import type {
   LayoutView,
 } from "@/models/editor/core/LayoutView";
+import type { Loco } from "@/domain/domainTypes";
 
 import type {
   ClientRouteGraphBuildResult,
@@ -85,6 +86,8 @@ type RoutesDialogProps = {
   opened: boolean;
   onClose: () => void;
   layout: LayoutView;
+  /** Optional because the timetable route picker never exposes sequential starts. */
+  locos?: Loco[];
   movements: MovementDocument;
   editingMovementId:
     string | null;
@@ -213,6 +216,7 @@ export default function RoutesDialog({
   opened,
   onClose,
   layout,
+  locos = [],
   movements,
   editingMovementId,
   editingStationRouteId,
@@ -1177,7 +1181,7 @@ export default function RoutesDialog({
             </Tabs.Panel>}
 
             {!onSelectRoute && <Tabs.Panel value="sequentialMovements" pt="sm" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-              <SequentialMovementsTab layout={layout} movements={movements} onMovementsChange={onMovementsChange} onPersistRouteTopology={onPersistRouteTopology} />
+              <SequentialMovementsTab layout={layout} movements={movements} locos={locos} onMovementsChange={onMovementsChange} onPersistRouteTopology={onPersistRouteTopology} />
             </Tabs.Panel>}
 
             <Tabs.Panel
