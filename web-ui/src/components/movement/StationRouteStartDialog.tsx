@@ -56,7 +56,6 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
       setSensorStates(new Map(wsClient.getSensorStatesSnapshot()));
       if(status==="connected") requestDispatcher();
     });
-    if (wsClient.isConnected()) requestDispatcher();
     return () => {offSensor();offSnapshot();offDispatcher();offStatus();};
   }, []);
   const [candidates, setCandidates] = useState<MovementRouteCandidate[]>([]);
