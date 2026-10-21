@@ -248,7 +248,7 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
 
   const blank = (): SequentialMovementDefinition => ({
     id: `sequential-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    name: "Sequential Movement", enabled: true, speed: 20,
+    name: "Sequential Movement", directionMode: "departure", enabled: true, speed: 20,
     steps: [createStep(Number(blocks[0]?.value ?? 0)), createStep(Number(blocks[1]?.value ?? 0))],
     segments: [],
   });
@@ -292,7 +292,7 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
     if (!draft.name.trim()) { setError("Enter a sequence name."); return; }
     try {
       const segments = compileSegments(layout, draft.steps, blockName);
-      const saved: SequentialMovementDefinition = { ...draft, name: draft.name.trim(), segments };
+      const saved: SequentialMovementDefinition = { ...draft, name: draft.name.trim(), directionMode: "departure", segments };
       await onPersistRouteTopology?.();
       await persist({
         ...movements,
