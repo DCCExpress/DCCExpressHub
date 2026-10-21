@@ -456,7 +456,7 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
           {mt("movementEnabledCount", { count: enabledSequenceCount })}
         </Badge>
       </Group>
-      <Button size="xs" leftSection={<IconPlus size={14}/>} onClick={() => { setError(null); setDraft(blank()); }}>New sequence</Button>
+      <Button size="xs" leftSection={<IconPlus size={14}/>} onClick={() => { setError(null); setDraft(blank()); }}>{mt("movementNew")}</Button>
     </Group>
     {error && <Text c="red" size="sm">{formatRuntimeMessage(error)}</Text>}
     <ScrollArea style={{ flex: 1, minHeight: 0 }} type="always">
