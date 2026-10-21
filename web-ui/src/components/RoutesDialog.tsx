@@ -1131,7 +1131,8 @@ export default function RoutesDialog({
 
         {!error && result && (
           <Tabs
-            defaultValue="selectRoute"
+            key={editingStationRouteId !== null && !onSelectRoute ? "stationRoutes" : "selectRoute"}
+            defaultValue={editingStationRouteId !== null && !onSelectRoute ? "stationRoutes" : "selectRoute"}
             keepMounted={false}
             style={{
               flex: 1,
