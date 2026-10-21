@@ -1192,6 +1192,7 @@ export default function MovementPagesTable({
             presentation="cards"
             layout={layout}
             movements={document}
+            locos={locos}
             onMovementsChange={onDocumentChange}
             onPersistRouteTopology={onPersistRouteTopology}
           />
