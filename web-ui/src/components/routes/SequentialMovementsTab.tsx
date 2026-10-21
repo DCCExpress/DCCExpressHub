@@ -197,8 +197,7 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
   );
 
   return <Stack gap="sm" style={{ height: "100%", minHeight: 0 }}>
-    <Group justify="space-between">
-      <Text size="sm" c="dimmed">Ordered blocks, per-leg direction, fixed or random stops. Executed by the server with normal Movement safety.</Text>
+    <Group justify="flex-end">
       <Button size="xs" leftSection={<IconPlus size={14}/>} onClick={() => { setError(null); setDraft(blank()); }}>New sequence</Button>
     </Group>
     {error && <Text c="red" size="sm">{error}</Text>}
