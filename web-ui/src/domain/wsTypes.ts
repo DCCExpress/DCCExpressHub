@@ -394,6 +394,17 @@ export type TrainDriverResponsePayload = {
   states?: TrainDriverStatePayload[];
 };
 
+export type SequentialMovementStatePayload = {
+  sequenceId: string;
+  name: string;
+  status: "running" | "waiting" | "completed" | "stopped" | "aborted" | "error";
+  stepIndex: number;
+  stepCount: number;
+  locoAddress: number | null;
+  info: string | null;
+  error: string | null;
+};
+
 export type MovementResponsePayload = WsCommandResponseMeta & {
   extra?: {
     state?: MovementRuntimeStatePayload;
@@ -627,6 +638,7 @@ export type ServerWsPayloadMap = {
     enabled: boolean;
   };
   movementStateChanged: MovementRuntimeStatePayload;
+  sequentialMovementStateChanged: SequentialMovementStatePayload;
   movementSnapshot: { states: MovementRuntimeStatePayload[] };
   movementResponse: MovementResponsePayload;
   trainDriverStateChanged: TrainDriverStatePayload;
