@@ -2767,6 +2767,7 @@ export default function LiteLayoutPage({
           setStationRouteEditId(null);
         }}
         layout={layout}
+        locos={locos}
         movements={movementDocument}
         editingStationRouteId={stationRouteEditId}
         editingMovementId={routesMovementPageId}
