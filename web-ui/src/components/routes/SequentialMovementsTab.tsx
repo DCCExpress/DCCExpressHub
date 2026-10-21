@@ -20,6 +20,7 @@ import type { SequentialMovementStatePayload } from "@/domain/wsTypes";
 import AppModal from "@/components/common/AppModal";
 import SequentialMovementEditorDialog from "@/components/routes/SequentialMovementEditorDialog";
 import LocoImage from "@/components/loco/LocoImage";
+import { useMovementTranslation } from "@/components/movement/movementI18n";
 
 type Props = {
   layout: LayoutView;
@@ -201,6 +202,7 @@ function currentSequenceStepIndex(
 }
 
 export default function SequentialMovementsTab({ layout, movements, locos, onMovementsChange, onPersistRouteTopology, presentation = "table" }: Props) {
+  const mt = useMovementTranslation();
   // Read the live layout on each render; its block names can be edited in place
   // without replacing the LayoutView instance.
   const blocks = layout.blocks.elements
@@ -504,7 +506,7 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
                           runtime?.status === "running" ? "Running" :
                             runtime?.status ?? (sequence.enabled ? "Idle" : "Disabled")}
                       </Badge>
-                      <Badge variant="outline" size="xs">Speed {sequence.speed}</Badge>
+                      <Badge variant="outline" size="xs">{mt("movementCruiseSpeed")}: {sequence.speed}</Badge>
                       <Badge variant="outline" size="xs">{sequence.steps.length} blocks</Badge>
                       {runtime && active(sequence.id) &&
                         <Badge variant="light" size="xs" color="blue">{runtime.stepIndex} / {runtime.stepCount}</Badge>}
@@ -540,7 +542,7 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
       ) : (
       <Table withTableBorder striped highlightOnHover>
         <Table.Thead><Table.Tr>
-          <Table.Th>Name</Table.Th><Table.Th>Block sequence</Table.Th><Table.Th>Speed</Table.Th>
+          <Table.Th>Name</Table.Th><Table.Th>Block sequence</Table.Th><Table.Th>{mt("movementCruiseSpeed")}</Table.Th>
           <Table.Th>Status</Table.Th><Table.Th>Actions</Table.Th>
         </Table.Tr></Table.Thead>
         <Table.Tbody>
