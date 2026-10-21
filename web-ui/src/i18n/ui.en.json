@@ -1344,7 +1344,7 @@
   "movementDeleteConfirm": "Delete movement \"{{name}}\"?",
   "movementEditorTitle": "Movement / Dispatcher Editor",
   "movementName": "Movement name",
-  "movementCruiseSpeed": "Cruise speed",
+  "movementCruiseSpeed": "Cruise speed (DCC step)",
   "movementNoNextLegSafety": "This resource has no next movement leg, so there are no departure safety sensors to configure.",
   "movementSafetyTargetOccupancy": "Sensor {{address}} · {{target}} occupancy",
   "movementSafetySensor": "Sensor {{address}}",
