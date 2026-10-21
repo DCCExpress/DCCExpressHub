@@ -439,24 +439,24 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
             return <Paper key={sequence.id} withBorder radius="sm" p="sm"
               style={{ opacity: sequence.enabled ? 1 : 0.6 }}>
               <Stack gap="xs">
-                <Group justify="space-between" wrap="nowrap" gap="xs">
-                  <Text fw={700} size="sm" truncate style={{ flex: 1, minWidth: 0 }}>
-                    {sequence.name}
-                  </Text>
-                  <Group gap={4} wrap="nowrap" style={{ flexShrink: 0 }}>
-                    {sequenceControls(sequence)}
-                    <Tooltip label={expandedCards[sequence.id] ? "Hide details" : "Show details"}>
-                      <ActionIcon
-                        aria-label={expandedCards[sequence.id] ? "Hide sequence details" : "Show sequence details"}
-                        aria-expanded={Boolean(expandedCards[sequence.id])}
-                        variant="subtle"
-                        color="gray"
-                        onClick={() => toggleCardDetails(sequence.id)}
-                      >
-                        {expandedCards[sequence.id] ? <IconChevronUp size={16}/> : <IconChevronDown size={16}/>}
-                      </ActionIcon>
-                    </Tooltip>
-                  </Group>
+                {/* Keep the sequence name readable independently of the action toolbar. */}
+                <Text fw={700} size="sm" style={{ overflowWrap: "anywhere" }}>
+                  {sequence.name}
+                </Text>
+                {/* Actions have their own row; the details toggle remains available. */}
+                <Group justify="space-between" align="center" gap="xs" wrap="nowrap">
+                  {sequenceControls(sequence)}
+                  <Tooltip label={expandedCards[sequence.id] ? "Hide details" : "Show details"}>
+                    <ActionIcon
+                      aria-label={expandedCards[sequence.id] ? "Hide sequence details" : "Show sequence details"}
+                      aria-expanded={Boolean(expandedCards[sequence.id])}
+                      variant="subtle"
+                      color="gray"
+                      onClick={() => toggleCardDetails(sequence.id)}
+                    >
+                      {expandedCards[sequence.id] ? <IconChevronUp size={16}/> : <IconChevronDown size={16}/>}
+                    </ActionIcon>
+                  </Tooltip>
                 </Group>
                 <Group gap={5} wrap="wrap" align="center" aria-label={`Route: ${stepsText(sequence)}`}>
                   {sequence.steps.map((step, index) => (
