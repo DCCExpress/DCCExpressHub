@@ -265,9 +265,19 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
               style={{ opacity: sequence.enabled ? 1 : 0.6 }}>
               <Stack gap="xs">
                 <Group justify="space-between" wrap="nowrap" gap="xs">
-                  <Text fw={700} size="sm" truncate style={{ flex: 1, minWidth: 0 }}>
-                    {sequence.name}
-                  </Text>
+                  <Group gap="xs" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
+                    <Text fw={700} size="sm" truncate style={{ minWidth: 0 }}>
+                      {sequence.name}
+                    </Text>
+                    <Badge size="xs" variant="light" style={{ flexShrink: 0 }}
+                      color={runtime?.status === "waiting" ? "orange" :
+                        runtime?.status === "running" ? "green" :
+                          runtime?.status === "error" ? "red" : "gray"}>
+                      {runtime?.status === "waiting" ? "Waiting" :
+                        runtime?.status === "running" ? "Running" :
+                          runtime?.status ?? (sequence.enabled ? "Idle" : "Disabled")}
+                    </Badge>
+                  </Group>
                   <Group gap={4} wrap="nowrap" style={{ flexShrink: 0 }}>
                     {sequenceControls(sequence)}
                     <Tooltip label={expandedCards[sequence.id] ? "Hide details" : "Show details"}>
@@ -288,8 +298,8 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
                     <Group key={index} gap={5} wrap="nowrap">
                       {index > 0 && <Text size="xs" c="dimmed">→</Text>}
                       {index === currentStepIndex ? (
-                        <Badge size="sm" color="lime" variant="filled" radius="sm"
-                          aria-label={`Current block: ${blockName(step.blockId)}`}>
+                        <Badge size="sm" color={runtime?.status === "waiting" ? "orange" : "lime"} variant="filled" radius="sm"
+                          aria-label={`${runtime?.status === "waiting" ? "Waiting at" : "Current block"}: ${blockName(step.blockId)}`}>
                           {blockName(step.blockId)}
                         </Badge>
                       ) : (
@@ -331,8 +341,11 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
             <Table.Td><Text fw={600} size="sm">{sequence.name}</Text></Table.Td>
             <Table.Td><Text size="xs">{stepsText(sequence)}</Text></Table.Td>
             <Table.Td>{sequence.speed}</Table.Td>
-            <Table.Td><Badge variant="light" color={active(sequence.id) ? "green" : status(sequence.id)?.status === "error" ? "red" : "gray"}>
-              {status(sequence.id)?.status ?? (sequence.enabled ? "Idle" : "Disabled")}
+            <Table.Td><Badge variant="light" color={status(sequence.id)?.status === "waiting" ? "orange" :
+              active(sequence.id) ? "green" : status(sequence.id)?.status === "error" ? "red" : "gray"}>
+              {status(sequence.id)?.status === "waiting" ? "Waiting" :
+                status(sequence.id)?.status === "running" ? "Running" :
+                  status(sequence.id)?.status ?? (sequence.enabled ? "Idle" : "Disabled")}
             </Badge><Text size="xs" c="dimmed">{formatRuntimeMessage(status(sequence.id)?.info ?? status(sequence.id)?.error)}</Text></Table.Td>
             <Table.Td>{sequenceControls(sequence)}</Table.Td>
           </Table.Tr>)}
