@@ -7,20 +7,35 @@ import type { Graph } from "@/domain/railway/graph";
 import { BlockElement } from "@/models/editor/elements/BlockElement";
 import type { StationRouteDefinition, StationRouteVia } from "@/domain/layout/stationRoutes";
 
-type Props = { layout: LayoutView; graph: Graph; editingRouteId: string | null; onSave: () => Promise<void>; onChanged: () => void };
+type Props = {
+  layout: LayoutView;
+  graph: Graph;
+  editingRouteId: string | null;
+  onSave: () => Promise<void>;
+  onChanged: () => void;
+  editorOnly?: boolean;
+  onDismiss?: () => void;
+};
 const blank = (): StationRouteDefinition => ({
   id: `station-route-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   name: "", fromStationId: "", toStationId: "", via: [], enabled: true, allowReverse: false,
 });
 
-export default function StationRoutesTab({ layout, graph, editingRouteId, onSave, onChanged }: Props) {
+export default function StationRoutesTab({ layout, graph, editingRouteId, onSave, onChanged, editorOnly = false, onDismiss }: Props) {
   const [draft, setDraft] = useState<StationRouteDefinition | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    if (!editingRouteId) return;
+    if (editingRouteId === null) {
+      setDraft(null);
+      return;
+    }
+    if (editingRouteId === "") {
+      setDraft(blank());
+      return;
+    }
     const route = layout.stationRoutes.find(item => item.id === editingRouteId);
-    if (route) setDraft({ ...route, via: route.via.map(point => ({ ...point })) });
+    setDraft(route ? { ...route, via: route.via.map(point => ({ ...point })) } : null);
   }, [editingRouteId, layout]);
 
   const stations = layout.stations.map(s => ({ value: s.id, label: s.name }));
@@ -67,13 +82,20 @@ export default function StationRoutesTab({ layout, graph, editingRouteId, onSave
       await onSave();
       onChanged();
       setDraft(null);
+      onDismiss?.();
     } catch (e) {
       layout.stationRoutes = previous;
       setError(String(e));
     } finally { setSaving(false); }
   };
+  const closeEditor = () => {
+    if (saving) return;
+    setDraft(null);
+    onDismiss?.();
+  };
   return (
-    <Stack gap="sm" pt="sm" style={{ flex: 1, minHeight: 0 }}>
+    <>
+    {!editorOnly && <Stack gap="sm" pt="sm" style={{ flex: 1, minHeight: 0 }}>
       <Group justify="space-between">
         <Text size="sm" c="dimmed">Define station-to-station routes for later dispatcher use. No trains are started here.</Text>
         <Button size="xs" leftSection={<IconPlus size={14}/>} onClick={() => setDraft(blank())}>New route</Button>
@@ -100,7 +122,8 @@ export default function StationRoutesTab({ layout, graph, editingRouteId, onSave
         </Table>
 
       </ScrollArea>
-      <AppModal opened={draft !== null} onClose={() => { if (!saving) setDraft(null); }} title="Station Route Editor" size="min(750px, 92vw)" centered draggable>
+      </Stack>}
+      <AppModal opened={draft !== null} onClose={closeEditor} title="Station Route Editor" size="min(750px, 92vw)" centered draggable>
         {draft && <Stack gap="sm">
           <Text fw={700}>Station route editor</Text>
           <TextInput label="Name" value={draft.name} onChange={e => update({ name: e.currentTarget.value })}/>
@@ -131,11 +154,11 @@ export default function StationRoutesTab({ layout, graph, editingRouteId, onSave
           <Switch label="Allow reverse travel" description="Allow using this station route from To to From, with Via points in reverse order." checked={draft.allowReverse} onChange={e => update({allowReverse:e.currentTarget.checked})}/>
           <Switch label="Enabled" checked={draft.enabled} onChange={e => update({enabled:e.currentTarget.checked})}/>
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => setDraft(null)}>Cancel</Button>
+            <Button variant="default" onClick={closeEditor}>Cancel</Button>
             <Button loading={saving} disabled={!valid} onClick={() => void persist([...layout.stationRoutes.filter(r => r.id !== draft.id), draft])}>Save route</Button>
           </Group>
         </Stack>}
       </AppModal>
-    </Stack>
+    </>
   );
 }
