@@ -9,7 +9,7 @@ type Props = {
   movements: MovementDocument;
   editingMovementId: string | null;
   onMovementsChange: (document: MovementDocument) => void;
-  onPersistRouteTopology?: (() => Promise<void>) | undefined;
+  onPersistRouteTopology?: () => Promise<void>;
   initialRoute?: Pick<MovementPage, "name" | "speed" | "routeRef"> | null;
   onSelectRoute?: (page: MovementPage) => void;
 };
