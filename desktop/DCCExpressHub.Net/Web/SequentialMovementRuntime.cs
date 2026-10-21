@@ -547,6 +547,8 @@ public sealed class SequentialMovementRuntime
         lock (_gate)
         {
             if (!_running.TryGetValue(id, out run)) return false;
+            if (run.State.Status is "completed" or "stopped" or "aborted" or "error")
+                return false;
             if (run.FinishRequested) return true;
             run.FinishRequested = true;
             // Transition atomically with respect to the terminal state.
