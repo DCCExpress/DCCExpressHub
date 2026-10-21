@@ -16,7 +16,7 @@ import {
 } from "@mantine/notifications";
 
 import {
-  IconAlertTriangle,
+  IconX,
   IconPlayerPlay,
   IconPlayerStop,
 } from "@tabler/icons-react";
@@ -372,7 +372,7 @@ export default function MovementRuntimeControls({
             }
           }
         >
-          <IconAlertTriangle
+          <IconX
             size={
               iconSize
             }
