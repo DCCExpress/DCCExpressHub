@@ -273,16 +273,31 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
       )}
     </ScrollArea>
     <AppModal opened={draft !== null} onClose={() => { if (!busy) setDraft(null); }} title="Sequential Movement Editor"
-      size="min(1050px, 96vw)" draggable centered>
-      {draft && <Stack gap="sm">
+      size="min(1050px, 96vw)" draggable centered
+      styles={{
+        content: {
+          height: "min(720px, calc(100dvh - 32px))",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+        },
+        body: {
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+        },
+      }}>
+      {draft && <Stack gap="sm" style={{ flex: 1, minHeight: 0, width: "100%" }}>
         <Group grow>
           <TextInput label="Name" value={draft.name} onChange={e => modify({ name: e.currentTarget.value })}/>
           <NumberInput label="Travel speed (DCC)" min={1} max={126} value={draft.speed} onChange={v => modify({ speed: Math.max(1, Math.min(126, Number(v) || 20)) })}/>
           <Switch label="Enabled" checked={draft.enabled} onChange={e => modify({ enabled: e.currentTarget.checked })}/>
         </Group>
         <Text size="xs" c="dimmed">Direction means travel into this block. A direction change needs a stop at the previous block (Fixed 0 s is allowed). Last block always stops. Wait starts only after arrival and verified speed zero.</Text>
-        <ScrollArea.Autosize mah="58dvh">
-          <Table striped withTableBorder>
+        <ScrollArea type="always" style={{ flex: 1, minHeight: 0, width: "100%" }}>
+          <Table striped withTableBorder stickyHeader stickyHeaderOffset={0} miw={820}>
             <Table.Thead><Table.Tr>
               <Table.Th>#</Table.Th><Table.Th>Block</Table.Th><Table.Th>Direction</Table.Th><Table.Th>Stop / wait</Table.Th><Table.Th>Fixed (s)</Table.Th><Table.Th>Min (s)</Table.Th><Table.Th>Max (s)</Table.Th><Table.Th/>
             </Table.Tr></Table.Thead>
@@ -315,8 +330,8 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
               </Table.Tr>)}
             </Table.Tbody>
           </Table>
-        </ScrollArea.Autosize>
-        <Group justify="space-between">
+        </ScrollArea>
+        <Group justify="space-between" style={{ flexShrink: 0 }}>
           <Button size="xs" variant="light" leftSection={<IconPlus size={14}/>}
             disabled={draft.steps.length >= 64}
             onClick={() => modify({steps:[...draft.steps,createStep(0,draft.steps[draft.steps.length-1]?.direction ?? "forward")]})}>Add block</Button>
