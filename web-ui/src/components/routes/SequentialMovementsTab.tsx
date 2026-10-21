@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ActionIcon, Badge, Button, Group, NumberInput, ScrollArea, Select,
-  Stack, Switch, Table, Text, TextInput,
+  Paper, Stack, Switch, Table, Text, TextInput, Tooltip,
 } from "@mantine/core";
 import { IconArrowDown, IconArrowUp, IconEdit, IconPlayerPlay, IconPlayerStop, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 import type { LayoutView } from "@/models/editor/core/LayoutView";
@@ -23,6 +23,7 @@ type Props = {
   movements: MovementDocument;
   onMovementsChange: (next: MovementDocument) => void;
   onPersistRouteTopology?: (() => Promise<void>) | undefined;
+  presentation?: "cards" | "table" | undefined;
 };
 
 const createStep = (blockId: number, direction: "forward" | "reverse" = "forward"): SequentialMovementStep =>
@@ -87,7 +88,7 @@ function compileSegments(layout: LayoutView, steps: SequentialMovementStep[]): S
   return segments;
 }
 
-export default function SequentialMovementsTab({ layout, movements, onMovementsChange, onPersistRouteTopology }: Props) {
+export default function SequentialMovementsTab({ layout, movements, onMovementsChange, onPersistRouteTopology, presentation = "table" }: Props) {
   const blocks = useMemo(() => layout.blocks.elements
     .filter((e): e is BlockElement => e instanceof BlockElement)
     .map(e => ({ value: String(e.id), label: e.name?.trim() || `Block #${e.id}` }))
@@ -172,13 +173,75 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
   const stepsText = (sequence: SequentialMovementDefinition) =>
     sequence.steps.map(step => names.get(step.blockId) ?? `#${step.blockId}`).join(" → ");
 
+  const sequenceControls = (sequence: SequentialMovementDefinition) => (
+    <Group gap={4} wrap="nowrap">
+      <Tooltip label="Start"><ActionIcon aria-label="Start sequence" color="green" variant="light"
+        disabled={busy || !sequence.enabled || active(sequence.id)}
+        onClick={() => void command("sequenceStart", sequence.id)}><IconPlayerPlay size={16}/></ActionIcon></Tooltip>
+      <Tooltip label="Stop"><ActionIcon aria-label="Stop sequence" color="yellow" variant="light"
+        disabled={busy || !active(sequence.id)}
+        onClick={() => void command("sequenceStop", sequence.id)}><IconPlayerStop size={16}/></ActionIcon></Tooltip>
+      <Tooltip label="Abort / E-STOP"><ActionIcon aria-label="Abort sequence" color="red" variant="light"
+        disabled={busy || !active(sequence.id)}
+        onClick={() => void command("sequenceAbort", sequence.id)}><IconX size={16}/></ActionIcon></Tooltip>
+      <Tooltip label="Edit"><ActionIcon aria-label="Edit sequence" color="violet" variant="light"
+        disabled={busy || active(sequence.id)}
+        onClick={() => { setError(null); setDraft({ ...sequence, steps: sequence.steps.map(step => ({ ...step })) }); }}>
+        <IconEdit size={16}/></ActionIcon></Tooltip>
+      <Tooltip label="Delete"><ActionIcon aria-label="Delete sequence" color="red" variant="light"
+        disabled={busy || active(sequence.id)}
+        onClick={() => { if (window.confirm(`Delete sequence "${sequence.name}"?`))
+          void persist({ ...movements, sequences: movements.sequences.filter(item => item.id !== sequence.id) }); }}>
+        <IconTrash size={16}/></ActionIcon></Tooltip>
+    </Group>
+  );
+
   return <Stack gap="sm" style={{ height: "100%", minHeight: 0 }}>
     <Group justify="space-between">
       <Text size="sm" c="dimmed">Ordered blocks, per-leg direction, fixed or random stops. Executed by the server with normal Movement safety.</Text>
       <Button size="xs" leftSection={<IconPlus size={14}/>} onClick={() => { setError(null); setDraft(blank()); }}>New sequence</Button>
     </Group>
     {error && <Text c="red" size="sm">{error}</Text>}
-    <ScrollArea style={{ flex: 1, minHeight: 0 }}>
+    <ScrollArea style={{ flex: 1, minHeight: 0 }} type="always">
+      {presentation === "cards" ? (
+        <Stack gap="sm">
+          {movements.sequences.map(sequence => {
+            const runtime = status(sequence.id);
+            return <Paper key={sequence.id} withBorder radius="sm" p="sm"
+              style={{ opacity: sequence.enabled ? 1 : 0.6 }}>
+              <Stack gap="xs">
+                <Group justify="space-between" wrap="nowrap" align="flex-start">
+                  <Stack gap={3} style={{ flex: 1, minWidth: 0 }}>
+                    <Group gap="xs">
+                      <Text fw={700} size="sm" truncate>{sequence.name}</Text>
+                      <Badge size="xs" variant="light"
+                        color={active(sequence.id) ? "green" : runtime?.status === "error" ? "red" : "gray"}>
+                        {runtime?.status ?? (sequence.enabled ? "Idle" : "Disabled")}
+                      </Badge>
+                    </Group>
+                    <Text size="xs" c="dimmed" style={{ overflowWrap: "anywhere" }}>{stepsText(sequence)}</Text>
+                  </Stack>
+                  {sequenceControls(sequence)}
+                </Group>
+                <Group gap="xs">
+                  <Badge variant="outline" size="xs">Speed {sequence.speed}</Badge>
+                  <Badge variant="outline" size="xs">{sequence.steps.length} blocks</Badge>
+                  {runtime && active(sequence.id) &&
+                    <Badge variant="light" size="xs" color="blue">{runtime.stepIndex} / {runtime.stepCount}</Badge>}
+                </Group>
+                {sequence.steps.filter(step => step.waitMode !== "pass").map((step, i) =>
+                  <Text key={i} size="xs" c="dimmed">
+                    {names.get(step.blockId) ?? `#${step.blockId}`}: {step.waitMode === "fixed"
+                      ? `${step.waitSeconds} s` : `${step.minSeconds}–${step.maxSeconds} s (random)`}
+                  </Text>)}
+                {runtime?.info && <Text size="xs" c="blue">{runtime.info}</Text>}
+                {runtime?.error && <Text size="xs" c="red">{runtime.error}</Text>}
+              </Stack>
+            </Paper>;
+          })}
+          {!movements.sequences.length && <Text ta="center" size="sm" c="dimmed">No sequential movements configured.</Text>}
+        </Stack>
+      ) : (
       <Table withTableBorder striped highlightOnHover>
         <Table.Thead><Table.Tr>
           <Table.Th>Name</Table.Th><Table.Th>Block sequence</Table.Th><Table.Th>Speed</Table.Th>
@@ -192,22 +255,12 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
             <Table.Td><Badge variant="light" color={active(sequence.id) ? "green" : status(sequence.id)?.status === "error" ? "red" : "gray"}>
               {status(sequence.id)?.status ?? (sequence.enabled ? "Idle" : "Disabled")}
             </Badge><Text size="xs" c="dimmed">{status(sequence.id)?.info ?? status(sequence.id)?.error ?? ""}</Text></Table.Td>
-            <Table.Td><Group gap={4} wrap="nowrap">
-              <ActionIcon title="Start" color="green" variant="light" disabled={busy || !sequence.enabled || active(sequence.id)}
-                onClick={() => void command("sequenceStart", sequence.id)}><IconPlayerPlay size={16}/></ActionIcon>
-              <ActionIcon title="Stop" color="yellow" variant="light" disabled={busy || !active(sequence.id)}
-                onClick={() => void command("sequenceStop", sequence.id)}><IconPlayerStop size={16}/></ActionIcon>
-              <ActionIcon title="Abort and E-STOP" color="red" variant="light" disabled={busy || !active(sequence.id)}
-                onClick={() => void command("sequenceAbort", sequence.id)}><IconX size={16}/></ActionIcon>
-              <ActionIcon title="Edit" variant="light" disabled={active(sequence.id)} onClick={() => { setError(null); setDraft({ ...sequence, steps: sequence.steps.map(step => ({ ...step })) }); }}><IconEdit size={16}/></ActionIcon>
-              <ActionIcon title="Delete" variant="subtle" color="red" disabled={busy || active(sequence.id)}
-                onClick={() => { if (window.confirm(`Delete sequence "${sequence.name}"?`))
-                  void persist({ ...movements, sequences: movements.sequences.filter(item => item.id !== sequence.id) }); }}><IconTrash size={16}/></ActionIcon>
-            </Group></Table.Td>
+            <Table.Td>{sequenceControls(sequence)}</Table.Td>
           </Table.Tr>)}
           {!movements.sequences.length && <Table.Tr><Table.Td colSpan={5}><Text size="sm" c="dimmed" ta="center">No sequential movements configured.</Text></Table.Td></Table.Tr>}
         </Table.Tbody>
       </Table>
+      )}
     </ScrollArea>
     <AppModal opened={draft !== null} onClose={() => { if (!busy) setDraft(null); }} title="Sequential Movement Editor"
       size="min(1050px, 96vw)" draggable centered>
