@@ -86,7 +86,7 @@ function reachableNextBlocks(
 
 /** Changing direction at a block means a zero-second stop, never a Pass. */
 function normalizeReversals(steps: SequentialMovementStep[]): SequentialMovementStep[] {
-  return steps.map((step, i) => {
+  return steps.map((step, i): SequentialMovementStep => {
     if (i > 0 && i < steps.length - 1 &&
         steps[i - 1]?.direction !== step.direction && step.waitMode === "pass") {
       return { ...step, waitMode: "fixed", waitSeconds: 0 };
@@ -320,9 +320,11 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
 
   const sequenceControls = (sequence: SequentialMovementDefinition) => (
     <Group gap={4} wrap="nowrap">
-      <Tooltip label="Start"><ActionIcon aria-label="Start sequence" color="green" variant="light"
-        disabled={busy || !sequence.enabled || active(sequence.id)}
-        onClick={() => void command("sequenceStart", sequence.id)}><IconPlayerPlay size={16}/></ActionIcon></Tooltip>
+      <Tooltip label={sequence.directionMode === "departure" ? "Start" : "Edit and resave with departure directions"}>
+        <ActionIcon aria-label="Start sequence" color="green" variant="light"
+        disabled={busy || !sequence.enabled || sequence.directionMode !== "departure" || active(sequence.id)}
+        onClick={() => void command("sequenceStart", sequence.id)}><IconPlayerPlay size={16}/></ActionIcon>
+      </Tooltip>
       <Tooltip label="Stop"><ActionIcon aria-label="Stop sequence" color="yellow" variant="light"
         disabled={busy || !active(sequence.id)}
         onClick={() => void command("sequenceStop", sequence.id)}><IconPlayerStop size={16}/></ActionIcon></Tooltip>
@@ -389,6 +391,8 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
                     </Group>
                   ))}
                 </Group>
+                {sequence.directionMode !== "departure" &&
+                  <Text size="xs" c="orange">Previous direction format: edit and resave this sequence before starting.</Text>}
                 <Collapse expanded={Boolean(expandedCards[sequence.id])}>
                   <Stack gap="xs" pt="xs">
                     <Group gap="xs">
