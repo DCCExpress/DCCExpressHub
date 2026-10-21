@@ -1,4 +1,5 @@
-import { Alert, Button, Group, Modal, NumberInput, Select, Stack, Text } from "@mantine/core";
+import { Alert, Button, Group, NumberInput, Select, Stack, Text } from "@mantine/core";
+import AppModal from "@/components/common/AppModal";
 import { useEffect, useMemo, useState } from "react";
 import type { Loco } from "@/domain/domainTypes";
 import LocoImage from "@/components/loco/LocoImage";
@@ -23,7 +24,8 @@ type Props = {
 export default function StationRouteStartDialog({ opened, onClose, layout, locomotives, route }: Props) {
   const mt = useMovementTranslation();
   const [tracking, setTracking] = useState(getTrainTrackingState);
-  const [sensorStates, setSensorStates] = useState<Map<number,boolean>>(new Map());
+  const [sensorStates, setSensorStates] = useState<Map<number,boolean>>(
+    () => new Map(wsClient.getSensorStatesSnapshot()));
   const [reserved, setReserved] = useState<{loaded:boolean;blocks:Set<number>}>({loaded:false,blocks:new Set()});
   useEffect(() => {
     const offSensor = wsClient.on("sensorChanged", data => setSensorStates(old => new Map(old).set(data.address,data.on)));
@@ -49,7 +51,9 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
     const requestDispatcher = () => wsClient.send({type:"dispatcherCommand",data:{action:"snapshot",requestId:`station-route-${Date.now()}`}});
     const offStatus = wsClient.subscribeStatus(status => {
       setReserved({loaded:false,blocks:new Set()});
-      setSensorStates(new Map());
+      // The WebSocket client replays its authoritative sensor cache when
+      // listeners are registered. Never clear that cache on a connected status.
+      setSensorStates(new Map(wsClient.getSensorStatesSnapshot()));
       if(status==="connected") requestDispatcher();
     });
     if (wsClient.isConnected()) requestDispatcher();
@@ -71,6 +75,8 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
     setDestination("auto");
     setReverse(false);
     setError(null);
+    // This modal may open long after the initial live sensor snapshot.
+    setSensorStates(new Map(wsClient.getSensorStatesSnapshot()));
     setLoading(true);
     let cancelled = false;
     void loadMovementRouteCandidates(createEmptyMovementDocument())
@@ -115,12 +121,21 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
   const available = selectedLoco ? eligible.filter(candidate =>
     candidate.fromBlockId === selectedLoco.currentBlockId &&
     (destination === "auto" || !destination || candidate.toBlockId === Number(destination))) : [];
-  const confirmedFree = (id:number) => {
+  // Keep the safety gate, but expose the exact reason for a rejected target.
+  const destinationIssue = (id:number): string | null => {
     const block = blocks.find(b=>b.id===id);
-    return !!block && block.sensorAddress>0 && sensorStates.get(block.sensorAddress)===false &&
-      reserved.loaded && !reserved.blocks.has(id) && tracking.ready && tracking.active && tracking.enabled &&
-      !tracking.locos.some(l=>l.currentBlockId===id);
+    if (!block) return "Block is missing from the active layout";
+    if (!(block.sensorAddress > 0)) return "No occupancy sensor configured";
+    const occupied = sensorStates.get(block.sensorAddress);
+    if (occupied === undefined) return `Sensor #${block.sensorAddress} UNKNOWN (no confirmed feedback)`;
+    if (occupied) return `Sensor #${block.sensorAddress} ON (occupied)`;
+    if (!reserved.loaded) return "Waiting for Dispatcher reservation snapshot";
+    if (reserved.blocks.has(id)) return "Block reserved by Dispatcher";
+    if (!tracking.enabled || !tracking.active || !tracking.ready) return "Train Tracking not ready";
+    if (tracking.locos.some(l=>l.currentBlockId===id)) return "Locomotive assigned to this block";
+    return null;
   };
+  const confirmedFree = (id:number) => destinationIssue(id) === null;
   const destinations = [...new Set(available.filter(c => c.fromBlockId === selectedLoco?.currentBlockId).map(c => c.toBlockId))]
     .map(id => {
       const tracked = tracking.locos.filter(l => l.currentBlockId === id);
@@ -131,10 +146,16 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
       });
       return {
         value: String(id),
-        label: tracked.length ? `${blockName} · ${identities.join(", ")}` : `${blockName} · ${confirmedFree(id) ? "Confirmed free" : "Not confirmed free / reserved"}`,
+        label: tracked.length ? `${blockName} · ${identities.join(", ")}` : `${blockName} · ${destinationIssue(id) ?? "Confirmed free"}`,
       };
     });
   const selectedCandidate = selectedLoco ? available.find(candidate => confirmedFree(candidate.toBlockId)) : undefined;
+  const unavailableDestinations = [...new Set(available.map(candidate => candidate.toBlockId))]
+    .filter(id => !confirmedFree(id))
+    .map(id => {
+      const name = blocks.find(block => block.id === id)?.name || `Block #${id}`;
+      return `${name}: ${destinationIssue(id)}`;
+    });
   const canStart = !loading && !starting && !!route?.enabled && !!selectedLoco && !!selectedCandidate &&
     Number.isInteger(Number(speed)) && Number(speed) >= 1 && Number(speed) <= 126;
   const start = async () => {
@@ -169,7 +190,7 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
     } catch(e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setStarting(false); }
   };
-  return <Modal opened={opened} onClose={() => { if (!starting) onClose(); }} centered size="lg" title={route ? `Start Station Route · ${route.name}` : "Start Station Route"}>
+  return <AppModal opened={opened} onClose={() => { if (!starting) onClose(); }} centered draggable size="lg" title={route ? `Start Station Route · ${route.name}` : "Start Station Route"}>
     <Stack gap="sm">
       <Text size="sm" c="dimmed">One locomotive → one temporary Movement Task. Dispatcher and SwitchMan enforce track safety.</Text>
       {route?.allowReverse && <Select label="Station Route direction" allowDeselect={false}
@@ -225,7 +246,7 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
                       {l.confidence !== "certain" ? " · Position uncertain" : ""}
                     </Text>;
                   })
-                : <Text size="xs" c="dimmed">{confirmedFree(Number(option.value)) ? "Confirmed free" : "Not confirmed free / reserved"}</Text>}
+                : <Text size="xs" c="dimmed">{destinationIssue(Number(option.value)) ?? "Confirmed free"}</Text>}
             </Stack>
           </Group>;
         }}
@@ -236,10 +257,10 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
       {!loading && source && !selectedCandidate && <Alert color="orange">
         {available.length === 0
           ? `No executable route found from the selected source to ${destination === "auto" ? "the destination station" : "the selected destination block"}. Route table: ${fromSource.length} outgoing route(s), ${fromSourceToStation.length} reaching destination station, ${directionUnknownToStation} with unknown direction, ${usableToStation.length} direction-known. Reachable targets: ${destinationsInTable.slice(0,12).join(", ") || "none"}. ${route?.via.length ? "Via checkpoints may exclude some alternatives. " : ""}Check graph direction and topology; a FREE sensor does not establish physical reachability.`
-          : `${available.length} route candidate(s) exist (${[...new Set(available.map(item => item.toBlockName))].join(", ")}), but no destination is confirmed free. ${!reserved.loaded ? "Dispatcher snapshot missing. " : ""}Check target sensor OFF/FREE, current locomotive assignments and reservations.`}
+          : `${available.length} route candidate(s) exist, but none of the target blocks is confirmed free. ${unavailableDestinations.join("; ") || "Waiting for confirmed sensor and Dispatcher state."}`}
       </Alert>}
       {error && <Alert color="red">{error}</Alert>}
       <Group justify="flex-end"><Button variant="default" onClick={onClose} disabled={starting}>Cancel</Button><Button onClick={() => void start()} loading={starting} disabled={!canStart}>Start Task</Button></Group>
     </Stack>
-  </Modal>;
+  </AppModal>;
 }
