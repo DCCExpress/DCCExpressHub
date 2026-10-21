@@ -2260,7 +2260,7 @@ public sealed class WsHub
             case "stopAll":
                 {
                     var count =
-                        Movement.StopAll(false);
+                        Movement.StopAll(false) + SequentialMovement.StopAll(false);
 
                     await Reply(
                         true,
@@ -2276,7 +2276,7 @@ public sealed class WsHub
             case "abortAll":
                 {
                     var count =
-                        Movement.StopAll(true);
+                        Movement.StopAll(true) + SequentialMovement.StopAll(true);
 
                     await Reply(
                         true,
