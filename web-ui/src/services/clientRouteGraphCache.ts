@@ -850,6 +850,77 @@ function enumerateRouteVariantsForBlockPair(
   return result;
 }
 
+/**
+ * A validated physical railway route is traversable in either direction with
+ * the same turnout settings. Older graph snapshots may omit the exact return
+ * variant even though the outbound route is present.
+ *
+ * Supply the missing counterpart ONLY for a unique, direction-known route.
+ * Never guess between alternative paths or create same-source/target routes.
+ * Backend movement planning uses the same persisted routeTable, so these
+ * entries must be generated during topology persistence, not in the editor.
+ */
+function includeUnambiguousReturnRoutes(
+  routes: PersistedRouteTableEntry[],
+): PersistedRouteTableEntry[] {
+  const key = (from: number, to: number, direction: string) =>
+    `${from}:${to}:${direction}`;
+  const grouped = new Map<string, PersistedRouteTableEntry[]>();
+  for (const route of routes) {
+    const routeKey = key(route.fromBlockId, route.toBlockId, route.locoDirection);
+    const group = grouped.get(routeKey) ?? [];
+    group.push(route);
+    grouped.set(routeKey, group);
+  }
+
+  const result = [...routes];
+  for (const route of routes) {
+    if (route.locoDirection !== "forward" && route.locoDirection !== "reverse") continue;
+    if (route.fromBlockId === route.toBlockId ||
+        route.blockPath.length < 2 ||
+        route.nodes.length < 2 ||
+        route.edgePath.length !== route.nodes.length - 1) continue;
+
+    const direction = route.locoDirection === "forward" ? "reverse" : "forward";
+    // A different already-saved return or multiple possible outward paths must
+    // remain under explicit graph/route selection rather than being invented.
+    if ((grouped.get(key(route.fromBlockId, route.toBlockId, route.locoDirection))?.length ?? 0) !== 1 ||
+        grouped.has(key(route.toBlockId, route.fromBlockId, direction))) continue;
+
+    const lastNodeIndex = route.nodes.length - 1;
+    result.push({
+      fromBlockId: route.toBlockId,
+      fromBlockName: route.toBlockName,
+      toBlockId: route.fromBlockId,
+      toBlockName: route.fromBlockName,
+      locoDirection: direction,
+      nodes: [...route.nodes].reverse(),
+      blockPath: [...route.blockPath].reverse().map(block => ({
+        ...block,
+        nodeIndex: lastNodeIndex - block.nodeIndex,
+      })),
+      turnoutStates: route.turnoutStates.map(state => ({ ...state })),
+      edgePath: [...route.edgePath].reverse().map(edge => ({
+        ...edge,
+        from: edge.to,
+        to: edge.from,
+        locoDirection: edge.locoDirection === "forward" ? "reverse" :
+          edge.locoDirection === "reverse" ? "forward" : "unknown",
+        turnoutStates: edge.turnoutStates.map(state => ({ ...state })),
+        turnoutPath: [...edge.turnoutPath].reverse().map(passage => ({
+          ...passage,
+          turnoutStates: passage.turnoutStates.map(state => ({ ...state })),
+        })),
+      })),
+    });
+    grouped.set(key(route.toBlockId, route.fromBlockId, direction), [result[result.length - 1]!]);
+    if (result.length > MAX_PERSISTED_ROUTE_TABLE_ENTRIES) {
+      throw new Error(`Generated route table is too large (${result.length} entries). Limit is ${MAX_PERSISTED_ROUTE_TABLE_ENTRIES}.`);
+    }
+  }
+  return result;
+}
+
 function routeTableFromResult(
   result: ClientRouteGraphBuildResult
 ): PersistedRouteTableEntry[] {
@@ -894,7 +965,7 @@ function routeTableFromResult(
     }
   }
 
-  return table.sort(
+  return includeUnambiguousReturnRoutes(table).sort(
     (a, b) =>
       a.fromBlockId - b.fromBlockId ||
       a.toBlockId - b.toBlockId ||
