@@ -48,20 +48,24 @@ function followsCheckpoints(route: SavedRoute, checkpoints: number[]): boolean {
 }
 
 function compileSegments(
-  layout: LayoutView,
+  routeTable: SavedRoute[],
   steps: SequentialMovementStep[],
   blockName: (id: number) => string,
 ): SequentialMovementSegment[] {
-  if (steps.length < 2 || steps.length > 64 || steps.some(step => !step.blockId))
-    throw new Error("Choose at least two valid blocks (maximum 64).");
-  if (steps.some((step, i) => i > 0 && step.blockId === steps[i - 1]?.blockId))
-    throw new Error("Adjacent steps cannot refer to the same block.");
-  if (steps.some(step => step.waitMode === "random" && step.minSeconds > step.maxSeconds))
-    throw new Error("Random wait minimum must not exceed maximum.");
+  if (steps.length < 2 || steps.length > 64)
+    throw new Error("A sequence needs between 2 and 64 blocks.");
+  const missingRow = steps.findIndex(step => !step.blockId);
+  if (missingRow >= 0)
+    throw new Error(`Row ${missingRow + 1}: choose a block before saving.`);
+  const duplicatedRow = steps.findIndex((step, i) => i > 0 && step.blockId === steps[i - 1]?.blockId);
+  if (duplicatedRow >= 0)
+    throw new Error(`Row ${duplicatedRow + 1}: ${blockName(steps[duplicatedRow]!.blockId)} is the same block as the previous row.`);
+  const invalidWaitRow = steps.findIndex(step => step.waitMode === "random" && step.minSeconds > step.maxSeconds);
+  if (invalidWaitRow >= 0)
+    throw new Error(`Row ${invalidWaitRow + 1} (${blockName(steps[invalidWaitRow]!.blockId)}): random wait minimum exceeds maximum.`);
 
-  const topology = createCurrentClientLayoutSnapshot(layout).routeTopology as PersistedClientRouteTopology | undefined;
-  if (!topology?.routeTable?.length)
-    throw new Error("No saved route topology. Regenerate and save the route graph first.");
+  if (!routeTable.length)
+    throw new Error("No saved route topology. Generate and save the route graph first.");
 
   const segments: SequentialMovementSegment[] = [];
   let start = 0;
@@ -71,19 +75,19 @@ function compileSegments(
     let end = start + 1;
     while (end < steps.length - 1 && steps[end]!.waitMode === "pass") {
       if (steps[end]!.direction !== direction)
-        throw new Error(`Direction changes at ${blockName(steps[end]!.blockId)} require a stop (Fixed 0 s is allowed).`);
+        throw new Error(`Row ${end + 1} (${blockName(steps[end]!.blockId)}): direction changes inside a Pass section. Select Fixed 0 s (valid stop, no waiting) or a longer wait.`);
       end++;
     }
 
     const checkpoints = steps.slice(start, end + 1).map(step => step.blockId);
     if (checkpoints[0] === checkpoints[checkpoints.length - 1]) {
       throw new Error(
-        `A non-stop circuit returning to ${blockName(checkpoints[0]!)} is not supported by the current Movement runtime. ` +
-        "Set Fixed 0 s at an intermediate block to split the circuit into two safe routes."
+        `Rows ${start + 1}–${end + 1}: the route returns to ${blockName(checkpoints[0]!)} without an intermediate stop. ` +
+        "Set Fixed 0 s (a valid stop) or a longer wait at an intermediate block."
       );
     }
 
-    const matching = topology.routeTable.filter(route =>
+    const matching = routeTable.filter(route =>
       route.fromBlockId === checkpoints[0] &&
       route.toBlockId === checkpoints[checkpoints.length - 1] &&
       route.locoDirection === direction &&
@@ -91,8 +95,8 @@ function compileSegments(
     );
     if (matching.length !== 1) {
       throw new Error(matching.length === 0
-        ? `No ${direction} route from ${blockName(checkpoints[0]!)} to ${blockName(checkpoints[checkpoints.length - 1]!)} through the selected blocks.`
-        : `Ambiguous route ${blockName(checkpoints[0]!)} → ${blockName(checkpoints[checkpoints.length - 1]!)}: add checkpoints to distinguish physical paths.`);
+        ? `Rows ${start + 1}–${end + 1}: no single ${direction} route from ${blockName(checkpoints[0]!)} to ${blockName(checkpoints[checkpoints.length - 1]!)} via ${checkpoints.map(blockName).join(" → ")}. Add a Fixed stop at an intermediate block or check the saved Routes.`
+        : `Rows ${start + 1}–${end + 1}: multiple ${direction} routes match ${checkpoints.map(blockName).join(" → ")}. Add checkpoints to distinguish the physical path.`);
     }
     const selected = matching[0]!;
     segments.push({
@@ -221,6 +225,18 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
     steps: [createStep(Number(blocks[0]?.value ?? 0)), createStep(Number(blocks[1]?.value ?? 0))],
     segments: [],
   });
+  // Preview the same segment compilation used by Save. Errors appear at the
+  // top of the editor while the user can still correct the offending row.
+  const draftIssue = useMemo(() => {
+    if (!draft) return null;
+    try {
+      compileSegments(editorRouteTable, draft.steps, blockName);
+      return null;
+    } catch (error) {
+      return error instanceof Error ? error.message : String(error);
+    }
+  }, [draft, editorRouteTable]);
+
   const modify = (patch: Partial<SequentialMovementDefinition>) =>
     setDraft(current => current ? { ...current, ...patch } : current);
   const changeStep = (index: number, patch: Partial<SequentialMovementStep>) =>
@@ -307,8 +323,9 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
   const save = async () => {
     if (!draft) return;
     if (!draft.name.trim()) { setError("Enter a sequence name."); return; }
+    if (draftIssue) { setError(draftIssue); return; }
     try {
-      const segments = compileSegments(layout, draft.steps, blockName);
+      const segments = compileSegments(editorRouteTable, draft.steps, blockName);
       const saved: SequentialMovementDefinition = { ...draft, name: draft.name.trim(), directionMode: "departure", segments };
       await onPersistRouteTopology?.();
       await persist({
@@ -600,6 +617,7 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
       busy={busy}
       error={error ? formatRuntimeMessage(error) : null}
       routeTableReady={editorRouteTable.length > 0}
+      validationIssue={draftIssue}
       blocks={blocks}
       availableBlocks={index => blocks.filter(block =>
         draft && reachableNextBlocks(draft.steps, index, editorRouteTable).has(Number(block.value)))}
