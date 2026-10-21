@@ -260,12 +260,6 @@ public sealed class SequentialMovementRuntime
 
                 var endIndex = run.Definition.Segments[index].EndStepIndex;
                 var step = run.Definition.Steps[endIndex];
-                if (index == run.Definition.Segments.Length - 1)
-                {
-                    Publish(run, "completed", endIndex + 1, "Sequence completed");
-                    return;
-                }
-
                 var seconds = step.WaitMode switch
                 {
                     "fixed" => step.WaitSeconds,
@@ -277,6 +271,16 @@ public sealed class SequentialMovementRuntime
                     Publish(run, "waiting", endIndex + 1,
                         "Stopped at block #" + step.BlockId + " · waiting " + seconds + " s");
                     await Task.Delay(TimeSpan.FromSeconds(seconds), token);
+                }
+
+                // The final block always stops; if a wait was configured there,
+                // complete only after its timer expires rather than silently
+                // skipping the last row's stop/wait setting.
+                if (index == run.Definition.Segments.Length - 1)
+                {
+                    token.ThrowIfCancellationRequested();
+                    Publish(run, "completed", endIndex + 1, "Sequence completed");
+                    return;
                 }
 
                 token.ThrowIfCancellationRequested();
