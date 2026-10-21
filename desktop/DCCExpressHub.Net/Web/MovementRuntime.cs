@@ -2445,6 +2445,47 @@ public sealed class MovementRuntime
                 "blocking",
                 StringComparison.Ordinal));
 
+    // Return the exact current blocker from the authoritative runtime state.
+    // Do not infer FREE from a stale UI indicator or a sensor that is UNKNOWN.
+    // Dispatcher still independently checks leases, locks and all safety sensors
+    // before granting authority to the next leg.
+    string? NextLegAvailabilityBlocker(
+        MovementPlanLegModel leg,
+        IReadOnlyList<ushort> sensors)
+    {
+        if (leg.To.BlockId is not (>= 1 and <= 65535))
+            return "destination block is not configured";
+
+        var target = Block(leg.To.BlockId.Value);
+        if (target is null)
+            return "destination block " + leg.To.Name + " is missing";
+
+        if (target.LocoAddress > 0)
+            return "destination " + leg.To.Name +
+                   " is still assigned to loco #" + target.LocoAddress;
+
+        if (target.TargetOnly)
+            return "destination " + leg.To.Name +
+                   " still has a target reservation" +
+                   (target.TargetLocoAddress > 0
+                       ? " for loco #" + target.TargetLocoAddress
+                       : "");
+
+        if (!string.IsNullOrEmpty(target.LocoId))
+            return "destination " + leg.To.Name +
+                   " still has an occupied block assignment";
+
+        foreach (var sensor in sensors)
+        {
+            if (!_layout.TryGetSensorState(sensor, out var on))
+                return "safety sensor #" + sensor + " is UNKNOWN";
+            if (on)
+                return "safety sensor #" + sensor + " is ON (occupied)";
+        }
+
+        return null;
+    }
+
     async Task WaitPreDepartureAvailability(
         Execution execution,
         MovementPlanLegModel leg)
@@ -2454,18 +2495,66 @@ public sealed class MovementRuntime
                 execution.Page,
                 leg);
 
-        await WaitUntil(
-            execution,
-            () =>
-                TargetBlockBasicallyFree(
-                    leg) &&
-                SafetyFree(
-                    sensors),
-            "Waiting for next leg availability",
-            stopWhileWaiting:
-                true,
-            pollMs:
-                150);
+        string? previousBlocker = null;
+        while (true)
+        {
+            execution.Cancellation.Token.ThrowIfCancellationRequested();
+
+            // Re-read block assignments and live feedback every 150 ms. A
+            // temporarily blocked train automatically resumes as soon as ALL
+            // checks clear; it never requires a manual restart.
+            var blocker =
+                NextLegAvailabilityBlocker(leg, sensors);
+            if (blocker is null)
+            {
+                if (previousBlocker is not null)
+                {
+                    _log.LogInformation(
+                        "Movement {Movement} loco #{Loco}: next leg {From}->{To} became available after waiting for {Blocker}",
+                        execution.Page.Name,
+                        execution.LocoAddress,
+                        leg.From.Name,
+                        leg.To.Name,
+                        previousBlocker);
+
+                    Patch(
+                        execution,
+                        info: "Next leg available: " +
+                              leg.From.Name + " -> " + leg.To.Name,
+                        setInfo: true);
+                }
+                return;
+            }
+
+            execution.Moving = false;
+            await ApplySpeed(execution, force: false);
+
+            if (!string.Equals(
+                    previousBlocker,
+                    blocker,
+                    StringComparison.Ordinal))
+            {
+                _log.LogInformation(
+                    "Movement {Movement} loco #{Loco}: next leg {From}->{To} waiting: {Blocker}",
+                    execution.Page.Name,
+                    execution.LocoAddress,
+                    leg.From.Name,
+                    leg.To.Name,
+                    blocker);
+                previousBlocker = blocker;
+            }
+
+            Patch(
+                execution,
+                info: "Waiting for next leg " +
+                      leg.From.Name + " -> " + leg.To.Name +
+                      ": " + blocker,
+                setInfo: true);
+
+            await Task.Delay(
+                150,
+                execution.Cancellation.Token);
+        }
     }
 
     static bool RetryableDispatcherFailure(
