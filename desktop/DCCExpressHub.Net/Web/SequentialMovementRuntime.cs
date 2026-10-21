@@ -549,11 +549,12 @@ public sealed class SequentialMovementRuntime
             if (!_running.TryGetValue(id, out run)) return false;
             if (run.FinishRequested) return true;
             run.FinishRequested = true;
+            // Transition atomically with respect to the terminal state.
+            Publish(run, "finishing", run.State.StepIndex,
+                "Finishing at next safe block");
             // Wake a timed wait while Run is still owned by _running.
             run.FinishWake.Cancel();
         }
-        Publish(run, "finishing", run.State.StepIndex,
-            "Finishing at next safe block");
         // The child Movement decides when the next block has actually
         // arrived; no premature zero-speed command or authority release.
         if (run.ChildId is { } child)
