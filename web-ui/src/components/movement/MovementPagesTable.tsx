@@ -13,6 +13,7 @@ import {
   NumberInput,
   ScrollArea,
   Stack,
+  Tabs,
   Switch,
   Text,
   Tooltip,
@@ -39,6 +40,9 @@ import type { Loco } from "@/domain/domainTypes";
 import { previewStationRoute, type StationRoutePlan } from "@/services/stationRoutePlanner";
 import AppModal from "@/components/common/AppModal";
 import StationRouteStartDialog from "./StationRouteStartDialog";
+import SequentialMovementsTab from "@/components/routes/SequentialMovementsTab";
+import { wsClient } from "@/services/wsClient";
+import type { SequentialMovementStatePayload } from "@/domain/wsTypes";
 
 import type {
   MovementDocument,
@@ -101,6 +105,7 @@ type Props = {
   locos: Loco[];
   stationNames: Array<{ id: string; name: string }>;
   onOpenStationRoutes: (routeId: string) => void;
+  onPersistRouteTopology?: (() => Promise<void>) | undefined;
 };
 
 function routeLabel(
@@ -482,6 +487,19 @@ function MovementCard({
   );
 }
 
+type MovementCollectionTab = "movement" | "stationRoutes" | "sequential";
+
+const MOVEMENT_COLLECTION_TAB_KEY = "dcc-express-hub.automation.movements.activeTab";
+
+function loadMovementCollectionTab(): MovementCollectionTab {
+  if (typeof window === "undefined") return "movement";
+  try {
+    const saved = window.localStorage.getItem(MOVEMENT_COLLECTION_TAB_KEY);
+    if (saved === "movement" || saved === "stationRoutes" || saved === "sequential") return saved;
+  } catch { /* Browsers may restrict local storage. */ }
+  return "movement";
+}
+
 export default function MovementPagesTable({
   document,
   onDocumentChange,
@@ -491,7 +509,29 @@ export default function MovementPagesTable({
   locos,
   stationNames,
   onOpenStationRoutes,
+  onPersistRouteTopology,
 }: Props) {
+  const [collectionTab, setCollectionTab] = useState<MovementCollectionTab>(loadMovementCollectionTab);
+  const changeCollectionTab = (value: string | null) => {
+    if (value !== "movement" && value !== "stationRoutes" && value !== "sequential") return;
+    setCollectionTab(value);
+    try { window.localStorage.setItem(MOVEMENT_COLLECTION_TAB_KEY, value); } catch { /* Storage not available. */ }
+  };
+  const [sequenceStates, setSequenceStates] = useState<Record<string, SequentialMovementStatePayload>>({});
+  useEffect(() => {
+    const off = wsClient.on("sequentialMovementStateChanged", state =>
+      setSequenceStates(current => ({ ...current, [state.sequenceId]: state })));
+    const requestId = "automation-sequence-snapshot-" + Date.now();
+    void wsApi.request("movementCommand", { requestId, action: "sequenceSnapshot" }, "movementResponse",
+      message => message.requestId === requestId, 10000)
+      .then(response => {
+        const extra = response.extra as unknown as { states?: SequentialMovementStatePayload[] } | undefined;
+        if (extra?.states) setSequenceStates(current => ({
+          ...current, ...Object.fromEntries(extra.states!.map(state => [state.sequenceId, state])),
+        }));
+      }).catch(() => { /* Live updates are still subscribed. */ });
+    return off;
+  }, []);
   const [stationToStart, setStationToStart] = useState<StationRouteDefinition | null>(null);
   const [stationTasks, setStationTasks] = useState(getMovementTaskStates);
   useEffect(() => subscribeMovementTaskStates(() => setStationTasks(getMovementTaskStates())), []);
@@ -646,7 +686,11 @@ export default function MovementPagesTable({
             "error"
         );
       }
-    ).length;
+    ).length +
+    stationTasks.filter(({ pageId, state }) =>
+      pageId.includes("-station-") && (state.status === "running" || state.status === "stopping")).length +
+    Object.values(sequenceStates).filter(state =>
+      state.status === "running" || state.status === "waiting").length;
 
   const stopAll =
     (): void => {
@@ -866,89 +910,7 @@ export default function MovementPagesTable({
     };
 
   return (
-    <Stack
-      gap="sm"
-      h="100%"
-    >
-      <Group
-        justify="space-between"
-        align="center"
-        wrap="wrap"
-      >
-        <Group
-          gap="xs"
-        >
-          <IconRoute
-            size={17}
-          />
-
-          <Text
-            fw={700}
-            size="sm"
-          >
-            {mt("movementSavedMovements")}
-          </Text>
-
-          <Badge
-            variant="light"
-            color="violet"
-          >
-            {
-              pageCount
-            }
-          </Badge>
-
-          <Badge
-            variant="light"
-            color={
-              enabledCount >
-                0
-                ? "green"
-                : "gray"
-            }
-          >
-            {
-              mt(
-                "movementEnabledCount",
-                {
-                  count:
-                    enabledCount,
-                }
-              )
-            }
-          </Badge>
-        </Group>
-
-        <Group
-          gap="xs"
-          wrap="wrap"
-        >
-          <Button
-            size="xs"
-            leftSection={
-              <IconPlus
-                size={14}
-              />
-            }
-            onClick={
-              () =>
-                onSelectRoute(
-                  null
-                )
-            }
-          >
-            {mt("movementNew")}
-          </Button>
-        </Group>
-      </Group>
-
-      <Text
-        size="xs"
-        c="dimmed"
-      >
-        {mt("movementPagesHelp")}
-      </Text>
-
+    <Stack gap="sm" h="100%" style={{ minHeight: 0 }}>
       <Group
         gap="xs"
         wrap="wrap"
@@ -1023,49 +985,96 @@ export default function MovementPagesTable({
           }
         </Button>
       </Group>
+      <Tabs value={collectionTab} onChange={changeCollectionTab} keepMounted={false}
+        style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+        <Tabs.List grow>
+          <Tabs.Tab value="movement">{mt("automationMovementTypeNormal")} ({document.pages.filter(page => !page.id.startsWith("quick-route-loco-")).length})</Tabs.Tab>
+          <Tabs.Tab value="stationRoutes">{mt("automationMovementTypeStation")} ({stationRoutes.length})</Tabs.Tab>
+          <Tabs.Tab value="sequential">{mt("automationMovementTypeSequential")} ({document.sequences.length})</Tabs.Tab>
+        </Tabs.List>
 
-      <ScrollArea
-        style={{
-          flex: 1,
-          minHeight: 0,
-        }}
-        type="always"
+        <Tabs.Panel value="movement" pt="sm" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+          <Stack gap="sm" h="100%" style={{ minHeight: 0 }}>
+            <Group
+        justify="space-between"
+        align="center"
+        wrap="wrap"
       >
-        <Stack
-          gap="sm"
+        <Group
+          gap="xs"
         >
-          {stationRoutes.map(route => {
-            const runningTasks = stationTasks.filter(({pageId,state}) =>
-              pageId.includes(`-station-${route.id}-`) && (state.status === "running" || state.status === "stopping"));
-            const stationName = (id: string) => stationNames.find(s => s.id === id)?.name ?? id;
-            const viaLabel = route.via.map(v => {
-              if (v.type === "station") return stationName(v.targetId);
-              return catalog.find(b => String(b.id) === v.targetId)?.name ?? `Block #${v.targetId}`;
-            }).join(" → ");
-            return <Paper key={route.id} withBorder radius="sm" p="sm" style={{ opacity: route.enabled ? 1 : 0.6 }}>
-              <Stack gap="xs">
-                <Group justify="space-between" align="center">
-                  <Group gap="xs"><IconRoute size={17}/><Text fw={600}>{route.name}</Text><Badge variant="light" color="blue">Station Route</Badge></Group>
-                  <Badge color={route.enabled ? "teal" : "gray"}>{route.enabled ? "Enabled" : "Disabled"}</Badge>
-                </Group>
-                <Text size="sm">{stationName(route.fromStationId)} → {stationName(route.toStationId)}</Text>
-                {route.via.length > 0 && <Text size="xs" c="dimmed">Via: {viaLabel}</Text>}
-                <Group justify="space-between">
-                  <Badge variant="outline">{route.allowReverse ? "Both directions" : "One-way"}</Badge>
-                  <Group gap="xs">
-                    <Tooltip label="Start Station Route"><ActionIcon color="green" variant="light" disabled={!route.enabled} aria-label="Start Station Route" onClick={() => setStationToStart(route)}><IconPlayerPlay size={17}/></ActionIcon></Tooltip>
-                    <Tooltip label="Stop this route's running tasks"><ActionIcon color="yellow" variant="light" aria-label="Stop Station Route tasks" disabled={!runningTasks.some(t => t.state.status === "running")} onClick={() => runningTasks.forEach(t => stopMovement(t.pageId))}><IconPlayerStop size={17}/></ActionIcon></Tooltip>
-                    <Tooltip label="Abort this route's running tasks"><ActionIcon color="red" variant="light" aria-label="Abort Station Route tasks" disabled={!runningTasks.length} onClick={() => runningTasks.forEach(t => abortMovement(t.pageId))}><IconAlertTriangle size={17}/></ActionIcon></Tooltip>
-                    <Tooltip label="Preview"><ActionIcon variant="light" aria-label="Preview Station Route" onClick={() => showStationPreview(route)}><IconRoute size={17}/></ActionIcon></Tooltip>
-                    <Tooltip label="Edit"><ActionIcon variant="light" aria-label="Edit Station Route" onClick={() => onOpenStationRoutes(route.id)}><IconEdit size={17}/></ActionIcon></Tooltip>
-                  </Group>
-                </Group>
-                {runningTasks.length > 0 && <Text size="xs" c="green">{runningTasks.length} active Task(s) · {runningTasks.map(t => `#${t.state.locoAddress ?? "?"}`).join(", ")}</Text>}
-                <Text size="xs" c="dimmed">Each launch creates an independent temporary Movement Task; manage individual trains in TaskMan.</Text>
-              </Stack>
-            </Paper>;
-          })}
-          {
+          <IconRoute
+            size={17}
+          />
+
+          <Text
+            fw={700}
+            size="sm"
+          >
+            {mt("movementSavedMovements")}
+          </Text>
+
+          <Badge
+            variant="light"
+            color="violet"
+          >
+            {
+              pageCount
+            }
+          </Badge>
+
+          <Badge
+            variant="light"
+            color={
+              enabledCount >
+                0
+                ? "green"
+                : "gray"
+            }
+          >
+            {
+              mt(
+                "movementEnabledCount",
+                {
+                  count:
+                    enabledCount,
+                }
+              )
+            }
+          </Badge>
+        </Group>
+
+        <Group
+          gap="xs"
+          wrap="wrap"
+        >
+          <Button
+            size="xs"
+            leftSection={
+              <IconPlus
+                size={14}
+              />
+            }
+            onClick={
+              () =>
+                onSelectRoute(
+                  null
+                )
+            }
+          >
+            {mt("movementNew")}
+          </Button>
+        </Group>
+      </Group>
+            <Text
+        size="xs"
+        c="dimmed"
+      >
+        {mt("movementPagesHelp")}
+      </Text>
+            <ScrollArea style={{ flex: 1, minHeight: 0 }} type="always">
+              <Stack gap="sm">
+                {
             document.pages.filter(page => !page.id.startsWith("quick-route-loco-")).map(
               page => (
                 <MovementCard
@@ -1122,8 +1131,72 @@ export default function MovementPagesTable({
               )
             )
           }
-        </Stack>
-      </ScrollArea>
+              </Stack>
+            </ScrollArea>
+          </Stack>
+        </Tabs.Panel>
+
+        <Tabs.Panel value="stationRoutes" pt="sm" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+          <Stack gap="sm" h="100%" style={{ minHeight: 0 }}>
+            <Group justify="space-between" wrap="wrap">
+              <Group gap="xs">
+                <IconRoute size={17} />
+                <Text fw={700} size="sm">{mt("automationMovementTypeStation")}</Text>
+                <Badge variant="light" color="blue">{stationRoutes.length}</Badge>
+              </Group>
+              <Button size="xs" leftSection={<IconPlus size={14}/>}
+                onClick={() => onOpenStationRoutes("")}>{mt("movementNew")}</Button>
+            </Group>
+            <ScrollArea style={{ flex: 1, minHeight: 0 }} type="always">
+              <Stack gap="sm">
+                {stationRoutes.map(route => {
+            const runningTasks = stationTasks.filter(({pageId,state}) =>
+              pageId.includes(`-station-${route.id}-`) && (state.status === "running" || state.status === "stopping"));
+            const stationName = (id: string) => stationNames.find(s => s.id === id)?.name ?? id;
+            const viaLabel = route.via.map(v => {
+              if (v.type === "station") return stationName(v.targetId);
+              return catalog.find(b => String(b.id) === v.targetId)?.name ?? `Block #${v.targetId}`;
+            }).join(" → ");
+            return <Paper key={route.id} withBorder radius="sm" p="sm" style={{ opacity: route.enabled ? 1 : 0.6 }}>
+              <Stack gap="xs">
+                <Group justify="space-between" align="center">
+                  <Group gap="xs"><IconRoute size={17}/><Text fw={600}>{route.name}</Text><Badge variant="light" color="blue">Station Route</Badge></Group>
+                  <Badge color={route.enabled ? "teal" : "gray"}>{route.enabled ? "Enabled" : "Disabled"}</Badge>
+                </Group>
+                <Text size="sm">{stationName(route.fromStationId)} → {stationName(route.toStationId)}</Text>
+                {route.via.length > 0 && <Text size="xs" c="dimmed">Via: {viaLabel}</Text>}
+                <Group justify="space-between">
+                  <Badge variant="outline">{route.allowReverse ? "Both directions" : "One-way"}</Badge>
+                  <Group gap="xs">
+                    <Tooltip label="Start Station Route"><ActionIcon color="green" variant="light" disabled={!route.enabled} aria-label="Start Station Route" onClick={() => setStationToStart(route)}><IconPlayerPlay size={17}/></ActionIcon></Tooltip>
+                    <Tooltip label="Stop this route's running tasks"><ActionIcon color="yellow" variant="light" aria-label="Stop Station Route tasks" disabled={!runningTasks.some(t => t.state.status === "running")} onClick={() => runningTasks.forEach(t => stopMovement(t.pageId))}><IconPlayerStop size={17}/></ActionIcon></Tooltip>
+                    <Tooltip label="Abort this route's running tasks"><ActionIcon color="red" variant="light" aria-label="Abort Station Route tasks" disabled={!runningTasks.length} onClick={() => runningTasks.forEach(t => abortMovement(t.pageId))}><IconAlertTriangle size={17}/></ActionIcon></Tooltip>
+                    <Tooltip label="Preview"><ActionIcon variant="light" aria-label="Preview Station Route" onClick={() => showStationPreview(route)}><IconRoute size={17}/></ActionIcon></Tooltip>
+                    <Tooltip label="Edit"><ActionIcon variant="light" aria-label="Edit Station Route" onClick={() => onOpenStationRoutes(route.id)}><IconEdit size={17}/></ActionIcon></Tooltip>
+                  </Group>
+                </Group>
+                {runningTasks.length > 0 && <Text size="xs" c="green">{runningTasks.length} active Task(s) · {runningTasks.map(t => `#${t.state.locoAddress ?? "?"}`).join(", ")}</Text>}
+                <Text size="xs" c="dimmed">Each launch creates an independent temporary Movement Task; manage individual trains in TaskMan.</Text>
+              </Stack>
+            </Paper>;
+          })}
+                {stationRoutes.length === 0 &&
+                  <Text c="dimmed" ta="center" size="sm">{mt("automationNoStationRoutes")}</Text>}
+              </Stack>
+            </ScrollArea>
+          </Stack>
+        </Tabs.Panel>
+
+        <Tabs.Panel value="sequential" pt="sm" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+          <SequentialMovementsTab
+            presentation="cards"
+            layout={layout}
+            movements={document}
+            onMovementsChange={onDocumentChange}
+            onPersistRouteTopology={onPersistRouteTopology}
+          />
+        </Tabs.Panel>
+      </Tabs>
       <StationRouteStartDialog opened={stationToStart !== null} onClose={() => setStationToStart(null)} route={stationToStart} layout={layout} locomotives={locos}/>
       <AppModal opened={stationPreview !== null} onClose={() => setStationPreview(null)}
         title={stationPreview ? `Station Route Preview · ${stationPreview.route.name}` : "Station Route Preview"}
