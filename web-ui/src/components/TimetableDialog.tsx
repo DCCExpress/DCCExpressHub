@@ -42,7 +42,7 @@ import {
 
 import AppModal from "@/components/common/AppModal";
 import TimetableTimeline from "@/components/TimetableTimeline";
-import RoutesDialog from "@/components/RoutesDialog";
+import SelectMovementRouteDialog from "@/components/routes/SelectMovementRouteDialog";
 import type { LayoutView } from "@/models/editor/core/LayoutView";
 import type { MovementDocument } from "@/domain/movement";
 
@@ -1554,7 +1554,7 @@ export default function TimetableDialog({
           </Group>
         </Group>
       </Stack>
-      <RoutesDialog
+      <SelectMovementRouteDialog
         opened={routePicker !== null}
         onClose={() => setRoutePicker(null)}
         layout={layout}
