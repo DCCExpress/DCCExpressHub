@@ -17,6 +17,7 @@ public sealed class WsHub
     readonly SwitchManManager SwitchMan;
     readonly DispatcherRuntime Dispatcher;
     readonly MovementRuntime Movement;
+    readonly SequentialMovementRuntime SequentialMovement;
     readonly TrainDriverRuntime TrainDriver;
     readonly TrainTrackingRuntime TrainTracking;
     readonly ScriptRuntime Scripts;
@@ -66,7 +67,7 @@ public sealed class WsHub
     private static readonly TimeSpan WebSocketSendTimeout = TimeSpan.FromSeconds(2);
     public int ClientCount => Clients.Count;
 
-    public WsHub(ICommandCenter cc, HubState state, LayoutRuntime runtime, RuntimeStateStore stateStore, CommandCenterConfigStore ccConfig, LocoCounterRuntime locoCounters, FastClockRuntime fastClock, SwitchManManager switchMan, DispatcherRuntime dispatcher, MovementRuntime movement, TrainDriverRuntime trainDriver, TrainTrackingRuntime trainTracking, ScriptRuntime scripts, FlowRuntime flows, TimetableRuntime timetable, ILogger<WsHub> log, IHostApplicationLifetime lifetime)
+    public WsHub(ICommandCenter cc, HubState state, LayoutRuntime runtime, RuntimeStateStore stateStore, CommandCenterConfigStore ccConfig, LocoCounterRuntime locoCounters, FastClockRuntime fastClock, SwitchManManager switchMan, DispatcherRuntime dispatcher, MovementRuntime movement, SequentialMovementRuntime sequentialMovement, TrainDriverRuntime trainDriver, TrainTrackingRuntime trainTracking, ScriptRuntime scripts, FlowRuntime flows, TimetableRuntime timetable, ILogger<WsHub> log, IHostApplicationLifetime lifetime)
     {
         CommandCenter = cc;
         HubState = state;
@@ -77,6 +78,7 @@ public sealed class WsHub
         SwitchMan = switchMan;
         Dispatcher = dispatcher;
         Movement = movement;
+        SequentialMovement = sequentialMovement;
         TrainDriver = trainDriver;
         TrainTracking = trainTracking;
         Scripts = scripts;
@@ -110,6 +112,7 @@ public sealed class WsHub
                         routes =
                             Dispatcher.RouteSnapshot()
                     });
+        SequentialMovement.Changed += state => QueueStateBroadcast("sequentialMovementStateChanged", state);
         TrainDriver.Changed += state => QueueStateBroadcast("trainDriverStateChanged", state);
         Movement.Changed +=
             state =>
@@ -2123,6 +2126,26 @@ public sealed class WsHub
                         states = Movement.Snapshot()
                     });
                 return;
+
+            case "sequenceSnapshot":
+                await Reply(true, extra: new { states = SequentialMovement.Snapshot() });
+                return;
+
+            case "sequenceStart":
+                {
+                    var result = SequentialMovement.Start(S(data, "sequenceId"));
+                    await Reply(result.Ok, result.Error, new { state = result.State });
+                    return;
+                }
+
+            case "sequenceStop":
+            case "sequenceAbort":
+                {
+                    var ok = SequentialMovement.Stop(
+                        S(data, "sequenceId"), action == "sequenceAbort");
+                    await Reply(ok, ok ? null : "sequence_not_running");
+                    return;
+                }
 
             case "start":
                 {
