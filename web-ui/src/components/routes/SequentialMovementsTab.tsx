@@ -92,6 +92,45 @@ function compileSegments(
   return segments;
 }
 
+/**
+ * The server's stepIndex is 1-based: the last confirmed checkpoint.
+ * During a non-stop leg the train may have reached a later block without
+ * the sequence runtime advancing, so prefer the locomotive's actual layout
+ * block assignment when it matches a checkpoint in the current leg.
+ *
+ * Repeated block IDs are disambiguated using the sequence's progress; an
+ * earlier visit to B1 must not also highlight a later B1 in the same route.
+ */
+function currentSequenceStepIndex(
+  sequence: SequentialMovementDefinition,
+  runtime: SequentialMovementStatePayload | undefined,
+  layout: LayoutView,
+): number | null {
+  if (!runtime || (runtime.status !== "running" && runtime.status !== "waiting") ||
+      runtime.stepIndex < 1 || sequence.steps.length === 0)
+    return null;
+
+  const confirmedIndex = Math.min(runtime.stepIndex - 1, sequence.steps.length - 1);
+  if (runtime.status === "waiting") return confirmedIndex;
+
+  const locoAddress = runtime.locoAddress;
+  if (locoAddress == null || locoAddress <= 0) return confirmedIndex;
+
+  const occupiedBlockIds = new Set(
+    layout.blocks.elements
+      .filter((block): block is BlockElement =>
+        block instanceof BlockElement && block.locoAddress === locoAddress)
+      .map(block => block.id),
+  );
+  const currentLegEnd = sequence.segments.find(segment =>
+    segment.endStepIndex > confirmedIndex)?.endStepIndex ?? sequence.steps.length - 1;
+
+  const detectedIndex = sequence.steps.findIndex((step, index) =>
+    index >= confirmedIndex && index <= currentLegEnd && occupiedBlockIds.has(step.blockId));
+
+  return detectedIndex >= 0 ? detectedIndex : confirmedIndex;
+}
+
 export default function SequentialMovementsTab({ layout, movements, onMovementsChange, onPersistRouteTopology, presentation = "table" }: Props) {
   // Read the live layout on each render; its block names can be edited in place
   // without replacing the LayoutView instance.
@@ -225,13 +264,9 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
               style={{ opacity: sequence.enabled ? 1 : 0.6 }}>
               <Stack gap="xs">
                 <Group justify="space-between" wrap="nowrap" gap="xs">
-                  <Group gap="xs" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
-                    <Text fw={700} size="sm" truncate style={{ minWidth: 0 }}>{sequence.name}</Text>
-                    <Badge size="xs" variant="light" style={{ flexShrink: 0 }}
-                      color={active(sequence.id) ? "green" : runtime?.status === "error" ? "red" : "gray"}>
-                      {runtime?.status ?? (sequence.enabled ? "Idle" : "Disabled")}
-                    </Badge>
-                  </Group>
+                  <Text fw={700} size="sm" truncate style={{ flex: 1, minWidth: 0 }}>
+                    {sequence.name}
+                  </Text>
                   <Group gap={4} wrap="nowrap" style={{ flexShrink: 0 }}>
                     {sequenceControls(sequence)}
                     <Tooltip label={expandedCards[sequence.id] ? "Hide details" : "Show details"}>
@@ -247,9 +282,21 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
                     </Tooltip>
                   </Group>
                 </Group>
-                <Text size="xs" c="dimmed" style={{ overflowWrap: "anywhere" }}>
-                  {stepsText(sequence)}
-                </Text>
+                <Group gap={5} wrap="wrap" align="center" aria-label={`Route: ${stepsText(sequence)}`}>
+                  {sequence.steps.map((step, index) => (
+                    <Group key={index} gap={5} wrap="nowrap">
+                      {index > 0 && <Text size="xs" c="dimmed">→</Text>}
+                      {index === currentSequenceStepIndex(sequence, runtime, layout) ? (
+                        <Badge size="sm" color="lime" variant="filled" radius="sm"
+                          aria-label={`Current block: ${blockName(step.blockId)}`}>
+                          {blockName(step.blockId)}
+                        </Badge>
+                      ) : (
+                        <Text size="xs" c="dimmed">{blockName(step.blockId)}</Text>
+                      )}
+                    </Group>
+                  ))}
+                </Group>
                 <Collapse expanded={Boolean(expandedCards[sequence.id])}>
                   <Stack gap="xs" pt="xs">
                     <Group gap="xs">
