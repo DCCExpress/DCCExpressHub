@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  ActionIcon, Badge, Button, Collapse, Group, Menu, NumberInput, ScrollArea, Select,
-  Paper, Stack, Switch, Table, Text, TextInput, Tooltip,
+  ActionIcon, Badge, Button, Collapse, Group, Menu, ScrollArea, Select,
+  Paper, Stack, Table, Text, Tooltip,
 } from "@mantine/core";
-import { IconArrowDown, IconArrowUp, IconChevronDown, IconChevronUp, IconDotsVertical, IconEdit, IconFlag, IconPlayerPlay, IconPlayerStop, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
+import { IconChevronDown, IconChevronUp, IconDotsVertical, IconEdit, IconFlag, IconPlayerPlay, IconPlayerStop, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 import type { LayoutView } from "@/models/editor/core/LayoutView";
 import type { Loco } from "@/domain/domainTypes";
 import { BlockElement } from "@/models/editor/elements/BlockElement";
@@ -14,10 +14,11 @@ import { wsApi } from "@/services/wsApi";
 import { wsClient } from "@/services/wsClient";
 import type {
   MovementDocument, SequentialMovementDefinition, SequentialMovementStep,
-  SequentialMovementSegment, SequentialWaitMode,
+  SequentialMovementSegment,
 } from "@/domain/movement";
 import type { SequentialMovementStatePayload } from "@/domain/wsTypes";
 import AppModal from "@/components/common/AppModal";
+import SequentialMovementEditorDialog from "@/components/routes/SequentialMovementEditorDialog";
 import LocoImage from "@/components/loco/LocoImage";
 
 type Props = {
@@ -606,83 +607,37 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
         </Group>
       </Stack>}
     </AppModal>
-    <AppModal opened={draft !== null} onClose={() => { if (!busy) setDraft(null); }} title="Sequential Movement Editor"
-      size="min(1050px, 96vw)" draggable centered
-      styles={{
-        content: {
-          height: "min(720px, calc(100dvh - 32px))",
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-        },
-        body: {
-          flex: 1,
-          minHeight: 0,
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-        },
-      }}>
-      {draft && <Stack gap="sm" style={{ flex: 1, minHeight: 0, width: "100%" }}>
-        <Group grow>
-          <TextInput label="Name" value={draft.name} onChange={e => modify({ name: e.currentTarget.value })}/>
-          <NumberInput label="Travel speed (DCC)" min={1} max={126} value={draft.speed} onChange={v => modify({ speed: Math.max(1, Math.min(126, Number(v) || 20)) })}/>
-          <Switch label="Enabled" checked={draft.enabled} onChange={e => modify({ enabled: e.currentTarget.checked })}/>
-        </Group>
-        <Text size="xs" c="dimmed">Direction = departure from this block. The next block list is filtered by the saved route graph. Reversing here requires a stop (Fixed 0 s is added automatically). Pass means no stop; the final block always stops.</Text>
-        {editorRouteTable.length === 0 &&
-          <Text size="xs" c="orange">Route topology is missing. Generate and save the route graph to enable block filtering.</Text>}
-        <ScrollArea type="always" style={{ flex: 1, minHeight: 0, width: "100%" }}>
-          <Table striped withTableBorder stickyHeader stickyHeaderOffset={0} miw={820}>
-            <Table.Thead><Table.Tr>
-              <Table.Th>#</Table.Th><Table.Th>Block</Table.Th><Table.Th>Depart</Table.Th><Table.Th>Stop / wait</Table.Th><Table.Th>Fixed (s)</Table.Th><Table.Th>Min (s)</Table.Th><Table.Th>Max (s)</Table.Th><Table.Th/>
-            </Table.Tr></Table.Thead>
-            <Table.Tbody>
-              {draft.steps.map((step, index) => <Table.Tr key={index}>
-                <Table.Td>{index + 1}</Table.Td>
-                <Table.Td><Select size="xs" searchable w={150}
-                  placeholder={index === 0 ? "Start block" : "Reachable block"}
-                  nothingFoundMessage="No reachable blocks in this direction"
-                  data={index === 0 ? blocks : blocks.filter(block =>
-                    reachableNextBlocks(draft.steps, index, editorRouteTable).has(Number(block.value)))}
-                  value={step.blockId ? String(step.blockId) : null}
-                  onChange={value => changeStep(index, { blockId: Number(value) || 0 })}/></Table.Td>
-                <Table.Td><Select size="xs" w={108} allowDeselect={false} data={[{value:"forward",label:"Forward"},{value:"reverse",label:"Reverse"}]}
-                  value={step.direction} onChange={v => changeStep(index,{ direction: v === "reverse" ? "reverse" : "forward" })}/></Table.Td>
-                <Table.Td><Select size="xs" w={112} allowDeselect={false}
-                  data={[{value:"pass",label:"Pass"},{value:"fixed",label:"Fixed wait"},{value:"random",label:"Random wait"}]}
-                  value={step.waitMode} onChange={v => changeStep(index,{waitMode: (v ?? "pass") as SequentialWaitMode})}/></Table.Td>
-                <Table.Td><NumberInput size="xs" w={75} min={0} max={86400} disabled={step.waitMode !== "fixed"}
-                  value={step.waitSeconds} onChange={v => changeStep(index,{waitSeconds:Math.max(0,Math.min(86400,Number(v)||0))})}/></Table.Td>
-                <Table.Td><NumberInput size="xs" w={75} min={0} max={86400} disabled={step.waitMode !== "random"}
-                  value={step.minSeconds} onChange={v => changeStep(index,{minSeconds:Math.max(0,Math.min(86400,Number(v)||0))})}/></Table.Td>
-                <Table.Td><NumberInput size="xs" w={75} min={0} max={86400} disabled={step.waitMode !== "random"}
-                  value={step.maxSeconds} onChange={v => changeStep(index,{maxSeconds:Math.max(0,Math.min(86400,Number(v)||0))})}/></Table.Td>
-                <Table.Td><Group gap={2} wrap="nowrap">
-                  <ActionIcon size="sm" variant="subtle" disabled={index===0} onClick={() => {
-                    const next=[...draft.steps]; [next[index-1],next[index]]=[next[index]!,next[index-1]!]; modify({steps:normalizeReversals(next)});
-                  }}><IconArrowUp size={15}/></ActionIcon>
-                  <ActionIcon size="sm" variant="subtle" disabled={index===draft.steps.length-1} onClick={() => {
-                    const next=[...draft.steps]; [next[index+1],next[index]]=[next[index]!,next[index+1]!]; modify({steps:normalizeReversals(next)});
-                  }}><IconArrowDown size={15}/></ActionIcon>
-                  <ActionIcon size="sm" variant="subtle" color="red" disabled={draft.steps.length<=2}
-                    onClick={() => modify({steps:normalizeReversals(draft.steps.filter((_,i)=>i!==index))})}><IconTrash size={15}/></ActionIcon>
-                </Group></Table.Td>
-              </Table.Tr>)}
-            </Table.Tbody>
-          </Table>
-        </ScrollArea>
-        <Group justify="space-between" style={{ flexShrink: 0 }}>
-          <Button size="xs" variant="light" leftSection={<IconPlus size={14}/>}
-            disabled={draft.steps.length >= 64}
-            onClick={() => modify({steps:normalizeReversals([
-              ...draft.steps,
-              createStep(0,draft.steps[draft.steps.length-1]?.direction ?? "forward"),
-            ])})}>Add block</Button>
-          <Group><Button variant="default" onClick={() => setDraft(null)}>Cancel</Button>
-            <Button loading={busy} onClick={() => void save()}>Save sequence</Button></Group>
-        </Group>
-      </Stack>}
-    </AppModal>
+    <SequentialMovementEditorDialog
+      draft={draft}
+      busy={busy}
+      error={error ? formatRuntimeMessage(error) : null}
+      routeTableReady={editorRouteTable.length > 0}
+      blocks={blocks}
+      availableBlocks={index => blocks.filter(block =>
+        draft && reachableNextBlocks(draft.steps, index, editorRouteTable).has(Number(block.value)))}
+      onModify={modify}
+      onChangeStep={changeStep}
+      onMoveStep={(index, direction) => {
+        if (!draft) return;
+        const next = [...draft.steps];
+        const target = index + direction;
+        if (target < 0 || target >= next.length) return;
+        [next[index], next[target]] = [next[target]!, next[index]!];
+        modify({ steps: normalizeReversals(next) });
+      }}
+      onRemoveStep={index => {
+        if (draft && draft.steps.length > 2)
+          modify({ steps: normalizeReversals(draft.steps.filter((_, i) => i !== index)) });
+      }}
+      onAddStep={() => {
+        if (draft && draft.steps.length < 64)
+          modify({ steps: normalizeReversals([
+            ...draft.steps,
+            createStep(0, draft.steps[draft.steps.length - 1]?.direction ?? "forward"),
+          ]) });
+      }}
+      onClose={() => setDraft(null)}
+      onSave={() => void save()}
+    />
   </Stack>;
 }
