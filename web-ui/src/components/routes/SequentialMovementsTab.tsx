@@ -22,7 +22,7 @@ type Props = {
   layout: LayoutView;
   movements: MovementDocument;
   onMovementsChange: (next: MovementDocument) => void;
-  onPersistRouteTopology?: () => Promise<void>;
+  onPersistRouteTopology?: (() => Promise<void>) | undefined;
 };
 
 const createStep = (blockId: number, direction: "forward" | "reverse" = "forward"): SequentialMovementStep =>
