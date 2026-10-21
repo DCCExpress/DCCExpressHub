@@ -19,6 +19,7 @@ import type {
 import type { SequentialMovementStatePayload } from "@/domain/wsTypes";
 import AppModal from "@/components/common/AppModal";
 import SequentialMovementEditorDialog from "@/components/routes/SequentialMovementEditorDialog";
+import { normalizeReversals, reachableNextBlocks } from "@/components/routes/sequentialMovementBlockFilter";
 import LocoImage from "@/components/loco/LocoImage";
 import { useMovementTranslation } from "@/components/movement/movementI18n";
 import { MOVEMENT_CARD_ACTION_SIZE, MOVEMENT_CARD_ICON_SIZE } from "@/components/movement/movementCardActionSizing";
@@ -44,61 +45,6 @@ function followsCheckpoints(route: SavedRoute, checkpoints: number[]): boolean {
     if (block.id === checkpoints[pos]) pos++;
   }
   return pos === checkpoints.length;
-}
-
-/** Start of the uninterrupted run containing the next requested block. */
-function segmentStartIndex(steps: SequentialMovementStep[], nextIndex: number): number {
-  for (let i = nextIndex - 1; i > 0; i--) {
-    if (steps[i]?.waitMode !== "pass") return i;
-  }
-  return 0;
-}
-
-/** Reachable destinations in the given outgoing direction and route prefix. */
-function reachableNextBlocks(
-  steps: SequentialMovementStep[],
-  index: number,
-  routeTable: SavedRoute[],
-): Set<number> {
-  if (index === 0) return new Set<number>();
-  const start = segmentStartIndex(steps, index);
-  const source = steps[start];
-  const previous = steps[index - 1];
-  if (!source?.blockId || !previous?.blockId) return new Set<number>();
-
-  const prefix = steps.slice(start, index).map(step => step.blockId);
-  if (prefix.some(id => !id)) return new Set<number>();
-
-  const result = new Set<number>();
-  for (const route of routeTable) {
-    if (route.fromBlockId !== source.blockId ||
-        route.locoDirection !== source.direction ||
-        route.toBlockId === previous.blockId ||
-        !followsCheckpoints(route, [...prefix, route.toBlockId])) continue;
-    result.add(route.toBlockId);
-  }
-
-  // A closed circuit can return to its starting block only after a scheduled
-  // stop within the circuit (the current Movement runtime cannot execute a
-  // same-source-and-destination Movement without stopping).
-  if (index >= 2 && source.blockId !== previous.blockId &&
-      routeTable.some(route => route.fromBlockId === previous.blockId &&
-        route.toBlockId === source.blockId &&
-        route.locoDirection === previous.direction)) {
-    result.add(source.blockId);
-  }
-  return result;
-}
-
-/** Changing direction at a block means a zero-second stop, never a Pass. */
-function normalizeReversals(steps: SequentialMovementStep[]): SequentialMovementStep[] {
-  return steps.map((step, i): SequentialMovementStep => {
-    if (i > 0 && i < steps.length - 1 &&
-        steps[i - 1]?.direction !== step.direction && step.waitMode === "pass") {
-      return { ...step, waitMode: "fixed", waitSeconds: 0 };
-    }
-    return step;
-  });
 }
 
 function compileSegments(
