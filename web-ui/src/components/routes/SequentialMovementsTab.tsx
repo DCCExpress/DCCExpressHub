@@ -515,13 +515,13 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
                   value={step.maxSeconds} onChange={v => changeStep(index,{maxSeconds:Math.max(0,Math.min(86400,Number(v)||0))})}/></Table.Td>
                 <Table.Td><Group gap={2} wrap="nowrap">
                   <ActionIcon size="sm" variant="subtle" disabled={index===0} onClick={() => {
-                    const next=[...draft.steps]; [next[index-1],next[index]]=[next[index]!,next[index-1]!]; modify({steps:next});
+                    const next=[...draft.steps]; [next[index-1],next[index]]=[next[index]!,next[index-1]!]; modify({steps:normalizeReversals(next)});
                   }}><IconArrowUp size={15}/></ActionIcon>
                   <ActionIcon size="sm" variant="subtle" disabled={index===draft.steps.length-1} onClick={() => {
-                    const next=[...draft.steps]; [next[index+1],next[index]]=[next[index]!,next[index+1]!]; modify({steps:next});
+                    const next=[...draft.steps]; [next[index+1],next[index]]=[next[index]!,next[index+1]!]; modify({steps:normalizeReversals(next)});
                   }}><IconArrowDown size={15}/></ActionIcon>
                   <ActionIcon size="sm" variant="subtle" color="red" disabled={draft.steps.length<=2}
-                    onClick={() => modify({steps:draft.steps.filter((_,i)=>i!==index)})}><IconTrash size={15}/></ActionIcon>
+                    onClick={() => modify({steps:normalizeReversals(draft.steps.filter((_,i)=>i!==index))})}><IconTrash size={15}/></ActionIcon>
                 </Group></Table.Td>
               </Table.Tr>)}
             </Table.Tbody>
