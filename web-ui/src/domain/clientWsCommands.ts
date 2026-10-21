@@ -340,6 +340,7 @@ export type MovementCommandAction =
   | "startTransient"
   | "sequenceSnapshot"
   | "sequenceStart"
+  | "sequenceFinish"
   | "sequenceStop"
   | "sequenceAbort"
   | "stop"
@@ -352,6 +353,9 @@ export type MovementCommandPayload = {
   action: MovementCommandAction;
   pageId?: string;
   sequenceId?: string;
+  startMode?: "normal" | "current" | "approach";
+  locoAddress?: number;
+  startStepIndex?: number;
   page?: MovementPage;
   emergencyStop?: boolean;
 };
