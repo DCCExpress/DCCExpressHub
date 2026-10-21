@@ -49,6 +49,7 @@ public sealed class SequentialMovementRuntime
 
     readonly object _gate = new();
     readonly MovementRuntime _movement;
+    readonly HubState _hubState;
     readonly AppPaths _paths;
     readonly ILogger<SequentialMovementRuntime> _logger;
     readonly Dictionary<string, Run> _running = new(StringComparer.Ordinal);
@@ -57,9 +58,10 @@ public sealed class SequentialMovementRuntime
     public event Action<State>? Changed;
 
     public SequentialMovementRuntime(
-        MovementRuntime movement, AppPaths paths, ILogger<SequentialMovementRuntime> logger)
+        MovementRuntime movement, HubState hubState, AppPaths paths, ILogger<SequentialMovementRuntime> logger)
     {
         _movement = movement;
+        _hubState = hubState;
         _paths = paths;
         _logger = logger;
     }
@@ -176,6 +178,7 @@ public sealed class SequentialMovementRuntime
         try { definition = Load(id); }
         catch (Exception ex) { return (false, "sequence_load_failed: " + ex.Message, null); }
         if (definition is null) return (false, "sequence_not_found", null);
+        if (_hubState.EmergencyStop) return (false, "emergency_stop_active", null);
         var invalid = Validate(definition);
         if (invalid is not null) return (false, invalid, null);
 
@@ -225,6 +228,7 @@ public sealed class SequentialMovementRuntime
             {
                 var token = run.Cancel.Token;
                 token.ThrowIfCancellationRequested();
+                if (_hubState.EmergencyStop) throw new InvalidOperationException("emergency_stop_active");
                 var childId = run.ChildId ?? throw new InvalidOperationException("missing_child");
                 // Movement publishes idle only after the physical zero-speed command;
                 // additionally wait for execution cleanup and Dispatcher lease release.
@@ -265,6 +269,7 @@ public sealed class SequentialMovementRuntime
                 }
 
                 token.ThrowIfCancellationRequested();
+                if (_hubState.EmergencyStop) throw new InvalidOperationException("emergency_stop_active");
                 run.ChildId = run.Prefix + "-" + (index + 1);
                 var next = _movement.StartTransient(ChildPage(run, index + 1), calibrationBypass: false);
                 if (!next.Ok)
