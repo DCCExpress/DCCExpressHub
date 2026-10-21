@@ -54,7 +54,7 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
           ]);
       } else if (frame.type === "movementResponse" &&
                  frame.data?.action === "sequenceSnapshot" && frame.data?.ok === true) {
-        const states = (frame.data?.extra as { states?: SequentialMovementStatePayload[] } | undefined)?.states;
+        const states = (frame.data?.extra as unknown as { states?: SequentialMovementStatePayload[] } | undefined)?.states;
         if (Array.isArray(states)) setSequences(states);
       }
       if (frame.type === "trainDriverStateChanged") {
@@ -217,7 +217,7 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
             const definition = document.sequences.find(item => item.id === state.sequenceId);
             const loco = locos.find(item => item.address === state.locoAddress);
             const route = definition?.steps.map(step => blockLabel(step.blockId)).join(" → ");
-            const formattedInfo = (state.info ?? "").replace(/\\bblock\\s+#(\\d+)\\b/gi,
+            const formattedInfo = (state.info ?? "").replace(/\bblock\s+#(\d+)\b/gi,
               (_match, id: string) => blockLabel(Number(id)));
             return <Paper key={state.sequenceId} withBorder p="sm" radius="sm">
               <Group justify="space-between" align="center" wrap="nowrap">
