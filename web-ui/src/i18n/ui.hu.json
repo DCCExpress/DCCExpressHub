@@ -1388,7 +1388,7 @@
   "movementRuntimeEventSource": "Futásidejű eseményforrás",
   "movementRouteEndpointsMissing": "Hiányzik a HONNAN / HOVA blokk",
   "movementRouteMissingBlock": "Az útvonal hiányzó blokkra hivatkozik",
-  "movementSavedMovements": "Mentett Movementek",
+  "movementSavedMovements": "Mentett mozgások",
   "movementEnabledCount": "Engedélyezve: {{count}}",
   "movementEditorButton": "Movement szerkesztő",
   "movementNew": "Új",
