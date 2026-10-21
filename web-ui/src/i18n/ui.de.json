@@ -1258,6 +1258,8 @@
   "movementCollapseActions": "Aktionen zuklappen",
   "movementEdit": "Movement bearbeiten",
   "movementEnabledLabel": "Aktiviert",
+  "movementEnableAction": "Movement aktivieren",
+  "movementDisableAction": "Movement deaktivieren",
   "movementStopAll": "Alle stoppen",
   "movementStoppingCount": "{{count}} Movement(s) werden gestoppt.",
   "movementNoRunning": "Keine laufenden Movements.",
