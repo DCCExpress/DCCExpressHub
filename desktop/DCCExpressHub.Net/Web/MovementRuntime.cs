@@ -205,6 +205,7 @@ public sealed class MovementRuntime
         public int DesiredSpeed { get; set; }
         public bool Moving { get; set; }
         public bool EmergencyAbort { get; set; }
+        public volatile bool FinishAtNextBlock;
         public string? SafetyError { get; set; }
         public bool MotionStartedPublished { get; set; }
         public bool ResumeAfterExternalHold { get; set; }
@@ -3036,6 +3037,7 @@ public sealed class MovementRuntime
                 false;
 
             var finalLeg =
+                execution.FinishAtNextBlock ||
                 ReferenceEquals(
                     execution.Plan.Legs.LastOrDefault(),
                     leg) ||
@@ -3150,6 +3152,7 @@ public sealed class MovementRuntime
 
                 var mayPrepareNext =
                     !held &&
+                    !execution.FinishAtNextBlock &&
                     next is not null &&
                     !blockApproachState.NextLegTurnoutBlocked &&
                     next.DepartWhen.Length == 0 &&
@@ -3438,7 +3441,19 @@ public sealed class MovementRuntime
                 "start");
 
             foreach (var leg in execution.Plan.Legs)
+            {
                 await TraverseLeg(execution, leg);
+                // Finish means the last block arrival has completed with the
+                // normal final-leg zero-speed command, not a task cancellation.
+                if (execution.FinishAtNextBlock)
+                {
+                    ReleaseAllPreparedLegs(execution);
+                    execution.Moving = false;
+                    execution.DesiredSpeed = 0;
+                    await ApplySpeed(execution, force: true);
+                    break;
+                }
+            }
 
             await DrainReadyResourceLeaves(
                 execution);
@@ -4250,6 +4265,19 @@ public sealed class MovementRuntime
                     x => x,
                     StringComparer.Ordinal)
                 .ToArray();
+    }
+
+    // A graceful finish is carried out by TraverseLeg at the next verified
+    // block ARRIVED boundary. Do not cancel or drop Dispatcher authority here.
+    public bool FinishAtNextBlock(string pageId)
+    {
+        lock (_gate)
+        {
+            if (!_executions.TryGetValue(pageId, out var execution))
+                return false;
+            execution.FinishAtNextBlock = true;
+            return true;
+        }
     }
 
     public bool Stop(string pageId)
