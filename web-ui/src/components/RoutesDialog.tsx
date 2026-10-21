@@ -76,6 +76,9 @@ import {
 
 // Enable this only while diagnosing route topology; keep the viewer available for debugging.
 const SHOW_DEBUG_GRAPH_VISUALIZATION = false;
+// The Movements overview already covers these physical routes. Retain the
+// original Route Network panel for diagnostics without duplicating the UI.
+const SHOW_ROUTE_NETWORK_TAB = false;
 
 type RoutesDialogProps = {
   opened: boolean;
@@ -1129,7 +1132,7 @@ export default function RoutesDialog({
         {!error && result && (
           <Tabs
             key={mode}
-            defaultValue={mode === "movement" ? "selectRoute" : "routes"}
+            defaultValue="selectRoute"
             keepMounted={false}
             style={{
               flex: 1,
@@ -1140,7 +1143,7 @@ export default function RoutesDialog({
           >
             {mode === "network" && <Tabs.List>
               <Tabs.Tab value="selectRoute">Movements</Tabs.Tab>
-              <Tabs.Tab value="routes">{t("ui.routeNetwork")}</Tabs.Tab>
+              {SHOW_ROUTE_NETWORK_TAB && <Tabs.Tab value="routes">{t("ui.routeNetwork")}</Tabs.Tab>}
               <Tabs.Tab value="graph">{t("ui.graph")}</Tabs.Tab>
               {SHOW_DEBUG_GRAPH_VISUALIZATION && <Tabs.Tab value="graphVisualization">Graph visualization</Tabs.Tab>}
               <Tabs.Tab value="segments">{t("ui.segments")}</Tabs.Tab>
@@ -1703,7 +1706,7 @@ export default function RoutesDialog({
               </ScrollArea.Autosize>
             </Tabs.Panel>
 
-            <Tabs.Panel
+            {SHOW_ROUTE_NETWORK_TAB && <Tabs.Panel
               value="routes"
               pt="sm"
               style={{
@@ -1872,7 +1875,7 @@ export default function RoutesDialog({
                 </Table>
               </ScrollArea.Autosize>
               </Stack>
-            </Tabs.Panel>
+            </Tabs.Panel>}
           </Tabs>
         )}
       </Stack>
