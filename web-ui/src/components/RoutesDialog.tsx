@@ -62,6 +62,7 @@ import AppModal from "@/components/common/AppModal";
 import RoutePreviewDialog from "@/components/routes/RoutePreviewDialog";
 import RouteGraphVisualization from "@/components/routes/RouteGraphVisualization";
 import StationRoutesTab from "@/components/routes/StationRoutesTab";
+import SequentialMovementsTab from "@/components/routes/SequentialMovementsTab";
 
 import {
   testRouteTurnoutStates,
@@ -1141,6 +1142,7 @@ export default function RoutesDialog({
           >
             <Tabs.List>
               {SHOW_STATION_ROUTES_TAB && !onSelectRoute && <Tabs.Tab value="stationRoutes">Station Routes</Tabs.Tab>}
+              {!onSelectRoute && <Tabs.Tab value="sequentialMovements">Sequential Movement</Tabs.Tab>}
               <Tabs.Tab value="selectRoute">
                 {t("ui.movementSelectRouteTitle")}
               </Tabs.Tab>
@@ -1171,6 +1173,10 @@ export default function RoutesDialog({
                 }}
                 onChanged={() => onGenerated?.()}
               />
+            </Tabs.Panel>}
+
+            {!onSelectRoute && <Tabs.Panel value="sequentialMovements" pt="sm" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+              <SequentialMovementsTab layout={layout} movements={movements} onMovementsChange={onMovementsChange} />
             </Tabs.Panel>}
 
             <Tabs.Panel
