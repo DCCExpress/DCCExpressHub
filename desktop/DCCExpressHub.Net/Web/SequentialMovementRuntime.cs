@@ -265,7 +265,8 @@ public sealed class SequentialMovementRuntime
             .Select(item => item.Route).FirstOrDefault();
     }
 
-    public (bool Ok, string? Error, State? State) Start(string id)
+    public (bool Ok, string? Error, State? State) Start(
+        string id, string? startMode = null, int locoAddress = 0, int startStepIndex = -1)
     {
         Definition? definition;
         try { definition = Load(id); }
@@ -275,40 +276,126 @@ public sealed class SequentialMovementRuntime
         var invalid = Validate(definition);
         if (invalid is not null) return (false, invalid, null);
 
-        var firstSource = _movement.TimetableSourceStatus(definition.Segments[0].RouteRef!.FromBlockId);
-        if (firstSource.Skip || firstSource.LocoAddress <= 0)
-            return (false, firstSource.Reason, null);
+        var mode = string.IsNullOrWhiteSpace(startMode) ? "normal" : startMode;
+        if (mode is not ("normal" or "current" or "approach"))
+            return (false, "invalid_sequence_start_mode", null);
+
+        var firstId = definition.Steps[0].BlockId;
+        var startBlockId = firstId;
+        var segmentIndex = 0;
+        MovementRouteRefModel? overrideFirst = null;
+        MovementRouteRefModel? approachRoute = null;
+        if (mode == "normal")
+        {
+            var firstSource = _movement.TimetableSourceStatus(firstId);
+            if (firstSource.Skip || firstSource.LocoAddress <= 0)
+                return (false, firstSource.Reason, null);
+            if (locoAddress > 0 && locoAddress != firstSource.LocoAddress)
+                return (false, "sequence_loco_mismatch", null);
+            locoAddress = firstSource.LocoAddress;
+        }
+        else
+        {
+            if (locoAddress is < 1 or > 10239)
+                return (false, "sequence_select_locomotive", null);
+            var matchingBlocks = _layout.BlocksForPersistence()
+                .Where(block => block.LocoAddress == locoAddress).ToArray();
+            if (matchingBlocks.Length != 1)
+                return (false, "sequence_locomotive_location_ambiguous", null);
+            startBlockId = matchingBlocks[0].Id;
+            var source = _movement.TimetableSourceStatus(startBlockId);
+            if (source.Skip || source.LocoAddress != locoAddress)
+                return (false, source.Reason ?? "sequence_source_not_ready", null);
+
+            if (mode == "current")
+            {
+                // Repeated blocks must be resolved by explicit occurrence.
+                // The editor sends a 0-based checkpoint index (not block ID).
+                var possibilities = definition.Steps.Select((step, index) => (step, index))
+                    .Where(item => item.step.BlockId == startBlockId &&
+                                   item.index < definition.Steps.Length - 1)
+                    .Select(item => item.index).ToArray();
+                if (possibilities.Length == 0)
+                    return (false, "sequence_current_block_not_in_route", null);
+                if (startStepIndex < 0)
+                {
+                    if (possibilities.Length != 1)
+                        return (false, "sequence_select_block_occurrence", null);
+                    startStepIndex = possibilities[0];
+                }
+                if (!possibilities.Contains(startStepIndex))
+                    return (false, "sequence_start_step_mismatch", null);
+
+                segmentIndex = Array.FindIndex(definition.Segments,
+                    item => item.EndStepIndex > startStepIndex);
+                if (segmentIndex < 0)
+                    return (false, "sequence_start_segment_missing", null);
+                var segmentStartIndex = segmentIndex == 0
+                    ? 0 : definition.Segments[segmentIndex - 1].EndStepIndex;
+                if (startStepIndex != segmentStartIndex)
+                {
+                    overrideFirst = RouteSuffix(
+                        definition.Segments[segmentIndex].RouteRef!, startBlockId);
+                    if (overrideFirst is null)
+                        return (false, "sequence_partial_route_unavailable", null);
+                }
+            }
+            else if (startBlockId != firstId)
+            {
+                try { approachRoute = ApproachRoute(startBlockId, firstId, locoAddress); }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Sequential approach route lookup failed");
+                    return (false, "sequence_approach_route_lookup_failed", null);
+                }
+                if (approachRoute is null)
+                    return (false, "sequence_no_route_to_start_block", null);
+            }
+        }
+
         var run = new Run
         {
             Definition = definition,
             Cancel = new CancellationTokenSource(),
-            LocoAddress = firstSource.LocoAddress
+            LocoAddress = locoAddress,
+            StartStepIndex = mode == "current" ? startStepIndex : 0,
+            StartSegmentIndex = segmentIndex,
+            OverrideFirstRoute = overrideFirst,
+            ApproachRoute = approachRoute,
         };
         lock (_gate)
         {
             if (_running.ContainsKey(id))
             {
                 run.Cancel.Dispose();
+                run.FinishWake.Dispose();
                 return (false, "sequence_already_running", null);
             }
             _running.Add(id, run);
         }
-        if (!_movement.ReserveSequentialLocomotive(firstSource.LocoAddress, run.Prefix))
+        if (!_movement.ReserveSequentialLocomotive(locoAddress, run.Prefix))
         {
             lock (_gate) _running.Remove(id);
             run.Cancel.Dispose();
+            run.FinishWake.Dispose();
             return (false, "locomotive_already_managed", null);
         }
-        run.ChildId = run.Prefix + "-0";
-        var first = _movement.StartTransient(ChildPage(run, 0), calibrationBypass: false);
+
+        run.ChildId = run.Prefix + (approachRoute is null ? "-" + segmentIndex : "-approach");
+        var firstPage = approachRoute is null ? ChildPage(run, segmentIndex) : ApproachPage(run);
+        var first = _movement.StartTransient(firstPage, calibrationBypass: false);
         if (!first.Ok)
         {
-            _movement.ReleaseSequentialLocomotive(firstSource.LocoAddress, run.Prefix);
+            _movement.ReleaseSequentialLocomotive(locoAddress, run.Prefix);
             lock (_gate) _running.Remove(id);
             run.Cancel.Dispose();
+            run.FinishWake.Dispose();
             return (false, first.Error, null);
         }
-        Publish(run, "running", 1, "Running route 1/" + definition.Segments.Length);
+        Publish(run, "running", run.StartStepIndex + 1,
+            approachRoute is null
+                ? "Running route " + (segmentIndex + 1) + "/" + definition.Segments.Length
+                : "Approaching sequence start block");
         _ = Task.Run(() => Execute(run));
         return (true, null, run.State);
     }
