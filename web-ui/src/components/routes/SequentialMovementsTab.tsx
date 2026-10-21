@@ -5,6 +5,7 @@ import {
 } from "@mantine/core";
 import { IconArrowDown, IconArrowUp, IconChevronDown, IconChevronUp, IconDotsVertical, IconEdit, IconFlag, IconPlayerPlay, IconPlayerStop, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 import type { LayoutView } from "@/models/editor/core/LayoutView";
+import type { Loco } from "@/domain/domainTypes";
 import { BlockElement } from "@/models/editor/elements/BlockElement";
 import { createCurrentClientLayoutSnapshot } from "@/services/clientRouteGraphCache";
 import type { PersistedClientRouteTopology } from "@/services/clientRouteGraphCache";
@@ -17,10 +18,12 @@ import type {
 } from "@/domain/movement";
 import type { SequentialMovementStatePayload } from "@/domain/wsTypes";
 import AppModal from "@/components/common/AppModal";
+import LocoImage from "@/components/loco/LocoImage";
 
 type Props = {
   layout: LayoutView;
   movements: MovementDocument;
+  locos: Loco[];
   onMovementsChange: (next: MovementDocument) => void;
   onPersistRouteTopology?: (() => Promise<void>) | undefined;
   presentation?: "cards" | "table" | undefined;
@@ -196,7 +199,7 @@ function currentSequenceStepIndex(
   return detectedIndex >= 0 ? detectedIndex : confirmedIndex;
 }
 
-export default function SequentialMovementsTab({ layout, movements, onMovementsChange, onPersistRouteTopology, presentation = "table" }: Props) {
+export default function SequentialMovementsTab({ layout, movements, locos, onMovementsChange, onPersistRouteTopology, presentation = "table" }: Props) {
   // Read the live layout on each render; its block names can be edited in place
   // without replacing the LayoutView instance.
   const blocks = layout.blocks.elements
@@ -283,7 +286,17 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
     .filter((block): block is BlockElement => block instanceof BlockElement && block.locoAddress > 0)
     .map(block => ({ address: block.locoAddress, blockId: block.id }))
     .filter((item, index, all) => all.findIndex(other => other.address === item.address) === index);
-  const selectedLocoBlock = assignedLocos.find(item => String(item.address) === startLoco)?.blockId;
+  // A current-block start requires a saved, runnable checkpoint. Keep the
+  // approach mode unfiltered: its purpose is to bring an outside loco here.
+  const sequenceStartBlocks = new Set(
+    activeSequence?.steps.slice(0, -1).map(step => step.blockId) ?? [],
+  );
+  const startCandidates = startDialog?.mode === "current"
+    ? assignedLocos.filter(item => sequenceStartBlocks.has(item.blockId))
+    : assignedLocos;
+  const selectedAssignment = startCandidates.find(item => String(item.address) === startLoco);
+  const selectedLoco = locos.find(item => item.address === selectedAssignment?.address);
+  const selectedLocoBlock = selectedAssignment?.blockId;
   const startingSteps = activeSequence?.steps.flatMap((step, index) =>
     step.blockId === selectedLocoBlock && index < activeSequence.steps.length - 1
       ? [{ value: String(index), label: `#${index + 1} · ${blockName(step.blockId)} → ${blockName(activeSequence.steps[index + 1]!.blockId)}` }]
@@ -509,12 +522,38 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
       onClose={() => { if (!busy) setStartDialog(null); }}>
       {startDialog && activeSequence && <Stack gap="sm">
         <Select label="Locomotive / current block" placeholder="Select locomotive"
-          data={assignedLocos.map(item => ({
-            value: String(item.address),
-            label: `#${item.address} · ${blockName(item.blockId)}`,
-          }))}
+          data={startCandidates.map(item => {
+            const loco = locos.find(candidate => candidate.address === item.address);
+            return {
+              value: String(item.address),
+              label: `${loco?.name || `Loco #${item.address}`} · #${item.address} · ${blockName(item.blockId)}`,
+            };
+          })}
+          renderOption={({ option }) => {
+            const assignment = startCandidates.find(item => String(item.address) === option.value);
+            const loco = locos.find(item => item.address === assignment?.address);
+            return <Group gap="sm" wrap="nowrap">
+              <LocoImage locoId={loco?.id ?? ""} image={loco?.image}
+                name={loco?.name} width={100} height={38}/>
+              <Stack gap={0} style={{ minWidth: 0 }}>
+                <Text size="sm" fw={500} truncate>{loco?.name || `Loco #${assignment?.address ?? "?"}`}</Text>
+                <Text size="xs" c="dimmed">#{assignment?.address ?? "?"} · {blockName(assignment?.blockId ?? 0)}</Text>
+              </Stack>
+            </Group>;
+          }}
           searchable value={startLoco}
+          nothingFoundMessage={startDialog.mode === "current"
+            ? "No locomotive assigned to a runnable sequence block."
+            : "No locomotives are assigned to blocks."}
           onChange={value => { setStartLoco(value); setStartStep(null); }}/>
+        {selectedAssignment && <Group gap="sm" wrap="nowrap" align="center">
+          <LocoImage locoId={selectedLoco?.id ?? ""} image={selectedLoco?.image}
+            name={selectedLoco?.name} width={150} height={56}/>
+          <Stack gap={2} style={{ minWidth: 0 }}>
+            <Text fw={600} size="sm">{selectedLoco?.name || `Loco #${selectedAssignment.address}`}</Text>
+            <Text size="xs" c="dimmed">#{selectedAssignment.address} · {blockName(selectedAssignment.blockId)}</Text>
+          </Stack>
+        </Group>}
         {startDialog.mode === "current" &&
           <Select label="Start at sequence step" placeholder="Choose block occurrence"
             description="For repeated blocks, choose the exact position in the sequence."
