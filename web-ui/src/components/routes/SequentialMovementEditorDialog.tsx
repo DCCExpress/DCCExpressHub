@@ -2,6 +2,7 @@ import { ActionIcon, Button, Group, NumberInput, ScrollArea, Select,
   Stack, Switch, Table, Text, TextInput } from "@mantine/core";
 import { IconArrowDown, IconArrowUp, IconPlus, IconTrash } from "@tabler/icons-react";
 import AppModal from "@/components/common/AppModal";
+import { useMovementTranslation } from "@/components/movement/movementI18n";
 import type { SequentialMovementDefinition, SequentialMovementStep, SequentialWaitMode } from "@/domain/movement";
 
 type BlockOption = { value: string; label: string };
@@ -26,6 +27,7 @@ export default function SequentialMovementEditorDialog({
   draft, busy, error, routeTableReady, blocks, availableBlocks,
   onModify, onChangeStep, onMoveStep, onRemoveStep, onAddStep, onClose, onSave,
 }: Props) {
+  const mt = useMovementTranslation();
   return (
     <AppModal opened={draft !== null} onClose={() => { if (!busy) onClose(); }} title="Sequential Movement Editor"
       size="min(1050px, 96vw)" draggable centered
@@ -47,7 +49,7 @@ export default function SequentialMovementEditorDialog({
       {draft && <Stack gap="sm" style={{ flex: 1, minHeight: 0, width: "100%" }}>
         <Group grow>
           <TextInput label="Name" value={draft.name} onChange={e => onModify({ name: e.currentTarget.value })}/>
-          <NumberInput label="Travel speed (DCC)" min={1} max={126} value={draft.speed} onChange={v => onModify({ speed: Math.max(1, Math.min(126, Number(v) || 20)) })}/>
+          <NumberInput label={mt("movementCruiseSpeed")} min={1} max={126} value={draft.speed} onChange={v => onModify({ speed: Math.max(1, Math.min(126, Number(v) || 20)) })}/>
           <Switch label="Enabled" checked={draft.enabled} onChange={e => onModify({ enabled: e.currentTarget.checked })}/>
         </Group>
         <Text size="xs" c="dimmed">Direction = departure from this block. The next block list is filtered by the saved route graph. Reversing here requires a stop (Fixed 0 s is added automatically). Pass means no stop; the final block always stops.</Text>
