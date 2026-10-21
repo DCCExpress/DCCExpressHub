@@ -147,6 +147,8 @@ export type SequentialMovementSegment = {
 export type SequentialMovementDefinition = {
   id: string;
   name: string;
+  /** Only newly saved departure-direction sequences may execute. */
+  directionMode?: "departure";
   enabled: boolean;
   speed: number;
   steps: SequentialMovementStep[];
@@ -1063,6 +1065,7 @@ function normalizeSequentialMovements(raw: unknown): SequentialMovementDefinitio
     return [{
       id,
       name: typeof candidate.name === "string" ? candidate.name.trim() : "",
+      directionMode: candidate.directionMode === "departure" ? "departure" : undefined,
       enabled: candidate.enabled !== false,
       speed: integerRange(candidate.speed, 20, 1, 126),
       steps,
