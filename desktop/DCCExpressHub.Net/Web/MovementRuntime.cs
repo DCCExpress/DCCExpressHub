@@ -3447,10 +3447,12 @@ public sealed class MovementRuntime
                 // normal final-leg zero-speed command, not a task cancellation.
                 if (execution.FinishAtNextBlock)
                 {
-                    ReleaseAllPreparedLegs(execution);
+                    // Verify the train is stopped before releasing even a
+                    // previously prepared route reservation.
                     execution.Moving = false;
                     execution.DesiredSpeed = 0;
                     await ApplySpeed(execution, force: true);
+                    ReleaseAllPreparedLegs(execution);
                     break;
                 }
             }
