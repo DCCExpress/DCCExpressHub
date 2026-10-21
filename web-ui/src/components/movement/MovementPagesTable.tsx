@@ -80,6 +80,7 @@ import {
 } from "../../services/wsApi";
 
 import MovementElapsedBadge from "./MovementElapsedBadge";
+import { MOVEMENT_CARD_ACTION_SIZE, MOVEMENT_CARD_ICON_SIZE } from "./movementCardActionSizing";
 
 import {
   useMovementTranslation,
@@ -313,7 +314,7 @@ function MovementCard({
               label={mt(page.enabled ? "movementDisableAction" : "movementEnableAction")}
             >
               <ActionIcon
-                size="sm"
+                size={MOVEMENT_CARD_ACTION_SIZE}
                 color={page.enabled ? "teal" : "gray"}
                 variant={page.enabled ? "light" : "subtle"}
                 aria-label={mt(page.enabled ? "movementDisableAction" : "movementEnableAction")}
@@ -326,10 +327,11 @@ function MovementCard({
                   onEnabledChange(enabled);
                 }}
               >
-                {page.enabled ? <IconSquareCheck size={17} /> : <IconSquare size={17} />}
+                {page.enabled ? <IconSquareCheck size={MOVEMENT_CARD_ICON_SIZE} /> : <IconSquare size={MOVEMENT_CARD_ICON_SIZE} />}
               </ActionIcon>
             </Tooltip>
             <MovementRuntimeControls
+              compact
               page={
                 page
               }
@@ -346,7 +348,7 @@ function MovementCard({
               label={mt("movementEdit")}
             >
               <ActionIcon
-                size="sm"
+                size={MOVEMENT_CARD_ACTION_SIZE}
                 variant="light"
                 color="violet"
                 disabled={
@@ -357,7 +359,7 @@ function MovementCard({
                 }
               >
                 <IconEdit
-                  size={15}
+                  size={MOVEMENT_CARD_ICON_SIZE}
                 />
               </ActionIcon>
             </Tooltip>
@@ -367,7 +369,7 @@ function MovementCard({
               label={mt("movementDelete")}
             >
               <ActionIcon
-                size="sm"
+                size={MOVEMENT_CARD_ACTION_SIZE}
                 variant="light"
                 color="red"
                 disabled={
@@ -378,7 +380,7 @@ function MovementCard({
                 }
               >
                 <IconTrash
-                  size={15}
+                  size={MOVEMENT_CARD_ICON_SIZE}
                 />
               </ActionIcon>
             </Tooltip>
@@ -1167,11 +1169,11 @@ export default function MovementPagesTable({
                 <Group justify="space-between">
                   <Badge variant="outline">{route.allowReverse ? "Both directions" : "One-way"}</Badge>
                   <Group gap="xs">
-                    <Tooltip label="Start Station Route"><ActionIcon color="green" variant="light" disabled={!route.enabled} aria-label="Start Station Route" onClick={() => setStationToStart(route)}><IconPlayerPlay size={17}/></ActionIcon></Tooltip>
-                    <Tooltip label="Stop this route's running tasks"><ActionIcon color="yellow" variant="light" aria-label="Stop Station Route tasks" disabled={!runningTasks.some(t => t.state.status === "running")} onClick={() => runningTasks.forEach(t => stopMovement(t.pageId))}><IconPlayerStop size={17}/></ActionIcon></Tooltip>
-                    <Tooltip label="Abort this route's running tasks"><ActionIcon color="red" variant="light" aria-label="Abort Station Route tasks" disabled={!runningTasks.length} onClick={() => runningTasks.forEach(t => abortMovement(t.pageId))}><IconX size={17}/></ActionIcon></Tooltip>
-                    <Tooltip label="Preview"><ActionIcon variant="light" aria-label="Preview Station Route" onClick={() => showStationPreview(route)}><IconRoute size={17}/></ActionIcon></Tooltip>
-                    <Tooltip label="Edit"><ActionIcon variant="light" aria-label="Edit Station Route" onClick={() => onOpenStationRoutes(route.id)}><IconEdit size={17}/></ActionIcon></Tooltip>
+                    <Tooltip label="Start Station Route"><ActionIcon size={MOVEMENT_CARD_ACTION_SIZE} color="green" variant="light" disabled={!route.enabled} aria-label="Start Station Route" onClick={() => setStationToStart(route)}><IconPlayerPlay size={MOVEMENT_CARD_ICON_SIZE}/></ActionIcon></Tooltip>
+                    <Tooltip label="Stop this route's running tasks"><ActionIcon size={MOVEMENT_CARD_ACTION_SIZE} color="yellow" variant="light" aria-label="Stop Station Route tasks" disabled={!runningTasks.some(t => t.state.status === "running")} onClick={() => runningTasks.forEach(t => stopMovement(t.pageId))}><IconPlayerStop size={MOVEMENT_CARD_ICON_SIZE}/></ActionIcon></Tooltip>
+                    <Tooltip label="Abort this route's running tasks"><ActionIcon size={MOVEMENT_CARD_ACTION_SIZE} color="red" variant="light" aria-label="Abort Station Route tasks" disabled={!runningTasks.length} onClick={() => runningTasks.forEach(t => abortMovement(t.pageId))}><IconX size={MOVEMENT_CARD_ICON_SIZE}/></ActionIcon></Tooltip>
+                    <Tooltip label="Preview"><ActionIcon size={MOVEMENT_CARD_ACTION_SIZE} variant="light" aria-label="Preview Station Route" onClick={() => showStationPreview(route)}><IconRoute size={MOVEMENT_CARD_ICON_SIZE}/></ActionIcon></Tooltip>
+                    <Tooltip label="Edit"><ActionIcon size={MOVEMENT_CARD_ACTION_SIZE} variant="light" aria-label="Edit Station Route" onClick={() => onOpenStationRoutes(route.id)}><IconEdit size={MOVEMENT_CARD_ICON_SIZE}/></ActionIcon></Tooltip>
                   </Group>
                 </Group>
                 {runningTasks.length > 0 && <Text size="xs" c="green">{runningTasks.length} active Task(s) · {runningTasks.map(t => `#${t.state.locoAddress ?? "?"}`).join(", ")}</Text>}
