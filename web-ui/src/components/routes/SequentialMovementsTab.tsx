@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import {
-  ActionIcon, Badge, Button, Group, NumberInput, ScrollArea, Select,
+  ActionIcon, Badge, Button, Collapse, Group, NumberInput, ScrollArea, Select,
   Paper, Stack, Switch, Table, Text, TextInput, Tooltip,
 } from "@mantine/core";
-import { IconArrowDown, IconArrowUp, IconEdit, IconPlayerPlay, IconPlayerStop, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
+import { IconArrowDown, IconArrowUp, IconChevronDown, IconChevronUp, IconEdit, IconPlayerPlay, IconPlayerStop, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 import type { LayoutView } from "@/models/editor/core/LayoutView";
 import { BlockElement } from "@/models/editor/elements/BlockElement";
 import { createCurrentClientLayoutSnapshot } from "@/services/clientRouteGraphCache";
@@ -105,6 +105,10 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
   // Resolve every block reference against the current layout for display.
   const formatRuntimeMessage = (message: string | null | undefined): string =>
     (message ?? "").replace(/\bblock\s+#(\d+)\b/gi, (_match, id: string) => blockName(Number(id)));
+  // Each card's secondary details can be expanded independently.
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
+  const toggleCardDetails = (id: string) =>
+    setExpandedCards(current => ({ ...current, [id]: !current[id] }));
   const [draft, setDraft] = useState<SequentialMovementDefinition | null>(null);
   const [states, setStates] = useState<Record<string, SequentialMovementStatePayload>>({});
   const [busy, setBusy] = useState(false);
@@ -220,32 +224,49 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
             return <Paper key={sequence.id} withBorder radius="sm" p="sm"
               style={{ opacity: sequence.enabled ? 1 : 0.6 }}>
               <Stack gap="xs">
-                <Group justify="space-between" wrap="nowrap" align="flex-start">
-                  <Stack gap={3} style={{ flex: 1, minWidth: 0 }}>
+                <Group justify="space-between" wrap="nowrap" gap="xs">
+                  <Group gap="xs" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
+                    <Text fw={700} size="sm" truncate style={{ minWidth: 0 }}>{sequence.name}</Text>
+                    <Badge size="xs" variant="light" style={{ flexShrink: 0 }}
+                      color={active(sequence.id) ? "green" : runtime?.status === "error" ? "red" : "gray"}>
+                      {runtime?.status ?? (sequence.enabled ? "Idle" : "Disabled")}
+                    </Badge>
+                  </Group>
+                  <Group gap={4} wrap="nowrap" style={{ flexShrink: 0 }}>
+                    {sequenceControls(sequence)}
+                    <Tooltip label={expandedCards[sequence.id] ? "Hide details" : "Show details"}>
+                      <ActionIcon
+                        aria-label={expandedCards[sequence.id] ? "Hide sequence details" : "Show sequence details"}
+                        aria-expanded={Boolean(expandedCards[sequence.id])}
+                        variant="subtle"
+                        color="gray"
+                        onClick={() => toggleCardDetails(sequence.id)}
+                      >
+                        {expandedCards[sequence.id] ? <IconChevronUp size={16}/> : <IconChevronDown size={16}/>}
+                      </ActionIcon>
+                    </Tooltip>
+                  </Group>
+                </Group>
+                <Text size="xs" c="dimmed" style={{ overflowWrap: "anywhere" }}>
+                  {stepsText(sequence)}
+                </Text>
+                <Collapse in={Boolean(expandedCards[sequence.id])}>
+                  <Stack gap="xs" pt="xs">
                     <Group gap="xs">
-                      <Text fw={700} size="sm" truncate>{sequence.name}</Text>
-                      <Badge size="xs" variant="light"
-                        color={active(sequence.id) ? "green" : runtime?.status === "error" ? "red" : "gray"}>
-                        {runtime?.status ?? (sequence.enabled ? "Idle" : "Disabled")}
-                      </Badge>
+                      <Badge variant="outline" size="xs">Speed {sequence.speed}</Badge>
+                      <Badge variant="outline" size="xs">{sequence.steps.length} blocks</Badge>
+                      {runtime && active(sequence.id) &&
+                        <Badge variant="light" size="xs" color="blue">{runtime.stepIndex} / {runtime.stepCount}</Badge>}
                     </Group>
-                    <Text size="xs" c="dimmed" style={{ overflowWrap: "anywhere" }}>{stepsText(sequence)}</Text>
+                    {sequence.steps.filter(step => step.waitMode !== "pass").map((step, i) =>
+                      <Text key={i} size="xs" c="dimmed">
+                        {blockName(step.blockId)}: {step.waitMode === "fixed"
+                          ? `${step.waitSeconds} s` : `${step.minSeconds}–${step.maxSeconds} s (random)`}
+                      </Text>)}
+                    {runtime?.info && <Text size="xs" c="blue">{formatRuntimeMessage(runtime.info)}</Text>}
+                    {runtime?.error && <Text size="xs" c="red">{formatRuntimeMessage(runtime.error)}</Text>}
                   </Stack>
-                  {sequenceControls(sequence)}
-                </Group>
-                <Group gap="xs">
-                  <Badge variant="outline" size="xs">Speed {sequence.speed}</Badge>
-                  <Badge variant="outline" size="xs">{sequence.steps.length} blocks</Badge>
-                  {runtime && active(sequence.id) &&
-                    <Badge variant="light" size="xs" color="blue">{runtime.stepIndex} / {runtime.stepCount}</Badge>}
-                </Group>
-                {sequence.steps.filter(step => step.waitMode !== "pass").map((step, i) =>
-                  <Text key={i} size="xs" c="dimmed">
-                    {blockName(step.blockId)}: {step.waitMode === "fixed"
-                      ? `${step.waitSeconds} s` : `${step.minSeconds}–${step.maxSeconds} s (random)`}
-                  </Text>)}
-                {runtime?.info && <Text size="xs" c="blue">{formatRuntimeMessage(runtime.info)}</Text>}
-                {runtime?.error && <Text size="xs" c="red">{formatRuntimeMessage(runtime.error)}</Text>}
+                </Collapse>
               </Stack>
             </Paper>;
           })}
