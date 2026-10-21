@@ -1258,6 +1258,8 @@
   "movementCollapseActions": "Műveletek összecsukása",
   "movementEdit": "Movement szerkesztése",
   "movementEnabledLabel": "Engedélyezve",
+  "movementEnableAction": "Movement engedélyezése",
+  "movementDisableAction": "Movement tiltása",
   "movementStopAll": "Összes leállítása",
   "movementStoppingCount": "{{count}} Movement leállítása folyamatban.",
   "movementNoRunning": "Nincs futó Movement.",
