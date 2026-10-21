@@ -1170,7 +1170,7 @@ export default function MovementPagesTable({
                   <Group gap="xs">
                     <Tooltip label="Start Station Route"><ActionIcon color="green" variant="light" disabled={!route.enabled} aria-label="Start Station Route" onClick={() => setStationToStart(route)}><IconPlayerPlay size={17}/></ActionIcon></Tooltip>
                     <Tooltip label="Stop this route's running tasks"><ActionIcon color="yellow" variant="light" aria-label="Stop Station Route tasks" disabled={!runningTasks.some(t => t.state.status === "running")} onClick={() => runningTasks.forEach(t => stopMovement(t.pageId))}><IconPlayerStop size={17}/></ActionIcon></Tooltip>
-                    <Tooltip label="Abort this route's running tasks"><ActionIcon color="red" variant="light" aria-label="Abort Station Route tasks" disabled={!runningTasks.length} onClick={() => runningTasks.forEach(t => abortMovement(t.pageId))}><IconAlertTriangle size={17}/></ActionIcon></Tooltip>
+                    <Tooltip label="Abort this route's running tasks"><ActionIcon color="red" variant="light" aria-label="Abort Station Route tasks" disabled={!runningTasks.length} onClick={() => runningTasks.forEach(t => abortMovement(t.pageId))}><IconX size={17}/></ActionIcon></Tooltip>
                     <Tooltip label="Preview"><ActionIcon variant="light" aria-label="Preview Station Route" onClick={() => showStationPreview(route)}><IconRoute size={17}/></ActionIcon></Tooltip>
                     <Tooltip label="Edit"><ActionIcon variant="light" aria-label="Edit Station Route" onClick={() => onOpenStationRoutes(route.id)}><IconEdit size={17}/></ActionIcon></Tooltip>
                   </Group>
