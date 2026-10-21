@@ -39,6 +39,7 @@ public sealed class SequentialMovementRuntime
     sealed class Run
     {
         public required Definition Definition { get; init; }
+        public string Prefix { get; init; } = "sequence-step-" + Guid.NewGuid().ToString("N");
         public required CancellationTokenSource Cancel { get; init; }
         public int? LocoAddress;
         public string? ChildId;
@@ -175,21 +176,39 @@ public sealed class SequentialMovementRuntime
         var invalid = Validate(definition);
         if (invalid is not null) return (false, invalid, null);
 
-        var run = new Run { Definition = definition, Cancel = new CancellationTokenSource() };
+        var firstSource = _movement.TimetableSourceStatus(definition.Segments[0].RouteRef!.FromBlockId);
+        if (firstSource.Skip || firstSource.LocoAddress <= 0)
+            return (false, firstSource.Reason, null);
+        var run = new Run
+        {
+            Definition = definition,
+            Cancel = new CancellationTokenSource(),
+            LocoAddress = firstSource.LocoAddress
+        };
         lock (_gate)
         {
-            if (_running.ContainsKey(id)) return (false, "sequence_already_running", null);
+            if (_running.ContainsKey(id))
+            {
+                run.Cancel.Dispose();
+                return (false, "sequence_already_running", null);
+            }
             _running.Add(id, run);
         }
-        run.ChildId = "sequence-step-" + Guid.NewGuid().ToString("N");
+        if (!_movement.ReserveSequentialLocomotive(firstSource.LocoAddress, run.Prefix))
+        {
+            lock (_gate) _running.Remove(id);
+            run.Cancel.Dispose();
+            return (false, "locomotive_already_managed", null);
+        }
+        run.ChildId = run.Prefix + "-0";
         var first = _movement.StartTransient(ChildPage(run, 0), calibrationBypass: false);
         if (!first.Ok)
         {
+            _movement.ReleaseSequentialLocomotive(firstSource.LocoAddress, run.Prefix);
             lock (_gate) _running.Remove(id);
             run.Cancel.Dispose();
             return (false, first.Error, null);
         }
-        run.LocoAddress = _movement.GetState(run.ChildId).LocoAddress;
         Publish(run, "running", 1, "Running route 1/" + definition.Segments.Length);
         _ = Task.Run(() => Execute(run));
         return (true, null, run.State);
@@ -215,7 +234,7 @@ public sealed class SequentialMovementRuntime
                     {
                         if (state.Info != "Movement completed")
                             throw new InvalidOperationException(state.Info ?? "movement_interrupted");
-                        if (run.LocoAddress is > 0 && !_movement.IsLocoManaged(run.LocoAddress.Value))
+                        if (run.LocoAddress is > 0 && !_movement.IsLocoExecutionRunning(run.LocoAddress.Value))
                             break;
                     }
                     await Task.Delay(100, token);
@@ -243,7 +262,7 @@ public sealed class SequentialMovementRuntime
                 }
 
                 token.ThrowIfCancellationRequested();
-                run.ChildId = "sequence-step-" + Guid.NewGuid().ToString("N");
+                run.ChildId = run.Prefix + "-" + (index + 1);
                 var next = _movement.StartTransient(ChildPage(run, index + 1), calibrationBypass: false);
                 if (!next.Ok)
                     throw new InvalidOperationException(next.Error ?? "sequence_segment_start_failed");
@@ -253,6 +272,11 @@ public sealed class SequentialMovementRuntime
         }
         catch (OperationCanceledException)
         {
+            // Do not release locomotive ownership before MovementRuntime
+            // confirms zero speed and completes its own cleanup.
+            if (run.LocoAddress is > 0)
+                while (_movement.IsLocoExecutionRunning(run.LocoAddress.Value))
+                    await Task.Delay(100);
             Publish(run, run.EmergencyAbort ? "aborted" : "stopped",
                 run.State.StepIndex, run.EmergencyAbort ? "Sequence aborted" : "Sequence stopped");
         }
@@ -263,6 +287,8 @@ public sealed class SequentialMovementRuntime
         }
         finally
         {
+            if (run.LocoAddress is > 0)
+                _movement.ReleaseSequentialLocomotive(run.LocoAddress.Value, run.Prefix);
             lock (_gate) _running.Remove(run.Definition.Id);
             run.Cancel.Dispose();
         }
