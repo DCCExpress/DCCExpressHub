@@ -2137,7 +2137,7 @@ public sealed class WsHub
                         S(data, "sequenceId"),
                         S(data, "startMode"),
                         I(data, "locoAddress"),
-                        I(data, "startStepIndex"));
+                        IOr(data, "startStepIndex", -1));
                     await Reply(result.Ok, result.Error, new { state = result.State });
                     return;
                 }
