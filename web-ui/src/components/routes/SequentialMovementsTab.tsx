@@ -21,6 +21,7 @@ import AppModal from "@/components/common/AppModal";
 import SequentialMovementEditorDialog from "@/components/routes/SequentialMovementEditorDialog";
 import LocoImage from "@/components/loco/LocoImage";
 import { useMovementTranslation } from "@/components/movement/movementI18n";
+import { MOVEMENT_CARD_ACTION_SIZE, MOVEMENT_CARD_ICON_SIZE } from "@/components/movement/movementCardActionSizing";
 
 type Props = {
   layout: LayoutView;
@@ -386,7 +387,7 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
   const sequenceControls = (sequence: SequentialMovementDefinition) => (
     <Group gap={4} wrap="nowrap">
       <Tooltip label={sequence.enabled ? "Disable sequence" : "Enable sequence"}>
-        <ActionIcon
+        <ActionIcon size={MOVEMENT_CARD_ACTION_SIZE}
           aria-label={sequence.enabled ? "Disable sequence" : "Enable sequence"}
           aria-pressed={sequence.enabled}
           color={sequence.enabled ? "teal" : "gray"}
@@ -398,19 +399,19 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
               item.id === sequence.id ? { ...item, enabled: !item.enabled } : item),
           })}
         >
-          {sequence.enabled ? <IconSquareCheck size={17}/> : <IconSquare size={17}/>}
+          {sequence.enabled ? <IconSquareCheck size={MOVEMENT_CARD_ICON_SIZE}/> : <IconSquare size={MOVEMENT_CARD_ICON_SIZE}/>}
         </ActionIcon>
       </Tooltip>
       <Tooltip label="Start normally from first block">
-        <ActionIcon aria-label="Start sequence normally" color="green" variant="light"
+        <ActionIcon size={MOVEMENT_CARD_ACTION_SIZE} aria-label="Start sequence normally" color="green" variant="light"
           disabled={busy || !sequence.enabled || sequence.directionMode !== "departure" || active(sequence.id)}
-          onClick={() => void command("sequenceStart", sequence.id)}><IconPlayerPlay size={16}/></ActionIcon>
+          onClick={() => void command("sequenceStart", sequence.id)}><IconPlayerPlay size={MOVEMENT_CARD_ICON_SIZE}/></ActionIcon>
       </Tooltip>
       <Menu position="bottom-end" withinPortal>
         <Menu.Target>
-          <ActionIcon aria-label="More sequence start modes" color="green" variant="subtle"
+          <ActionIcon size={MOVEMENT_CARD_ACTION_SIZE} aria-label="More sequence start modes" color="green" variant="subtle"
             disabled={busy || !sequence.enabled || sequence.directionMode !== "departure" || active(sequence.id)}>
-            <IconDotsVertical size={16}/>
+            <IconDotsVertical size={MOVEMENT_CARD_ICON_SIZE}/>
           </ActionIcon>
         </Menu.Target>
         <Menu.Dropdown>
@@ -423,25 +424,25 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
         </Menu.Dropdown>
       </Menu>
       <Tooltip label="Finish at next block">
-        <ActionIcon aria-label="Finish sequence at next block" color="teal" variant="light"
+        <ActionIcon size={MOVEMENT_CARD_ACTION_SIZE} aria-label="Finish sequence at next block" color="teal" variant="light"
           disabled={busy || !active(sequence.id) || status(sequence.id)?.status === "finishing"}
-          onClick={() => void command("sequenceFinish", sequence.id)}><IconFlag size={16}/></ActionIcon>
+          onClick={() => void command("sequenceFinish", sequence.id)}><IconFlag size={MOVEMENT_CARD_ICON_SIZE}/></ActionIcon>
       </Tooltip>
-      <Tooltip label="Stop"><ActionIcon aria-label="Stop sequence" color="yellow" variant="light"
+      <Tooltip label="Stop"><ActionIcon size={MOVEMENT_CARD_ACTION_SIZE} aria-label="Stop sequence" color="yellow" variant="light"
         disabled={busy || !active(sequence.id)}
-        onClick={() => void command("sequenceStop", sequence.id)}><IconPlayerStop size={16}/></ActionIcon></Tooltip>
-      <Tooltip label="Abort / E-STOP"><ActionIcon aria-label="Abort sequence" color="red" variant="light"
+        onClick={() => void command("sequenceStop", sequence.id)}><IconPlayerStop size={MOVEMENT_CARD_ICON_SIZE}/></ActionIcon></Tooltip>
+      <Tooltip label="Abort / E-STOP"><ActionIcon size={MOVEMENT_CARD_ACTION_SIZE} aria-label="Abort sequence" color="red" variant="light"
         disabled={busy || !active(sequence.id)}
-        onClick={() => void command("sequenceAbort", sequence.id)}><IconX size={16}/></ActionIcon></Tooltip>
-      <Tooltip label="Edit"><ActionIcon aria-label="Edit sequence" color="violet" variant="light"
+        onClick={() => void command("sequenceAbort", sequence.id)}><IconX size={MOVEMENT_CARD_ICON_SIZE}/></ActionIcon></Tooltip>
+      <Tooltip label="Edit"><ActionIcon size={MOVEMENT_CARD_ACTION_SIZE} aria-label="Edit sequence" color="violet" variant="light"
         disabled={busy || active(sequence.id)}
         onClick={() => { setError(null); setDraft({ ...sequence, steps: sequence.steps.map(step => ({ ...step })) }); }}>
-        <IconEdit size={16}/></ActionIcon></Tooltip>
-      <Tooltip label="Delete"><ActionIcon aria-label="Delete sequence" color="red" variant="light"
+        <IconEdit size={MOVEMENT_CARD_ICON_SIZE}/></ActionIcon></Tooltip>
+      <Tooltip label="Delete"><ActionIcon size={MOVEMENT_CARD_ACTION_SIZE} aria-label="Delete sequence" color="red" variant="light"
         disabled={busy || active(sequence.id)}
         onClick={() => { if (window.confirm(`Delete sequence "${sequence.name}"?`))
           void persist({ ...movements, sequences: movements.sequences.filter(item => item.id !== sequence.id) }); }}>
-        <IconTrash size={16}/></ActionIcon></Tooltip>
+        <IconTrash size={MOVEMENT_CARD_ICON_SIZE}/></ActionIcon></Tooltip>
     </Group>
   );
 
@@ -476,13 +477,14 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
                   {sequenceControls(sequence)}
                   <Tooltip label={expandedCards[sequence.id] ? "Hide details" : "Show details"}>
                     <ActionIcon
+                      size={MOVEMENT_CARD_ACTION_SIZE}
                       aria-label={expandedCards[sequence.id] ? "Hide sequence details" : "Show sequence details"}
                       aria-expanded={Boolean(expandedCards[sequence.id])}
                       variant="subtle"
                       color="gray"
                       onClick={() => toggleCardDetails(sequence.id)}
                     >
-                      {expandedCards[sequence.id] ? <IconChevronUp size={16}/> : <IconChevronDown size={16}/>}
+                      {expandedCards[sequence.id] ? <IconChevronUp size={MOVEMENT_CARD_ICON_SIZE}/> : <IconChevronDown size={MOVEMENT_CARD_ICON_SIZE}/>}
                     </ActionIcon>
                   </Tooltip>
                 </Group>
