@@ -31,7 +31,6 @@ import {
 import type {
   LayoutView,
 } from "@/models/editor/core/LayoutView";
-import type { Loco } from "@/domain/domainTypes";
 
 import type {
   ClientRouteGraphBuildResult,
@@ -62,8 +61,6 @@ import AppModal from "@/components/common/AppModal";
 
 import RoutePreviewDialog from "@/components/routes/RoutePreviewDialog";
 import RouteGraphVisualization from "@/components/routes/RouteGraphVisualization";
-import StationRoutesTab from "@/components/routes/StationRoutesTab";
-import SequentialMovementsTab from "@/components/routes/SequentialMovementsTab";
 
 import {
   testRouteTurnoutStates,
@@ -79,19 +76,14 @@ import {
 
 // Enable this only while diagnosing route topology; keep the viewer available for debugging.
 const SHOW_DEBUG_GRAPH_VISUALIZATION = false;
-// Temporarily hide Station Routes without removing its editor or saved data.
-const SHOW_STATION_ROUTES_TAB = true;
 
 type RoutesDialogProps = {
   opened: boolean;
   onClose: () => void;
   layout: LayoutView;
-  /** Optional because the timetable route picker never exposes sequential starts. */
-  locos?: Loco[];
   movements: MovementDocument;
   editingMovementId:
     string | null;
-  editingStationRouteId?: string | null;
   onMovementsChange: (
     document:
       MovementDocument
@@ -99,6 +91,8 @@ type RoutesDialogProps = {
   onPersistRouteTopology?: () => Promise<void>;
   onGenerated?: () => void;
   onSelectRoute?: (page: MovementPage) => void;
+  /** Network inspection vs. the standalone Movement route chooser. */
+  mode?: "network" | "movement";
   initialRoute?: Pick<MovementPage, "name" | "speed" | "routeRef"> | null;
 };
 
@@ -216,14 +210,13 @@ export default function RoutesDialog({
   opened,
   onClose,
   layout,
-  locos = [],
   movements,
   editingMovementId,
-  editingStationRouteId,
   onMovementsChange,
   onPersistRouteTopology,
   onGenerated,
   onSelectRoute,
+  mode = "network",
   initialRoute,
 }: RoutesDialogProps) {
   const { t } = useTranslation();
@@ -1053,7 +1046,7 @@ export default function RoutesDialog({
         <Group gap="xs">
           <IconRoute size={19} />
           <Text fw={700}>
-            {t("ui.routes")}
+            {mode === "movement" ? t("ui.movementSelectRouteTitle") : t("ui.routes")}
           </Text>
         </Group>
       }
@@ -1135,8 +1128,8 @@ export default function RoutesDialog({
 
         {!error && result && (
           <Tabs
-            key={editingStationRouteId !== null && !onSelectRoute ? "stationRoutes" : "selectRoute"}
-            defaultValue={editingStationRouteId !== null && !onSelectRoute ? "stationRoutes" : "selectRoute"}
+            key={mode}
+            defaultValue={mode === "movement" ? "selectRoute" : "routes"}
             keepMounted={false}
             style={{
               flex: 1,
@@ -1145,46 +1138,14 @@ export default function RoutesDialog({
               flexDirection: "column",
             }}
           >
-            <Tabs.List>
-              {SHOW_STATION_ROUTES_TAB && !onSelectRoute && <Tabs.Tab value="stationRoutes">Station Routes</Tabs.Tab>}
-              {!onSelectRoute && <Tabs.Tab value="sequentialMovements">Sequential Movement</Tabs.Tab>}
-              <Tabs.Tab value="selectRoute">
-                {t("ui.movementSelectRouteTitle")}
-              </Tabs.Tab>
-
-              <Tabs.Tab value="routes">
-                {t("ui.routeNetwork")}
-              </Tabs.Tab>
-
-              <Tabs.Tab value="graph">
-                {t("ui.graph")}
-              </Tabs.Tab>
-
+            {mode === "network" && <Tabs.List>
+              <Tabs.Tab value="routes">{t("ui.routeNetwork")}</Tabs.Tab>
+              <Tabs.Tab value="graph">{t("ui.graph")}</Tabs.Tab>
               {SHOW_DEBUG_GRAPH_VISUALIZATION && <Tabs.Tab value="graphVisualization">Graph visualization</Tabs.Tab>}
+              <Tabs.Tab value="segments">{t("ui.segments")}</Tabs.Tab>
+            </Tabs.List>}
 
-              <Tabs.Tab value="segments">
-                {t("ui.segments")}
-              </Tabs.Tab>
-            </Tabs.List>
-
-            {SHOW_STATION_ROUTES_TAB && !onSelectRoute && <Tabs.Panel value="stationRoutes" pt="sm" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-              <StationRoutesTab
-                layout={layout}
-                editingRouteId={editingStationRouteId ?? null}
-                graph={result.graph}
-                onSave={async () => {
-                  if (!onPersistRouteTopology) throw new Error("Layout saving is unavailable.");
-                  await onPersistRouteTopology();
-                }}
-                onChanged={() => onGenerated?.()}
-              />
-            </Tabs.Panel>}
-
-            {!onSelectRoute && <Tabs.Panel value="sequentialMovements" pt="sm" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-              <SequentialMovementsTab layout={layout} movements={movements} locos={locos} onMovementsChange={onMovementsChange} onPersistRouteTopology={onPersistRouteTopology} />
-            </Tabs.Panel>}
-
-            <Tabs.Panel
+            {mode === "movement" &&             <Tabs.Panel
               value="selectRoute"
               pt="sm"
               style={{
@@ -1559,7 +1520,7 @@ export default function RoutesDialog({
                   )
                 }
               </Stack>
-            </Tabs.Panel>
+            </Tabs.Panel>}
 
             <Tabs.Panel
               value="graph"
