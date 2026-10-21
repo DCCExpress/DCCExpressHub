@@ -168,18 +168,34 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
       if (!fresh.enabled || !fresh.active || !fresh.ready || tracked?.confidence !== "certain" ||
           tracked.currentBlockId !== selectedCandidate.fromBlockId)
         throw new Error("Locomotive location changed. Select the source again.");
-      const page = applyMovementRouteCandidate(createMovementPage(), selectedCandidate);
-      if (!page.routeRef) throw new Error("The selected path has no valid travel direction.");
-      // Unique per launch: independent TaskMan entries, even for the same station route.
-      page.id = `quick-route-loco-${selectedLoco.locoAddress}-station-${route.id}-${Date.now()}`;
-      page.name = `Station Route · ${route.name} · #${selectedLoco.locoAddress}`;
-      page.speed = Number(speed);
-      page.expectedLocoAddress = selectedLoco.locoAddress;
+      // Automatic station routing is a task with several VALID destinations,
+      // not a permanently selected final block. Keep all route alternatives
+      // server-side so the stopped train can divert when C1 becomes occupied.
+      // Explicitly selected destinations remain fixed.
+      const automatic = destination === "auto" || !destination;
+      const options = automatic
+        ? [selectedCandidate, ...available.filter(candidate =>
+            candidate.key !== selectedCandidate.key &&
+            candidate.locoDirection === selectedCandidate.locoDirection)].slice(0, 128)
+        : [selectedCandidate];
+      const movementId = `quick-route-loco-${selectedLoco.locoAddress}-station-${route.id}-${Date.now()}`;
+      const candidates = options.map(candidate => {
+        const page = applyMovementRouteCandidate(createMovementPage(), candidate);
+        page.id = movementId;
+        page.name = `Station Route · ${route.name} · #${selectedLoco.locoAddress}`;
+        page.speed = Number(speed);
+        page.expectedLocoAddress = selectedLoco.locoAddress;
+        return page;
+      });
+      if (candidates.some(page => !page.routeRef))
+        throw new Error("The selected station paths have no valid travel direction.");
       const driverTaskId = `train-driver-${selectedLoco.locoAddress}-${Date.now()}`;
       const requestId = `train-driver-start-${Date.now()}`;
       const result = await wsApi.request(
         "trainDriverCommand",
-        { requestId, action: "start", taskId: driverTaskId, page },
+        automatic
+          ? { requestId, action: "startStation", taskId: driverTaskId, candidates }
+          : { requestId, action: "start", taskId: driverTaskId, page: candidates[0] },
         "trainDriverResponse",
         response => response.requestId === requestId,
         10000
@@ -191,7 +207,7 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
   };
   return <AppModal opened={opened} onClose={() => { if (!starting) onClose(); }} centered draggable size="lg" title={route ? `Start Station Route · ${route.name}` : "Start Station Route"}>
     <Stack gap="sm">
-      <Text size="sm" c="dimmed">One locomotive → one temporary Movement Task. Dispatcher and SwitchMan enforce track safety.</Text>
+      <Text size="sm" c="dimmed">Automatic destination: Train Driver may choose another valid arrival track when the chosen route becomes occupied. Explicit destination: remains fixed. Dispatcher and SwitchMan always enforce track safety.</Text>
       {route?.allowReverse && <Select label="Station Route direction" allowDeselect={false}
         data={[
           {value:"forward",label:`${stationName(route.fromStationId)} → ${stationName(route.toStationId)} (From → To)`},
@@ -221,7 +237,7 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
         }}
         value={source} onChange={v => {setSource(v);setDestination("auto");}}/>
       <Select label="Destination block" placeholder="Automatic" searchable
-        data={[{value:"auto",label:"Automatic — dispatcher-checked destination"},...destinations]}
+        data={[{value:"auto",label:"Automatic — may select another free arrival track"},...destinations]}
         renderOption={({option}) => {
           if (option.value === "auto") return <Text size="sm">{option.label}</Text>;
           const tracked = tracking.locos.filter(l => String(l.currentBlockId) === option.value);
