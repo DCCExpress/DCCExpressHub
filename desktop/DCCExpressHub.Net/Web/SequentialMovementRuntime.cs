@@ -28,6 +28,7 @@ public sealed class SequentialMovementRuntime
     {
         public string Id { get; set; } = "";
         public string Name { get; set; } = "";
+        public string DirectionMode { get; set; } = "";
         public bool Enabled { get; set; } = true;
         public int Speed { get; set; } = 20;
         public Step[] Steps { get; set; } = [];
@@ -103,6 +104,10 @@ public sealed class SequentialMovementRuntime
 
     static string? Validate(Definition definition)
     {
+        // Older saved sequences used direction INTO a block. Never silently
+        // run one as a departure-direction sequence with reversed meaning.
+        if (definition.DirectionMode != "departure")
+            return "sequence_requires_resave_with_departure_direction";
         var steps = definition.Steps;
         var segments = definition.Segments;
         if (steps is null || segments is null) return "invalid_sequence";
