@@ -260,6 +260,7 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
         <Stack gap="sm">
           {movements.sequences.map(sequence => {
             const runtime = status(sequence.id);
+            const currentStepIndex = currentSequenceStepIndex(sequence, runtime, layout);
             return <Paper key={sequence.id} withBorder radius="sm" p="sm"
               style={{ opacity: sequence.enabled ? 1 : 0.6 }}>
               <Stack gap="xs">
@@ -286,7 +287,7 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
                   {sequence.steps.map((step, index) => (
                     <Group key={index} gap={5} wrap="nowrap">
                       {index > 0 && <Text size="xs" c="dimmed">→</Text>}
-                      {index === currentSequenceStepIndex(sequence, runtime, layout) ? (
+                      {index === currentStepIndex ? (
                         <Badge size="sm" color="lime" variant="filled" radius="sm"
                           aria-label={`Current block: ${blockName(step.blockId)}`}>
                           {blockName(step.blockId)}
