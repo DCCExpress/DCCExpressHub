@@ -1,4 +1,5 @@
 import { Badge, Button, Card, Group, Stack, Text } from "@mantine/core";
+import { IconX } from "@tabler/icons-react";
 import type { TrainDriverStatePayload } from "@domain/wsTypes";
 import { wsClient } from "../../services/wsClient";
 import { getMovementTaskStates, subscribeMovementTaskStates } from "../../services/movementEngine";
@@ -487,12 +488,12 @@ export default function LocoControlCard({
             driver.status === "paused" ? (
               <>
                 <Button h={40} style={{ flex: 1 }} color="green" variant="light" disabled={controlsDisabled} onClick={() => driverAction("resume")}>Resume</Button>
-                <Button h={40} style={{ flex: 1 }} color="red" variant="light" onClick={() => driverAction("abort")}>Abort</Button>
+                <Button h={40} style={{ flex: 1 }} color="red" variant="light" leftSection={<IconX size={17} />} onClick={() => driverAction("abort")}>Abort</Button>
               </>
             ) : (
               <>
                 <Button h={40} style={{ flex: 1 }} color="yellow" variant="light" disabled={controlsDisabled || driver.status === "stopping"} onClick={() => driverAction("stop")}>Stop</Button>
-                <Button h={40} style={{ flex: 1 }} color="red" variant="light" onClick={() => driverAction("abort")}>Abort</Button>
+                <Button h={40} style={{ flex: 1 }} color="red" variant="light" leftSection={<IconX size={17} />} onClick={() => driverAction("abort")}>Abort</Button>
               </>
             )
           )}
