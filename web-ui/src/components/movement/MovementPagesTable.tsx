@@ -663,6 +663,9 @@ export default function MovementPagesTable({
       ]
     );
 
+  const stationRoutesEnabledCount =
+    stationRoutes.filter(route => route.enabled).length;
+
   const activeCount =
     document.pages.filter(
       page => {
@@ -1132,10 +1135,13 @@ export default function MovementPagesTable({
         <Tabs.Panel value="stationRoutes" pt="sm" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
           <Stack gap="sm" h="100%" style={{ minHeight: 0 }}>
             <Group justify="space-between" wrap="wrap">
-              <Group gap="xs">
+              <Group gap="xs" wrap="wrap" align="center">
                 <IconRoute size={17} />
-                <Text fw={700} size="sm">{mt("automationMovementTypeStation")}</Text>
-                <Badge variant="light" color="blue">{stationRoutes.length}</Badge>
+                <Text fw={700} size="sm">{mt("movementSavedStationRoutes")}</Text>
+                <Badge variant="light" color="violet">{stationRoutes.length}</Badge>
+                <Badge variant="light" color={stationRoutesEnabledCount > 0 ? "green" : "gray"}>
+                  {mt("movementEnabledCount", { count: stationRoutesEnabledCount })}
+                </Badge>
               </Group>
               <Button size="xs" leftSection={<IconPlus size={14}/>}
                 onClick={() => onOpenStationRoutes("")}>{mt("movementNew")}</Button>
