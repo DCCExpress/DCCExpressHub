@@ -84,6 +84,8 @@ import MovementTaskManager from "@/components/movement/MovementTaskManager";
 import TimetableDialog from "@/components/TimetableDialog";
 import TimetablePanel from "@/components/TimetablePanel";
 import RoutesDialog from "@/components/RoutesDialog";
+import SelectMovementRouteDialog from "@/components/routes/SelectMovementRouteDialog";
+import StationRouteEditorDialog from "@/components/routes/StationRouteEditorDialog";
 import AutomationFlowDialog from "@/components/automation/AutomationFlowDialog";
 import { restorePersistedTopologyMetadata } from "@/services/layoutTopologyPersistence";
 import {
@@ -1189,6 +1191,7 @@ export default function LiteLayoutPage({
   const [embeddedCommandCenter, setEmbeddedCommandCenter] = useState(false);
   const [timetableOpened, setTimetableOpened] = useState(false);
   const [routesOpened, setRoutesOpened] = useState(false);
+  const [selectMovementRouteOpened, setSelectMovementRouteOpened] = useState(false);
   const [stationRouteEditId, setStationRouteEditId] = useState<string | null>(null);
   const [routesMovementPageId, setRoutesMovementPageId] =
     useState<string | null>(
@@ -2388,12 +2391,10 @@ export default function LiteLayoutPage({
                           onPersistRouteTopology={persistRouteTopology}
                           onOpenStationRoutes={routeId => {
                             setStationRouteEditId(routeId);
-                            setRoutesMovementPageId(null);
-                            setRoutesOpened(true);
                           }}
                           onSelectMovementRoute={pageId => {
                             setRoutesMovementPageId(pageId);
-                            setRoutesOpened(true);
+                            setSelectMovementRouteOpened(true);
                           }}
                         />
                       </div>
@@ -2761,19 +2762,35 @@ export default function LiteLayoutPage({
 
       <RoutesDialog
         opened={routesOpened}
-        onClose={() => {
-          setRoutesOpened(false);
-          setRoutesMovementPageId(null);
-          setStationRouteEditId(null);
-        }}
+        onClose={() => setRoutesOpened(false)}
+        mode="network"
         layout={layout}
-        locos={locos}
         movements={movementDocument}
-        editingStationRouteId={stationRouteEditId}
-        editingMovementId={routesMovementPageId}
+        editingMovementId={null}
         onMovementsChange={setMovementDocument}
         onPersistRouteTopology={persistRouteTopology}
         onGenerated={invalidate}
+      />
+
+      <SelectMovementRouteDialog
+        opened={selectMovementRouteOpened}
+        onClose={() => {
+          setSelectMovementRouteOpened(false);
+          setRoutesMovementPageId(null);
+        }}
+        layout={layout}
+        movements={movementDocument}
+        editingMovementId={routesMovementPageId}
+        onMovementsChange={setMovementDocument}
+        onPersistRouteTopology={persistRouteTopology}
+      />
+
+      <StationRouteEditorDialog
+        layout={layout}
+        editingRouteId={stationRouteEditId}
+        onClose={() => setStationRouteEditId(null)}
+        onSave={persistRouteTopology}
+        onChanged={invalidate}
       />
 
       <AutomationFlowDialog
