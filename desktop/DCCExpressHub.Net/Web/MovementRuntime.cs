@@ -2519,8 +2519,10 @@ public sealed class MovementRuntime
                 option.Plan.Legs.Length > legIndex &&
                 option.Plan.Legs[legIndex].From.BlockId ==
                     blockedLeg.From.BlockId &&
-                option.Plan.Legs[legIndex].To.BlockId !=
-                    blockedLeg.To.BlockId &&
+                // A different arrival track can still share the next block.
+                // Do not wait for C1 when the branch to C2 diverges later.
+                option.Plan.Blocks[^1].BlockId !=
+                    currentPlan.Blocks[^1].BlockId &&
                 Enumerable.Range(0, legIndex).All(index =>
                     SameCompletedLeg(currentPlan.Legs[index],
                         option.Plan.Legs[index])) &&
@@ -2555,8 +2557,8 @@ public sealed class MovementRuntime
             RouteDescription = string.Join(" → ",
                 candidate.Plan.Blocks.Select(item => item.Name)),
             Info = "Station Route replanned at " + blockedLeg.From.Name +
-                ": " + blockedLeg.To.Name + " unavailable; next " +
-                alternateLeg.To.Name + ", destination " +
+                ": destination " + currentPlan.Blocks[^1].Name +
+                " unavailable; new destination " +
                 candidate.Plan.Blocks[^1].Name
         });
         return alternateLeg;
