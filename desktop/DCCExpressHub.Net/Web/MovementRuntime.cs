@@ -2491,7 +2491,78 @@ public sealed class MovementRuntime
         return null;
     }
 
-    async Task WaitPreDepartureAvailability(
+    static bool SameCompletedLeg(
+        MovementPlanLegModel completed,
+        MovementPlanLegModel candidate) =>
+        completed.From.BlockId == candidate.From.BlockId &&
+        completed.To.BlockId == candidate.To.BlockId &&
+        completed.Resources.Select(item => item.Key)
+            .SequenceEqual(candidate.Resources.Select(item => item.Key)) &&
+        completed.TurnoutStates.SequenceEqual(candidate.TurnoutStates);
+
+    MovementPlanLegModel? TrySelectStationAlternative(
+        Execution execution,
+        MovementPlanLegModel blockedLeg)
+    {
+        // The physical locomotive is stopped at blockedLeg.From. A candidate
+        // must represent exactly the already traversed physical legs; a mere
+        // common station name or destination is NOT sufficient.
+        if (execution.StationAlternatives.Length < 2 ||
+            blockedLeg.From.BlockId is null ||
+            execution.Moving)
+            return null;
+
+        var legIndex = blockedLeg.Index;
+        var currentPlan = execution.Plan;
+        var candidate = execution.StationAlternatives
+            .Where(option =>
+                option.Plan.Legs.Length > legIndex &&
+                option.Plan.Legs[legIndex].From.BlockId ==
+                    blockedLeg.From.BlockId &&
+                option.Plan.Legs[legIndex].To.BlockId !=
+                    blockedLeg.To.BlockId &&
+                Enumerable.Range(0, legIndex).All(index =>
+                    SameCompletedLeg(currentPlan.Legs[index],
+                        option.Plan.Legs[index])) &&
+                // A currently occupied later block is not a safe alternative.
+                // Waiting is better than repeatedly diverting between blocked
+                // station tracks.
+                option.Plan.Legs.Skip(legIndex).All(next =>
+                    TargetBlockBasicallyFree(next) &&
+                    SafetyFree(EffectiveSafetySensors(option.Page, next))))
+            .OrderBy(option => option.Plan.Legs.Length - legIndex)
+            .ThenBy(option => option.Plan.Legs.Skip(legIndex)
+                .Sum(next => next.TurnoutStates.Length))
+            .FirstOrDefault();
+
+        if (candidate is null)
+            return null;
+
+        var alternateLeg = candidate.Plan.Legs[legIndex];
+        _log.LogInformation(
+            "Station Route {Movement} loco #{Loco}: replanning at {Current} from blocked {OldTarget} to {NewTarget}; destination {Destination}",
+            execution.Page.Name,
+            execution.LocoAddress,
+            blockedLeg.From.Name,
+            blockedLeg.To.Name,
+            alternateLeg.To.Name,
+            candidate.Plan.Blocks[^1].Name);
+
+        execution.Page = candidate.Page;
+        execution.Plan = candidate.Plan;
+        Publish(execution, execution.State with
+        {
+            RouteDescription = string.Join(" → ",
+                candidate.Plan.Blocks.Select(item => item.Name)),
+            Info = "Station Route replanned at " + blockedLeg.From.Name +
+                ": " + blockedLeg.To.Name + " unavailable; next " +
+                alternateLeg.To.Name + ", destination " +
+                candidate.Plan.Blocks[^1].Name
+        });
+        return alternateLeg;
+    }
+
+    async Task<MovementPlanLegModel> WaitPreDepartureAvailability(
         Execution execution,
         MovementPlanLegModel leg)
     {
@@ -2528,11 +2599,18 @@ public sealed class MovementRuntime
                               leg.From.Name + " -> " + leg.To.Name,
                         setInfo: true);
                 }
-                return;
+                return leg;
             }
 
             execution.Moving = false;
             await ApplySpeed(execution, force: false);
+
+            // Replanning is allowed ONLY at a confirmed stopped block,
+            // before the next leg's Dispatcher lease is acquired. The
+            // Dispatcher performs full live checks again after the switch.
+            var alternative = TrySelectStationAlternative(execution, leg);
+            if (alternative is not null)
+                return alternative;
 
             if (!string.Equals(
                     previousBlocker,
@@ -2785,7 +2863,7 @@ public sealed class MovementRuntime
          */
         if (preparedLease is null)
         {
-            await WaitPreDepartureAvailability(
+            leg = await WaitPreDepartureAvailability(
                 execution,
                 leg);
         }
