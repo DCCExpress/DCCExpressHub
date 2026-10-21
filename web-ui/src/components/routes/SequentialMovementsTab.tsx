@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActionIcon, Badge, Button, Collapse, Group, NumberInput, ScrollArea, Select,
   Paper, Stack, Switch, Table, Text, TextInput, Tooltip,
@@ -29,19 +29,84 @@ type Props = {
 const createStep = (blockId: number, direction: "forward" | "reverse" = "forward"): SequentialMovementStep =>
   ({ blockId, direction, waitMode: "pass", waitSeconds: 10, minSeconds: 5, maxSeconds: 20 });
 
+type SavedRoute = PersistedClientRouteTopology["routeTable"][number];
+
+/** Ordered checkpoints must all occur on the SAME physical route. */
+function followsCheckpoints(route: SavedRoute, checkpoints: number[]): boolean {
+  let pos = 0;
+  for (const block of route.blockPath) {
+    if (block.id === checkpoints[pos]) pos++;
+  }
+  return pos === checkpoints.length;
+}
+
+/** Start of the uninterrupted run containing the next requested block. */
+function segmentStartIndex(steps: SequentialMovementStep[], nextIndex: number): number {
+  for (let i = nextIndex - 1; i > 0; i--) {
+    if (steps[i]?.waitMode !== "pass") return i;
+  }
+  return 0;
+}
+
+/** Reachable destinations in the given outgoing direction and route prefix. */
+function reachableNextBlocks(
+  steps: SequentialMovementStep[],
+  index: number,
+  routeTable: SavedRoute[],
+): Set<number> {
+  if (index === 0) return new Set<number>();
+  const start = segmentStartIndex(steps, index);
+  const source = steps[start];
+  const previous = steps[index - 1];
+  if (!source?.blockId || !previous?.blockId) return new Set<number>();
+
+  const prefix = steps.slice(start, index).map(step => step.blockId);
+  if (prefix.some(id => !id)) return new Set<number>();
+
+  const result = new Set<number>();
+  for (const route of routeTable) {
+    if (route.fromBlockId !== source.blockId ||
+        route.locoDirection !== source.direction ||
+        route.toBlockId === previous.blockId ||
+        !followsCheckpoints(route, [...prefix, route.toBlockId])) continue;
+    result.add(route.toBlockId);
+  }
+
+  // A closed circuit can return to its starting block only after a scheduled
+  // stop within the circuit (the current Movement runtime cannot execute a
+  // same-source-and-destination Movement without stopping).
+  if (index >= 2 && source.blockId !== previous.blockId &&
+      routeTable.some(route => route.fromBlockId === previous.blockId &&
+        route.toBlockId === source.blockId &&
+        route.locoDirection === previous.direction)) {
+    result.add(source.blockId);
+  }
+  return result;
+}
+
+/** Changing direction at a block means a zero-second stop, never a Pass. */
+function normalizeReversals(steps: SequentialMovementStep[]): SequentialMovementStep[] {
+  return steps.map((step, i) => {
+    if (i > 0 && i < steps.length - 1 &&
+        steps[i - 1]?.direction !== step.direction && step.waitMode === "pass") {
+      return { ...step, waitMode: "fixed", waitSeconds: 0 };
+    }
+    return step;
+  });
+}
+
 function compileSegments(
   layout: LayoutView,
   steps: SequentialMovementStep[],
   blockName: (id: number) => string,
 ): SequentialMovementSegment[] {
-  if (steps.length < 2 || steps.length > 64 || steps.some(s => !s.blockId))
+  if (steps.length < 2 || steps.length > 64 || steps.some(step => !step.blockId))
     throw new Error("Choose at least two valid blocks (maximum 64).");
-  if (steps[0]?.direction !== steps[1]?.direction)
-    throw new Error("The first row direction must match the direction into the second block.");
-  if (steps.some((s, i) => i > 0 && s.blockId === steps[i - 1]?.blockId))
+  if (steps.some((step, i) => i > 0 && step.blockId === steps[i - 1]?.blockId))
     throw new Error("Adjacent steps cannot refer to the same block.");
-  if (steps.some(s => s.minSeconds > s.maxSeconds))
+  if (steps.some(step => step.waitMode === "random" && step.minSeconds > step.maxSeconds))
     throw new Error("Random wait minimum must not exceed maximum.");
+
   const topology = createCurrentClientLayoutSnapshot(layout).routeTopology as PersistedClientRouteTopology | undefined;
   if (!topology?.routeTable?.length)
     throw new Error("No saved route topology. Regenerate and save the route graph first.");
@@ -49,29 +114,29 @@ function compileSegments(
   const segments: SequentialMovementSegment[] = [];
   let start = 0;
   while (start < steps.length - 1) {
-    const direction = steps[start + 1]!.direction;
+    // Direction belongs to DEPARTURE from the current block.
+    const direction = steps[start]!.direction;
     let end = start + 1;
-    for (; end < steps.length - 1; end++) {
+    while (end < steps.length - 1 && steps[end]!.waitMode === "pass") {
       if (steps[end]!.direction !== direction)
-        throw new Error("A direction change requires a stop at the preceding block.");
-      if (steps[end]!.waitMode !== "pass") break;
-      if (steps[end + 1]!.direction !== direction) {
-        throw new Error("Set the last block before a direction change to Fixed (0 s or more) or Random wait.");
-      }
+        throw new Error(`Direction changes at ${blockName(steps[end]!.blockId)} require a stop (Fixed 0 s is allowed).`);
+      end++;
     }
-    if (steps[end]!.direction !== direction)
-      throw new Error("Invalid direction within route.");
 
     const checkpoints = steps.slice(start, end + 1).map(step => step.blockId);
-    const matching = topology.routeTable.filter(route => {
-      if (route.fromBlockId !== checkpoints[0] ||
-          route.toBlockId !== checkpoints[checkpoints.length - 1] ||
-          route.locoDirection !== direction) return false;
-      const ids = route.blockPath.map(block => block.id);
-      let pos = 0;
-      for (const id of ids) if (id === checkpoints[pos]) pos++;
-      return pos === checkpoints.length;
-    });
+    if (checkpoints[0] === checkpoints[checkpoints.length - 1]) {
+      throw new Error(
+        `A non-stop circuit returning to ${blockName(checkpoints[0]!)} is not supported by the current Movement runtime. ` +
+        "Set Fixed 0 s at an intermediate block to split the circuit into two safe routes."
+      );
+    }
+
+    const matching = topology.routeTable.filter(route =>
+      route.fromBlockId === checkpoints[0] &&
+      route.toBlockId === checkpoints[checkpoints.length - 1] &&
+      route.locoDirection === direction &&
+      followsCheckpoints(route, checkpoints)
+    );
     if (matching.length !== 1) {
       throw new Error(matching.length === 0
         ? `No ${direction} route from ${blockName(checkpoints[0]!)} to ${blockName(checkpoints[checkpoints.length - 1]!)} through the selected blocks.`
