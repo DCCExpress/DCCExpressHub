@@ -2133,8 +2133,19 @@ public sealed class WsHub
 
             case "sequenceStart":
                 {
-                    var result = SequentialMovement.Start(S(data, "sequenceId"));
+                    var result = SequentialMovement.Start(
+                        S(data, "sequenceId"),
+                        S(data, "startMode"),
+                        I(data, "locoAddress"),
+                        I(data, "startStepIndex"));
                     await Reply(result.Ok, result.Error, new { state = result.State });
+                    return;
+                }
+
+            case "sequenceFinish":
+                {
+                    var ok = SequentialMovement.Finish(S(data, "sequenceId"));
+                    await Reply(ok, ok ? null : "sequence_not_running");
                     return;
                 }
 
