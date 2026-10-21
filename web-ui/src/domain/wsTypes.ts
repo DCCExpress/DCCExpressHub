@@ -397,7 +397,7 @@ export type TrainDriverResponsePayload = {
 export type SequentialMovementStatePayload = {
   sequenceId: string;
   name: string;
-  status: "running" | "waiting" | "completed" | "stopped" | "aborted" | "error";
+  status: "running" | "waiting" | "finishing" | "completed" | "stopped" | "aborted" | "error";
   stepIndex: number;
   stepCount: number;
   locoAddress: number | null;
