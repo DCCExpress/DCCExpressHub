@@ -242,6 +242,8 @@ public sealed class MovementRuntime
     readonly AutomationExclusiveGate _exclusiveGate;
     readonly ILogger<MovementRuntime> _log;
     readonly Dictionary<string, Execution> _executions = new(StringComparer.Ordinal);
+    // Reserve a locomotive across Sequential Movement waits and direction changes.
+    readonly Dictionary<int, string> _sequenceOwners = [];
     readonly Dictionary<string, MovementRuntimeState> _states = new(StringComparer.Ordinal);
     readonly ConcurrentDictionary<string, TaskCompletionSource<bool>> _pendingAudio = new(StringComparer.Ordinal);
     readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web);
@@ -845,14 +847,40 @@ public sealed class MovementRuntime
                 : Idle(pageId);
     }
 
-    public bool IsLocoManaged(
-        int locoAddress)
+    public bool IsLocoManaged(int locoAddress)
     {
         lock (_gate)
-            return _executions.Values.Any(
-                execution =>
-                    execution.LocoAddress ==
-                    locoAddress);
+            return _sequenceOwners.ContainsKey(locoAddress) ||
+                _executions.Values.Any(execution => execution.LocoAddress == locoAddress);
+    }
+
+    public bool IsLocoExecutionRunning(int locoAddress)
+    {
+        lock (_gate)
+            return _executions.Values.Any(execution => execution.LocoAddress == locoAddress);
+    }
+
+    public bool ReserveSequentialLocomotive(int locoAddress, string prefix)
+    {
+        if (locoAddress <= 0 || string.IsNullOrWhiteSpace(prefix)) return false;
+        lock (_gate)
+        {
+            if (_sequenceOwners.ContainsKey(locoAddress) ||
+                _executions.Values.Any(execution => execution.LocoAddress == locoAddress))
+                return false;
+            _sequenceOwners[locoAddress] = prefix;
+            return true;
+        }
+    }
+
+    public void ReleaseSequentialLocomotive(int locoAddress, string prefix)
+    {
+        lock (_gate)
+        {
+            if (_sequenceOwners.TryGetValue(locoAddress, out var owner) &&
+                owner == prefix)
+                _sequenceOwners.Remove(locoAddress);
+        }
     }
 
     public MovementRuntimeState[] Snapshot()
@@ -4015,6 +4043,12 @@ public sealed class MovementRuntime
         // requests can race through the initial validation.
         lock (_gate)
         {
+            if (_sequenceOwners.TryGetValue(execution.LocoAddress, out var reservedPrefix) &&
+                !page.Id.StartsWith(reservedPrefix + "-", StringComparison.Ordinal))
+            {
+                execution.Cancellation.Dispose();
+                return (false, "locomotive_reserved_by_sequence");
+            }
             if (_executions.ContainsKey(page.Id))
             {
                 execution.Cancellation.Dispose();
