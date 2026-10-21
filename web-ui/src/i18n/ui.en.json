@@ -1391,6 +1391,8 @@
   "movementRouteEndpointsMissing": "FROM / TO missing",
   "movementRouteMissingBlock": "Route references a missing block",
   "movementSavedMovements": "Saved movements",
+  "movementSavedStationRoutes": "Saved station routes",
+  "movementSavedSequences": "Saved sequences",
   "movementEnabledCount": "Enabled: {{count}}",
   "movementEditorButton": "Movement editor",
   "movementNew": "New",
