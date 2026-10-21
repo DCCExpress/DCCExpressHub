@@ -3,7 +3,7 @@ import {
   ActionIcon, Badge, Button, Collapse, Group, Menu, ScrollArea, Select,
   Paper, Stack, Table, Text, Tooltip,
 } from "@mantine/core";
-import { IconChevronDown, IconChevronUp, IconDotsVertical, IconEdit, IconFlag, IconPlayerPlay, IconPlayerStop, IconPlus, IconTrash, IconX, IconSquare, IconSquareCheck } from "@tabler/icons-react";
+import { IconChevronDown, IconChevronUp, IconDotsVertical, IconEdit, IconFlag, IconPlayerPlay, IconPlayerStop, IconPlus, IconTrash, IconX, IconSquare, IconSquareCheck, IconRoute } from "@tabler/icons-react";
 import type { LayoutView } from "@/models/editor/core/LayoutView";
 import type { Loco } from "@/domain/domainTypes";
 import { BlockElement } from "@/models/editor/elements/BlockElement";
@@ -381,6 +381,8 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
   const stepsText = (sequence: SequentialMovementDefinition) =>
     sequence.steps.map(step => blockName(step.blockId)).join(" → ");
 
+  const enabledSequenceCount = movements.sequences.filter(sequence => sequence.enabled).length;
+
   const sequenceControls = (sequence: SequentialMovementDefinition) => (
     <Group gap={4} wrap="nowrap">
       <Tooltip label={sequence.enabled ? "Disable sequence" : "Enable sequence"}>
@@ -444,7 +446,15 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
   );
 
   return <Stack gap="sm" style={{ height: "100%", minHeight: 0 }}>
-    <Group justify="flex-end">
+    <Group justify="space-between" align="center" gap="xs" wrap="wrap">
+      <Group gap="xs" align="center" wrap="wrap">
+        <IconRoute size={17}/>
+        <Text fw={700} size="sm">{mt("movementSavedSequences")}</Text>
+        <Badge variant="light" color="violet">{movements.sequences.length}</Badge>
+        <Badge variant="light" color={enabledSequenceCount > 0 ? "green" : "gray"}>
+          {mt("movementEnabledCount", { count: enabledSequenceCount })}
+        </Badge>
+      </Group>
       <Button size="xs" leftSection={<IconPlus size={14}/>} onClick={() => { setError(null); setDraft(blank()); }}>New sequence</Button>
     </Group>
     {error && <Text c="red" size="sm">{formatRuntimeMessage(error)}</Text>}
