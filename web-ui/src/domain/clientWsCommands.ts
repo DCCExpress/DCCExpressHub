@@ -338,6 +338,10 @@ export type MovementCommandAction =
   | "snapshot"
   | "start"
   | "startTransient"
+  | "sequenceSnapshot"
+  | "sequenceStart"
+  | "sequenceStop"
+  | "sequenceAbort"
   | "stop"
   | "abort"
   | "stopAll"
@@ -347,6 +351,7 @@ export type MovementCommandPayload = {
   requestId: string;
   action: MovementCommandAction;
   pageId?: string;
+  sequenceId?: string;
   page?: MovementPage;
   emergencyStop?: boolean;
 };
