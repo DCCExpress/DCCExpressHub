@@ -22,6 +22,7 @@ type Props = {
   layout: LayoutView;
   movements: MovementDocument;
   onMovementsChange: (next: MovementDocument) => void;
+  onPersistRouteTopology?: () => Promise<void>;
 };
 
 const createStep = (blockId: number, direction: "forward" | "reverse" = "forward"): SequentialMovementStep =>
@@ -86,7 +87,7 @@ function compileSegments(layout: LayoutView, steps: SequentialMovementStep[]): S
   return segments;
 }
 
-export default function SequentialMovementsTab({ layout, movements, onMovementsChange }: Props) {
+export default function SequentialMovementsTab({ layout, movements, onMovementsChange, onPersistRouteTopology }: Props) {
   const blocks = useMemo(() => layout.blocks.elements
     .filter((e): e is BlockElement => e instanceof BlockElement)
     .map(e => ({ value: String(e.id), label: e.name?.trim() || `Block #${e.id}` }))
@@ -146,6 +147,7 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
     try {
       const segments = compileSegments(layout, draft.steps);
       const saved: SequentialMovementDefinition = { ...draft, name: draft.name.trim(), segments };
+      await onPersistRouteTopology?.();
       await persist({
         ...movements,
         sequences: [...movements.sequences.filter(sequence => sequence.id !== saved.id), saved],
