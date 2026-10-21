@@ -100,6 +100,7 @@ type AutomationPanelProps = {
   layout: LayoutView;
   stationNames: Array<{ id: string; name: string }>;
   onOpenStationRoutes: (routeId: string) => void;
+  onPersistRouteTopology?: (() => Promise<void>) | undefined;
 };
 
 export default function AutomationPanel({
@@ -116,6 +117,7 @@ export default function AutomationPanel({
   layout,
   stationNames,
   onOpenStationRoutes,
+  onPersistRouteTopology,
 }: AutomationPanelProps) {
   const [
     activeTab,
@@ -185,7 +187,7 @@ export default function AutomationPanel({
                 "ui.automationMovementTab",
                 {
                   defaultValue:
-                    "Movement",
+                    "Movements",
                 }
               )
             }
@@ -287,6 +289,7 @@ export default function AutomationPanel({
             locos={locos}
             stationNames={stationNames}
             onOpenStationRoutes={onOpenStationRoutes}
+            onPersistRouteTopology={onPersistRouteTopology}
           />
         </Tabs.Panel>
 
