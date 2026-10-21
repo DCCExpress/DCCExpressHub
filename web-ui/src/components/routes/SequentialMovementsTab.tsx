@@ -316,11 +316,25 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
                       {runtime && active(sequence.id) &&
                         <Badge variant="light" size="xs" color="blue">{runtime.stepIndex} / {runtime.stepCount}</Badge>}
                     </Group>
-                    {sequence.steps.filter(step => step.waitMode !== "pass").map((step, i) =>
-                      <Text key={i} size="xs" c="dimmed">
-                        {blockName(step.blockId)}: {step.waitMode === "fixed"
-                          ? `${step.waitSeconds} s` : `${step.minSeconds}–${step.maxSeconds} s (random)`}
-                      </Text>)}
+                    {sequence.steps.map((step, index) => step.waitMode === "pass" ? null : (
+                      <Group key={index} gap={5} wrap="nowrap">
+                        <Badge
+                          size="xs"
+                          radius="sm"
+                          variant={index === currentStepIndex ? "filled" : "outline"}
+                          color={index === currentStepIndex
+                            ? runtime?.status === "waiting" ? "orange" : "lime"
+                            : "gray"}
+                        >
+                          {blockName(step.blockId)}
+                        </Badge>
+                        <Text size="xs" c="dimmed">
+                          {step.waitMode === "fixed"
+                            ? `${step.waitSeconds} s`
+                            : `${step.minSeconds}–${step.maxSeconds} s (random)`}
+                        </Text>
+                      </Group>
+                    ))}
                     {runtime?.info && <Text size="xs" c="blue">{formatRuntimeMessage(runtime.info)}</Text>}
                     {runtime?.error && <Text size="xs" c="red">{formatRuntimeMessage(runtime.error)}</Text>}
                   </Stack>
