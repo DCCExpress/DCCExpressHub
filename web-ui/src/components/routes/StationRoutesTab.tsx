@@ -126,6 +126,7 @@ export default function StationRoutesTab({ layout, graph, editingRouteId, onSave
       <AppModal opened={draft !== null} onClose={closeEditor} title="Station Route Editor" size="min(750px, 92vw)" centered draggable>
         {draft && <Stack gap="sm">
           <Text fw={700}>Station route editor</Text>
+          {error && <Text c="red" size="sm">{error}</Text>}
           <TextInput label="Name" value={draft.name} onChange={e => update({ name: e.currentTarget.value })}/>
           <Group grow align="start">
             <Select label="From station" searchable data={stations} value={draft.fromStationId || null}
