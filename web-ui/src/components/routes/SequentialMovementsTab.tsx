@@ -458,9 +458,21 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
                 <Text fw={700} size="sm" style={{ overflowWrap: "anywhere" }}>
                   {sequence.name}
                 </Text>
-                {/* Actions have their own row; the details toggle remains available. */}
+                {/* Actions and live status remain visible even with details collapsed. */}
                 <Group justify="space-between" align="center" gap="xs" wrap="nowrap">
-                  {sequenceControls(sequence)}
+                  <Group gap="xs" align="center" wrap="nowrap">
+                    {sequenceControls(sequence)}
+                      <Badge size="xs" variant="light"
+                        color={runtime?.status === "waiting" ? "orange" :
+                          runtime?.status === "finishing" ? "teal" :
+                          runtime?.status === "running" ? "green" :
+                            runtime?.status === "error" ? "red" : "gray"}>
+                        {runtime?.status === "waiting" ? "Waiting" :
+                          runtime?.status === "finishing" ? "Finishing" :
+                          runtime?.status === "running" ? "Running" :
+                            runtime?.status ?? (sequence.enabled ? "Idle" : "Disabled")}
+                      </Badge>
+                  </Group>
                   <Tooltip label={expandedCards[sequence.id] ? "Hide details" : "Show details"}>
                     <ActionIcon
                       size={MOVEMENT_CARD_ACTION_SIZE}
@@ -494,16 +506,7 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
                 <Collapse expanded={Boolean(expandedCards[sequence.id])}>
                   <Stack gap="xs" pt="xs">
                     <Group gap="xs">
-                      <Badge size="xs" variant="light"
-                        color={runtime?.status === "waiting" ? "orange" :
-                          runtime?.status === "finishing" ? "teal" :
-                          runtime?.status === "running" ? "green" :
-                            runtime?.status === "error" ? "red" : "gray"}>
-                        {runtime?.status === "waiting" ? "Waiting" :
-                          runtime?.status === "finishing" ? "Finishing" :
-                          runtime?.status === "running" ? "Running" :
-                            runtime?.status ?? (sequence.enabled ? "Idle" : "Disabled")}
-                      </Badge>
+
                       <Badge variant="outline" size="xs">{mt("movementCruiseSpeed")}: {sequence.speed}</Badge>
                       <Badge variant="outline" size="xs">{sequence.steps.length} blocks</Badge>
                       {runtime && active(sequence.id) &&
