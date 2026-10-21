@@ -1,6 +1,6 @@
-import { ActionIcon, Button, Group, NumberInput, ScrollArea, Select,
+import { ActionIcon, Alert, Button, Group, NumberInput, ScrollArea, Select,
   Stack, Switch, Table, Text, TextInput } from "@mantine/core";
-import { IconArrowDown, IconArrowUp, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconAlertTriangle, IconArrowDown, IconArrowUp, IconPlus, IconTrash } from "@tabler/icons-react";
 import AppModal from "@/components/common/AppModal";
 import { useMovementTranslation } from "@/components/movement/movementI18n";
 import type { SequentialMovementDefinition, SequentialMovementStep, SequentialWaitMode } from "@/domain/movement";
@@ -11,6 +11,8 @@ type Props = {
   busy: boolean;
   error: string | null;
   routeTableReady: boolean;
+  validationIssue: string | null;
+  segmentsOutdated: boolean;
   blocks: BlockOption[];
   availableBlocks: (index: number) => BlockOption[];
   onModify: (patch: Partial<SequentialMovementDefinition>) => void;
@@ -24,7 +26,7 @@ type Props = {
 
 /** New/Edit editor opened by the Sequential Movement collection. */
 export default function SequentialMovementEditorDialog({
-  draft, busy, error, routeTableReady, blocks, availableBlocks,
+  draft, busy, error, routeTableReady, validationIssue, segmentsOutdated, blocks, availableBlocks,
   onModify, onChangeStep, onMoveStep, onRemoveStep, onAddStep, onClose, onSave,
 }: Props) {
   const mt = useMovementTranslation();
@@ -52,10 +54,18 @@ export default function SequentialMovementEditorDialog({
           <NumberInput label={mt("movementCruiseSpeed")} min={1} max={126} value={draft.speed} onChange={v => onModify({ speed: Math.max(1, Math.min(126, Number(v) || 20)) })}/>
           <Switch label="Enabled" checked={draft.enabled} onChange={e => onModify({ enabled: e.currentTarget.checked })}/>
         </Group>
-        <Text size="xs" c="dimmed">Direction = departure from this block. The next block list is filtered by the saved route graph. Reversing here requires a stop (Fixed 0 s is added automatically). Pass means no stop; the final block always stops.</Text>
+        <Text size="xs" c="dimmed">Direction = departure from this block. Fixed 0 s is a valid complete stop with immediate departure; it is not Pass. The next block list comes from the saved route graph. The final block always stops.</Text>
+        {validationIssue && <Alert color="orange" variant="light" title="Sequence needs attention" icon={<IconAlertTriangle size={17}/>}>
+          <Text size="sm">{validationIssue}</Text>
+        </Alert>}
+        {!validationIssue && segmentsOutdated && <Alert color="yellow" variant="light" title="Saved route segments need updating" icon={<IconAlertTriangle size={17}/>}>
+          <Text size="sm">The stored route segments no longer match the selected blocks, directions or stops. Save this sequence to rebuild the segments before starting it. Fixed 0 s is allowed.</Text>
+        </Alert>}
         {!routeTableReady &&
           <Text size="xs" c="orange">Route topology is missing. Generate and save the route graph to enable block filtering.</Text>}
-        {error && <Text size="xs" c="red">{error}</Text>}
+        {error && <Alert color="red" variant="light" title="Sequence error" icon={<IconAlertTriangle size={17}/>}>
+          <Text size="sm">{error}</Text>
+        </Alert>}
         <ScrollArea type="always" style={{ flex: 1, minHeight: 0, width: "100%" }}>
           <Table striped withTableBorder stickyHeader stickyHeaderOffset={0} miw={820}>
             <Table.Thead><Table.Tr>
@@ -96,7 +106,7 @@ export default function SequentialMovementEditorDialog({
             disabled={draft.steps.length >= 64}
             onClick={onAddStep}>Add block</Button>
           <Group><Button variant="default" onClick={onClose}>Cancel</Button>
-            <Button loading={busy} onClick={onSave}>Save sequence</Button></Group>
+            <Button loading={busy} disabled={Boolean(validationIssue)} onClick={onSave}>Save sequence</Button></Group>
         </Group>
       </Stack>}
     </AppModal>
