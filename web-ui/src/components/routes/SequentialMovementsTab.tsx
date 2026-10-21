@@ -217,6 +217,17 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
   const [states, setStates] = useState<Record<string, SequentialMovementStatePayload>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const editorOpen = draft !== null;
+  const editorRouteTable = useMemo<SavedRoute[]>(() => {
+    if (!editorOpen) return [];
+    try {
+      const snapshot = createCurrentClientLayoutSnapshot(layout);
+      const topology = snapshot.routeTopology as PersistedClientRouteTopology | undefined;
+      return topology?.routeTable ?? [];
+    } catch {
+      return [];
+    }
+  }, [layout, editorOpen]);
 
   useEffect(() => {
     const unsubscribe = wsClient.on("sequentialMovementStateChanged", state =>
@@ -244,9 +255,24 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
   const modify = (patch: Partial<SequentialMovementDefinition>) =>
     setDraft(current => current ? { ...current, ...patch } : current);
   const changeStep = (index: number, patch: Partial<SequentialMovementStep>) =>
-    setDraft(current => current
-      ? { ...current, steps: current.steps.map((step, i) => i === index ? { ...step, ...patch } : step) }
-      : current);
+    setDraft(current => {
+      if (!current) return current;
+      const updated = normalizeReversals(current.steps.map((step, i) =>
+        i === index ? { ...step, ...patch } : step));
+
+      // Earlier block/direction/stop changes invalidate later route choices.
+      // Clear only destinations that are no longer reachable, not the wait or
+      // departure settings the operator already configured on those rows.
+      if ("blockId" in patch || "direction" in patch || "waitMode" in patch) {
+        for (let i = index + 1; i < updated.length; i++) {
+          const block = updated[i]!;
+          if (block.blockId && !reachableNextBlocks(updated, i, editorRouteTable).has(block.blockId)) {
+            updated[i] = { ...block, blockId: 0 };
+          }
+        }
+      }
+      return { ...current, steps: updated };
+    });
   const status = (id: string) => states[id];
   const active = (id: string) => ["running", "waiting"].includes(status(id)?.status ?? "");
 
@@ -454,16 +480,23 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
           <NumberInput label="Travel speed (DCC)" min={1} max={126} value={draft.speed} onChange={v => modify({ speed: Math.max(1, Math.min(126, Number(v) || 20)) })}/>
           <Switch label="Enabled" checked={draft.enabled} onChange={e => modify({ enabled: e.currentTarget.checked })}/>
         </Group>
-        <Text size="xs" c="dimmed">Direction means travel into this block. A direction change needs a stop at the previous block (Fixed 0 s is allowed). Last block always stops. Wait starts only after arrival and verified speed zero.</Text>
+        <Text size="xs" c="dimmed">Direction = departure from this block. The next block list is filtered by the saved route graph. Reversing here requires a stop (Fixed 0 s is added automatically). Pass means no stop; the final block always stops.</Text>
+        {editorRouteTable.length === 0 &&
+          <Text size="xs" c="orange">Route topology is missing. Generate and save the route graph to enable block filtering.</Text>}
         <ScrollArea type="always" style={{ flex: 1, minHeight: 0, width: "100%" }}>
           <Table striped withTableBorder stickyHeader stickyHeaderOffset={0} miw={820}>
             <Table.Thead><Table.Tr>
-              <Table.Th>#</Table.Th><Table.Th>Block</Table.Th><Table.Th>Direction</Table.Th><Table.Th>Stop / wait</Table.Th><Table.Th>Fixed (s)</Table.Th><Table.Th>Min (s)</Table.Th><Table.Th>Max (s)</Table.Th><Table.Th/>
+              <Table.Th>#</Table.Th><Table.Th>Block</Table.Th><Table.Th>Depart</Table.Th><Table.Th>Stop / wait</Table.Th><Table.Th>Fixed (s)</Table.Th><Table.Th>Min (s)</Table.Th><Table.Th>Max (s)</Table.Th><Table.Th/>
             </Table.Tr></Table.Thead>
             <Table.Tbody>
               {draft.steps.map((step, index) => <Table.Tr key={index}>
                 <Table.Td>{index + 1}</Table.Td>
-                <Table.Td><Select size="xs" searchable w={150} data={blocks} value={String(step.blockId)}
+                <Table.Td><Select size="xs" searchable w={150}
+                  placeholder={index === 0 ? "Start block" : "Reachable block"}
+                  nothingFoundMessage="No reachable blocks in this direction"
+                  data={index === 0 ? blocks : blocks.filter(block =>
+                    reachableNextBlocks(draft.steps, index, editorRouteTable).has(Number(block.value)))}
+                  value={step.blockId ? String(step.blockId) : null}
                   onChange={value => changeStep(index, { blockId: Number(value) || 0 })}/></Table.Td>
                 <Table.Td><Select size="xs" w={108} allowDeselect={false} data={[{value:"forward",label:"Forward"},{value:"reverse",label:"Reverse"}]}
                   value={step.direction} onChange={v => changeStep(index,{ direction: v === "reverse" ? "reverse" : "forward" })}/></Table.Td>
@@ -493,7 +526,10 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
         <Group justify="space-between" style={{ flexShrink: 0 }}>
           <Button size="xs" variant="light" leftSection={<IconPlus size={14}/>}
             disabled={draft.steps.length >= 64}
-            onClick={() => modify({steps:[...draft.steps,createStep(0,draft.steps[draft.steps.length-1]?.direction ?? "forward")]})}>Add block</Button>
+            onClick={() => modify({steps:normalizeReversals([
+              ...draft.steps,
+              createStep(0,draft.steps[draft.steps.length-1]?.direction ?? "forward"),
+            ])})}>Add block</Button>
           <Group><Button variant="default" onClick={() => setDraft(null)}>Cancel</Button>
             <Button loading={busy} onClick={() => void save()}>Save sequence</Button></Group>
         </Group>
