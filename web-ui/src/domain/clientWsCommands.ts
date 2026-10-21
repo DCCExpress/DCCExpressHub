@@ -442,7 +442,7 @@ export type FlowCommandPayload = {
 
 export type TrainDriverCommandPayload = {
   requestId: string;
-  action: "snapshot" | "start" | "startAuto" | "stop" | "resume" | "abort";
+  action: "snapshot" | "start" | "startAuto" | "startStation" | "stop" | "resume" | "abort";
   taskId?: string;
   page?: import("./movement").MovementPage;
   candidates?: import("./movement").MovementPage[];
