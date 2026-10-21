@@ -115,6 +115,18 @@ public sealed class SequentialMovementRuntime
         return null;
     }
 
+    static string SegmentIssue(
+        int segmentNumber, Step[] steps, int startIndex, int endIndex, string reason)
+    {
+        var from = startIndex >= 0 && startIndex < steps.Length
+            ? "block #" + steps[startIndex].BlockId : "unknown start block";
+        var to = endIndex >= 0 && endIndex < steps.Length
+            ? "block #" + steps[endIndex].BlockId : "invalid end index";
+        return $"invalid_sequence_segment: segment {segmentNumber} ({from} → {to}, " +
+            $"rows {startIndex + 1}–{endIndex + 1}): {reason}. " +
+            "Edit and save the sequence to rebuild its route segments.";
+    }
+
     static string? Validate(Definition definition)
     {
         // Older saved sequences used direction INTO a block. Never silently
@@ -139,36 +151,69 @@ public sealed class SequentialMovementRuntime
         if (steps.Zip(steps.Skip(1)).Any(pair => pair.First.BlockId == pair.Second.BlockId))
             return "sequence_adjacent_blocks_same";
 
+        // Fixed 0 s is valid: it means a confirmed stop with no dwell.
+        // What is invalid is an old/stale compiled segment that still treats
+        // that explicitly stopped checkpoint as a non-stopping Pass.
         var fromIndex = 0;
-        foreach (var segment in segments)
+        for (var segmentIndex = 0; segmentIndex < segments.Length; segmentIndex++)
         {
-            if (segment is null) return "invalid_sequence_segment";
+            var segment = segments[segmentIndex];
+            var number = segmentIndex + 1;
+            if (segment is null)
+                return SegmentIssue(number, steps, fromIndex, fromIndex, "the route segment is missing");
+
+            var endIndex = segment.EndStepIndex;
+            if (endIndex <= fromIndex || endIndex >= steps.Length)
+                return SegmentIssue(number, steps, fromIndex, endIndex,
+                    $"endStepIndex={endIndex} does not identify a later valid row");
+
             var route = segment.RouteRef;
-            if (route is null || segment.EndStepIndex <= fromIndex ||
-                segment.EndStepIndex >= steps.Length ||
-                route.FromBlockId != steps[fromIndex].BlockId ||
-                route.ToBlockId != steps[segment.EndStepIndex].BlockId ||
-                route.Direction != steps[fromIndex].Direction ||
-                (route.ViaBlockIds ?? []).Any(id => id is < 1 or > 65535))
-                return "invalid_sequence_segment";
+            if (route is null)
+                return SegmentIssue(number, steps, fromIndex, endIndex, "routeRef is missing");
+            if (route.FromBlockId != steps[fromIndex].BlockId)
+                return SegmentIssue(number, steps, fromIndex, endIndex,
+                    $"routeRef starts at block #{route.FromBlockId}, but row {fromIndex + 1} is block #{steps[fromIndex].BlockId}");
+            if (route.ToBlockId != steps[endIndex].BlockId)
+                return SegmentIssue(number, steps, fromIndex, endIndex,
+                    $"routeRef ends at block #{route.ToBlockId}, but row {endIndex + 1} is block #{steps[endIndex].BlockId}");
+            if (route.Direction != steps[fromIndex].Direction)
+                return SegmentIssue(number, steps, fromIndex, endIndex,
+                    $"stored route direction is {route.Direction}, but departure from row {fromIndex + 1} is {steps[fromIndex].Direction}");
+            if ((route.ViaBlockIds ?? []).Any(id => id is < 1 or > 65535))
+                return SegmentIssue(number, steps, fromIndex, endIndex, "routeRef contains an invalid via block ID");
+
             // Intermediate blocks must be passed without stopping and must
             // depart in the same direction. The destination's departure
             // direction belongs to the NEXT segment, not this one.
-            for (var index = fromIndex + 1; index < segment.EndStepIndex; index++)
+            for (var index = fromIndex + 1; index < endIndex; index++)
             {
-                if (steps[index].WaitMode != "pass" ||
-                    steps[index].Direction != route.Direction ||
-                    !(route.ViaBlockIds ?? []).Contains(steps[index].BlockId))
-                    return "invalid_sequence_segment";
+                var step = steps[index];
+                if (step.WaitMode != "pass")
+                    return SegmentIssue(number, steps, fromIndex, endIndex,
+                        $"row {index + 1}, block #{step.BlockId} has {step.WaitMode}" +
+                        (step.WaitMode == "fixed" ? $" {step.WaitSeconds} s" : "") +
+                        " instead of Pass inside an uninterrupted route; the segment must end at this stop");
+                if (step.Direction != route.Direction)
+                    return SegmentIssue(number, steps, fromIndex, endIndex,
+                        $"row {index + 1}, block #{step.BlockId} departs {step.Direction}, but this route departs {route.Direction}");
+                if (!(route.ViaBlockIds ?? []).Contains(step.BlockId))
+                    return SegmentIssue(number, steps, fromIndex, endIndex,
+                        $"row {index + 1}, block #{step.BlockId} is missing from the routeRef via blocks");
             }
+
             // A direction change on arrival requires a stop in that block.
-            if (segment.EndStepIndex < steps.Length - 1 &&
-                steps[segment.EndStepIndex].Direction != route.Direction &&
-                steps[segment.EndStepIndex].WaitMode == "pass")
-                return "sequence_reverse_requires_stop";
-            fromIndex = segment.EndStepIndex;
+            if (endIndex < steps.Length - 1 &&
+                steps[endIndex].Direction != route.Direction &&
+                steps[endIndex].WaitMode == "pass")
+                return SegmentIssue(number, steps, fromIndex, endIndex,
+                    $"row {endIndex + 1}, block #{steps[endIndex].BlockId} reverses direction but is set to Pass; choose Fixed 0 s or longer");
+
+            fromIndex = endIndex;
         }
-        if (fromIndex != steps.Length - 1) return "incomplete_sequence";
+        if (fromIndex != steps.Length - 1)
+            return $"incomplete_sequence: last segment ends at row {fromIndex + 1} " +
+                $"(block #{steps[fromIndex].BlockId}), but the final row is {steps.Length} " +
+                $"(block #{steps[^1].BlockId}). Edit and save the sequence.";
         // No artificial stop at a Pass checkpoint: every transient Movement
         // stops at its destination, so only an explicitly stopped checkpoint
         // may terminate a non-final segment.
@@ -176,7 +221,9 @@ public sealed class SequentialMovementRuntime
         {
             var end = segments[i].EndStepIndex;
             if (steps[end].WaitMode == "pass")
-                return "sequence_segment_requires_stop";
+                return $"sequence_segment_requires_stop: segment {i + 1} ends at " +
+                    $"row {end + 1}, block #{steps[end].BlockId}, which is set to Pass. " +
+                    "Choose Fixed 0 s (valid stop without dwell) or a longer wait, then save.";
         }
         return null;
     }
