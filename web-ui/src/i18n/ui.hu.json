@@ -1344,7 +1344,7 @@
   "movementDeleteConfirm": "Törlöd ezt a Movementet: „{{name}}”?",
   "movementEditorTitle": "Movement / Diszpécser szerkesztő",
   "movementName": "Movement neve",
-  "movementCruiseSpeed": "Utazósebesség",
+  "movementCruiseSpeed": "Utazósebesség (DCC-lépés)",
   "movementNoNextLegSafety": "Ehhez az erőforráshoz nincs következő Movement-szakasz, ezért nincs beállítható indulási biztonsági szenzor.",
   "movementSafetyTargetOccupancy": "Szenzor {{address}} · {{target}} foglaltság",
   "movementSafetySensor": "Szenzor {{address}}",
