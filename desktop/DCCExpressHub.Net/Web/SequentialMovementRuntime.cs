@@ -47,10 +47,17 @@ public sealed class SequentialMovementRuntime
         public string? ChildId;
         public State State = new("", "", "idle", 0, 0, null, null, null);
         public bool EmergencyAbort;
+        public volatile bool FinishRequested;
+        public int StartSegmentIndex;
+        public int StartStepIndex;
+        public MovementRouteRefModel? OverrideFirstRoute;
+        public MovementRouteRefModel? ApproachRoute;
+        public readonly CancellationTokenSource FinishWake = new();
     }
 
     readonly object _gate = new();
     readonly MovementRuntime _movement;
+    readonly LayoutRuntime _layout;
     readonly HubState _hubState;
     readonly AppPaths _paths;
     readonly ILogger<SequentialMovementRuntime> _logger;
@@ -60,9 +67,10 @@ public sealed class SequentialMovementRuntime
     public event Action<State>? Changed;
 
     public SequentialMovementRuntime(
-        MovementRuntime movement, HubState hubState, AppPaths paths, ILogger<SequentialMovementRuntime> logger)
+        MovementRuntime movement, LayoutRuntime layout, HubState hubState, AppPaths paths, ILogger<SequentialMovementRuntime> logger)
     {
         _movement = movement;
+        _layout = layout;
         _hubState = hubState;
         _paths = paths;
         _logger = logger;
@@ -179,8 +187,82 @@ public sealed class SequentialMovementRuntime
             Enabled = true,
             Speed = run.Definition.Speed,
             ExpectedLocoAddress = run.LocoAddress,
-            RouteRef = segment.RouteRef,
+            RouteRef = segmentIndex == run.StartSegmentIndex
+                ? run.OverrideFirstRoute ?? segment.RouteRef
+                : segment.RouteRef,
         };
+    }
+
+    static MovementPageModel ApproachPage(Run run) => new()
+    {
+        Id = run.ChildId!,
+        Name = run.Definition.Name + " · approach to start",
+        Enabled = true,
+        Speed = run.Definition.Speed,
+        ExpectedLocoAddress = run.LocoAddress,
+        RouteRef = run.ApproachRoute,
+    };
+
+    // Only build a suffix of an already validated physical route. A new
+    // route will still be validated against the persisted graph by Movement.
+    static MovementRouteRefModel? RouteSuffix(MovementRouteRefModel route, int blockId)
+    {
+        var ids = new List<int> { route.FromBlockId };
+        ids.AddRange(route.ViaBlockIds ?? []);
+        ids.Add(route.ToBlockId);
+        var sourcePosition = ids.IndexOf(blockId);
+        if (sourcePosition < 0 || sourcePosition >= ids.Count - 1) return null;
+        return new MovementRouteRefModel
+        {
+            FromBlockId = blockId,
+            ToBlockId = route.ToBlockId,
+            Direction = route.Direction,
+            ViaBlockIds = ids.Skip(sourcePosition + 1).Take(ids.Count - sourcePosition - 2).ToArray()
+        };
+    }
+
+    MovementRouteRefModel? ApproachRoute(int fromId, int toId, int locoAddress)
+    {
+        var layoutPath = Path.Combine(_paths.ConfigRootPath, "layout.json");
+        if (!File.Exists(layoutPath)) return null;
+        using var doc = JsonDocument.Parse(File.ReadAllText(layoutPath));
+        if (!doc.RootElement.TryGetProperty("routeTopology", out var topology) ||
+            !topology.TryGetProperty("routeTable", out var routes) ||
+            routes.ValueKind != JsonValueKind.Array) return null;
+        var candidates = new List<(MovementRouteRefModel Route, int Cost, bool Available)>();
+        foreach (var route in routes.EnumerateArray())
+        {
+            if (!route.TryGetProperty("fromBlockId", out var from) ||
+                !route.TryGetProperty("toBlockId", out var to) ||
+                from.GetInt32() != fromId || to.GetInt32() != toId ||
+                !route.TryGetProperty("locoDirection", out var directionEl) ||
+                !route.TryGetProperty("blockPath", out var path) ||
+                path.ValueKind != JsonValueKind.Array) continue;
+            var direction = directionEl.GetString();
+            if (direction is not ("forward" or "reverse")) continue;
+            var ids = path.EnumerateArray().Select(block => block.GetProperty("id").GetInt32()).ToArray();
+            if (ids.Length < 2) continue;
+            var reference = new MovementRouteRefModel
+            {
+                FromBlockId = fromId,
+                ToBlockId = toId,
+                Direction = direction,
+                ViaBlockIds = ids.Skip(1).Take(ids.Length - 2).ToArray()
+            };
+            var check = _movement.EvaluateAutoRoute(new MovementPageModel
+            {
+                Id = "sequential-approach-check",
+                Name = "Sequence approach",
+                ExpectedLocoAddress = locoAddress,
+                RouteRef = reference
+            });
+            candidates.Add((reference, check.Cost, check.Available));
+        }
+        // Prefer an immediately safe candidate, but retain the existing
+        // dispatcher waiting semantics for routes temporarily blocked.
+        return candidates.OrderByDescending(item => item.Available)
+            .ThenBy(item => item.Available ? item.Cost : item.Route.ViaBlockIds.Length)
+            .Select(item => item.Route).FirstOrDefault();
     }
 
     public (bool Ok, string? Error, State? State) Start(string id)
