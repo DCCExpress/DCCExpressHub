@@ -83,7 +83,7 @@ public sealed class SequentialMovementRuntime
 
     void Publish(Run run, string status, int index, string? info, string? error = null)
     {
-        if (run.FinishRequested && status is "running" or "waiting")
+        if (run.FinishRequested && (status is "running" or "waiting"))
         {
             status = "finishing";
             info = "Finishing at next safe block";
