@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  ActionIcon, Badge, Button, Collapse, Group, NumberInput, ScrollArea, Select,
+  ActionIcon, Badge, Button, Collapse, Group, Menu, NumberInput, ScrollArea, Select,
   Paper, Stack, Switch, Table, Text, TextInput, Tooltip,
 } from "@mantine/core";
-import { IconArrowDown, IconArrowUp, IconChevronDown, IconChevronUp, IconEdit, IconPlayerPlay, IconPlayerStop, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
+import { IconArrowDown, IconArrowUp, IconChevronDown, IconChevronUp, IconDotsVertical, IconEdit, IconFlag, IconPlayerPlay, IconPlayerStop, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 import type { LayoutView } from "@/models/editor/core/LayoutView";
 import { BlockElement } from "@/models/editor/elements/BlockElement";
 import { createCurrentClientLayoutSnapshot } from "@/services/clientRouteGraphCache";
@@ -171,7 +171,7 @@ function currentSequenceStepIndex(
   runtime: SequentialMovementStatePayload | undefined,
   layout: LayoutView,
 ): number | null {
-  if (!runtime || (runtime.status !== "running" && runtime.status !== "waiting") ||
+  if (!runtime || (runtime.status !== "running" && runtime.status !== "waiting" && runtime.status !== "finishing") ||
       runtime.stepIndex < 1 || sequence.steps.length === 0)
     return null;
 
@@ -213,6 +213,9 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
   const toggleCardDetails = (id: string) =>
     setExpandedCards(current => ({ ...current, [id]: !current[id] }));
+  const [startDialog, setStartDialog] = useState<{ sequenceId: string; mode: "current" | "approach" } | null>(null);
+  const [startLoco, setStartLoco] = useState<string | null>(null);
+  const [startStep, setStartStep] = useState<string | null>(null);
   const [draft, setDraft] = useState<SequentialMovementDefinition | null>(null);
   const [states, setStates] = useState<Record<string, SequentialMovementStatePayload>>({});
   const [busy, setBusy] = useState(false);
@@ -274,7 +277,17 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
       return { ...current, steps: updated };
     });
   const status = (id: string) => states[id];
-  const active = (id: string) => ["running", "waiting"].includes(status(id)?.status ?? "");
+  const active = (id: string) => ["running", "waiting", "finishing"].includes(status(id)?.status ?? "");
+  const activeSequence = movements.sequences.find(sequence => sequence.id === startDialog?.sequenceId);
+  const assignedLocos = layout.blocks.elements
+    .filter((block): block is BlockElement => block instanceof BlockElement && block.locoAddress > 0)
+    .map(block => ({ address: block.locoAddress, blockId: block.id }))
+    .filter((item, index, all) => all.findIndex(other => other.address === item.address) === index);
+  const selectedLocoBlock = assignedLocos.find(item => String(item.address) === startLoco)?.blockId;
+  const startingSteps = activeSequence?.steps.flatMap((step, index) =>
+    step.blockId === selectedLocoBlock && index < activeSequence.steps.length - 1
+      ? [{ value: String(index), label: `#${index + 1} · ${blockName(step.blockId)} → ${blockName(activeSequence.steps[index + 1]!.blockId)}` }]
+      : []) ?? [];
 
   const persist = async (next: MovementDocument) => {
     setBusy(true);
@@ -301,16 +314,21 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   };
 
-  const command = async (action: "sequenceStart" | "sequenceStop" | "sequenceAbort", sequenceId: string) => {
+  const command = async (
+    action: "sequenceStart" | "sequenceStop" | "sequenceAbort" | "sequenceFinish",
+    sequenceId: string,
+    start?: { startMode: "current" | "approach"; locoAddress: number; startStepIndex?: number },
+  ) => {
     setBusy(true); setError(null);
     try {
       const requestId = `seq-${Date.now()}-${Math.random()}`;
       const response = await wsApi.request("movementCommand",
-        { requestId, action, sequenceId }, "movementResponse",
+        { requestId, action, sequenceId, ...start }, "movementResponse",
         item => item.requestId === requestId, 15000);
       if (!response.ok) throw new Error(response.message ?? "Sequence command rejected.");
       const extra = response.extra as unknown as { state?: SequentialMovementStatePayload } | undefined;
       if (extra?.state) setStates(current => ({ ...current, [sequenceId]: extra.state! }));
+      if (action === "sequenceStart") setStartDialog(null);
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   };
@@ -320,10 +338,31 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
 
   const sequenceControls = (sequence: SequentialMovementDefinition) => (
     <Group gap={4} wrap="nowrap">
-      <Tooltip label={sequence.directionMode === "departure" ? "Start" : "Edit and resave with departure directions"}>
-        <ActionIcon aria-label="Start sequence" color="green" variant="light"
-        disabled={busy || !sequence.enabled || sequence.directionMode !== "departure" || active(sequence.id)}
-        onClick={() => void command("sequenceStart", sequence.id)}><IconPlayerPlay size={16}/></ActionIcon>
+      <Tooltip label="Start normally from first block">
+        <ActionIcon aria-label="Start sequence normally" color="green" variant="light"
+          disabled={busy || !sequence.enabled || sequence.directionMode !== "departure" || active(sequence.id)}
+          onClick={() => void command("sequenceStart", sequence.id)}><IconPlayerPlay size={16}/></ActionIcon>
+      </Tooltip>
+      <Menu position="bottom-end" withinPortal>
+        <Menu.Target>
+          <ActionIcon aria-label="More sequence start modes" color="green" variant="subtle"
+            disabled={busy || !sequence.enabled || sequence.directionMode !== "departure" || active(sequence.id)}>
+            <IconDotsVertical size={16}/>
+          </ActionIcon>
+        </Menu.Target>
+        <Menu.Dropdown>
+          <Menu.Item onClick={() => { setStartLoco(null); setStartStep(null); setStartDialog({ sequenceId: sequence.id, mode: "current" }); }}>
+            Start from current block
+          </Menu.Item>
+          <Menu.Item onClick={() => { setStartLoco(null); setStartStep(null); setStartDialog({ sequenceId: sequence.id, mode: "approach" }); }}>
+            Go to starting block
+          </Menu.Item>
+        </Menu.Dropdown>
+      </Menu>
+      <Tooltip label="Finish at next block">
+        <ActionIcon aria-label="Finish sequence at next block" color="teal" variant="light"
+          disabled={busy || !active(sequence.id) || status(sequence.id)?.status === "finishing"}
+          onClick={() => void command("sequenceFinish", sequence.id)}><IconFlag size={16}/></ActionIcon>
       </Tooltip>
       <Tooltip label="Stop"><ActionIcon aria-label="Stop sequence" color="yellow" variant="light"
         disabled={busy || !active(sequence.id)}
@@ -398,9 +437,11 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
                     <Group gap="xs">
                       <Badge size="xs" variant="light"
                         color={runtime?.status === "waiting" ? "orange" :
+                          runtime?.status === "finishing" ? "teal" :
                           runtime?.status === "running" ? "green" :
                             runtime?.status === "error" ? "red" : "gray"}>
                         {runtime?.status === "waiting" ? "Waiting" :
+                          runtime?.status === "finishing" ? "Finishing" :
                           runtime?.status === "running" ? "Running" :
                             runtime?.status ?? (sequence.enabled ? "Idle" : "Disabled")}
                       </Badge>
@@ -449,8 +490,10 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
             <Table.Td><Text size="xs">{stepsText(sequence)}</Text></Table.Td>
             <Table.Td>{sequence.speed}</Table.Td>
             <Table.Td><Badge variant="light" color={status(sequence.id)?.status === "waiting" ? "orange" :
+              status(sequence.id)?.status === "finishing" ? "teal" :
               active(sequence.id) ? "green" : status(sequence.id)?.status === "error" ? "red" : "gray"}>
               {status(sequence.id)?.status === "waiting" ? "Waiting" :
+                status(sequence.id)?.status === "finishing" ? "Finishing" :
                 status(sequence.id)?.status === "running" ? "Running" :
                   status(sequence.id)?.status ?? (sequence.enabled ? "Idle" : "Disabled")}
             </Badge><Text size="xs" c="dimmed">{formatRuntimeMessage(status(sequence.id)?.info ?? status(sequence.id)?.error)}</Text></Table.Td>
@@ -461,6 +504,39 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
       </Table>
       )}
     </ScrollArea>
+    <AppModal opened={startDialog !== null} size="sm" centered draggable
+      title={startDialog?.mode === "current" ? "Start from current block" : "Go to starting block"}
+      onClose={() => { if (!busy) setStartDialog(null); }}>
+      {startDialog && activeSequence && <Stack gap="sm">
+        <Select label="Locomotive / current block" placeholder="Select locomotive"
+          data={assignedLocos.map(item => ({
+            value: String(item.address),
+            label: `#${item.address} · ${blockName(item.blockId)}`,
+          }))}
+          searchable value={startLoco}
+          onChange={value => { setStartLoco(value); setStartStep(null); }}/>
+        {startDialog.mode === "current" &&
+          <Select label="Start at sequence step" placeholder="Choose block occurrence"
+            description="For repeated blocks, choose the exact position in the sequence."
+            data={startingSteps} value={startStep} onChange={setStartStep}
+            nothingFoundMessage="This locomotive is not in a runnable sequence block."/>}
+        {startDialog.mode === "approach" &&
+          <Text size="sm" c="dimmed">
+            The Dispatcher routes this locomotive to {blockName(activeSequence.steps[0]!.blockId)}
+            and starts the sequence after arrival and the confirmed stop.
+          </Text>}
+        <Group justify="flex-end">
+          <Button variant="default" onClick={() => setStartDialog(null)} disabled={busy}>Cancel</Button>
+          <Button loading={busy}
+            disabled={!startLoco || (startDialog.mode === "current" && startStep === null)}
+            onClick={() => void command("sequenceStart", activeSequence.id, {
+              startMode: startDialog.mode,
+              locoAddress: Number(startLoco),
+              ...(startDialog.mode === "current" ? { startStepIndex: Number(startStep) } : {}),
+            })}>Start</Button>
+        </Group>
+      </Stack>}
+    </AppModal>
     <AppModal opened={draft !== null} onClose={() => { if (!busy) setDraft(null); }} title="Sequential Movement Editor"
       size="min(1050px, 96vw)" draggable centered
       styles={{
