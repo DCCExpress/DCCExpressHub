@@ -861,7 +861,7 @@ function enumerateRouteVariantsForBlockPair(
  * Backend movement planning uses the same persisted routeTable, so these
  * entries must be generated during topology persistence, not in the editor.
  */
-function includeUnambiguousReturnRoutes(
+export function includeUnambiguousReturnRoutes(
   routes: PersistedRouteTableEntry[],
 ): PersistedRouteTableEntry[] {
   const key = (from: number, to: number, direction: string) =>
