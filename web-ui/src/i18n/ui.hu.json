@@ -1391,6 +1391,8 @@
   "movementRouteEndpointsMissing": "Hiányzik a HONNAN / HOVA blokk",
   "movementRouteMissingBlock": "Az útvonal hiányzó blokkra hivatkozik",
   "movementSavedMovements": "Mentett mozgások",
+  "movementSavedStationRoutes": "Mentett állomási útvonalak",
+  "movementSavedSequences": "Mentett szekvenciális mozgások",
   "movementEnabledCount": "Engedélyezve: {{count}}",
   "movementEditorButton": "Movement szerkesztő",
   "movementNew": "Új",
