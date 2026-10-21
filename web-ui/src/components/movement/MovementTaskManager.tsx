@@ -120,7 +120,8 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
   }, []);
 
   const active = tasks
-    .filter(task => task.state.status === "running" || task.state.status === "stopping")
+    .filter(task => !task.pageId.startsWith("sequence-step-") &&
+      (task.state.status === "running" || task.state.status === "stopping"))
     .sort((a, b) => (a.state.startedAt ?? 0) - (b.state.startedAt ?? 0));
 
   const activeSequences = sequences.filter(state =>
