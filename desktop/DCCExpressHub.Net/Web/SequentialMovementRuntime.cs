@@ -297,6 +297,16 @@ public sealed class SequentialMovementRuntime
         }
     }
 
+    public int StopAll(bool abort)
+    {
+        string[] ids;
+        lock (_gate) ids = _running.Keys.ToArray();
+        var count = 0;
+        foreach (var id in ids)
+            if (Stop(id, abort)) count++;
+        return count;
+    }
+
     public bool Stop(string id, bool abort)
     {
         Run? run;
