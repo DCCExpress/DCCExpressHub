@@ -29,8 +29,9 @@ import {
   createClientGraphFromRouteGraphDto,
 } from "@/services/routeGraphDtoMapper";
 
-// Retained only as informational metadata; loading validates the actual graph shape.
-const ROUTE_TOPOLOGY_VERSION = 6;
+// Version 7 includes unambiguous physical return routes in the persisted
+// routeTable. Older layouts rebuild on load so editor and backend share them.
+const ROUTE_TOPOLOGY_VERSION = 7;
 
 const ROUTE_TOPOLOGY_FIELD =
   "routeTopology";
@@ -77,7 +78,7 @@ export type PersistedRouteTableEntry = {
 };
 
 export type PersistedClientRouteTopology = {
-  version: typeof ROUTE_TOPOLOGY_VERSION;
+  version: number;
   fingerprint: string;
   topologyRevision: number;
   graphRevision: number;
@@ -1070,7 +1071,9 @@ function parsePersistedState(
 
   return {
     version:
-      ROUTE_TOPOLOGY_VERSION,
+      typeof candidate.version === "number" && Number.isInteger(candidate.version)
+        ? candidate.version
+        : 0,
     fingerprint:
       candidate.fingerprint,
     topologyRevision:
@@ -1138,6 +1141,7 @@ export function hydrateClientRouteGraphCache(
     );
 
   if (
+    persisted.version !== ROUTE_TOPOLOGY_VERSION ||
     persisted.fingerprint !==
       currentFingerprint ||
     persisted.graphRevision !==
