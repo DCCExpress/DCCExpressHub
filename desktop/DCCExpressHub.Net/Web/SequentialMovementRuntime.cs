@@ -400,35 +400,73 @@ public sealed class SequentialMovementRuntime
         return (true, null, run.State);
     }
 
+    async Task<MovementRuntimeState> WaitForChild(Run run, CancellationToken token)
+    {
+        var childId = run.ChildId ?? throw new InvalidOperationException("missing_child");
+        // Only accept a confirmed completed Movement after its throttle has
+        // reached zero and Dispatcher/Movement cleanup has finished.
+        while (true)
+        {
+            token.ThrowIfCancellationRequested();
+            var state = _movement.GetState(childId);
+            if (state.Status == "error")
+                throw new InvalidOperationException(state.Error ?? "movement_failed");
+            if (state.Status == "idle" && state.StoppedAt.HasValue)
+            {
+                if (state.Info != "Movement completed")
+                    throw new InvalidOperationException(state.Info ?? "movement_interrupted");
+                if (run.LocoAddress is > 0 && !_movement.IsLocoExecutionRunning(run.LocoAddress.Value))
+                    return state;
+            }
+            await Task.Delay(100, token);
+        }
+    }
+
     async Task Execute(Run run)
     {
         try
         {
-            for (var index = 0; index < run.Definition.Segments.Length; index++)
+            var token = run.Cancel.Token;
+            if (run.ApproachRoute is not null)
             {
-                var token = run.Cancel.Token;
+                var approachState = await WaitForChild(run, token);
+                if (run.FinishRequested)
+                {
+                    Publish(run, "completed", run.StartStepIndex + 1,
+                        "Finished safely at block #" + (approachState.CurrentBlockId ?? run.ApproachRoute.ToBlockId));
+                    return;
+                }
                 token.ThrowIfCancellationRequested();
                 if (_hubState.EmergencyStop) throw new InvalidOperationException("emergency_stop_active");
-                var childId = run.ChildId ?? throw new InvalidOperationException("missing_child");
-                // Movement publishes idle only after the physical zero-speed command;
-                // additionally wait for execution cleanup and Dispatcher lease release.
-                while (true)
-                {
-                    token.ThrowIfCancellationRequested();
-                    var state = _movement.GetState(childId);
-                    if (state.Status == "error") throw new InvalidOperationException(state.Error ?? "movement_failed");
-                    if (state.Status == "idle" && state.StoppedAt.HasValue)
-                    {
-                        if (state.Info != "Movement completed")
-                            throw new InvalidOperationException(state.Info ?? "movement_interrupted");
-                        if (run.LocoAddress is > 0 && !_movement.IsLocoExecutionRunning(run.LocoAddress.Value))
-                            break;
-                    }
-                    await Task.Delay(100, token);
-                }
+                run.ChildId = run.Prefix + "-0";
+                var first = _movement.StartTransient(ChildPage(run, 0), calibrationBypass: false);
+                if (!first.Ok)
+                    throw new InvalidOperationException(first.Error ?? "sequence_segment_start_failed");
+                Publish(run, "running", 1, "Running route 1/" + run.Definition.Segments.Length);
+            }
 
+            for (var index = run.StartSegmentIndex; index < run.Definition.Segments.Length; index++)
+            {
+                token.ThrowIfCancellationRequested();
+                if (_hubState.EmergencyStop) throw new InvalidOperationException("emergency_stop_active");
+                var state = await WaitForChild(run, token);
                 var endIndex = run.Definition.Segments[index].EndStepIndex;
                 var step = run.Definition.Steps[endIndex];
+
+                if (run.FinishRequested)
+                {
+                    var firstIndex = index == run.StartSegmentIndex
+                        ? run.StartStepIndex
+                        : run.Definition.Segments[index - 1].EndStepIndex;
+                    var currentIndex = Enumerable.Range(firstIndex, endIndex - firstIndex + 1)
+                        .Where(i => run.Definition.Steps[i].BlockId == state.CurrentBlockId)
+                        .DefaultIfEmpty(firstIndex).Last();
+                    Publish(run, "completed", currentIndex + 1,
+                        "Finished safely at block #" +
+                        (state.CurrentBlockId ?? step.BlockId));
+                    return;
+                }
+
                 var seconds = step.WaitMode switch
                 {
                     "fixed" => step.WaitSeconds,
@@ -439,12 +477,28 @@ public sealed class SequentialMovementRuntime
                 {
                     Publish(run, "waiting", endIndex + 1,
                         "Stopped at block #" + step.BlockId + " · waiting " + seconds + " s");
-                    await Task.Delay(TimeSpan.FromSeconds(seconds), token);
+                    using var waitCancellation =
+                        CancellationTokenSource.CreateLinkedTokenSource(token, run.FinishWake.Token);
+                    try
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(seconds), waitCancellation.Token);
+                    }
+                    catch (OperationCanceledException) when (run.FinishRequested && !token.IsCancellationRequested)
+                    {
+                        Publish(run, "completed", endIndex + 1,
+                            "Finished safely at block #" + step.BlockId);
+                        return;
+                    }
                 }
 
-                // The final block always stops; if a wait was configured there,
-                // complete only after its timer expires rather than silently
-                // skipping the last row's stop/wait setting.
+                if (run.FinishRequested)
+                {
+                    Publish(run, "completed", endIndex + 1,
+                        "Finished safely at block #" + step.BlockId);
+                    return;
+                }
+
+                // The final block always stops; the final wait has completed.
                 if (index == run.Definition.Segments.Length - 1)
                 {
                     token.ThrowIfCancellationRequested();
@@ -483,7 +537,27 @@ public sealed class SequentialMovementRuntime
                 _movement.ReleaseSequentialLocomotive(run.LocoAddress.Value, run.Prefix);
             lock (_gate) _running.Remove(run.Definition.Id);
             run.Cancel.Dispose();
+            run.FinishWake.Dispose();
         }
+    }
+
+    public bool Finish(string id)
+    {
+        Run? run;
+        lock (_gate)
+        {
+            if (!_running.TryGetValue(id, out run)) return false;
+            if (run.FinishRequested) return true;
+            run.FinishRequested = true;
+            Publish(run, "finishing", run.State.StepIndex,
+                "Finishing at next safe block");
+        }
+        // The child Movement decides when the next block has actually
+        // arrived; no premature zero-speed command or authority release.
+        if (run.ChildId is { } child)
+            _movement.FinishAtNextBlock(child);
+        run.FinishWake.Cancel();
+        return true;
     }
 
     public int StopAll(bool abort)
