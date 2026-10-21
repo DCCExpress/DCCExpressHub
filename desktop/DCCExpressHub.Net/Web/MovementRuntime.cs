@@ -194,10 +194,15 @@ public sealed class MovementRuntime
         public bool Fired { get; set; }
     }
 
+    sealed record StationAlternative(MovementPageModel Page, MovementPlanModel Plan);
+
     sealed class Execution
     {
-        public required MovementPageModel Page { get; init; }
-        public required MovementPlanModel Plan { get; init; }
+        // Station-to-station AUTO may change the destination only while stopped
+        // at an already reached block, before claiming the next Dispatcher leg.
+        public required MovementPageModel Page { get; set; }
+        public required MovementPlanModel Plan { get; set; }
+        public StationAlternative[] StationAlternatives { get; init; } = [];
         public required int LocoAddress { get; init; }
         public required bool Forward { get; init; }
         public required CancellationTokenSource Cancellation { get; init; }
@@ -3529,9 +3534,11 @@ public sealed class MovementRuntime
                 "movement",
                 "start");
 
-            foreach (var leg in execution.Plan.Legs)
+            // A Station Route can choose a different *future* leg while
+            // stopped. Re-read the plan after every completed block.
+            for (var legIndex = 0; legIndex < execution.Plan.Legs.Length; legIndex++)
             {
-                await TraverseLeg(execution, leg);
+                await TraverseLeg(execution, execution.Plan.Legs[legIndex]);
                 // Finish means the last block arrival has completed with the
                 // normal final-leg zero-speed command, not a task cancellation.
                 if (execution.FinishAtNextBlock)
@@ -3921,14 +3928,17 @@ public sealed class MovementRuntime
 
     public (bool Ok, string? Error) StartTransient(
         MovementPageModel page,
-        bool calibrationBypass = true) =>
+        bool calibrationBypass = true,
+        MovementPageModel[]? stationAlternatives = null) =>
         StartSavedPage(
             page,
-            calibrationBypass);
+            calibrationBypass,
+            stationAlternatives);
 
     (bool Ok, string? Error) StartSavedPage(
         MovementPageModel page,
-        bool calibrationBypass)
+        bool calibrationBypass,
+        MovementPageModel[]? stationAlternatives = null)
     {
         if (!calibrationBypass &&
             _exclusiveGate.CalibrationActive)
@@ -4105,11 +4115,44 @@ public sealed class MovementRuntime
                 false,
                 "movement_source_loco_mismatch");
 
+        // Build the allowed station alternatives on the backend, from the
+        // same saved route graph as the active Movement. Never take an
+        // arbitrary browser path as a live Dispatcher authorization.
+        var alternatives = new List<StationAlternative>();
+        if (stationAlternatives is { Length: > 1 and <= 128 })
+        {
+            foreach (var alternative in stationAlternatives)
+            {
+                if (alternative?.RouteRef is null ||
+                    alternative.Id != page.Id ||
+                    alternative.ExpectedLocoAddress != sourceBlock.LocoAddress ||
+                    alternative.RouteRef.FromBlockId != source.BlockId ||
+                    alternative.RouteRef.Direction != plan.Direction ||
+                    alternative.Speed != page.Speed)
+                    continue;
+                try
+                {
+                    var candidatePlan = _planBuilder.Build(alternative);
+                    if (candidatePlan.Direction == plan.Direction &&
+                        candidatePlan.Legs.Length > 0 &&
+                        candidatePlan.Blocks[0].BlockId == source.BlockId)
+                        alternatives.Add(new StationAlternative(alternative, candidatePlan));
+                }
+                catch (Exception ex)
+                {
+                    _log.LogWarning(ex,
+                        "Skipping invalid alternative for Station Route {Movement}",
+                        page.Name);
+                }
+            }
+        }
+
         var execution =
             new Execution
             {
                 Page = page,
                 Plan = plan,
+                StationAlternatives = alternatives.ToArray(),
                 LocoAddress =
                     sourceBlock.LocoAddress,
                 Forward =
