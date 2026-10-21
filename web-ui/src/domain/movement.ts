@@ -1065,7 +1065,7 @@ function normalizeSequentialMovements(raw: unknown): SequentialMovementDefinitio
     return [{
       id,
       name: typeof candidate.name === "string" ? candidate.name.trim() : "",
-      directionMode: candidate.directionMode === "departure" ? "departure" : undefined,
+      ...(candidate.directionMode === "departure" ? { directionMode: "departure" as const } : {}),
       enabled: candidate.enabled !== false,
       speed: integerRange(candidate.speed, 20, 1, 126),
       steps,
