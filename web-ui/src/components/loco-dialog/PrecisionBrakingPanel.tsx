@@ -249,7 +249,7 @@ export default function PrecisionBrakingPanel({
             });
           }}
         />
-        <NumberInput label="Cruise speed (DCC step)" value={speedStep}
+        <NumberInput label={t("ui.movementCruiseSpeed")} value={speedStep}
           onChange={v => { setSpeedStep(v); savePreference("speedStep", v); }}
           min={1} max={126} disabled={!!active} />
         <Text size="xs">A block: {sourceBlockLength || "—"} mm · C block: {blockLength || "—"} mm · Train: {trainLength} mm</Text>
