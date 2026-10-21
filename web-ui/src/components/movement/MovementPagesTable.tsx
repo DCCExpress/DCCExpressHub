@@ -14,7 +14,6 @@ import {
   ScrollArea,
   Stack,
   Tabs,
-  Switch,
   Text,
   Tooltip,
 } from "@mantine/core";
@@ -30,6 +29,8 @@ import {
   IconPlayerPlay,
   IconPlus,
   IconRoute,
+  IconSquare,
+  IconSquareCheck,
   IconTrash,
   IconX,
 } from "@tabler/icons-react";
@@ -307,6 +308,27 @@ function MovementCard({
             gap={4}
             wrap="nowrap"
           >
+            <Tooltip
+              withArrow
+              label={mt(page.enabled ? "movementDisableAction" : "movementEnableAction")}
+            >
+              <ActionIcon
+                size="sm"
+                color={page.enabled ? "teal" : "gray"}
+                variant={page.enabled ? "light" : "subtle"}
+                aria-label={mt(page.enabled ? "movementDisableAction" : "movementEnableAction")}
+                aria-pressed={page.enabled}
+                onClick={() => {
+                  const enabled = !page.enabled;
+                  // Preserve the existing behavior: disabling an active
+                  // movement requests a stop before saving the new setting.
+                  if (!enabled && !idle) stopMovement(page.id);
+                  onEnabledChange(enabled);
+                }}
+              >
+                {page.enabled ? <IconSquareCheck size={17} /> : <IconSquare size={17} />}
+              </ActionIcon>
+            </Tooltip>
             <MovementRuntimeControls
               page={
                 page
@@ -396,35 +418,6 @@ function MovementCard({
                 ? `${Math.round((page.stoppedAt - page.startedAt) / 1000)} s`
                 : "—"}</Text>
           </Group>
-          <Switch
-            size="sm"
-            color="green"
-            checked={
-              page.enabled
-            }
-            label={mt("movementEnabledLabel")}
-            onChange={
-              event => {
-                const enabled =
-                  event.currentTarget
-                    .checked;
-
-                if (
-                  !enabled &&
-                  !idle
-                ) {
-                  stopMovement(
-                    page.id
-                  );
-                }
-
-                onEnabledChange(
-                  enabled
-                );
-              }
-            }
-          />
-
           {
             !hasRoute && (
               <Text
