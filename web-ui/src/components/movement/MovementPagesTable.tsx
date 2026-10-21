@@ -690,7 +690,7 @@ export default function MovementPagesTable({
     stationTasks.filter(({ pageId, state }) =>
       pageId.includes("-station-") && (state.status === "running" || state.status === "stopping")).length +
     Object.values(sequenceStates).filter(state =>
-      state.status === "running" || state.status === "waiting").length;
+      state.status === "running" || state.status === "waiting" || state.status === "finishing").length;
 
   const stopAll =
     (): void => {
