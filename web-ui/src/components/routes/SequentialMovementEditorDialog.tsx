@@ -83,7 +83,7 @@ export default function SequentialMovementEditorDialog({
                   <ActionIcon size="sm" variant="subtle" disabled={index===0} onClick={() => onMoveStep(index, -1)}><IconArrowUp size={15}/></ActionIcon>
                   <ActionIcon size="sm" variant="subtle" disabled={index===draft.steps.length-1} onClick={() => onMoveStep(index, 1)}><IconArrowDown size={15}/></ActionIcon>
                   <ActionIcon size="sm" variant="subtle" color="red" disabled={draft.steps.length<=2}
-                    onClick={() => onRemoveStep(index)}}><IconTrash size={15}/></ActionIcon>
+                    onClick={() => onRemoveStep(index)}><IconTrash size={15}/></ActionIcon>
                 </Group></Table.Td>
               </Table.Tr>)}
             </Table.Tbody>
