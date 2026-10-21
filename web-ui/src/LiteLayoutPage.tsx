@@ -45,7 +45,6 @@ import {
   IconLockOpen,
   IconListCheck,
   IconClipboardList,
-  IconRobot,
   IconCalendarTime,
   IconInfoCircle,
   IconListDetails,
@@ -2326,7 +2325,7 @@ export default function LiteLayoutPage({
                       <Tabs.Tab value="tasks" aria-label="TaskMan"><IconClipboardList size={20} aria-hidden="true" /></Tabs.Tab>
                     </Tooltip>
                     <Tooltip label={i18next.t("ui.automation2")} withArrow>
-                      <Tabs.Tab value="automation" aria-label={i18next.t("ui.automation2")}><IconRobot size={20} aria-hidden="true" /></Tabs.Tab>
+                      <Tabs.Tab value="automation" aria-label={i18next.t("ui.automation2")}><IconRoute size={20} aria-hidden="true" /></Tabs.Tab>
                     </Tooltip>
                     <Tooltip label={i18next.t("ui.timetable")} withArrow>
                       <Tabs.Tab value="timetable" aria-label={i18next.t("ui.timetable")}><IconCalendarTime size={20} aria-hidden="true" /></Tabs.Tab>
