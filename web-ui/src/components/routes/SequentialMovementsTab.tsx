@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActionIcon, Badge, Button, Group, NumberInput, ScrollArea, Select,
   Paper, Stack, Switch, Table, Text, TextInput, Tooltip,
@@ -29,7 +29,11 @@ type Props = {
 const createStep = (blockId: number, direction: "forward" | "reverse" = "forward"): SequentialMovementStep =>
   ({ blockId, direction, waitMode: "pass", waitSeconds: 10, minSeconds: 5, maxSeconds: 20 });
 
-function compileSegments(layout: LayoutView, steps: SequentialMovementStep[]): SequentialMovementSegment[] {
+function compileSegments(
+  layout: LayoutView,
+  steps: SequentialMovementStep[],
+  blockName: (id: number) => string,
+): SequentialMovementSegment[] {
   if (steps.length < 2 || steps.length > 64 || steps.some(s => !s.blockId))
     throw new Error("Choose at least two valid blocks (maximum 64).");
   if (steps[0]?.direction !== steps[1]?.direction)
@@ -70,8 +74,8 @@ function compileSegments(layout: LayoutView, steps: SequentialMovementStep[]): S
     });
     if (matching.length !== 1) {
       throw new Error(matching.length === 0
-        ? `No ${direction} route from block #${checkpoints[0]} to #${checkpoints[checkpoints.length - 1]} through the selected blocks.`
-        : `Ambiguous route #${checkpoints[0]} → #${checkpoints[checkpoints.length - 1]}: add checkpoints to distinguish physical paths.`);
+        ? `No ${direction} route from ${blockName(checkpoints[0]!)} to ${blockName(checkpoints[checkpoints.length - 1]!)} through the selected blocks.`
+        : `Ambiguous route ${blockName(checkpoints[0]!)} → ${blockName(checkpoints[checkpoints.length - 1]!)}: add checkpoints to distinguish physical paths.`);
     }
     const selected = matching[0]!;
     segments.push({
@@ -89,11 +93,14 @@ function compileSegments(layout: LayoutView, steps: SequentialMovementStep[]): S
 }
 
 export default function SequentialMovementsTab({ layout, movements, onMovementsChange, onPersistRouteTopology, presentation = "table" }: Props) {
-  const blocks = useMemo(() => layout.blocks.elements
+  // Read the live layout on each render; its block names can be edited in place
+  // without replacing the LayoutView instance.
+  const blocks = layout.blocks.elements
     .filter((e): e is BlockElement => e instanceof BlockElement)
     .map(e => ({ value: String(e.id), label: e.name?.trim() || `Block #${e.id}` }))
-    .sort((a, b) => a.label.localeCompare(b.label)), [layout]);
-  const names = useMemo(() => new Map(blocks.map(block => [Number(block.value), block.label])), [blocks]);
+    .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }));
+  const names = new Map(blocks.map(block => [Number(block.value), block.label]));
+  const blockName = (id: number): string => names.get(id) ?? `Block #${id}`;
   const [draft, setDraft] = useState<SequentialMovementDefinition | null>(null);
   const [states, setStates] = useState<Record<string, SequentialMovementStatePayload>>({});
   const [busy, setBusy] = useState(false);
@@ -146,7 +153,7 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
     if (!draft) return;
     if (!draft.name.trim()) { setError("Enter a sequence name."); return; }
     try {
-      const segments = compileSegments(layout, draft.steps);
+      const segments = compileSegments(layout, draft.steps, blockName);
       const saved: SequentialMovementDefinition = { ...draft, name: draft.name.trim(), segments };
       await onPersistRouteTopology?.();
       await persist({
@@ -171,7 +178,7 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
   };
 
   const stepsText = (sequence: SequentialMovementDefinition) =>
-    sequence.steps.map(step => names.get(step.blockId) ?? `#${step.blockId}`).join(" → ");
+    sequence.steps.map(step => blockName(step.blockId)).join(" → ");
 
   const sequenceControls = (sequence: SequentialMovementDefinition) => (
     <Group gap={4} wrap="nowrap">
@@ -230,7 +237,7 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
                 </Group>
                 {sequence.steps.filter(step => step.waitMode !== "pass").map((step, i) =>
                   <Text key={i} size="xs" c="dimmed">
-                    {names.get(step.blockId) ?? `#${step.blockId}`}: {step.waitMode === "fixed"
+                    {blockName(step.blockId)}: {step.waitMode === "fixed"
                       ? `${step.waitSeconds} s` : `${step.minSeconds}–${step.maxSeconds} s (random)`}
                   </Text>)}
                 {runtime?.info && <Text size="xs" c="blue">{runtime.info}</Text>}
