@@ -1176,7 +1176,7 @@ export default function RoutesDialog({
             </Tabs.Panel>}
 
             {!onSelectRoute && <Tabs.Panel value="sequentialMovements" pt="sm" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-              <SequentialMovementsTab layout={layout} movements={movements} onMovementsChange={onMovementsChange} />
+              <SequentialMovementsTab layout={layout} movements={movements} onMovementsChange={onMovementsChange} onPersistRouteTopology={onPersistRouteTopology} />
             </Tabs.Panel>}
 
             <Tabs.Panel
