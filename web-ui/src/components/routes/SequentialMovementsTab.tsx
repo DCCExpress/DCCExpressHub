@@ -235,6 +235,19 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
     }
   }, [layout, editorOpen]);
 
+  // Read the same saved route topology that SequentialMovementRuntime uses
+  // to find a single Movement from a locomotive's block to the start block.
+  const approachRouteTable = useMemo<SavedRoute[]>(() => {
+    if (startDialog?.mode !== "approach") return [];
+    try {
+      const snapshot = createCurrentClientLayoutSnapshot(layout);
+      const topology = snapshot.routeTopology as PersistedClientRouteTopology | undefined;
+      return topology?.routeTable ?? [];
+    } catch {
+      return [];
+    }
+  }, [layout, startDialog]);
+
   useEffect(() => {
     const unsubscribe = wsClient.on("sequentialMovementStateChanged", state =>
       setStates(current => ({ ...current, [state.sequenceId]: state })));
@@ -286,14 +299,30 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
     .filter((block): block is BlockElement => block instanceof BlockElement && block.locoAddress > 0)
     .map(block => ({ address: block.locoAddress, blockId: block.id }))
     .filter((item, index, all) => all.findIndex(other => other.address === item.address) === index);
-  // A current-block start requires a saved, runnable checkpoint. Keep the
-  // approach mode unfiltered: its purpose is to bring an outside loco here.
+  // In current-block mode the loco must stand at a runnable checkpoint.
   const sequenceStartBlocks = new Set(
     activeSequence?.steps.slice(0, -1).map(step => step.blockId) ?? [],
   );
+  // Go-to-start must be executable as ONE physical Movement, not a series of
+  // guessed connections. Match the backend ApproachRoute() requirements;
+  // temporarily occupied/locked routes remain selectable (Dispatcher waits).
+  const firstBlockId = activeSequence?.steps[0]?.blockId;
+  const approachSourceBlocks = new Set(
+    approachRouteTable
+      .filter(route =>
+        route.toBlockId === firstBlockId &&
+        (route.locoDirection === "forward" || route.locoDirection === "reverse") &&
+        route.blockPath.length >= 2 &&
+        route.blockPath[0]?.id === route.fromBlockId &&
+        route.blockPath[route.blockPath.length - 1]?.id === route.toBlockId)
+      .map(route => route.fromBlockId),
+  );
   const startCandidates = startDialog?.mode === "current"
     ? assignedLocos.filter(item => sequenceStartBlocks.has(item.blockId))
-    : assignedLocos;
+    : startDialog?.mode === "approach"
+      ? assignedLocos.filter(item =>
+          item.blockId === firstBlockId || approachSourceBlocks.has(item.blockId))
+      : [];
   const selectedAssignment = startCandidates.find(item => String(item.address) === startLoco);
   const selectedLoco = locos.find(item => item.address === selectedAssignment?.address);
   const selectedLocoBlock = selectedAssignment?.blockId;
@@ -544,7 +573,7 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
           searchable value={startLoco}
           nothingFoundMessage={startDialog.mode === "current"
             ? "No locomotive assigned to a runnable sequence block."
-            : "No locomotives are assigned to blocks."}
+            : "No locomotive has a single saved route to the sequence start block."}
           onChange={value => { setStartLoco(value); setStartStep(null); }}/>
         {selectedAssignment && <Group gap="sm" wrap="nowrap" align="center">
           <LocoImage locoId={selectedLoco?.id ?? ""} image={selectedLoco?.image}
@@ -561,8 +590,9 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
             nothingFoundMessage="This locomotive is not in a runnable sequence block."/>}
         {startDialog.mode === "approach" &&
           <Text size="sm" c="dimmed">
-            The Dispatcher routes this locomotive to {blockName(activeSequence.steps[0]!.blockId)}
-            and starts the sequence after arrival and the confirmed stop.
+            Only locomotives with a single saved route to {blockName(activeSequence.steps[0]!.blockId)}
+            are listed (or those already there). A temporarily busy route can wait for Dispatcher authority.
+            The sequence starts after arrival and the confirmed stop.
           </Text>}
         <Group justify="flex-end">
           <Button variant="default" onClick={() => setStartDialog(null)} disabled={busy}>Cancel</Button>
