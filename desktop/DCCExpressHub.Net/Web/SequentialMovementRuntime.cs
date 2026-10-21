@@ -102,11 +102,13 @@ public sealed class SequentialMovementRuntime
     {
         var steps = definition.Steps;
         var segments = definition.Segments;
+        if (steps is null || segments is null) return "invalid_sequence";
         if (!definition.Enabled) return "sequence_disabled";
         if (string.IsNullOrWhiteSpace(definition.Id) || steps.Length is < 2 or > 64 ||
             segments.Length is < 1 or > 63 || definition.Speed is < 1 or > 126)
             return "invalid_sequence";
-        if (steps.Any(s => s.BlockId is < 1 or > 65535 ||
+        if (steps[0].Direction != steps[1].Direction) return "invalid_sequence_start_direction";
+        if (steps.Any(s => s is null || s.BlockId is < 1 or > 65535 ||
             s.Direction is not ("forward" or "reverse") ||
             s.WaitMode is not ("pass" or "fixed" or "random") ||
             s.WaitSeconds is < 0 or > 86400 ||
@@ -120,6 +122,7 @@ public sealed class SequentialMovementRuntime
         var fromIndex = 0;
         foreach (var segment in segments)
         {
+            if (segment is null) return "invalid_sequence_segment";
             var route = segment.RouteRef;
             if (route is null || segment.EndStepIndex <= fromIndex ||
                 segment.EndStepIndex >= steps.Length ||
