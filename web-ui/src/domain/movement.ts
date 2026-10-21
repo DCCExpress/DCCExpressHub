@@ -130,7 +130,7 @@ export type SequentialWaitMode = "pass" | "fixed" | "random";
 
 export type SequentialMovementStep = {
   blockId: number;
-  /** Direction of travel INTO this block (first row sets initial direction). */
+  /** Direction of travel when DEPARTING this block; last row does not depart. */
   direction: "forward" | "reverse";
   waitMode: SequentialWaitMode;
   waitSeconds: number;
