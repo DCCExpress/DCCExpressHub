@@ -37,7 +37,6 @@ import {
   IconGripVertical,
   IconPlayerPause,
   IconPlayerPlay,
-  IconPlayerStop,
   IconTrash,
   IconX,
 } from "@tabler/icons-react";
@@ -759,7 +758,7 @@ function ScriptCard({
                     )
                   }
                 >
-                  <IconPlayerStop
+                  <IconX
                     size={15}
                   />
                 </ActionIcon>
@@ -1760,6 +1759,7 @@ export default function AutomationScriptsTable({
             onClick={
               abortAll
             }
+            leftSection={<IconX size={14} />}
           >
             {
               automationPanelText(
