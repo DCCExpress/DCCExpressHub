@@ -101,6 +101,10 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
     .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }));
   const names = new Map(blocks.map(block => [Number(block.value), block.label]));
   const blockName = (id: number): string => names.get(id) ?? `Block #${id}`;
+  // Runtime messages originate on the server with numeric block IDs.
+  // Resolve every block reference against the current layout for display.
+  const formatRuntimeMessage = (message: string | null | undefined): string =>
+    (message ?? "").replace(/\bblock\s+#(\d+)\b/gi, (_match, id: string) => blockName(Number(id)));
   const [draft, setDraft] = useState<SequentialMovementDefinition | null>(null);
   const [states, setStates] = useState<Record<string, SequentialMovementStatePayload>>({});
   const [busy, setBusy] = useState(false);
@@ -207,7 +211,7 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
     <Group justify="flex-end">
       <Button size="xs" leftSection={<IconPlus size={14}/>} onClick={() => { setError(null); setDraft(blank()); }}>New sequence</Button>
     </Group>
-    {error && <Text c="red" size="sm">{error}</Text>}
+    {error && <Text c="red" size="sm">{formatRuntimeMessage(error)}</Text>}
     <ScrollArea style={{ flex: 1, minHeight: 0 }} type="always">
       {presentation === "cards" ? (
         <Stack gap="sm">
@@ -240,8 +244,8 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
                     {blockName(step.blockId)}: {step.waitMode === "fixed"
                       ? `${step.waitSeconds} s` : `${step.minSeconds}–${step.maxSeconds} s (random)`}
                   </Text>)}
-                {runtime?.info && <Text size="xs" c="blue">{runtime.info}</Text>}
-                {runtime?.error && <Text size="xs" c="red">{runtime.error}</Text>}
+                {runtime?.info && <Text size="xs" c="blue">{formatRuntimeMessage(runtime.info)}</Text>}
+                {runtime?.error && <Text size="xs" c="red">{formatRuntimeMessage(runtime.error)}</Text>}
               </Stack>
             </Paper>;
           })}
@@ -260,7 +264,7 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
             <Table.Td>{sequence.speed}</Table.Td>
             <Table.Td><Badge variant="light" color={active(sequence.id) ? "green" : status(sequence.id)?.status === "error" ? "red" : "gray"}>
               {status(sequence.id)?.status ?? (sequence.enabled ? "Idle" : "Disabled")}
-            </Badge><Text size="xs" c="dimmed">{status(sequence.id)?.info ?? status(sequence.id)?.error ?? ""}</Text></Table.Td>
+            </Badge><Text size="xs" c="dimmed">{formatRuntimeMessage(status(sequence.id)?.info ?? status(sequence.id)?.error)}</Text></Table.Td>
             <Table.Td>{sequenceControls(sequence)}</Table.Td>
           </Table.Tr>)}
           {!movements.sequences.length && <Table.Tr><Table.Td colSpan={5}><Text size="sm" c="dimmed" ta="center">No sequential movements configured.</Text></Table.Td></Table.Tr>}
