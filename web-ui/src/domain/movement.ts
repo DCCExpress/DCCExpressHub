@@ -126,10 +126,38 @@ export type MovementPage = {
   actions: MovementAction[];
 };
 
+export type SequentialWaitMode = "pass" | "fixed" | "random";
+
+export type SequentialMovementStep = {
+  blockId: number;
+  /** Direction of travel INTO this block (first row sets initial direction). */
+  direction: "forward" | "reverse";
+  waitMode: SequentialWaitMode;
+  waitSeconds: number;
+  minSeconds: number;
+  maxSeconds: number;
+};
+
+export type SequentialMovementSegment = {
+  routeRef: MovementRouteRef;
+  /** Zero-based destination step; the next segment starts at this block. */
+  endStepIndex: number;
+};
+
+export type SequentialMovementDefinition = {
+  id: string;
+  name: string;
+  enabled: boolean;
+  speed: number;
+  steps: SequentialMovementStep[];
+  segments: SequentialMovementSegment[];
+};
+
 export type MovementDocument = {
   version: typeof MOVEMENT_DOCUMENT_VERSION;
   pages: MovementPage[];
   activePageId: string;
+  sequences: SequentialMovementDefinition[];
 };
 
 export function createMovementId(
@@ -218,6 +246,7 @@ export function createEmptyMovementDocument(): MovementDocument {
       MOVEMENT_DOCUMENT_VERSION,
     pages: [],
     activePageId: "",
+    sequences: [],
   };
 }
 
@@ -985,6 +1014,63 @@ function normalizeMovementPage(
   };
 }
 
+function normalizeSequentialMovements(raw: unknown): SequentialMovementDefinition[] {
+  if (!Array.isArray(raw)) return [];
+  const ids = new Set<string>();
+  return raw.flatMap((entry): SequentialMovementDefinition[] => {
+    if (!entry || typeof entry !== "object") return [];
+    const candidate = entry as Record<string, unknown>;
+    const id = typeof candidate.id === "string" ? candidate.id.trim() : "";
+    if (!id || ids.has(id)) return [];
+    ids.add(id);
+    const steps: SequentialMovementStep[] = (Array.isArray(candidate.steps) ? candidate.steps : [])
+      .flatMap((item): SequentialMovementStep[] => {
+        if (!item || typeof item !== "object") return [];
+        const value = item as Record<string, unknown>;
+        const blockId = positiveInteger(value.blockId);
+        if (!blockId) return [];
+        const min = integerRange(value.minSeconds, 0, 0, 86400);
+        const max = integerRange(value.maxSeconds, 0, 0, 86400);
+        return [{
+          blockId,
+          direction: value.direction === "reverse" ? "reverse" : "forward",
+          waitMode: value.waitMode === "fixed" || value.waitMode === "random" ? value.waitMode : "pass",
+          waitSeconds: integerRange(value.waitSeconds, 0, 0, 86400),
+          minSeconds: Math.min(min, max),
+          maxSeconds: Math.max(min, max),
+        }];
+      });
+    const segments: SequentialMovementSegment[] = (Array.isArray(candidate.segments) ? candidate.segments : [])
+      .flatMap((item): SequentialMovementSegment[] => {
+        if (!item || typeof item !== "object") return [];
+        const value = item as Record<string, unknown>;
+        const ref = value.routeRef && typeof value.routeRef === "object"
+          ? value.routeRef as Record<string, unknown> : {};
+        const fromBlockId = positiveInteger(ref.fromBlockId);
+        const toBlockId = positiveInteger(ref.toBlockId);
+        const endStepIndex = Number(value.endStepIndex);
+        if (!fromBlockId || !toBlockId || !Number.isInteger(endStepIndex) ||
+          !Array.isArray(ref.viaBlockIds) ||
+          (ref.direction !== "forward" && ref.direction !== "reverse")) return [];
+        return [{
+          routeRef: {
+            fromBlockId, toBlockId, direction: ref.direction,
+            viaBlockIds: ref.viaBlockIds.map(positiveInteger).filter((id): id is number => id !== null),
+          },
+          endStepIndex,
+        }];
+      });
+    return [{
+      id,
+      name: typeof candidate.name === "string" ? candidate.name.trim() : "",
+      enabled: candidate.enabled !== false,
+      speed: integerRange(candidate.speed, 20, 1, 126),
+      steps,
+      segments,
+    }];
+  });
+}
+
 export function normalizeMovementDocument(
   raw: unknown
 ): MovementDocument {
@@ -1059,5 +1145,6 @@ export function normalizeMovementDocument(
       MOVEMENT_DOCUMENT_VERSION,
     pages,
     activePageId,
+    sequences: normalizeSequentialMovements(candidate.sequences),
   };
 }
