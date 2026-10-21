@@ -265,19 +265,9 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
               style={{ opacity: sequence.enabled ? 1 : 0.6 }}>
               <Stack gap="xs">
                 <Group justify="space-between" wrap="nowrap" gap="xs">
-                  <Group gap="xs" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
-                    <Text fw={700} size="sm" truncate style={{ minWidth: 0 }}>
-                      {sequence.name}
-                    </Text>
-                    <Badge size="xs" variant="light" style={{ flexShrink: 0 }}
-                      color={runtime?.status === "waiting" ? "orange" :
-                        runtime?.status === "running" ? "green" :
-                          runtime?.status === "error" ? "red" : "gray"}>
-                      {runtime?.status === "waiting" ? "Waiting" :
-                        runtime?.status === "running" ? "Running" :
-                          runtime?.status ?? (sequence.enabled ? "Idle" : "Disabled")}
-                    </Badge>
-                  </Group>
+                  <Text fw={700} size="sm" truncate style={{ flex: 1, minWidth: 0 }}>
+                    {sequence.name}
+                  </Text>
                   <Group gap={4} wrap="nowrap" style={{ flexShrink: 0 }}>
                     {sequenceControls(sequence)}
                     <Tooltip label={expandedCards[sequence.id] ? "Hide details" : "Show details"}>
@@ -311,6 +301,14 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
                 <Collapse expanded={Boolean(expandedCards[sequence.id])}>
                   <Stack gap="xs" pt="xs">
                     <Group gap="xs">
+                      <Badge size="xs" variant="light"
+                        color={runtime?.status === "waiting" ? "orange" :
+                          runtime?.status === "running" ? "green" :
+                            runtime?.status === "error" ? "red" : "gray"}>
+                        {runtime?.status === "waiting" ? "Waiting" :
+                          runtime?.status === "running" ? "Running" :
+                            runtime?.status ?? (sequence.enabled ? "Idle" : "Disabled")}
+                      </Badge>
                       <Badge variant="outline" size="xs">Speed {sequence.speed}</Badge>
                       <Badge variant="outline" size="xs">{sequence.steps.length} blocks</Badge>
                       {runtime && active(sequence.id) &&
