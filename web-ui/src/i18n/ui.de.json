@@ -1344,7 +1344,7 @@
   "movementDeleteConfirm": "Movement „{{name}}“ löschen?",
   "movementEditorTitle": "Movement-/Dispatcher-Editor",
   "movementName": "Movement-Name",
-  "movementCruiseSpeed": "Reisegeschwindigkeit",
+  "movementCruiseSpeed": "Reisegeschwindigkeit (DCC-Fahrstufe)",
   "movementNoNextLegSafety": "Diese Ressource hat keinen nächsten Movement-Abschnitt; daher gibt es keine Abfahrtssensoren für Safety zu konfigurieren.",
   "movementSafetyTargetOccupancy": "Sensor {{address}} · Belegung {{target}}",
   "movementSafetySensor": "Sensor {{address}}",
