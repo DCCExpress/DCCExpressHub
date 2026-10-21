@@ -183,7 +183,7 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
     } catch {
       return [];
     }
-  }, [layout, editorOpen]);
+  }, [layout, editorOpen, draft]);
 
   // Read the same saved route topology that SequentialMovementRuntime uses
   // to find a single Movement from a locomotive's block to the start block.
@@ -226,8 +226,20 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
   const changeStep = (index: number, patch: Partial<SequentialMovementStep>) =>
     setDraft(current => {
       if (!current) return current;
-      const updated = normalizeReversals(current.steps.map((step, i) =>
-        i === index ? { ...step, ...patch } : step));
+      const next = current.steps.map((step, i) =>
+        i === index ? { ...step, ...patch } : step);
+
+      // The empty destination row also has a Depart selector. If the user
+      // chooses Reverse BEFORE choosing the destination block, apply that
+      // direction to the last selected block: it is the actual departure
+      // point for this leg. Otherwise the dropdown keeps filtering using
+      // the previous row's stale direction and appears empty.
+      if ("direction" in patch && patch.direction &&
+          !current.steps[index]?.blockId && index > 0 &&
+          next[index - 1]?.blockId) {
+        next[index - 1] = { ...next[index - 1]!, direction: patch.direction };
+      }
+      const updated = normalizeReversals(next);
 
       // Earlier block/direction/stop changes invalidate later route choices.
       // Clear only destinations that are no longer reachable, not the wait or
