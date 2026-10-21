@@ -66,9 +66,7 @@ export default function SequentialMovementEditorDialog({
                 <Table.Td>{index + 1}</Table.Td>
                 <Table.Td><Select size="xs" searchable w={150}
                   placeholder={index === 0 ? "Start block" : "Reachable block"}
-                  nothingFoundMessage={index > 0 && draft.steps[index - 1]?.direction === "reverse"
-                    ? "No saved reverse route. Regenerate and save the route graph if this track should be reversible."
-                    : "No reachable blocks in this direction"}
+                  nothingFoundMessage="No reachable blocks in this direction"
                   data={index === 0 ? blocks : availableBlocks(index)}
                   value={step.blockId ? String(step.blockId) : null}
                   onChange={value => onChangeStep(index, { blockId: Number(value) || 0 })}/></Table.Td>
