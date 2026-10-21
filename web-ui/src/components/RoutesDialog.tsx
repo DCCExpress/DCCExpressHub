@@ -1139,13 +1139,14 @@ export default function RoutesDialog({
             }}
           >
             {mode === "network" && <Tabs.List>
+              <Tabs.Tab value="selectRoute">Movements</Tabs.Tab>
               <Tabs.Tab value="routes">{t("ui.routeNetwork")}</Tabs.Tab>
               <Tabs.Tab value="graph">{t("ui.graph")}</Tabs.Tab>
               {SHOW_DEBUG_GRAPH_VISUALIZATION && <Tabs.Tab value="graphVisualization">Graph visualization</Tabs.Tab>}
               <Tabs.Tab value="segments">{t("ui.segments")}</Tabs.Tab>
             </Tabs.List>}
 
-            {mode === "movement" &&             <Tabs.Panel
+            <Tabs.Panel
               value="selectRoute"
               pt="sm"
               style={{
@@ -1155,7 +1156,7 @@ export default function RoutesDialog({
               }}
             >
               <Stack gap="sm">
-                <Group
+                {mode === "movement" && <Group
                   gap="sm"
                   align="flex-end"
                   wrap="nowrap"
@@ -1205,7 +1206,7 @@ export default function RoutesDialog({
                     allowDecimal={false}
                     w={170}
                   />
-                </Group>
+                </Group>}
 
                 <Group
                   gap="sm"
@@ -1349,9 +1350,9 @@ export default function RoutesDialog({
                               {t("ui.preview")}
                             </Table.Th>
 
-                            <Table.Th
+                            {mode === "movement" && <Table.Th
                               style={{ width: 110 }}
-                            />
+                            />}
                           </Table.Tr>
                         </Table.Thead>
 
@@ -1478,7 +1479,7 @@ export default function RoutesDialog({
                                     </Button>
                                   </Table.Td>
 
-                                  <Table.Td>
+                                  {mode === "movement" && <Table.Td>
                                     <Button
                                       size="xs"
                                       fullWidth
@@ -1509,7 +1510,7 @@ export default function RoutesDialog({
                                     >
                                       {t("ui.select")}
                                     </Button>
-                                  </Table.Td>
+                                  </Table.Td>}
                                 </Table.Tr>
                               )
                             )
@@ -1520,7 +1521,7 @@ export default function RoutesDialog({
                   )
                 }
               </Stack>
-            </Tabs.Panel>}
+            </Tabs.Panel>
 
             <Tabs.Panel
               value="graph"
