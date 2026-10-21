@@ -12,6 +12,7 @@ public sealed class SequentialMovementRuntime
     public sealed class Step
     {
         public int BlockId { get; set; }
+        // Direction of departure FROM this block (the final row is not departed).
         public string Direction { get; set; } = "forward";
         public string WaitMode { get; set; } = "pass";
         public int WaitSeconds { get; set; }
@@ -109,7 +110,6 @@ public sealed class SequentialMovementRuntime
         if (string.IsNullOrWhiteSpace(definition.Id) || steps.Length is < 2 or > 64 ||
             segments.Length is < 1 or > 63 || definition.Speed is < 1 or > 126)
             return "invalid_sequence";
-        if (steps[0].Direction != steps[1].Direction) return "invalid_sequence_start_direction";
         if (steps.Any(s => s is null || s.BlockId is < 1 or > 65535 ||
             s.Direction is not ("forward" or "reverse") ||
             s.WaitMode is not ("pass" or "fixed" or "random") ||
@@ -130,11 +130,12 @@ public sealed class SequentialMovementRuntime
                 segment.EndStepIndex >= steps.Length ||
                 route.FromBlockId != steps[fromIndex].BlockId ||
                 route.ToBlockId != steps[segment.EndStepIndex].BlockId ||
-                route.Direction != steps[fromIndex + 1].Direction ||
+                route.Direction != steps[fromIndex].Direction ||
                 (route.ViaBlockIds ?? []).Any(id => id is < 1 or > 65535))
                 return "invalid_sequence_segment";
-            // All intermediate checkpoints must be on the same non-stop,
-            // single-direction run. Direction changes require a full stop.
+            // Intermediate blocks must be passed without stopping and must
+            // depart in the same direction. The destination's departure
+            // direction belongs to the NEXT segment, not this one.
             for (var index = fromIndex + 1; index < segment.EndStepIndex; index++)
             {
                 if (steps[index].WaitMode != "pass" ||
@@ -142,17 +143,22 @@ public sealed class SequentialMovementRuntime
                     !(route.ViaBlockIds ?? []).Contains(steps[index].BlockId))
                     return "invalid_sequence_segment";
             }
-            if (steps[segment.EndStepIndex].Direction != route.Direction)
-                return "invalid_sequence_direction";
+            // A direction change on arrival requires a stop in that block.
+            if (segment.EndStepIndex < steps.Length - 1 &&
+                steps[segment.EndStepIndex].Direction != route.Direction &&
+                steps[segment.EndStepIndex].WaitMode == "pass")
+                return "sequence_reverse_requires_stop";
             fromIndex = segment.EndStepIndex;
         }
         if (fromIndex != steps.Length - 1) return "incomplete_sequence";
+        // No artificial stop at a Pass checkpoint: every transient Movement
+        // stops at its destination, so only an explicitly stopped checkpoint
+        // may terminate a non-final segment.
         for (var i = 0; i < segments.Length - 1; i++)
         {
             var end = segments[i].EndStepIndex;
-            if (steps[end].WaitMode == "pass" &&
-                segments[i].RouteRef!.Direction != segments[i + 1].RouteRef!.Direction)
-                return "sequence_reverse_requires_stop";
+            if (steps[end].WaitMode == "pass")
+                return "sequence_segment_requires_stop";
         }
         return null;
     }
