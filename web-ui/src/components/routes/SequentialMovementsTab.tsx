@@ -225,15 +225,23 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
     steps: [createStep(Number(blocks[0]?.value ?? 0)), createStep(Number(blocks[1]?.value ?? 0))],
     segments: [],
   });
-  // Preview the same segment compilation used by Save. Errors appear at the
-  // top of the editor while the user can still correct the offending row.
-  const draftIssue = useMemo(() => {
-    if (!draft) return null;
+  // Check the exact segment data that Save will persist. When a previously
+  // saved sequence has stale route segments, explain why Edit + Save can fix
+  // a start-time invalid_sequence_segment without changing wait duration.
+  const draftReview = useMemo(() => {
+    if (!draft) return { issue: null as string | null, needsResave: false };
     try {
-      compileSegments(editorRouteTable, draft.steps, blockName);
-      return null;
+      const rebuilt = compileSegments(editorRouteTable, draft.steps, blockName);
+      return {
+        issue: null,
+        needsResave: draft.segments.length > 0 &&
+          JSON.stringify(rebuilt) !== JSON.stringify(draft.segments),
+      };
     } catch (error) {
-      return error instanceof Error ? error.message : String(error);
+      return {
+        issue: error instanceof Error ? error.message : String(error),
+        needsResave: false,
+      };
     }
   }, [draft, editorRouteTable]);
 
@@ -323,7 +331,7 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
   const save = async () => {
     if (!draft) return;
     if (!draft.name.trim()) { setError("Enter a sequence name."); return; }
-    if (draftIssue) { setError(draftIssue); return; }
+    if (draftReview.issue) { setError(draftReview.issue); return; }
     try {
       const segments = compileSegments(editorRouteTable, draft.steps, blockName);
       const saved: SequentialMovementDefinition = { ...draft, name: draft.name.trim(), directionMode: "departure", segments };
@@ -617,7 +625,8 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
       busy={busy}
       error={error ? formatRuntimeMessage(error) : null}
       routeTableReady={editorRouteTable.length > 0}
-      validationIssue={draftIssue}
+      validationIssue={draftReview.issue}
+      segmentsOutdated={draftReview.needsResave}
       blocks={blocks}
       availableBlocks={index => blocks.filter(block =>
         draft && reachableNextBlocks(draft.steps, index, editorRouteTable).has(Number(block.value)))}
