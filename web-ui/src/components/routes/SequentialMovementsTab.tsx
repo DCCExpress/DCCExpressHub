@@ -250,7 +250,7 @@ export default function SequentialMovementsTab({ layout, movements, onMovementsC
                 <Text size="xs" c="dimmed" style={{ overflowWrap: "anywhere" }}>
                   {stepsText(sequence)}
                 </Text>
-                <Collapse opened={Boolean(expandedCards[sequence.id])}>
+                <Collapse expanded={Boolean(expandedCards[sequence.id])}>
                   <Stack gap="xs" pt="xs">
                     <Group gap="xs">
                       <Badge variant="outline" size="xs">Speed {sequence.speed}</Badge>
