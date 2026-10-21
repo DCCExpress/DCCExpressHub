@@ -1,6 +1,7 @@
 import { Alert, Badge, Button, Card, Checkbox, Group, NumberInput, Select, Stack, Table, Text } from "@mantine/core";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { IconX } from "@tabler/icons-react";
 import type { Loco } from "@domain/types";
 import PrecisionBrakingRouteSelector, { type BrakingRouteSelection } from "./PrecisionBrakingRouteSelector";
 import PrecisionBrakingDiagram from "./PrecisionBrakingDiagram";
@@ -278,7 +279,7 @@ export default function PrecisionBrakingPanel({
             onClick={() => void action("/stop")}>Stop (speed 0)</Button>
           <Button color="green" disabled={busy || !measurementConsistent || state?.status !== "measure" || state?.locoId !== loco.id}
             onClick={() => void action("/measure", { actualDistanceMm: frontPosition, frontFromSensorMm: frontPosition, approve: true })}>OK — approve measured braking</Button>
-          <Button color="red" variant="outline" disabled={busy || (!active && state?.status !== "stopped")}
+          <Button color="red" variant="outline" leftSection={<IconX size={16} />} disabled={busy || (!active && state?.status !== "stopped")}
             onClick={() => void action("/abort")}>Abort — discard training</Button>
           <Button color="red" onClick={() => void action("/estop")}>E-STOP</Button>
         </Group>
