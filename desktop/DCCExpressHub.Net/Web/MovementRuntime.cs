@@ -2633,7 +2633,13 @@ public sealed class MovementRuntime
                 execution,
                 info: "Waiting for next leg " +
                       leg.From.Name + " -> " + leg.To.Name +
-                      ": " + blocker,
+                      ": " + blocker +
+                      (execution.StationAlternatives.Length > 1
+                          ? "; checking " + (execution.StationAlternatives
+                              .Select(item => item.Plan.Blocks[^1].BlockId)
+                              .Distinct().Count() - 1) +
+                            " alternative station destination(s)"
+                          : ""),
                 setInfo: true);
 
             await Task.Delay(
