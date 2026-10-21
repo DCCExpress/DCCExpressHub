@@ -10,6 +10,7 @@ import { applyMovementRouteCandidate, loadMovementRouteCandidates, type Movement
 import { getTrainTrackingState, subscribeTrainTrackingState } from "@/services/trainTrackingRuntime";
 import { wsApi } from "@/services/wsApi";
 import { wsClient } from "@/services/wsClient";
+import { useMovementTranslation } from "@/components/movement/movementI18n";
 
 type Props = {
   opened: boolean;
@@ -20,6 +21,7 @@ type Props = {
 };
 
 export default function StationRouteStartDialog({ opened, onClose, layout, locomotives, route }: Props) {
+  const mt = useMovementTranslation();
   const [tracking, setTracking] = useState(getTrainTrackingState);
   const [sensorStates, setSensorStates] = useState<Map<number,boolean>>(new Map());
   const [reserved, setReserved] = useState<{loaded:boolean;blocks:Set<number>}>({loaded:false,blocks:new Set()});
@@ -228,7 +230,7 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
           </Group>;
         }}
         value={destination} onChange={setDestination}/>
-      <NumberInput label="Speed" min={1} max={126} allowDecimal={false} value={speed} onChange={setSpeed}/>
+      <NumberInput label={mt("movementCruiseSpeed")} min={1} max={126} allowDecimal={false} value={speed} onChange={setSpeed}/>
       {loading && <Text size="sm" c="dimmed">Loading route topology…</Text>}
       {selectedLoco && selectedCandidate && <Text size="sm">Planned: {selectedCandidate.blockPath.map(b => b.name).join(" → ")}</Text>}
       {!loading && source && !selectedCandidate && <Alert color="orange">
