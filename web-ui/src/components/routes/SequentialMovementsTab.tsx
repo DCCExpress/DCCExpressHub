@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  ActionIcon, Badge, Button, Collapse, Group, Menu, ScrollArea, Select,
+  ActionIcon, Alert, Badge, Button, Collapse, Group, Menu, ScrollArea, Select,
   Paper, Stack, Table, Text, Tooltip,
 } from "@mantine/core";
-import { IconChevronDown, IconChevronUp, IconDotsVertical, IconEdit, IconFlag, IconPlayerPlay, IconPlayerStop, IconPlus, IconTrash, IconX, IconSquare, IconSquareCheck, IconRoute } from "@tabler/icons-react";
+import { IconAlertTriangle, IconChevronDown, IconChevronUp, IconDotsVertical, IconEdit, IconFlag, IconPlayerPlay, IconPlayerStop, IconPlus, IconTrash, IconX, IconSquare, IconSquareCheck, IconRoute } from "@tabler/icons-react";
 import type { LayoutView } from "@/models/editor/core/LayoutView";
 import type { Loco } from "@/domain/domainTypes";
 import { BlockElement } from "@/models/editor/elements/BlockElement";
@@ -165,7 +165,10 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
   // Runtime messages originate on the server with numeric block IDs.
   // Resolve every block reference against the current layout for display.
   const formatRuntimeMessage = (message: string | null | undefined): string =>
-    (message ?? "").replace(/\bblock\s+#(\d+)\b/gi, (_match, id: string) => blockName(Number(id)));
+    (message ?? "")
+      .replace(/^invalid_sequence_segment:\s*/i, "Invalid sequence segment — ")
+      .replace(/^sequence_segment_requires_stop:\s*/i, "Sequence stop required — ")
+      .replace(/\bblock\s+#(\d+)\b/gi, (_match, id: string) => blockName(Number(id)));
   // Each card's secondary details can be expanded independently.
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
   const toggleCardDetails = (id: string) =>
@@ -441,7 +444,7 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
       </Group>
       <Button size="xs" leftSection={<IconPlus size={14}/>} onClick={() => { setError(null); setDraft(blank()); }}>{mt("movementNew")}</Button>
     </Group>
-    {error && <Text c="red" size="sm">{formatRuntimeMessage(error)}</Text>}
+    {error && <Alert color="red" variant="light" title="Sequence cannot start or save" icon={<IconAlertTriangle size={17}/>}> <Text size="sm">{formatRuntimeMessage(error)}</Text> </Alert>}
     <ScrollArea style={{ flex: 1, minHeight: 0 }} type="always">
       {presentation === "cards" ? (
         <Stack gap="sm">
