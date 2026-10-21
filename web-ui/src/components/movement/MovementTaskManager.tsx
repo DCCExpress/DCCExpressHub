@@ -1,6 +1,6 @@
-import type { TrainDriverStatePayload } from "@/domain/wsTypes";
+import type { TrainDriverStatePayload, SequentialMovementStatePayload } from "@/domain/wsTypes";
 import { ActionIcon, Badge, Button, Group, Paper, Stack, Text, Tooltip, Divider, SimpleGrid, ScrollArea } from "@mantine/core";
-import { IconAlertTriangle, IconPlayerStop, IconPlayerPlay } from "@tabler/icons-react";
+import { IconAlertTriangle, IconPlayerStop, IconPlayerPlay, IconFlag } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import type { MovementDocument } from "../../domain/movement";
 import type { Loco } from "../../domain/domainTypes";
@@ -23,6 +23,7 @@ type Props = { document: MovementDocument; locos: Loco[]; layout: LayoutView };
 export default function MovementTaskManager({ document, locos, layout }: Props) {
   const [tasks, setTasks] = useState<Task[]>(getMovementTaskStates);
   const [drivers, setDrivers] = useState<TrainDriverStatePayload[]>([]);
+  const [sequences, setSequences] = useState<SequentialMovementStatePayload[]>([]);
   const [traffic, setTraffic] = useState<Traffic>(emptyTraffic);
   const [loaded, setLoaded] = useState({ locks: false, dispatcher: false });
   const liveTraffic = loaded.locks && loaded.dispatcher;
@@ -45,6 +46,17 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
           extra?: { locks?: Lock[]; leases?: Lease[]; routes?: Lease[] } | null;
         };
       };
+      if (frame.type === "sequentialMovementStateChanged") {
+        const sequence = frame.data as unknown as SequentialMovementStatePayload;
+        if (sequence?.sequenceId)
+          setSequences(previous => [
+            ...previous.filter(item => item.sequenceId !== sequence.sequenceId), sequence,
+          ]);
+      } else if (frame.type === "movementResponse" &&
+                 frame.data?.action === "sequenceSnapshot" && frame.data?.ok === true) {
+        const states = (frame.data?.extra as { states?: SequentialMovementStatePayload[] } | undefined)?.states;
+        if (Array.isArray(states)) setSequences(states);
+      }
       if (frame.type === "trainDriverStateChanged") {
         const driver = frame.data as unknown as TrainDriverStatePayload;
         if (driver?.taskId) setDrivers(previous => [...previous.filter(t => t.taskId !== driver.taskId), driver]);
@@ -79,6 +91,7 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
     const unsubscribeStatus = wsClient.subscribeStatus(status => {
       if (status !== "connected") {
         setDrivers([]);
+        setSequences([]);
         setTraffic(emptyTraffic);
         setLoaded({ locks: false, dispatcher: false });
         return;
@@ -93,6 +106,7 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
         data: { action: "snapshot", requestId: requestId() },
       });
       wsClient.send({ type: "trainDriverCommand", data: { action: "snapshot", requestId: requestId() } });
+      wsClient.send({ type: "movementCommand", data: { action: "sequenceSnapshot", requestId: requestId() } });
       wsClient.send({
         type: "dispatcherCommand",
         data: { action: "snapshot", requestId: requestId() },
@@ -108,6 +122,13 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
   const active = tasks
     .filter(task => task.state.status === "running" || task.state.status === "stopping")
     .sort((a, b) => (a.state.startedAt ?? 0) - (b.state.startedAt ?? 0));
+
+  const activeSequences = sequences.filter(state =>
+    ["running", "waiting", "finishing"].includes(state.status));
+  const commandSequence = (action: "sequenceStop" | "sequenceAbort" | "sequenceFinish", sequenceId: string) =>
+    wsClient.send({ type: "movementCommand", data: {
+      requestId: `taskman-sequence-${action}-${Date.now()}`, action, sequenceId,
+    } });
 
   const blockNames = new Map(
     layout.getAllElements()
@@ -128,9 +149,9 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
       <Group justify="space-between">
         <Text fw={600}>Task Manager</Text>
         <Group gap="xs" wrap="wrap">
-          <Badge variant="light" color={active.length ? "green" : "gray"}>{active.length} active</Badge>
+          <Badge variant="light" color={active.length + activeSequences.length ? "green" : "gray"}>{active.length + activeSequences.length} active</Badge>
           <Button size="xs" color="yellow" variant="light" leftSection={<IconPlayerStop size={14} />}
-            disabled={!active.length} onClick={() => {
+            disabled={!active.length && !activeSequences.length} onClick={() => {
               const managed = drivers.filter(driver => ["created", "running", "waiting", "paused"].includes(driver.status));
               for (const driver of managed) {
                 if (driver.status !== "paused") wsClient.send({ type: "trainDriverCommand", data: {
@@ -141,9 +162,13 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
               const owned = new Set(managed.map(driver => driver.movementId));
               for (const task of active.filter(task => !owned.has(task.pageId)))
                 stopMovement(task.pageId);
+              for (const sequence of activeSequences) commandSequence("sequenceStop", sequence.sequenceId);
             }}>Stop All</Button>
           <Button size="xs" color="red" variant="light" leftSection={<IconAlertTriangle size={14} />}
-            disabled={!active.length} onClick={() => abortAllMovements()}>Abort All</Button>
+            disabled={!active.length && !activeSequences.length} onClick={() => {
+              abortAllMovements();
+              for (const sequence of activeSequences) commandSequence("sequenceAbort", sequence.sequenceId);
+            }}>Abort All</Button>
         </Group>
       </Group>
 
@@ -155,8 +180,8 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
           <Badge size="xs" color={liveTraffic ? "green" : "gray"}>{liveTraffic ? "Live backend" : "Awaiting state"}</Badge>
         </Group>
         <SimpleGrid cols={4} spacing="xs">
-          <Stack gap={0}><Text size="lg" fw={700}>{active.length}</Text><Text size="xs" c="dimmed">Movements</Text></Stack>
-          <Stack gap={0}><Text size="lg" fw={700}>{waiting.length}</Text><Text size="xs" c="dimmed">Waiting</Text></Stack>
+          <Stack gap={0}><Text size="lg" fw={700}>{active.length + activeSequences.length}</Text><Text size="xs" c="dimmed">Movements</Text></Stack>
+          <Stack gap={0}><Text size="lg" fw={700}>{waiting.length + activeSequences.filter(item => item.status === "waiting").length}</Text><Text size="xs" c="dimmed">Waiting</Text></Stack>
           <Stack gap={0}><Text size="lg" fw={700}>{loaded.dispatcher ? reservations.length : "—"}</Text><Text size="xs" c="dimmed">Leases</Text></Stack>
           <Stack gap={0}><Text size="lg" fw={700}>{loaded.locks ? traffic.locks.length : "—"}</Text><Text size="xs" c="dimmed">Locks</Text></Stack>
         </SimpleGrid>
@@ -187,7 +212,45 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
         </>}
       </Paper>
 
-          {!active.length && <Text c="dimmed" size="sm">No running movements.</Text>}
+          {!active.length && !activeSequences.length && <Text c="dimmed" size="sm">No running movements.</Text>}
+          {activeSequences.map(state => {
+            const definition = document.sequences.find(item => item.id === state.sequenceId);
+            const loco = locos.find(item => item.address === state.locoAddress);
+            const route = definition?.steps.map(step => blockLabel(step.blockId)).join(" → ");
+            const formattedInfo = (state.info ?? "").replace(/\\bblock\\s+#(\\d+)\\b/gi,
+              (_match, id: string) => blockLabel(Number(id)));
+            return <Paper key={state.sequenceId} withBorder p="sm" radius="sm">
+              <Group justify="space-between" align="center" wrap="nowrap">
+                <Stack gap={2} align="center" style={{ width: 110, flexShrink: 0 }}>
+                  <LocoImage locoId={loco?.id ?? ""} image={loco?.image} name={loco?.name} width={110} height={40}/>
+                  <Text size="xs" fw={600} ta="center" lineClamp={2}>{loco?.name || "Locomotive"}</Text>
+                  <Text size="xs" c="dimmed">#{state.locoAddress ?? "?"}</Text>
+                </Stack>
+                <Stack gap={4} style={{ minWidth: 0, flex: 1 }}>
+                  <Text fw={600} size="sm" truncate>{state.name}</Text>
+                  <Group gap="xs">
+                    <Badge size="xs" color={state.status === "waiting" ? "orange" :
+                      state.status === "finishing" ? "teal" : "green"}>{state.status}</Badge>
+                    <Text size="xs" c="dimmed">{state.stepIndex} / {state.stepCount} blocks</Text>
+                  </Group>
+                  {route && <Text size="xs" lineClamp={2}>{route}</Text>}
+                  {formattedInfo && <Text size="xs" c="dimmed">{formattedInfo}</Text>}
+                </Stack>
+                <Group gap={5} wrap="nowrap">
+                  <Tooltip label="Finish at next block"><ActionIcon color="teal" variant="light"
+                    aria-label="Finish sequential task" disabled={state.status === "finishing"}
+                    onClick={() => commandSequence("sequenceFinish", state.sequenceId)}>
+                    <IconFlag size={17}/></ActionIcon></Tooltip>
+                  <Tooltip label="Stop sequence"><ActionIcon color="yellow" variant="light"
+                    aria-label="Stop sequential task" onClick={() => commandSequence("sequenceStop", state.sequenceId)}>
+                    <IconPlayerStop size={17}/></ActionIcon></Tooltip>
+                  <Tooltip label="Abort sequence (E-STOP)"><ActionIcon color="red" variant="light"
+                    aria-label="Abort sequential task" onClick={() => commandSequence("sequenceAbort", state.sequenceId)}>
+                    <IconAlertTriangle size={17}/></ActionIcon></Tooltip>
+                </Group>
+              </Group>
+            </Paper>;
+          })}
           {active.map(({ pageId, state }) => {
         const page = document.pages.find(item => item.id === pageId);
         const loco = locos.find(item => item.address === state.locoAddress);
