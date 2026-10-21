@@ -1074,7 +1074,7 @@ export default function RoutesDialog({
           minHeight: 0,
         }}
       >
-        <Group justify="space-between">
+        {mode === "network" && <Group justify="space-between">
           <Group gap="xs">
             <Badge variant="light">
               {t("ui.segmentsCount", { value1: nodes.length })}
@@ -1115,7 +1115,7 @@ export default function RoutesDialog({
           >
             {t("ui.regenerate")}
           </Button>
-        </Group>
+        </Group>}
 
         {error && (
           <Alert
@@ -1381,7 +1381,7 @@ export default function RoutesDialog({
                                       </Text>
 
                                       {
-                                        candidate.used && (
+                                        mode === "movement" && candidate.used && (
                                           <Text
                                             size="xs"
                                             c="red"
