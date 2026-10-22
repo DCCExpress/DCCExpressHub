@@ -821,7 +821,7 @@
   "barrierType": "Barrier type",
   "lightsEnabled": "Lights enabled",
   "blinkingEnabled": "Blinking enabled",
-  "sensorAddress": "Sensor Address",
+  "sensorAddress": "Sensor address",
   "radius": "Radius",
   "turnout1AccessoryAddress": "Turnout 1 accessory address",
   "turnout2AccessoryAddress": "Turnout 2 accessory address",
