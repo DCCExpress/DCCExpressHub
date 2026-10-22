@@ -785,7 +785,7 @@ export class BlockElement extends TrackElement {
         min: 1,
       },
       {
-        label: i18next.t("ui.occupancySensorAddress"),
+        label: i18next.t("ui.sensorAddress"),
         key: "sensorAddress",
         type: "number",
         readonly: false,
