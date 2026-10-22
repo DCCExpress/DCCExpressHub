@@ -198,7 +198,7 @@ public sealed class WsHub
             if (raw.StartsWith("RAILCOM_EVENT ", StringComparison.Ordinal))
             {
                 var tokens = raw.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                if (tokens.Length == 4 &&
+                if (tokens.Length is 4 or 5 &&
                     int.TryParse(tokens[1], out var sensorAddress) &&
                     int.TryParse(tokens[2], out var locomotiveAddress) &&
                     sensorAddress is >= 1 and <= 65535 &&
@@ -209,7 +209,8 @@ public sealed class WsHub
                         sensorAddress,
                         locomotiveAddress,
                         source = "LocoNet",
-                        @event = tokens[3]
+                        @event = tokens[3],
+                        rawPacket = tokens.Length == 5 ? tokens[4] : null
                     }, resyncOnDrop: false);
                 }
                 return;
