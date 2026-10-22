@@ -64,6 +64,8 @@ import AppModal from "@/components/common/AppModal";
 import SignalLogicDialog from "@/components/SignalLogicDialog";
 import IntegrityCheckDialog from "@/components/IntegrityCheckDialog";
 import LayoutRuntimeLogPanel from "@/components/LayoutRuntimeLogPanel";
+import RailComLiveSensorPanel from "@/components/RailComLiveSensorPanel";
+import CollapsiblePanelCard from "@/components/common/CollapsiblePanelCard";
 import SystemInfoPanel from "@/components/SystemInfoPanel";
 import SafetyEmergencyStopDialog from "@/components/SafetyEmergencyStopDialog";
 import VisibilitySettings from "@/components/VisibilitySettings";
@@ -2424,7 +2426,31 @@ export default function LiteLayoutPage({
                   </Tabs.Panel>
 
                   <Tabs.Panel value="log" className="lite-info-tab-panel">
-                    <LayoutRuntimeLogPanel />
+                    <ScrollArea h="100%" type="auto" scrollbarSize={9} className="lite-info-scroll">
+                      <Stack gap="xs" pb="xs">
+                        <CollapsiblePanelCard
+                          title="Console log"
+                          collapsedStorageKey="dcc-express-lite.layout.log.console-collapsed"
+                          expandTooltip="Show console log"
+                          collapseTooltip="Hide console log"
+                          defaultCollapsed
+                          clickableHeader
+                        >
+                          <div style={{ height: 300, minHeight: 0 }}>
+                            <LayoutRuntimeLogPanel />
+                          </div>
+                        </CollapsiblePanelCard>
+                        <CollapsiblePanelCard
+                          title="RailCom live sensors"
+                          collapsedStorageKey="dcc-express-lite.layout.log.railcom-collapsed"
+                          expandTooltip="Show RailCom sensors"
+                          collapseTooltip="Hide RailCom sensors"
+                          clickableHeader
+                        >
+                          <RailComLiveSensorPanel />
+                        </CollapsiblePanelCard>
+                      </Stack>
+                    </ScrollArea>
                   </Tabs.Panel>
                 </Tabs>
               )}
