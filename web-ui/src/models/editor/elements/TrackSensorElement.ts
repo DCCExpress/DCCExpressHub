@@ -47,7 +47,7 @@ export class TrackSensorElement extends TrackElement {
         ctx,
         this.posLeft,
         this.posBottom - 10,
-        "#" + this.address.toString(),
+        this.address.toString(),
       );
     }
     if (this.railCom && this.address > 0) {
@@ -55,20 +55,31 @@ export class TrackSensorElement extends TrackElement {
       if (addresses.length > 0) {
         ctx.save();
         ctx.font = "bold 10px sans-serif";
-        // Small, readable badges alongside the sensor, even with multiple
-        // decoder addresses on one RailCom detector. Never display address 0.
-        addresses.forEach((address, index) => {
-          drawTextWithRoundedBackground(
-            ctx,
-            this.centerX + this.radius + 12,
-            this.centerY - this.radius - 5 - index * 14,
-            "#" + address.toString(),
-            "white",
-            "#1971c2",
-            4,
-            3,
-          );
-        });
+        // Center the badge over the sensor circle. A single badge can list
+        // multiple detected locomotives without offsetting it from the dot.
+        // Only positive addresses enter the RailCom runtime cache.
+        // Canvas normalizes CSS named colors (e.g. "lime") to hex here.
+        ctx.fillStyle = this.colorOn;
+        const color = ctx.fillStyle;
+        const hex = typeof color === "string" ? color.replace("#", "") : "";
+        const rgb = hex.length === 3
+          ? [...hex].map(digit => parseInt(digit + digit, 16))
+          : hex.length === 6
+            ? [0, 2, 4].map(offset => parseInt(hex.slice(offset, offset + 2), 16))
+            : [];
+        const brightness = rgb.length === 3
+          ? (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000
+          : 255;
+        drawTextWithRoundedBackground(
+          ctx,
+          this.centerX,
+          this.centerY,
+          addresses.join(", "),
+          brightness >= 150 ? "#171717" : "#ffffff",
+          this.colorOn,
+          4,
+          3,
+        );
         ctx.restore();
       }
     }
