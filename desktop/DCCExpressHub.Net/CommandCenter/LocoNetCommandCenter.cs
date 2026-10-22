@@ -190,12 +190,8 @@ public sealed class LocoNetCommandCenter : BackgroundService, ICommandCenter
             var hubBlockAddress = railCom.SensorAddress + _sensorOffset;
             if (hubBlockAddress is >= 1 and <= 65535)
             {
-                _log.LogInformation(
-                    "LocoNet RailCom: block #{Block}, DCC #{Loco}, state={State}, packet={Packet}",
-                    hubBlockAddress, railCom.LocomotiveAddress,
-                    railCom.Present ? "Occupied" : "Left", line);
                 RawInfo?.Invoke(
-                    $"RAILCOM_EVENT {hubBlockAddress} {railCom.LocomotiveAddress} {(railCom.Present ? "Detected" : "Lost")} {line}");
+                    $"RAILCOM_EVENT {hubBlockAddress} {railCom.LocomotiveAddress} {(railCom.Present ? "Detected" : "Lost")}");
             }
         }
         if (packet.Length == 2 && packet[0] == 0x85)
