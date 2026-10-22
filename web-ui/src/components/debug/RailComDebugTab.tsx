@@ -1,7 +1,7 @@
 import { Alert, Badge, Button, Group, Paper, ScrollArea, SimpleGrid, Stack, Table, Text, Title } from "@mantine/core";
 import { useEffect, useMemo, useState } from "react";
 import { getCommandCenterInfo, type CommandCenterInfo } from "@/api/commandCenterInfo";
-import { wsClient } from "@/services/wsClient";
+import { wsClient, type WsConnectionStatus } from "@/services/wsClient";
 
 type RailComEvent = {
   sequence: number;
@@ -70,6 +70,8 @@ function elapsed(ms?: number) {
 export default function RailComDebugTab({ opened }: Props) {
   const [events, setEvents] = useState<RailComEvent[]>([]);
   const [rawFrames, setRawFrames] = useState<RailComRawFrame[]>([]);
+  const [wsStatus, setWsStatus] = useState<WsConnectionStatus>("disconnected");
+  const [snapshotAt, setSnapshotAt] = useState<number | null>(null);
   const [info, setInfo] = useState<CommandCenterInfo | null>(null);
   const [infoError, setInfoError] = useState("");
   const [lastRefresh, setLastRefresh] = useState<number | null>(null);
@@ -91,6 +93,7 @@ export default function RailComDebugTab({ opened }: Props) {
     const ticker = window.setInterval(refresh, 5000);
     const unsubscribe = wsClient.subscribeMessages(message => {
       if (message.type === "railComDebugSnapshot") {
+        setSnapshotAt(Date.now());
         const history = message.data.events.map(parseEvent).filter((event): event is RailComEvent => event !== null);
         const frames = message.data.rawFrames.map(parseRawFrame).filter((frame): frame is RailComRawFrame => frame !== null);
         setEvents(previous => mergeRecent(previous, history));
@@ -103,6 +106,7 @@ export default function RailComDebugTab({ opened }: Props) {
     // subscribeStatus immediately delivers the current state, so opening the
     // dialog retrieves events that arrived before the browser/tab existed.
     const unsubscribeStatus = wsClient.subscribeStatus(status => {
+      setWsStatus(status);
       if (status === "connected") wsClient.send({ type: "getRailComDebug", data: {} });
     });
     return () => { live = false; window.clearInterval(ticker); unsubscribe(); unsubscribeStatus(); };
@@ -136,6 +140,7 @@ export default function RailComDebugTab({ opened }: Props) {
       <Group justify="space-between" wrap="wrap">
         <Title order={5}>RailCom diagnostics</Title>
         <Group gap="xs">
+          <Badge color={wsStatus === "connected" ? "green" : "red"} variant="light">WebSocket: {wsStatus}</Badge>
           <Badge color={transportConnected ? "green" : "gray"} variant="light">
             LocoNet: {transportStatus}
           </Badge>
@@ -194,6 +199,9 @@ export default function RailComDebugTab({ opened }: Props) {
             dynamic RailCom data is excluded. Events do not alter track occupancy or
             Dispatcher safety state.
           </Alert>
+          <Text size="xs" c={snapshotAt ? "dimmed" : "orange"}>
+            Backend RailCom history: {snapshotAt ? `Received at ${new Date(snapshotAt).toLocaleTimeString()}` : "Waiting for snapshot"}
+          </Text>
           <Text fw={700} size="sm">Recent RailCom identification events (last 200)</Text>
           <Table striped highlightOnHover>
             <Table.Thead>
