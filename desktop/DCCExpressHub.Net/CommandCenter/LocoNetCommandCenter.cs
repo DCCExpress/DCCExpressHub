@@ -180,6 +180,24 @@ public sealed class LocoNetCommandCenter : BackgroundService, ICommandCenter
         var packet = rawPacket.ToArray();
         var line = Convert.ToHexString(packet);
         RawInfo?.Invoke("LocoNet RX: " + line);
+        // RailCom MultiSense transponding reports are independent of binary
+        // occupancy. Surface them to the diagnostics WebSocket bridge only;
+        // never update sensor states or Dispatcher reservations from them.
+        if (RailComFrameDecoder.TryDecode(packet, out var railCom))
+        {
+            // This is the RailCom BLOCK address; a module can configure it
+            // separately from its occupancy feedback address.
+            var hubBlockAddress = railCom.SensorAddress + _sensorOffset;
+            if (hubBlockAddress is >= 1 and <= 65535)
+            {
+                _log.LogInformation(
+                    "LocoNet RailCom: block #{Block}, DCC #{Loco}, state={State}, packet={Packet}",
+                    hubBlockAddress, railCom.LocomotiveAddress,
+                    railCom.Present ? "Occupied" : "Left", line);
+                RawInfo?.Invoke(
+                    $"RAILCOM_EVENT {hubBlockAddress} {railCom.LocomotiveAddress} {(railCom.Present ? "Detected" : "Lost")} {line}");
+            }
+        }
         if (packet.Length == 2 && packet[0] == 0x85)
         {
             _emergencyPaused = true;
