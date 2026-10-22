@@ -22,7 +22,7 @@ export const TrackColors = {
   routeOccupied: "#ff3333",
   busy: "orange",
   transit: "#fd2020",
-  unknown: "#ff69b4",
+  unknown: "#6b7280",
 };
 
 // Central occupancy cache fed by the existing Hub sensorChanged /
@@ -139,7 +139,7 @@ export abstract class TrackElement extends BaseElement {
      * occupied         -> red
      * transit          -> transit red
      * busy/reserved    -> orange
-     * unknown sensor   -> pink (unless occupied / transit / reserved)
+     * unknown sensor   -> graphite gray (unless occupied / transit / reserved)
      * route            -> yellow
      * selected         -> yellow
      * free             -> light gray
