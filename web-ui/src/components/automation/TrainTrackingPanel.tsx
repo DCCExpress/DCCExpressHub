@@ -24,6 +24,12 @@ import type {
 } from "../../domain/domainTypes";
 
 import LocoImage from "../loco/LocoImage";
+import { BlockElement } from "../../models/editor/elements/BlockElement";
+import type { LayoutView } from "../../models/editor/core/LayoutView";
+import {
+  getRailComLocomotives,
+  subscribeRailComSensorChanges,
+} from "../../services/railComSensorRuntime";
 
 import {
   clearTrainTrackingLogs,
@@ -38,6 +44,7 @@ import {
 
 type Props = {
   locos: Loco[];
+  layout: LayoutView;
 };
 
 function timeText(
@@ -50,6 +57,7 @@ function timeText(
 
 export default function TrainTrackingPanel({
   locos,
+  layout,
 }: Props) {
   const [
     state,
@@ -58,6 +66,33 @@ export default function TrainTrackingPanel({
     useState<TrainTrackingState>(
       getTrainTrackingState
     );
+
+  // Only redraw the table when the read-only RailCom presence cache changes.
+  // This does not assign locomotives or alter Dispatcher/Train Tracking state.
+  const [, setRailComRevision] = useState(0);
+  useEffect(
+    () => subscribeRailComSensorChanges(
+      () => setRailComRevision(value => value + 1)
+    ),
+    []
+  );
+
+  const railComBlocks = layout.getAllElements().filter(
+    (element): element is BlockElement =>
+      element instanceof BlockElement &&
+      element.railCom &&
+      element.sensorAddress > 0
+  );
+
+  const railComBlockLabel = (locoAddress: number): string => {
+    const names = railComBlocks
+      .filter(block => getRailComLocomotives(block.sensorAddress).includes(locoAddress))
+      .map(block => {
+        const name = block.name.trim();
+        return name && name !== "element" ? name : "#" + block.id;
+      });
+    return names.length ? [...new Set(names)].join(", ") : "-";
+  };
 
   const [
     pathLocoAddress,
@@ -430,6 +465,10 @@ export default function TrainTrackingPanel({
                     </Table.Th>
 
                     <Table.Th>
+                      RailCom block
+                    </Table.Th>
+
+                    <Table.Th>
                       {
                         i18next.t(
                           "ui.trainTrackingNextBlock",
@@ -549,6 +588,12 @@ export default function TrainTrackingPanel({
                             {
                               loco.currentBlockName ??
                               "-"
+                            }
+                          </Table.Td>
+
+                          <Table.Td>
+                            {
+                              railComBlockLabel(loco.locoAddress)
                             }
                           </Table.Td>
 
