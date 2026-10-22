@@ -26,8 +26,9 @@ function parseEvent(data: unknown): RailComEvent | null {
     locomotiveAddress,
     source: typeof item.source === "string" ? item.source : "Unknown",
     event: typeof item.event === "string" ? item.event : "Detected",
-    rawPacket: typeof item.rawPacket === "string" && /^(?:[0-9a-fA-F]{2}){2,128}$/.test(item.rawPacket)
-      ? item.rawPacket : undefined,
+    ...(typeof item.rawPacket === "string" && /^(?:[0-9a-fA-F]{2}){2,128}$/.test(item.rawPacket)
+      ? { rawPacket: item.rawPacket }
+      : {}),
   };
 }
 
