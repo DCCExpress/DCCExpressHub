@@ -1,4 +1,4 @@
-import { Alert, Badge, Button, Group, Paper, SimpleGrid, Stack, Table, Text, Title } from "@mantine/core";
+import { Alert, Badge, Button, Group, Paper, Select, SimpleGrid, Stack, Table, Text, Title } from "@mantine/core";
 import { useEffect, useMemo, useState } from "react";
 import { getCommandCenterInfo, type CommandCenterInfo } from "@/api/commandCenterInfo";
 import { wsClient, type WsConnectionStatus } from "@/services/wsClient";
@@ -8,12 +8,34 @@ type RailComPresence = {
   locomotiveAddress: number;
   lastSeenAt: number;
   source: string;
+  orientationBit: boolean | null;
+  orientationSource: "none" | "block" | "loco" | "long";
 };
+type RailComSenseMode = "off" | "block" | "loco";
 type Props = { opened: boolean };
+
+function orientationLabel(entry: RailComPresence): string {
+  if (entry.orientationBit === null) return "Unknown";
+  if (entry.orientationSource === "long")
+    return entry.orientationBit ? "West" : "East";
+  if (entry.orientationSource === "block" || entry.orientationSource === "loco")
+    return entry.orientationBit ? "Forward sense" : "Reverse sense";
+  return "Unknown";
+}
+
+function orientationSourceLabel(source: RailComPresence["orientationSource"]): string {
+  if (source === "block") return "D0 · block bit";
+  if (source === "loco") return "D0 · loco bit";
+  if (source === "long") return "E0 · direction bit";
+  return "Not transmitted";
+}
 
 export default function RailComDebugTab({ opened }: Props) {
   const [entries, setEntries] = useState<RailComPresence[]>([]);
   const [wsStatus, setWsStatus] = useState<WsConnectionStatus>("disconnected");
+  const [senseMode, setSenseMode] = useState<RailComSenseMode>("block");
+  const [savingSense, setSavingSense] = useState(false);
+  const [senseMessage, setSenseMessage] = useState("");
   const [snapshotAt, setSnapshotAt] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshNote, setRefreshNote] = useState("");
@@ -26,6 +48,7 @@ export default function RailComDebugTab({ opened }: Props) {
     setEntries([]);
     setSnapshotAt(null);
     setRefreshNote("");
+    setSenseMessage("");
 
     const updateConnection = () => {
       void getCommandCenterInfo(true).then(data => {
@@ -42,6 +65,7 @@ export default function RailComDebugTab({ opened }: Props) {
       if (!live) return;
       if (message.type === "railComStateSnapshot") {
         setEntries(message.data.entries);
+        setSenseMode(message.data.senseMode);
         setSnapshotAt(Date.now());
         setRefreshing(false);
         if (message.data.interrogationRequested) {
@@ -52,6 +76,15 @@ export default function RailComDebugTab({ opened }: Props) {
       } else if (message.type === "railComStateChanged") {
         setEntries(message.data.entries);
         setSnapshotAt(Date.now());
+      } else if (message.type === "railComSenseModeChanged") {
+        setSenseMode(message.data.mode);
+      } else if (message.type === "railComSenseModeResponse") {
+        setSavingSense(false);
+        setSenseMode(message.data.mode);
+        setSenseMessage(message.data.ok
+          ? "RailCom mode saved. Previous identifications were invalidated if the mode changed."
+          : message.data.message);
+        if (message.data.ok) wsClient.send({ type: "getRailComDebug", data: {} });
       }
     });
     // Subscribe before requesting the initial state: a locomotive can already
@@ -90,6 +123,16 @@ export default function RailComDebugTab({ opened }: Props) {
     : knownYamorc ? "YD7010 LBServer" : "No LocoNet feedback";
   const canRefresh = wsStatus === "connected" && Boolean(info?.connected) && !refreshing;
 
+  const setDirectionMode = (mode: string | null) => {
+    if (mode !== "off" && mode !== "block" && mode !== "loco") return;
+    setSavingSense(true);
+    setSenseMessage("");
+    if (!wsClient.send({ type: "setRailComSenseMode", data: { mode } })) {
+      setSavingSense(false);
+      setSenseMessage("WebSocket is not connected.");
+    }
+  };
+
   const requestRefresh = () => {
     setRefreshing(true);
     setRefreshNote("");
@@ -117,6 +160,24 @@ export default function RailComDebugTab({ opened }: Props) {
         </Group>
       </Group>
 
+      <Group align="end" wrap="wrap" gap="sm">
+        <Select
+          label="Standard RailCom sense direction (D0)"
+          description="Select the same encoding as the RailCom detector / YD7010."
+          data={[
+            { value: "off", label: "Off – no D0 direction" },
+            { value: "block", label: "In Block Address (+2048)" },
+            { value: "loco", label: "In Loco Address (+4096)" },
+          ]}
+          value={senseMode}
+          onChange={setDirectionMode}
+          disabled={wsStatus !== "connected" || savingSense}
+          w={270}
+          size="sm"
+        />
+        {savingSense && <Text size="xs" c="dimmed">Saving RailCom mode...</Text>}
+      </Group>
+      {senseMessage && <Text size="xs" c={senseMessage.startsWith("RailCom mode saved") ? "dimmed" : "red"}>{senseMessage}</Text>}
       <SimpleGrid cols={{ base: 2, sm: 3 }} spacing="xs">
         <Paper withBorder p="sm">
           <Text size="xs" c="dimmed">Identified locomotives</Text>
@@ -140,13 +201,15 @@ export default function RailComDebugTab({ opened }: Props) {
             <Table.Th>RailCom block</Table.Th>
             <Table.Th>DCC address</Table.Th>
             <Table.Th>State</Table.Th>
+            <Table.Th>Orientation</Table.Th>
+            <Table.Th>Encoding</Table.Th>
             <Table.Th>Last reported</Table.Th>
             <Table.Th>Source</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
           {entries.length === 0 ? (
-            <Table.Tr><Table.Td colSpan={5}>
+            <Table.Tr><Table.Td colSpan={7}>
               <Text c="dimmed" ta="center" py="lg">
                 {snapshotAt
                   ? "No locomotive addresses currently reported as present."
@@ -158,6 +221,12 @@ export default function RailComDebugTab({ opened }: Props) {
               <Table.Td>{entry.sensorAddress}</Table.Td>
               <Table.Td>#{entry.locomotiveAddress}</Table.Td>
               <Table.Td><Badge color="green" variant="light">Occupied</Badge></Table.Td>
+              <Table.Td>
+                <Badge color={entry.orientationBit === null ? "gray" : "blue"} variant="light">
+                  {orientationLabel(entry)}
+                </Badge>
+              </Table.Td>
+              <Table.Td><Text size="xs">{orientationSourceLabel(entry.orientationSource)}</Text></Table.Td>
               <Table.Td>{new Date(entry.lastSeenAt).toLocaleTimeString()}</Table.Td>
               <Table.Td>{entry.source}</Table.Td>
             </Table.Tr>
@@ -171,8 +240,13 @@ export default function RailComDebugTab({ opened }: Props) {
         Repeated reports refresh the same row. Power OFF and command-center disconnect
         invalidate all identifiers. Refresh requests current Hub state and sends a standard
         LocoNet detector interrogation, which may not force the module to repeat locomotive
-        identities. RailCom identification is informational and does not override occupancy
-        or Dispatcher safety.
+        identities. For D0 frames, Off means orientation is Unknown, even if its
+        direction bit would be zero. Long E0 frames carry a separate orientation
+        bit independent of this setting. Orientation describes a detector's
+        placement polarity, not the locomotive's DCC forward/reverse motion or
+        the exit direction; calibrate it against the layout before using it
+        for automation. RailCom identification does not override occupancy or
+        Dispatcher safety.
       </Alert>
     </Stack>
   );
