@@ -114,7 +114,7 @@ export default function RailComLiveSensorPanel() {
               </Table.Td>
               <Table.Td>
                 <Tooltip multiline maw={260} label={senseTooltip(entry)}>
-                  <Text size="xs" c={entry.orientationBit === null ? "dimmed" : undefined}>
+                  <Text size="xs" c={entry.orientationBit === null ? "dimmed" : "blue"}>
                     {senseLabel(entry)}
                   </Text>
                 </Tooltip>
