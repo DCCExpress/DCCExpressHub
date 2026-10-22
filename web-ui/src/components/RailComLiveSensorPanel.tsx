@@ -126,8 +126,8 @@ export default function RailComLiveSensorPanel() {
         style={{ fontSize: 11, tableLayout: "fixed" }}>
         <Table.Thead>
           <Table.Tr>
-            <Table.Th>RC</Table.Th>
-            <Table.Th>DCC</Table.Th>
+            <Table.Th>Block</Table.Th>
+            <Table.Th>Loco</Table.Th>
             <Table.Th>Sense</Table.Th>
             <Table.Th>Dir</Table.Th>
             <Table.Th>Exit</Table.Th>
@@ -177,7 +177,7 @@ export default function RailComLiveSensorPanel() {
       <Text size="xs" c="dimmed">
         Sense: F/R = physical orientation (1 → F, 0 → R); B = block, L = loco, E = long.
         Dir = current DCC command; Exit = predicted departure (not measured). ? = unknown.
-        DCC 0 = no identified locomotive on this observed detector, not confirmed physical FREE.
+        Loco 0 = no identified locomotive on this observed block, not confirmed physical FREE.
         Rows do not replace occupancy feedback.
       </Text>
     </>
