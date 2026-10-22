@@ -215,8 +215,8 @@ export default function RailComDebugTab({ opened }: Props) {
       <Table striped highlightOnHover>
         <Table.Thead>
           <Table.Tr>
-            <Table.Th>RailCom block</Table.Th>
-            <Table.Th>DCC address</Table.Th>
+            <Table.Th>Block</Table.Th>
+            <Table.Th>Loco</Table.Th>
             <Table.Th>State</Table.Th>
             <Table.Th>Orientation</Table.Th>
             <Table.Th>Encoding</Table.Th>
@@ -256,7 +256,7 @@ export default function RailComDebugTab({ opened }: Props) {
       {infoError && <Text size="xs" c="red">Connection status: {infoError}</Text>}
       <Alert color="blue" variant="light" title="How current presence works">
         Occupied updates one locomotive per RailCom block; Left removes that locomotive.
-        Observed detectors remain listed with DCC 0 (no identified loco), which
+        Observed detectors remain listed with Loco 0 (no identified loco), which
         does not establish physical FREE. This zero is only a UI placeholder.
         Repeated reports refresh the same row. Power OFF and command-center disconnect
         invalidate all identifiers. Refresh requests current Hub state and sends a standard
