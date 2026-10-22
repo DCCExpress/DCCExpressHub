@@ -33,6 +33,7 @@ function senseTooltip(entry: RailComEntry): string {
 /** Compact read-only view of the backend-authoritative RailCom presence cache. */
 export default function RailComLiveSensorPanel() {
   const [entries, setEntries] = useState<RailComEntry[]>([]);
+  const [knownSensors, setKnownSensors] = useState<number[]>([]);
   const [connection, setConnection] = useState<WsConnectionStatus>("disconnected");
   const [loaded, setLoaded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -49,10 +50,12 @@ export default function RailComLiveSensorPanel() {
     const stopMessages = wsClient.subscribeMessages(message => {
       if (message.type === "railComStateSnapshot") {
         setEntries(message.data.entries);
+        setKnownSensors(message.data.knownSensors);
         setLoaded(true);
         setRefreshing(false);
       } else if (message.type === "railComStateChanged") {
         setEntries(message.data.entries);
+        setKnownSensors(message.data.knownSensors);
         setLoaded(true);
       }
     });
@@ -65,6 +68,7 @@ export default function RailComLiveSensorPanel() {
         // A disconnected transport cannot confirm old locomotive positions.
         setLoaded(false);
         setEntries([]);
+        setKnownSensors([]);
         setLocoDirections({});
         setRefreshing(false);
       }
@@ -76,10 +80,26 @@ export default function RailComLiveSensorPanel() {
     };
   }, []);
 
-  const sorted = useMemo(() => entries.filter(entry => entry.locomotiveAddress > 0).sort(
-    (a, b) => a.sensorAddress - b.sensorAddress ||
-      a.locomotiveAddress - b.locomotiveAddress,
-  ), [entries]);
+  // Keep detectors visible when the last locomotive leaves (DCC 0 is a
+  // display placeholder only, not an actual DCC address or FREE status).
+  const sorted = useMemo(() => {
+    const active = entries.filter(entry => entry.locomotiveAddress > 0);
+    const occupied = new Set(active.map(entry => entry.sensorAddress));
+    const empty: RailComEntry[] = knownSensors
+      .filter(sensor => sensor > 0 && !occupied.has(sensor))
+      .map(sensorAddress => ({
+        sensorAddress,
+        locomotiveAddress: 0,
+        lastSeenAt: 0,
+        source: "",
+        orientationBit: null,
+        orientationSource: "none",
+      }));
+    return [...active, ...empty].sort(
+      (a, b) => a.sensorAddress - b.sensorAddress ||
+        a.locomotiveAddress - b.locomotiveAddress,
+    );
+  }, [entries, knownSensors]);
 
   const refresh = () => {
     setRefreshing(true);
@@ -95,7 +115,7 @@ export default function RailComLiveSensorPanel() {
           {connection === "connected" ? "Online" : "Offline"}
         </Badge>
         <Group gap="xs" wrap="nowrap">
-          <Text size="xs" c="dimmed">{sorted.length} loco(s)</Text>
+          <Text size="xs" c="dimmed">{entries.length} loco(s) · {knownSensors.length} sensor(s)</Text>
           <Button size="compact-xs" variant="light" leftSection={<IconRefresh size={13} />}
             onClick={refresh} loading={refreshing} disabled={connection !== "connected"}>
             Refresh
@@ -118,26 +138,27 @@ export default function RailComLiveSensorPanel() {
             <Table.Tr>
               <Table.Td colSpan={5}>
                 <Text size="xs" c="dimmed" ta="center" py="xs">
-                  {!loaded ? "Waiting for RailCom snapshot..." : "No locomotives identified"}
+                  {!loaded ? "Waiting for RailCom snapshot..." : "No RailCom detectors observed yet"}
                 </Text>
               </Table.Td>
             </Table.Tr>
           ) : sorted.map(entry => (
             <Table.Tr key={`${entry.sensorAddress}:${entry.locomotiveAddress}`}>
               <Table.Td>{entry.sensorAddress}</Table.Td>
-              <Table.Td>#{entry.locomotiveAddress}</Table.Td>
+              <Table.Td>{entry.locomotiveAddress > 0 ? `#${entry.locomotiveAddress}` : "0"}</Table.Td>
               <Table.Td>
                 <Tooltip multiline maw={260} label={senseTooltip(entry)}>
                   <Text size="xs" c={entry.orientationBit === null ? "dimmed" : "blue"}>
-                    {senseLabel(entry)}
+                    {entry.locomotiveAddress > 0 ? senseLabel(entry) : "—"}
                   </Text>
                 </Tooltip>
               </Table.Td>
               <Table.Td>
                 <Tooltip label={`Hub DCC direction for #${entry.locomotiveAddress}`}>
                   <Text size="xs" c="dimmed">
-                    {locoDirections[entry.locomotiveAddress] === "forward" ? "F"
-                      : locoDirections[entry.locomotiveAddress] === "reverse" ? "R" : "?"}
+                    {entry.locomotiveAddress === 0 ? "—"
+                      : locoDirections[entry.locomotiveAddress] === "forward" ? "F"
+                        : locoDirections[entry.locomotiveAddress] === "reverse" ? "R" : "?"}
                   </Text>
                 </Tooltip>
               </Table.Td>
@@ -145,7 +166,7 @@ export default function RailComLiveSensorPanel() {
                 <Tooltip multiline maw={280} label="Predicted departure from RailCom orientation + current DCC direction. Not a confirmed block exit; calibrate each detector reference before use in automation.">
                   <Text size="xs" fw={700}
                     c={expectedExit(entry, locoDirections[entry.locomotiveAddress]) === "?" ? "dimmed" : "teal"}>
-                    {expectedExit(entry, locoDirections[entry.locomotiveAddress])}
+                    {entry.locomotiveAddress === 0 ? "—" : expectedExit(entry, locoDirections[entry.locomotiveAddress])}
                   </Text>
                 </Tooltip>
               </Table.Td>
@@ -156,7 +177,8 @@ export default function RailComLiveSensorPanel() {
       <Text size="xs" c="dimmed">
         Sense: F/R = physical orientation (1 → F, 0 → R); B = block, L = loco, E = long.
         Dir = current DCC command; Exit = predicted departure (not measured). ? = unknown.
-        Rows indicate RailCom identification, not physical occupancy.
+        DCC 0 = no identified locomotive on this observed detector, not confirmed physical FREE.
+        Rows do not replace occupancy feedback.
       </Text>
     </>
   );
