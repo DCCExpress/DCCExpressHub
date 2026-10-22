@@ -231,8 +231,12 @@ public sealed class WsHub
                     sensorAddress is >= 1 and <= 65535 &&
                     locomotiveAddress is >= 1 and <= 10239 &&
                     (tokens[3] == "Detected" || tokens[3] == "Lost") &&
-                    tokens[4] is "block" or "loco" or "long" or "none" &&
-                    tokens[5] is "0" or "1" or "?")
+                    (tokens[4] is "block" or "loco" or "long" or "none") &&
+                    (tokens[5] is "0" or "1" or "?") &&
+                    // A mode change invalidates all older D0 interpretations.
+                    (tokens[4] == "long" ||
+                     tokens[4] == RailComSense.ModeName ||
+                     (tokens[4] == "none" && RailComSense.ModeName == "off")))
                 {
                     // Repeated Detected events refresh the same row; Lost only
                     // removes that locomotive from that RailCom block.
