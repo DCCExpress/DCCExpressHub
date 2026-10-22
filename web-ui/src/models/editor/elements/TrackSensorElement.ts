@@ -67,8 +67,9 @@ export class TrackSensorElement extends TrackElement {
           : hex.length === 6
             ? [0, 2, 4].map(offset => parseInt(hex.slice(offset, offset + 2), 16))
             : [];
+        const [red = 255, green = 255, blue = 255] = rgb;
         const brightness = rgb.length === 3
-          ? (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000
+          ? (red * 299 + green * 587 + blue * 114) / 1000
           : 255;
         drawTextWithRoundedBackground(
           ctx,
