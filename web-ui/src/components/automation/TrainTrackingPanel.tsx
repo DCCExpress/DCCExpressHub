@@ -14,6 +14,7 @@ import {
 
 import {
   useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -83,6 +84,38 @@ export default function TrainTrackingPanel({
       element.railCom &&
       element.sensorAddress > 0
   );
+
+  // Read-only reconciliation. First sighting or change is intentionally
+  // Pending for 2 s: occupancy, Tracking and RailCom arrive independently.
+  // This never changes block assignment, speed, Dispatcher or E-STOP state.
+  const reconciliation = useRef(new Map<number, { signature: string; since: number }>());
+  const [verificationNow, setVerificationNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!state.enabled || !state.active) {
+      reconciliation.current.clear();
+      return;
+    }
+    const timer = window.setInterval(() => setVerificationNow(Date.now()), 250);
+    return () => window.clearInterval(timer);
+  }, [state.enabled, state.active]);
+
+  const railComVerification = (locoAddress: number, currentBlockId: number | null) => {
+    if (!state.enabled || !state.active) return "Disabled";
+    const block = railComBlocks.find(item => item.id === currentBlockId);
+    if (!block) return "Unverified";
+    const identities = getRailComLocomotives(block.sensorAddress);
+    const signature = currentBlockId + ":" + identities.join(",");
+    const previous = reconciliation.current.get(locoAddress);
+    if (!previous || previous.signature !== signature) {
+      reconciliation.current.set(locoAddress, { signature, since: verificationNow });
+      return "Pending";
+    }
+    if (verificationNow - previous.since < 2000) return "Pending";
+    if (identities.length === 0) return "Unverified";
+    if (identities.length !== 1) return "Unverified";
+    return identities[0] === locoAddress ? "Verified" : "Mismatch";
+  };
 
   const railComBlockLabel = (locoAddress: number): string => {
     const names = railComBlocks
@@ -469,6 +502,10 @@ export default function TrainTrackingPanel({
                     </Table.Th>
 
                     <Table.Th>
+                      Verification
+                    </Table.Th>
+
+                    <Table.Th>
                       {
                         i18next.t(
                           "ui.trainTrackingNextBlock",
@@ -595,6 +632,18 @@ export default function TrainTrackingPanel({
                             {
                               railComBlockLabel(loco.locoAddress)
                             }
+                          </Table.Td>
+
+                          <Table.Td>
+                            {(() => {
+                              const result = railComVerification(loco.locoAddress, loco.currentBlockId);
+                              return <Badge size="xs" variant="light"
+                                color={result === "Verified" ? "green"
+                                  : result === "Mismatch" ? "red"
+                                  : result === "Pending" ? "yellow" : "gray"}>
+                                {result}
+                              </Badge>;
+                            })()}
                           </Table.Td>
 
                           <Table.Td>
