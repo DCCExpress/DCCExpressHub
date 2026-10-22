@@ -12,7 +12,7 @@ function publishIfChanged(next: Map<number, readonly number[]>): void {
   if (next.size === addressesBySensor.size &&
     [...next].every(([sensor, addresses]) => {
       const old = addressesBySensor.get(sensor);
-      return old?.length === addresses.length &&
+      return old !== undefined && old.length === addresses.length &&
         addresses.every((value, index) => value === old[index]);
     })) return;
 
