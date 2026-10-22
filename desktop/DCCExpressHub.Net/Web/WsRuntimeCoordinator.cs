@@ -61,21 +61,17 @@ public sealed class WsRuntimeCoordinator : BackgroundService
         _connectionChanged=true;
         if (!connected)
         {
+            // A disconnected command center has no confirmed power state.
+            // Serialize invalidation with sensor reports, and do not replay
+            // external feedback until a new Power ON has been confirmed.
             lock (_powerResyncGate)
             {
                 _powerOn = null;
                 _powerResyncDue = null;
+                _runtime.InvalidateSensorStates();
             }
-        }
-
-        if (!connected)
-        {
-            // Drop stale known states, never translate a disconnect to FREE.
-            // The reconnect snapshot must be the new source of truth.
-            _runtime.InvalidateSensorStates();
-            _externalDevices.ReplayLiveSensorStates();
             _log.LogWarning(
-                "Command center disconnected: previous sensor states are UNKNOWN pending fresh feedback");
+                "Command center disconnected: previous sensor states are UNKNOWN pending fresh power and sensor feedback");
         }
     }
 
@@ -120,7 +116,9 @@ public sealed class WsRuntimeCoordinator : BackgroundService
         // so an in-flight feedback cannot repopulate the cache after clearing.
         lock (_powerResyncGate)
         {
-            if (_powerOn == false)
+            // Startup/reconnect is UNKNOWN until power feedback confirms ON.
+            // Never assume an unknown power state is safe to interpret as FREE.
+            if (_powerOn != true)
                 return;
             _runtime.SetSensor((ushort)address, on);
         }
@@ -292,9 +290,10 @@ public sealed class WsRuntimeCoordinator : BackgroundService
         // the TCP connection was still offline.
         await _signalAutomation.EvaluateAsync();
 
-        // Then replace unknown sensor states from DCC-EX. Every returned Q/q
-        // enters LayoutRuntime.SetSensor(), which triggers another evaluation.
-        await _cc.RequestSensorSnapshotAsync(ct);
+        // Do not interrogate sensors before confirmed Power ON: feedback from
+        // an unpowered detector must not become FREE, and the driver's
+        // change-only cache must not consume the first valid post-ON snapshot.
+        // OnPowerFeedbackChanged schedules the interrogation after Power ON.
 
         LoadConfiguredLocos();
 
@@ -304,7 +303,7 @@ public sealed class WsRuntimeCoordinator : BackgroundService
         LoadStartupFunctions();
 
         _log.LogInformation(
-            "Command center bootstrap: automation evaluated, sensor snapshot requested, {Count} loco state request(s) and {StartupCount} startup function(s) queued",
+            "Command center bootstrap: automation evaluated, sensor interrogation waits for confirmed Power ON, {Count} loco state request(s) and {StartupCount} startup function(s) queued",
             _locoSync.Count,
             _startupFunctions.Count);
     }
