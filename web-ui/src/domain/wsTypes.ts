@@ -150,6 +150,7 @@ export const CLIENT_WS_MESSAGE_TYPES = [
   "getBlocks",
   "getLayoutRuntimeSnapshot",
   "getRailComDebug",
+  "setRailComSenseMode",
   "routeLock",
   "routeUnlock",
   "reserveRoute",
@@ -549,11 +550,20 @@ export type ServerWsPayloadMap = {
       locomotiveAddress: number;
       lastSeenAt: number;
       source: string;
+      orientationBit: boolean | null;
+      orientationSource: "none" | "block" | "loco" | "long";
     }>;
   };
   railComStateSnapshot: ServerWsPayloadMap["railComStateChanged"] & {
+    senseMode: "off" | "block" | "loco";
     interrogationRequested: boolean;
     interrogationSent: boolean;
+  };
+  railComSenseModeChanged: { mode: "off" | "block" | "loco" };
+  railComSenseModeResponse: {
+    ok: boolean;
+    mode: "off" | "block" | "loco";
+    message: string;
   };
   ack: string;
   error: { message: string };
