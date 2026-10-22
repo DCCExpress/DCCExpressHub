@@ -249,7 +249,7 @@ export abstract class TrackElement extends BaseElement {
     return [
       ...properties,
       {
-        label: i18next.t("ui.occupancySensorAddress"),
+        label: i18next.t("ui.sensorAddress"),
         key: "address",
         type: "number",
         readonly: false,
