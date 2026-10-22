@@ -2,6 +2,7 @@ import i18next from "i18next";
 import { ELEMENT_TYPES } from "../../../domain/layout/elementTypes";
 import { drawTextWithRoundedBackground } from "../../../graphics";
 import { generateId } from "../../../helpers";
+import { getRailComLocomotives } from "../../../services/railComSensorRuntime";
 import { TrackElement } from "../core/TrackElement";
 import { DrawOptions, ITrackSensorElement } from "../types/EditorTypes";
 import { IEditableProperty } from "./PropertyDescriptor";
@@ -11,6 +12,8 @@ export enum SensorTypes {
 }
 export class TrackSensorElement extends TrackElement {
   on: boolean = false;
+  /** Use the existing sensor address for RailCom identification as well. */
+  railCom: boolean = false;
   kind: SensorTypes = SensorTypes.rect;
   colorOn: string = "lime";
   colorOff: string = "green";
@@ -47,6 +50,28 @@ export class TrackSensorElement extends TrackElement {
         "#" + this.address.toString(),
       );
     }
+    if (this.railCom && this.address > 0) {
+      const addresses = getRailComLocomotives(this.address);
+      if (addresses.length > 0) {
+        ctx.save();
+        ctx.font = "bold 10px sans-serif";
+        // Small, readable badges alongside the sensor, even with multiple
+        // decoder addresses on one RailCom detector. Never display address 0.
+        addresses.forEach((address, index) => {
+          drawTextWithRoundedBackground(
+            ctx,
+            this.centerX + this.radius + 12,
+            this.centerY - this.radius - 5 - index * 14,
+            "#" + address.toString(),
+            "white",
+            "#1971c2",
+            4,
+            3,
+          );
+        });
+        ctx.restore();
+      }
+    }
     this.endDraw(ctx);
     this.drawSelection(ctx);
   }
@@ -60,6 +85,7 @@ export class TrackSensorElement extends TrackElement {
       colorOn: this.colorOn,
       colorOff: this.colorOff,
       radius: this.radius,
+      railCom: this.railCom,
     };
   }
   static fromJSON(data: ITrackSensorElement): TrackSensorElement {
@@ -77,6 +103,7 @@ export class TrackSensorElement extends TrackElement {
     element.colorOn = data.colorOn;
     element.colorOff = data.colorOff;
     element.radius = data.radius ?? 6;
+    element.railCom = data.railCom === true;
     return element;
   }
   override clone(): TrackSensorElement {
@@ -93,6 +120,7 @@ export class TrackSensorElement extends TrackElement {
     copy.textOn = this.textOn;
     copy.textOff = this.textOff;
     copy.radius = this.radius;
+    copy.railCom = this.railCom;
     return copy;
   }
   override getEditableProperties(): IEditableProperty[] {
@@ -102,6 +130,12 @@ export class TrackSensorElement extends TrackElement {
         label: i18next.t("ui.sensorAddress"),
         key: "address",
         type: "number",
+        readonly: false,
+      },
+      {
+        label: "RailCom",
+        key: "railCom",
+        type: "checkbox",
         readonly: false,
       },
       {
