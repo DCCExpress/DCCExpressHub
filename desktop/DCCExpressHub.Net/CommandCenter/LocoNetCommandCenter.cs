@@ -32,6 +32,7 @@ public sealed class LocoNetCommandCenter : BackgroundService, ICommandCenter
     // One read attempt by default: surface the first real NO DECODER response.
     private readonly int _serviceReadAttempts;
     private readonly int _sensorOffset;
+    private readonly bool _railComDirectionInBlockAddress;
     private readonly object _programmingSync = new();
     private TaskCompletionSource<ProgrammingReply>? _pendingProgramming;
     private int _pendingProgrammingCv;
@@ -54,6 +55,7 @@ public sealed class LocoNetCommandCenter : BackgroundService, ICommandCenter
         _sensorOffset = Math.Clamp(
             config.GetValue("LocoNet:SensorOffset", 0),
             0, YaMoRcLocoNetClient.MaxSensorOffset);
+        _railComDirectionInBlockAddress = config.GetValue("LocoNet:RailComDirectionInBlockAddress", true);
         _transport.ConnectionChanged += OnConnectionChanged;
         _transport.Information += message => RawInfo?.Invoke(message);
     }
@@ -183,7 +185,7 @@ public sealed class LocoNetCommandCenter : BackgroundService, ICommandCenter
         // RailCom MultiSense transponding reports are independent of binary
         // occupancy. Surface them to the diagnostics WebSocket bridge only;
         // never update sensor states or Dispatcher reservations from them.
-        if (RailComFrameDecoder.TryDecode(packet, out var railCom))
+        if (RailComFrameDecoder.TryDecode(packet, out var railCom, _railComDirectionInBlockAddress))
         {
             // This is the RailCom BLOCK address; a module can configure it
             // separately from its occupancy feedback address.
