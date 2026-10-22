@@ -9,7 +9,7 @@ public static class RailComFrameDecoder
 {
     public readonly record struct Detection(
         int SensorAddress, int LocomotiveAddress, bool Present,
-        bool? OrientationForward, string OrientationSource);
+        bool? OrientationBit, string OrientationSource);
 
     public static bool TryDecode(
         ReadOnlySpan<byte> frame,
