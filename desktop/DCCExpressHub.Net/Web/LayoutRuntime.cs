@@ -40,6 +40,8 @@ public sealed class RuntimeBlock
     public ushort Id { get; set; }
     public string Name { get; set; } = "";
     public ushort SensorAddress { get; set; }
+    // RailCom uses SensorAddress; no separate address or runtime occupancy authority.
+    public bool RailCom { get; set; }
     public string LocoId { get; set; } = "";
     public ushort LocoAddress { get; set; }
 
@@ -537,7 +539,8 @@ public sealed class LayoutRuntime
                     SensorAddress =
                         sensorAddress is >= 1 and <= 65535
                             ? (ushort)sensorAddress
-                            : (ushort)0
+                            : (ushort)0,
+                    RailCom = B(e, "railCom")
                 });
 
             return;
@@ -872,6 +875,7 @@ public sealed class LayoutRuntime
                 Id = x.Id,
                 Name = x.Name,
                 SensorAddress = x.SensorAddress,
+                RailCom = x.RailCom,
                 LocoId = x.LocoId,
                 LocoAddress = x.LocoAddress
             }).ToArray();
