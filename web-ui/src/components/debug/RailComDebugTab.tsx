@@ -32,6 +32,7 @@ function orientationSourceLabel(source: RailComPresence["orientationSource"]): s
 
 export default function RailComDebugTab({ opened }: Props) {
   const [entries, setEntries] = useState<RailComPresence[]>([]);
+  const [knownSensors, setKnownSensors] = useState<number[]>([]);
   const [wsStatus, setWsStatus] = useState<WsConnectionStatus>("disconnected");
   const [senseMode, setSenseMode] = useState<RailComSenseMode>("block");
   const [savingSense, setSavingSense] = useState(false);
@@ -46,6 +47,7 @@ export default function RailComDebugTab({ opened }: Props) {
     if (!opened) return;
     let live = true;
     setEntries([]);
+    setKnownSensors([]);
     setSnapshotAt(null);
     setRefreshNote("");
     setSenseMessage("");
@@ -65,6 +67,7 @@ export default function RailComDebugTab({ opened }: Props) {
       if (!live) return;
       if (message.type === "railComStateSnapshot") {
         setEntries(message.data.entries);
+        setKnownSensors(message.data.knownSensors);
         setSenseMode(message.data.senseMode);
         setSnapshotAt(Date.now());
         setRefreshing(false);
@@ -75,6 +78,7 @@ export default function RailComDebugTab({ opened }: Props) {
         }
       } else if (message.type === "railComStateChanged") {
         setEntries(message.data.entries);
+        setKnownSensors(message.data.knownSensors);
         setSnapshotAt(Date.now());
       } else if (message.type === "railComSenseModeChanged") {
         setSenseMode(message.data.mode);
@@ -96,6 +100,7 @@ export default function RailComDebugTab({ opened }: Props) {
         wsClient.send({ type: "getRailComDebug", data: {} });
       } else {
         setEntries([]);
+        setKnownSensors([]);
         setSnapshotAt(null);
         setRefreshing(false);
       }
@@ -108,10 +113,22 @@ export default function RailComDebugTab({ opened }: Props) {
     };
   }, [opened]);
 
-  const uniqueBlocks = useMemo(
-    () => new Set(entries.map(entry => entry.sensorAddress)).size,
-    [entries]
-  );
+  const uniqueBlocks = knownSensors.length;
+  const displayedRows = useMemo(() => {
+    const activeSensors = new Set(entries.map(entry => entry.sensorAddress));
+    const empty: RailComPresence[] = knownSensors
+      .filter(sensorAddress => !activeSensors.has(sensorAddress))
+      .map(sensorAddress => ({
+        sensorAddress,
+        locomotiveAddress: 0,
+        lastSeenAt: 0,
+        source: "",
+        orientationBit: null,
+        orientationSource: "none",
+      }));
+    return [...entries, ...empty].sort((a, b) =>
+      a.sensorAddress - b.sensorAddress || a.locomotiveAddress - b.locomotiveAddress);
+  }, [entries, knownSensors]);
   const nativeLocoNet = info?.type === "loconet";
   const ln = info?.locoNetDiagnostics;
   const knownYamorc = info?.type === "z21" && info?.profile === "yamorc7010";
@@ -208,27 +225,29 @@ export default function RailComDebugTab({ opened }: Props) {
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
-          {entries.length === 0 ? (
+          {displayedRows.length === 0 ? (
             <Table.Tr><Table.Td colSpan={7}>
               <Text c="dimmed" ta="center" py="lg">
                 {snapshotAt
-                  ? "No locomotive addresses currently reported as present."
+                  ? "No RailCom detectors observed during this session."
                   : "Waiting for RailCom state from the Hub."}
               </Text>
             </Table.Td></Table.Tr>
-          ) : entries.map(entry => (
+          ) : displayedRows.map(entry => (
             <Table.Tr key={String(entry.sensorAddress) + ":" + String(entry.locomotiveAddress)}>
               <Table.Td>{entry.sensorAddress}</Table.Td>
-              <Table.Td>#{entry.locomotiveAddress}</Table.Td>
-              <Table.Td><Badge color="green" variant="light">Occupied</Badge></Table.Td>
+              <Table.Td>{entry.locomotiveAddress > 0 ? `#${entry.locomotiveAddress}` : "0"}</Table.Td>
+              <Table.Td>{entry.locomotiveAddress > 0
+                ? <Badge color="green" variant="light">Identified</Badge>
+                : <Badge color="gray" variant="light">No ID</Badge>}</Table.Td>
               <Table.Td>
                 <Badge color={entry.orientationBit === null ? "gray" : "blue"} variant="light">
-                  {orientationLabel(entry)}
+                  {entry.locomotiveAddress > 0 ? orientationLabel(entry) : "—"}
                 </Badge>
               </Table.Td>
-              <Table.Td><Text size="xs">{orientationSourceLabel(entry.orientationSource)}</Text></Table.Td>
-              <Table.Td>{new Date(entry.lastSeenAt).toLocaleTimeString()}</Table.Td>
-              <Table.Td>{entry.source}</Table.Td>
+              <Table.Td><Text size="xs">{entry.locomotiveAddress > 0 ? orientationSourceLabel(entry.orientationSource) : "—"}</Text></Table.Td>
+              <Table.Td>{entry.lastSeenAt > 0 ? new Date(entry.lastSeenAt).toLocaleTimeString() : "—"}</Table.Td>
+              <Table.Td>{entry.source || "—"}</Table.Td>
             </Table.Tr>
           ))}
         </Table.Tbody>
@@ -237,6 +256,8 @@ export default function RailComDebugTab({ opened }: Props) {
       {infoError && <Text size="xs" c="red">Connection status: {infoError}</Text>}
       <Alert color="blue" variant="light" title="How current presence works">
         Occupied updates one locomotive per RailCom block; Left removes that locomotive.
+        Observed detectors remain listed with DCC 0 (no identified loco), which
+        does not establish physical FREE. This zero is only a UI placeholder.
         Repeated reports refresh the same row. Power OFF and command-center disconnect
         invalidate all identifiers. Refresh requests current Hub state and sends a standard
         LocoNet detector interrogation, which may not force the module to repeat locomotive
