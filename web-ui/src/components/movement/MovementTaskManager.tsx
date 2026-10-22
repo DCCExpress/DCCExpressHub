@@ -217,8 +217,22 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
         {loaded.locks && traffic.locks.length === 0 && <Text size="xs" c="dimmed">No locked turnouts.</Text>}
         {traffic.locks.map(lock => {
           const routeType = routeTypeForOwner(lock);
+          // SwitchMan and Dispatcher share the exact same owner ID for a
+          // reserved leg, so display the real locked section rather than the
+          // full Movement name (which may span many more blocks).
+          const lease = reservations.find(item => item.ownerId === lock.ownerId);
+          const fromId = lease?.fromBlockId ?? lease?.sourceBlockId;
+          const toId = lease?.toBlockId ?? lease?.destinationBlockId;
+          const route = fromId != null && toId != null
+            ? `${blockLabel(fromId)} → ${blockLabel(toId)}`
+            : null;
           return <Group key={lock.address} justify="space-between" gap="xs" wrap="nowrap">
             <Badge size="xs" color="yellow">Turnout #{lock.address}</Badge>
+            {route
+              ? <Text size="xs" truncate style={{ flex: 1, minWidth: 0 }}>{route}</Text>
+              : <Text size="xs" c="dimmed" truncate style={{ flex: 1, minWidth: 0 }}>
+                  {routeType ? "Awaiting route…" : lock.ownerName}
+                </Text>}
             {routeType && <Text size="xs" c="dimmed" fw={600}>{routeType}</Text>}
           </Group>;
         })}
