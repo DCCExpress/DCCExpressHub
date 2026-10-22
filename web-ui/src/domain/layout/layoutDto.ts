@@ -112,6 +112,7 @@ export type SerializedLayoutElementDto = {
 
   locoAddress?: number;
   sensorAddress?: number;
+  railCom?: boolean;
   blockType?: BlockType | string;
   stationId?: string | null;
   eventConfig?: BlockEventConfigDto;
@@ -372,6 +373,8 @@ export interface BlockElementDto extends TrackElementDto {
   length: number;
   locoAddress: number;
   sensorAddress: number;
+  /** If enabled, RailCom identification uses exactly sensorAddress. */
+  railCom?: boolean;
   blockType: BlockType;
   stationId?: string | null;
   eventConfig?: BlockEventConfigDto;
