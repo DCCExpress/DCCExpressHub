@@ -5,14 +5,21 @@ import type { ServerWsPayloadMap } from "@domain/wsTypes";
 import { wsClient, type WsConnectionStatus } from "@/services/wsClient";
 
 type RailComEntry = ServerWsPayloadMap["railComStateChanged"]["entries"][number];
+type LocoDirection = ServerWsPayloadMap["locoState"]["loco"]["direction"];
+
+function expectedExit(entry: RailComEntry, direction?: LocoDirection): "F" | "R" | "?" {
+  if (entry.orientationBit === null || !direction) return "?";
+  // This is the *expected* track reference direction, not a confirmed exit.
+  // 1 = facing forward, 0 = facing reverse (MultiSense placement polarity).
+  return entry.orientationBit === (direction === "forward") ? "F" : "R";
+}
 
 function senseLabel(entry: RailComEntry): string {
   if (entry.orientationBit === null) return "Unknown";
   const source = entry.orientationSource === "block" ? "B"
     : entry.orientationSource === "loco" ? "L"
       : entry.orientationSource === "long" ? "E" : "?";
-  // Preserve the raw direction-bit convention; only replace 0/1 with F/D.
-  return `${entry.orientationBit ? "D" : "F"}/${source}`;
+  return `${entry.orientationBit ? "F" : "R"}/${source}`;
 }
 
 function senseTooltip(entry: RailComEntry): string {
@@ -20,7 +27,7 @@ function senseTooltip(entry: RailComEntry): string {
   const source = entry.orientationSource === "block" ? "D0 block address"
     : entry.orientationSource === "loco" ? "D0 locomotive address"
       : entry.orientationSource === "long" ? "E0 separate direction bit" : "Unknown";
-  return `Orientation ${entry.orientationBit ? "D" : "F"} (raw bit ${entry.orientationBit ? 1 : 0}) from ${source}. Not travel direction.`;
+  return `Orientation ${entry.orientationBit ? "F" : "R"} (raw bit ${entry.orientationBit ? 1 : 0}) from ${source}. Not travel direction.`;
 }
 
 /** Compact read-only view of the backend-authoritative RailCom presence cache. */
@@ -29,8 +36,16 @@ export default function RailComLiveSensorPanel() {
   const [connection, setConnection] = useState<WsConnectionStatus>("disconnected");
   const [loaded, setLoaded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [locoDirections, setLocoDirections] = useState<Record<number, LocoDirection>>({});
 
   useEffect(() => {
+    // Replays the latest Hub direction even when this panel mounts late.
+    const stopLocos = wsClient.on("locoState", data => {
+      const { address, direction } = data.loco;
+      if (!Number.isInteger(address) || address <= 0) return;
+      setLocoDirections(current => current[address] === direction
+        ? current : { ...current, [address]: direction });
+    });
     const stopMessages = wsClient.subscribeMessages(message => {
       if (message.type === "railComStateSnapshot") {
         setEntries(message.data.entries);
@@ -50,16 +65,18 @@ export default function RailComLiveSensorPanel() {
         // A disconnected transport cannot confirm old locomotive positions.
         setLoaded(false);
         setEntries([]);
+        setLocoDirections({});
         setRefreshing(false);
       }
     });
     return () => {
+      stopLocos();
       stopMessages();
       stopStatus();
     };
   }, []);
 
-  const sorted = useMemo(() => [...entries].sort(
+  const sorted = useMemo(() => entries.filter(entry => entry.locomotiveAddress > 0).sort(
     (a, b) => a.sensorAddress - b.sensorAddress ||
       a.locomotiveAddress - b.locomotiveAddress,
   ), [entries]);
@@ -89,16 +106,17 @@ export default function RailComLiveSensorPanel() {
         style={{ fontSize: 11, tableLayout: "fixed" }}>
         <Table.Thead>
           <Table.Tr>
-            <Table.Th>RC sensor</Table.Th>
+            <Table.Th>RC</Table.Th>
             <Table.Th>DCC</Table.Th>
-            <Table.Th>State</Table.Th>
             <Table.Th>Sense</Table.Th>
+            <Table.Th>Dir</Table.Th>
+            <Table.Th>Exit</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
           {sorted.length === 0 ? (
             <Table.Tr>
-              <Table.Td colSpan={4}>
+              <Table.Td colSpan={5}>
                 <Text size="xs" c="dimmed" ta="center" py="xs">
                   {!loaded ? "Waiting for RailCom snapshot..." : "No locomotives identified"}
                 </Text>
@@ -109,14 +127,25 @@ export default function RailComLiveSensorPanel() {
               <Table.Td>{entry.sensorAddress}</Table.Td>
               <Table.Td>#{entry.locomotiveAddress}</Table.Td>
               <Table.Td>
-                <Tooltip label={`Last RailCom report: ${new Date(entry.lastSeenAt).toLocaleTimeString()}`}>
-                  <Badge size="xs" variant="light" color="green">Present</Badge>
-                </Tooltip>
-              </Table.Td>
-              <Table.Td>
                 <Tooltip multiline maw={260} label={senseTooltip(entry)}>
                   <Text size="xs" c={entry.orientationBit === null ? "dimmed" : "blue"}>
                     {senseLabel(entry)}
+                  </Text>
+                </Tooltip>
+              </Table.Td>
+              <Table.Td>
+                <Tooltip label={`Hub DCC direction for #${entry.locomotiveAddress}`}>
+                  <Text size="xs" c="dimmed">
+                    {locoDirections[entry.locomotiveAddress] === "forward" ? "F"
+                      : locoDirections[entry.locomotiveAddress] === "reverse" ? "R" : "?"}
+                  </Text>
+                </Tooltip>
+              </Table.Td>
+              <Table.Td>
+                <Tooltip multiline maw={280} label="Predicted departure from RailCom orientation + current DCC direction. Not a confirmed block exit; calibrate each detector reference before use in automation.">
+                  <Text size="xs" fw={700}
+                    c={expectedExit(entry, locoDirections[entry.locomotiveAddress]) === "?" ? "dimmed" : "teal"}>
+                    {expectedExit(entry, locoDirections[entry.locomotiveAddress])}
                   </Text>
                 </Tooltip>
               </Table.Td>
@@ -125,8 +154,9 @@ export default function RailComLiveSensorPanel() {
         </Table.Tbody>
       </Table>
       <Text size="xs" c="dimmed">
-        Sense: F/D = orientation bit (0 → F, 1 → D), B = block, L = loco, E = long; Unknown = no direction.
-        RailCom presence does not replace occupancy feedback.
+        Sense: F/R = physical orientation (1 → F, 0 → R); B = block, L = loco, E = long.
+        Dir = current DCC command; Exit = predicted departure (not measured). ? = unknown.
+        Rows indicate RailCom identification, not physical occupancy.
       </Text>
     </>
   );
