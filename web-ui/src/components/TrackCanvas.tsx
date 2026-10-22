@@ -42,6 +42,7 @@ import {
   subscribeTrainTrackingPredictions,
 } from "../services/trainTrackingPredictionRuntime";
 import { wsClient } from "../services/wsClient";
+import { subscribeRailComSensorChanges } from "../services/railComSensorRuntime";
 import "../styles/TrackCanvas.css";
 
 import {
@@ -544,6 +545,10 @@ export default function TrackCanvas({
       onInvalidate();
     });
   }, [onInvalidate]);
+
+  // RailCom badges must update on Detected/Lost and when snapshots reset.
+  // One shared cache coalesces repeated reports without constant redraws.
+  useEffect(() => subscribeRailComSensorChanges(invalidate), [invalidate]);
 
   useEffect(() => {
     void fastClockStore.ensureLoaded();
