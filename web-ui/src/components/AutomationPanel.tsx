@@ -304,6 +304,7 @@ export default function AutomationPanel({
             locos={
               locos
             }
+            layout={layout}
           />
         </Tabs.Panel>
       </Stack>
