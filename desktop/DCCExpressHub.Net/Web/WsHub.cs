@@ -68,28 +68,40 @@ public sealed class WsHub
     // diagnostic state, not occupancy authority for Dispatcher/SwitchMan.
     private readonly object _railComStateGate = new();
     private readonly Dictionary<(int Block, int Loco), RailComPresence> _railComPresent = new();
+    // A Lost report removes the locomotive, not the physical RailCom detector.
+    // Keep detectors observed in this powered session so empty blocks remain
+    // visible in both live monitors, including after a browser refresh.
+    private readonly HashSet<int> _railComObservedSensors = new();
     private sealed record RailComPresence(
         int SensorAddress, int LocomotiveAddress, long LastSeenAt, string Source,
         bool? OrientationBit, string OrientationSource);
+    private sealed record RailComLiveState(
+        RailComPresence[] Entries, int[] KnownSensors);
 
-    private RailComPresence[] GetRailComPresence()
+    private RailComLiveState GetRailComState()
     {
         lock (_railComStateGate)
-            return _railComPresent.Values
-                .OrderBy(x => x.SensorAddress)
-                .ThenBy(x => x.LocomotiveAddress)
-                .ToArray();
+            return new RailComLiveState(
+                _railComPresent.Values
+                    .OrderBy(x => x.SensorAddress)
+                    .ThenBy(x => x.LocomotiveAddress)
+                    .ToArray(),
+                _railComObservedSensors.Order().ToArray());
     }
 
     private void ClearRailComPresence()
     {
         lock (_railComStateGate)
         {
-            if (_railComPresent.Count == 0) return;
+            if (_railComPresent.Count == 0 && _railComObservedSensors.Count == 0) return;
             _railComPresent.Clear();
+            _railComObservedSensors.Clear();
         }
-        QueueStateBroadcast("railComStateChanged", new { entries = Array.Empty<RailComPresence>() },
-            resyncOnDrop: false);
+        QueueStateBroadcast("railComStateChanged", new
+        {
+            entries = Array.Empty<RailComPresence>(),
+            knownSensors = Array.Empty<int>()
+        }, resyncOnDrop: false);
     }
     private const int ProgrammingTimeoutMs = 24000;
     private static readonly TimeSpan WebSocketSendTimeout = TimeSpan.FromSeconds(2);
@@ -242,6 +254,7 @@ public sealed class WsHub
                     // removes that locomotive from that RailCom block.
                     lock (_railComStateGate)
                     {
+                        _railComObservedSensors.Add(sensorAddress);
                         var key = (sensorAddress, locomotiveAddress);
                         if (tokens[3] == "Detected")
                             _railComPresent[key] = new RailComPresence(
@@ -251,8 +264,12 @@ public sealed class WsHub
                         else
                             _railComPresent.Remove(key);
                     }
-                    QueueStateBroadcast("railComStateChanged",
-                        new { entries = GetRailComPresence() }, resyncOnDrop: false);
+                    var railComState = GetRailComState();
+                    QueueStateBroadcast("railComStateChanged", new
+                    {
+                        entries = railComState.Entries,
+                        knownSensors = railComState.KnownSensors
+                    }, resyncOnDrop: false);
                 }
                 return;
             }
@@ -905,9 +922,11 @@ public sealed class WsHub
                     var interrogationSent = interrogate &&
                         CommandCenter.Connected &&
                         await CommandCenter.RequestSensorSnapshotAsync(ct);
+                    var railComStateSnapshot = GetRailComState();
                     await Send(ws, "railComStateSnapshot", new
                     {
-                        entries = GetRailComPresence(),
+                        entries = railComStateSnapshot.Entries,
+                        knownSensors = railComStateSnapshot.KnownSensors,
                         senseMode = RailComSense.ModeName,
                         interrogationRequested = interrogate,
                         interrogationSent
