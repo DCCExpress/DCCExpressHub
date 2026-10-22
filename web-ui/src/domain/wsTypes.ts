@@ -149,6 +149,7 @@ export const CLIENT_WS_MESSAGE_TYPES = [
   "setBlocksReset",
   "getBlocks",
   "getLayoutRuntimeSnapshot",
+  "getRailComDebug",
   "routeLock",
   "routeUnlock",
   "reserveRoute",
@@ -542,6 +543,19 @@ export type ServerWsPayloadMap = {
   "ws:welcome": { message: string };
   heartbeatAck: Record<string, never>;
   rawInfo: { raw: string };
+  railComDetected: {
+    sequence: number;
+    timestamp: number;
+    sensorAddress: number;
+    locomotiveAddress: number;
+    source: string;
+    event: string;
+    rawPacket: string | null;
+  };
+  railComDebugSnapshot: {
+    events: Array<ServerWsPayloadMap["railComDetected"]>;
+    rawFrames: Array<{ sequence: number; timestamp: number; rawPacket: string }>;
+  };
   ack: string;
   error: { message: string };
   commandRejected: CommandRejectedPayload;
