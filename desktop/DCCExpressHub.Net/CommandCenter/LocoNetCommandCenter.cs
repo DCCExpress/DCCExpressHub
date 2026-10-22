@@ -168,11 +168,6 @@ public sealed class LocoNetCommandCenter : BackgroundService, ICommandCenter
     private void ProcessPacket(ReadOnlySpan<byte> rawPacket)
     {
         if (rawPacket.Length < 2) return;
-        // Observe even unrecognized / checksum-invalid MultiSense frames.
-        // Otherwise a blank RailCom tab cannot distinguish transport silence
-        // from a decoder rejecting the packet.
-        if (rawPacket[0] is 0xD0 or 0xE0)
-            RawInfo?.Invoke("RAILCOM_FRAME " + Convert.ToHexString(rawPacket));
         byte checksum = 0;
         foreach (var value in rawPacket) checksum ^= value;
         if (checksum != 0xFF)
