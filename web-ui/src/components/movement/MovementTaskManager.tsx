@@ -20,10 +20,10 @@ type Traffic = { locks: Lock[]; leases: Lease[]; routes: Lease[] };
 const emptyTraffic: Traffic = { locks: [], leases: [], routes: [] };
 type Props = { document: MovementDocument; locos: Loco[]; layout: LayoutView };
 
-// Identify the running task from its stable owner ID, not its user-editable name.
-function dispatcherRouteType(lease: Lease): "QR" | "SR" | "S2S" | null {
-  const ownerId = lease.ownerId.toLowerCase();
-  const ownerName = lease.ownerName.toLowerCase();
+// Reuse the same classification for Dispatcher leases and SwitchMan locks.
+function routeTypeForOwner(owner: Pick<Lease, "ownerId" | "ownerName">): "QR" | "SR" | "S2S" | null {
+  const ownerId = owner.ownerId.toLowerCase();
+  const ownerName = owner.ownerName.toLowerCase();
   if (ownerId.includes("sequence-step-") || ownerName.includes("sequential movement"))
     return "SR";
   if (ownerId.includes("quick-route-loco-")) {
@@ -206,7 +206,7 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
         <Text size="sm" fw={600}>Dispatcher</Text>
         {loaded.dispatcher && reservations.length === 0 && <Text size="xs" c="dimmed">No active reservations.</Text>}
         {reservations.map((lease, index) => {
-          const routeType = dispatcherRouteType(lease);
+          const routeType = routeTypeForOwner(lease);
           return <Group key={lease.ownerId + index} justify="space-between" gap="xs" wrap="nowrap">
             <Text size="xs" truncate style={{ minWidth: 0 }}>Loco #{lease.locoAddress}: {blockLabel(lease.fromBlockId ?? lease.sourceBlockId)} → {blockLabel(lease.toBlockId ?? lease.destinationBlockId)}</Text>
             {routeType && <Text size="xs" c="dimmed" fw={600}>{routeType}</Text>}
@@ -215,12 +215,13 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
         <Divider my="xs"/>
         <Text size="sm" fw={600}>SwitchMan</Text>
         {loaded.locks && traffic.locks.length === 0 && <Text size="xs" c="dimmed">No locked turnouts.</Text>}
-        {traffic.locks.map(lock => (
-          <Group key={lock.address} justify="space-between" gap="xs">
+        {traffic.locks.map(lock => {
+          const routeType = routeTypeForOwner(lock);
+          return <Group key={lock.address} justify="space-between" gap="xs" wrap="nowrap">
             <Badge size="xs" color="yellow">Turnout #{lock.address}</Badge>
-            <Text size="xs" c="dimmed">{lock.ownerName}</Text>
-          </Group>
-        ))}
+            {routeType && <Text size="xs" c="dimmed" fw={600}>{routeType}</Text>}
+          </Group>;
+        })}
         {waiting.length > 0 && <>
           <Divider my="xs"/>
           <Text size="sm" fw={600}>Why waiting?</Text>
