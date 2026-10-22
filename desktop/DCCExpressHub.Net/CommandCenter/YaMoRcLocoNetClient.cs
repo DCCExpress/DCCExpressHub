@@ -1098,7 +1098,7 @@ public sealed class YaMoRcLocoNetClient
             var hubSensor = detection.SensorAddress + _sensorOffset;
             if (hubSensor is >= 1 and <= 65535)
                 RawInfo?.Invoke(
-                    $"RAILCOM_EVENT {hubSensor} {detection.LocomotiveAddress} {(detection.Present ? "Detected" : "Lost")} {Convert.ToHexString(packet)}");
+                    $"RAILCOM_EVENT {hubSensor} {detection.LocomotiveAddress} {(detection.Present ? "Detected" : "Lost")}");
         }
     }
 
