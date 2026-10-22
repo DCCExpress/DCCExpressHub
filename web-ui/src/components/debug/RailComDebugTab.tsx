@@ -111,8 +111,8 @@ export default function RailComDebugTab({ opened }: Props) {
           <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="xs">
             {card("RailCom events received", total, "This tab session only")}
             {card("Recent DCC addresses", recentLocos, "Distinct in retained log")}
-            {card("Recent sensor addresses", recentSensors, "Distinct in retained log")}
-            {card("Last RailCom event", last ? new Date(last.timestamp).toLocaleTimeString() : "Never", last ? `#${last.locomotiveAddress} · sensor ${last.sensorAddress}` : "No identification received")}
+            {card("Recent RailCom blocks", recentSensors, "Distinct in retained log")}
+            {card("Last RailCom event", last ? new Date(last.timestamp).toLocaleTimeString() : "Never", last ? `#${last.locomotiveAddress} · block ${last.sensorAddress}` : "No identification received")}
           </SimpleGrid>
           <Paper withBorder p="sm">
             <Group justify="space-between" mb="xs">
@@ -135,14 +135,14 @@ export default function RailComDebugTab({ opened }: Props) {
                 <>
                   <Text size="sm">LocoNet LBServer: <strong>{transportStatus}</strong></Text>
                   <Text size="sm">Endpoint: <strong>{ln ? `${ln.host}:${ln.lbServerPort}` : "Unavailable"}</strong></Text>
-              <Text size="sm">LBServer version: <strong>{ln?.lbServerVersion || "Unavailable"}</strong></Text>
-              <Text size="sm">Connection uptime: <strong>{ln && ln.lbServerUptimeMs >= 0 ? elapsed(ln.lbServerUptimeMs).replace(" ago", "") : "Unavailable"}</strong></Text>
-              <Text size="sm">LBServer lines received: <strong>{ln?.lbServerLinesObserved ?? "Unavailable"}</strong></Text>
-              <Text size="sm">Last LocoNet RX: <strong>{elapsed(ln?.lastLbServerRxAgeMs)}</strong></Text>
-              <Text size="sm">Occupancy reports: <strong>{ln?.sensorFeedbackCount ?? "Unavailable"}</strong></Text>
-              <Text size="sm">Last occupancy feedback: <strong>{elapsed(ln?.lastSensorFeedbackAgeMs)}</strong></Text>
-              <Text size="sm">Last sensor interrogation: <strong>{elapsed(ln?.lastInterrogateAgeMs)}</strong></Text>
-              <Text size="sm">Binary feedback: <strong>{ln ? (ln.binaryFeedbackEnabled ? "Enabled" : "Disabled") : "Unavailable"}</strong></Text>
+                  <Text size="sm">LBServer version: <strong>{ln?.lbServerVersion || "Unavailable"}</strong></Text>
+                  <Text size="sm">Connection uptime: <strong>{ln && ln.lbServerUptimeMs >= 0 ? elapsed(ln.lbServerUptimeMs).replace(" ago", "") : "Unavailable"}</strong></Text>
+                  <Text size="sm">LBServer lines received: <strong>{ln?.lbServerLinesObserved ?? "Unavailable"}</strong></Text>
+                  <Text size="sm">Last LocoNet RX: <strong>{elapsed(ln?.lastLbServerRxAgeMs)}</strong></Text>
+                  <Text size="sm">Occupancy reports: <strong>{ln?.sensorFeedbackCount ?? "Unavailable"}</strong></Text>
+                  <Text size="sm">Last occupancy feedback: <strong>{elapsed(ln?.lastSensorFeedbackAgeMs)}</strong></Text>
+                  <Text size="sm">Last sensor interrogation: <strong>{elapsed(ln?.lastInterrogateAgeMs)}</strong></Text>
+                  <Text size="sm">Binary feedback: <strong>{ln ? (ln.binaryFeedbackEnabled ? "Enabled" : "Disabled") : "Unavailable"}</strong></Text>
                 </>
               )}
             </SimpleGrid>
@@ -161,7 +161,7 @@ export default function RailComDebugTab({ opened }: Props) {
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Time</Table.Th>
-                <Table.Th>Sensor</Table.Th>
+                <Table.Th>RailCom block</Table.Th>
                 <Table.Th>DCC address</Table.Th>
                 <Table.Th>Event</Table.Th>
                 <Table.Th>Source</Table.Th>
