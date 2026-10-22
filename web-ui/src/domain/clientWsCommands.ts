@@ -485,6 +485,7 @@ export type ClientWsPayloadMap = {
   getBlocks: EmptyClientWsCommandPayload;
   getLayoutRuntimeSnapshot: EmptyClientWsCommandPayload;
   getRailComDebug: { interrogate?: boolean };
+  setRailComSenseMode: { mode: "off" | "block" | "loco" };
 
   routeLock: EmptyClientWsCommandPayload;
   routeUnlock: EmptyClientWsCommandPayload;
