@@ -543,18 +543,17 @@ export type ServerWsPayloadMap = {
   "ws:welcome": { message: string };
   heartbeatAck: Record<string, never>;
   rawInfo: { raw: string };
-  railComDetected: {
-    sequence: number;
-    timestamp: number;
-    sensorAddress: number;
-    locomotiveAddress: number;
-    source: string;
-    event: string;
-    rawPacket: string | null;
+  railComStateChanged: {
+    entries: Array<{
+      sensorAddress: number;
+      locomotiveAddress: number;
+      lastSeenAt: number;
+      source: string;
+    }>;
   };
-  railComDebugSnapshot: {
-    events: Array<ServerWsPayloadMap["railComDetected"]>;
-    rawFrames: Array<{ sequence: number; timestamp: number; rawPacket: string }>;
+  railComStateSnapshot: ServerWsPayloadMap["railComStateChanged"] & {
+    interrogationRequested: boolean;
+    interrogationSent: boolean;
   };
   ack: string;
   error: { message: string };
