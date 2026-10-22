@@ -707,7 +707,7 @@ function LitePropertyPanel({
               <NumberInput
                 label={
                   i18next.t(
-                    "ui.occupancySensorAddress"
+                    "ui.sensorAddress"
                   )
                 }
                 min={0}
