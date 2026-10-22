@@ -1024,10 +1024,6 @@ public sealed class YaMoRcLocoNetClient
         if (packet.Length < 2)
             return;
 
-        // Diagnostics must see D0/E0 even if the address decoder rejects it.
-        if (packet[0] is 0xD0 or 0xE0)
-            RawInfo?.Invoke("RAILCOM_FRAME " + Convert.ToHexString(packet));
-
         var observed =
             Interlocked.Increment(
                 ref _binaryPacketsObserved);
