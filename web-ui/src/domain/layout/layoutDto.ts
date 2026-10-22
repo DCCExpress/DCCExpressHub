@@ -282,6 +282,8 @@ export interface TrackTurnoutThreeWayElementDto extends TrackElementDto {
 
 export interface TrackSensorElementDto extends TrackElementDto {
   type: "tracksensor";
+  /** RailCom identification shares the sensor address, not a separate address. */
+  railCom?: boolean;
   kind: SensorKindDto;
   colorOn: string;
   colorOff: string;
