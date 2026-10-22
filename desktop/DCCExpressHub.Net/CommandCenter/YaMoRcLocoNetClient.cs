@@ -30,6 +30,7 @@ public sealed class YaMoRcLocoNetClient
     private readonly bool _lbServerEnabled;
     private readonly bool _binaryFeedbackEnabled;
     private readonly int _sensorOffset;
+    private readonly bool _railComDirectionInBlockAddress;
 
     private readonly object _stateGate = new();
     private readonly Dictionary<int, bool> _loggedSensorStates = new();
@@ -103,6 +104,8 @@ public sealed class YaMoRcLocoNetClient
                     0),
                 0,
                 MaxSensorOffset);
+
+        _railComDirectionInBlockAddress = configuration.GetValue("LocoNet:RailComDirectionInBlockAddress", true);
     }
 
     public int SensorOffset => _sensorOffset;
@@ -1093,7 +1096,7 @@ public sealed class YaMoRcLocoNetClient
 
         // RailCom identification is not an occupancy change.
         // Keep a distinct event, carried to the WebSocket diagnostics bridge.
-        if (RailComFrameDecoder.TryDecode(packet, out var detection))
+        if (RailComFrameDecoder.TryDecode(packet, out var detection, _railComDirectionInBlockAddress))
         {
             var hubSensor = detection.SensorAddress + _sensorOffset;
             if (hubSensor is >= 1 and <= 65535)
