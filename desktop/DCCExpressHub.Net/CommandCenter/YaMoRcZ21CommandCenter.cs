@@ -16,7 +16,8 @@ public sealed class YaMoRcZ21CommandCenter : RocoZ21CommandCenter
 
     public YaMoRcZ21CommandCenter(
         IConfiguration configuration,
-        ILogger<YaMoRcZ21CommandCenter> log)
+        ILogger<YaMoRcZ21CommandCenter> log,
+        RailComSenseSettings railComSense)
         : base(
             configuration,
             log,
@@ -25,7 +26,8 @@ public sealed class YaMoRcZ21CommandCenter : RocoZ21CommandCenter
         _locoNet =
             new YaMoRcLocoNetClient(
                 configuration,
-                log);
+                log,
+                railComSense);
 
         // Both protocols publish absolute Hub sensor addresses. When offsets
         // overlap, different physical inputs can write the very same address.
