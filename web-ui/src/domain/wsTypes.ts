@@ -553,6 +553,8 @@ export type ServerWsPayloadMap = {
       orientationBit: boolean | null;
       orientationSource: "none" | "block" | "loco" | "long";
     }>;
+    /** Detectors observed since the last RailCom state reset, including empty ones. */
+    knownSensors: number[];
   };
   railComStateSnapshot: ServerWsPayloadMap["railComStateChanged"] & {
     senseMode: "off" | "block" | "loco";
