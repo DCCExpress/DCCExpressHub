@@ -189,13 +189,15 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
       });
       if (candidates.some(page => !page.routeRef))
         throw new Error("The selected station paths have no valid travel direction.");
+      const firstPage = candidates[0];
+      if (!firstPage) throw new Error("No valid station route candidate available.");
       const driverTaskId = `train-driver-${selectedLoco.locoAddress}-${Date.now()}`;
       const requestId = `train-driver-start-${Date.now()}`;
       const result = await wsApi.request(
         "trainDriverCommand",
         automatic
           ? { requestId, action: "startStation", taskId: driverTaskId, candidates }
-          : { requestId, action: "start", taskId: driverTaskId, page: candidates[0] },
+          : { requestId, action: "start", taskId: driverTaskId, page: firstPage },
         "trainDriverResponse",
         response => response.requestId === requestId,
         10000
