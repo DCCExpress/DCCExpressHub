@@ -63,6 +63,17 @@ public sealed class WsHub
         public required Guid ConnectionId { get; init; }
     }
     private long _programmingToken;
+    // Retain a bounded diagnostic history even while no browser is connected.
+    // These entries are observations only, never authoritative block locations.
+    private readonly object _railComDebugGate = new();
+    private readonly List<RailComDebugEntry> _railComEvents = new();
+    private readonly List<RailComFrameEntry> _railComRawFrames = new();
+    private long _railComSequence;
+    private const int RailComHistoryLimit = 200;
+    private sealed record RailComDebugEntry(
+        long Sequence, long Timestamp, int SensorAddress, int LocomotiveAddress,
+        string Source, string Event, string? RawPacket);
+    private sealed record RailComFrameEntry(long Sequence, long Timestamp, string RawPacket);
     private const int ProgrammingTimeoutMs = 24000;
     private static readonly TimeSpan WebSocketSendTimeout = TimeSpan.FromSeconds(2);
     public int ClientCount => Clients.Count;
@@ -193,8 +204,26 @@ public sealed class WsHub
 
         cc.RawInfo += raw =>
         {
-            // Temporary bridge for YaMoRC LocoNet RailCom feedback; kept
-            // separate from all occupancy and Dispatcher safety signals.
+            // Always retain both raw packets and decoded address events.
+            // The browser may open the RailCom tab long after the locomotive
+            // first entered the block; WebSocket-only events lose that history.
+            if (raw.StartsWith("RAILCOM_FRAME ", StringComparison.Ordinal))
+            {
+                var packet = raw["RAILCOM_FRAME ".Length..].Trim();
+                if (packet.Length is >= 12 and <= 256 &&
+                    (packet.Length & 1) == 0 &&
+                    packet.All(Uri.IsHexDigit))
+                {
+                    lock (_railComDebugGate)
+                    {
+                        _railComRawFrames.Insert(0, new RailComFrameEntry(
+                            ++_railComSequence, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), packet));
+                        if (_railComRawFrames.Count > RailComHistoryLimit)
+                            _railComRawFrames.RemoveAt(RailComHistoryLimit);
+                    }
+                }
+                return;
+            }
             if (raw.StartsWith("RAILCOM_EVENT ", StringComparison.Ordinal))
             {
                 var tokens = raw.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -204,14 +233,18 @@ public sealed class WsHub
                     sensorAddress is >= 1 and <= 65535 &&
                     locomotiveAddress is >= 1 and <= 10239)
                 {
-                    QueueStateBroadcast("railComDetected", new
+                    RailComDebugEntry entry;
+                    lock (_railComDebugGate)
                     {
-                        sensorAddress,
-                        locomotiveAddress,
-                        source = "LocoNet",
-                        @event = tokens[3],
-                        rawPacket = tokens.Length == 5 ? tokens[4] : null
-                    }, resyncOnDrop: false);
+                        entry = new RailComDebugEntry(
+                            ++_railComSequence, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                            sensorAddress, locomotiveAddress, "LocoNet", tokens[3],
+                            tokens.Length == 5 ? tokens[4] : null);
+                        _railComEvents.Insert(0, entry);
+                        if (_railComEvents.Count > RailComHistoryLimit)
+                            _railComEvents.RemoveAt(RailComHistoryLimit);
+                    }
+                    QueueStateBroadcast("railComDetected", entry, resyncOnDrop: false);
                 }
                 return;
             }
@@ -832,6 +865,20 @@ public sealed class WsHub
                     await Send(ws, "heartbeatAck", new { });
                     await SendCommandCenterInfo(ws);
                     await SendPower(ws);
+                    return;
+                case "getRailComDebug":
+                    RailComDebugEntry[] recentEvents;
+                    RailComFrameEntry[] recentRawFrames;
+                    lock (_railComDebugGate)
+                    {
+                        recentEvents = _railComEvents.ToArray();
+                        recentRawFrames = _railComRawFrames.ToArray();
+                    }
+                    await Send(ws, "railComDebugSnapshot", new
+                    {
+                        events = recentEvents,
+                        rawFrames = recentRawFrames
+                    });
                     return;
                 case "fastClockCommand":
                     await HandleFastClockCommand(ws, data);
