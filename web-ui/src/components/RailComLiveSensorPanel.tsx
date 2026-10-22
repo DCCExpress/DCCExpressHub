@@ -7,19 +7,23 @@ import { wsClient, type WsConnectionStatus } from "@/services/wsClient";
 type RailComEntry = ServerWsPayloadMap["railComStateChanged"]["entries"][number];
 
 function senseLabel(entry: RailComEntry): string {
-  if (entry.orientationBit === null) return "Unknown";
-  const source = entry.orientationSource === "block" ? "B"
-    : entry.orientationSource === "loco" ? "L"
-      : entry.orientationSource === "long" ? "E" : "?";
-  return `${entry.orientationBit ? "1" : "0"}/${source}`;
+  if (entry.orientationBit === null) return "?";
+  // D0 stores rerailing orientation (F/R) in either the block or loco address.
+  if (entry.orientationSource === "block" || entry.orientationSource === "loco")
+    return entry.orientationBit ? "F" : "R";
+  // E0 explicitly describes the detector-relative direction as East/West.
+  if (entry.orientationSource === "long")
+    return entry.orientationBit ? "W" : "E";
+  return "?";
 }
 
 function senseTooltip(entry: RailComEntry): string {
-  if (entry.orientationBit === null) return "No direction data (Sense direction Off)";
+  if (entry.orientationBit === null) return "RailCom orientation unknown (no direction transmitted).";
   const source = entry.orientationSource === "block" ? "D0 block address"
     : entry.orientationSource === "loco" ? "D0 locomotive address"
       : entry.orientationSource === "long" ? "E0 separate direction bit" : "Unknown";
-  return `Orientation bit ${entry.orientationBit ? 1 : 0} from ${source}. Not travel direction.`;
+  const direction = senseLabel(entry);
+  return `RailCom physical orientation: ${direction} (bit ${entry.orientationBit ? 1 : 0}; ${source}). Not the DCC forward/reverse command or the direction of travel.`;
 }
 
 /** Compact read-only view of the backend-authoritative RailCom presence cache. */
@@ -91,7 +95,7 @@ export default function RailComLiveSensorPanel() {
             <Table.Th>RC sensor</Table.Th>
             <Table.Th>DCC</Table.Th>
             <Table.Th>State</Table.Th>
-            <Table.Th>Sense</Table.Th>
+            <Table.Th>Orient.</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
@@ -124,8 +128,8 @@ export default function RailComLiveSensorPanel() {
         </Table.Tbody>
       </Table>
       <Text size="xs" c="dimmed">
-        Sense: 0/1 = orientation bit, B = block, L = loco, E = long; Unknown = no direction.
-        RailCom presence does not replace occupancy feedback.
+        Orient.: F/R = RailCom placement orientation (D0), E/W = detector-relative direction (E0),
+        ? = Unknown. This is not the DCC driving direction. RailCom does not replace occupancy feedback.
       </Text>
     </>
   );
