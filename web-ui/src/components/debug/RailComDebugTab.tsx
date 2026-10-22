@@ -4,6 +4,7 @@ import { getCommandCenterInfo, type CommandCenterInfo } from "@/api/commandCente
 import { wsClient } from "@/services/wsClient";
 
 type RailComEvent = {
+  sequence: number;
   timestamp: number;
   sensorAddress: number;
   locomotiveAddress: number;
@@ -11,24 +12,52 @@ type RailComEvent = {
   event: string;
   rawPacket?: string;
 };
+type RailComRawFrame = {
+  sequence: number;
+  timestamp: number;
+  rawPacket: string;
+};
 type Props = { opened: boolean };
+
+const validHex = (value: unknown): value is string =>
+  typeof value === "string" && /^(?:[0-9a-fA-F]{2}){2,128}$/.test(value);
+
+function mergeRecent<T extends { sequence: number }>(current: T[], incoming: T[]): T[] {
+  const bySequence = new Map<number, T>();
+  for (const entry of [...current, ...incoming]) bySequence.set(entry.sequence, entry);
+  return [...bySequence.values()].sort((a, b) => b.sequence - a.sequence).slice(0, 200);
+}
+
+function parseRawFrame(data: unknown): RailComRawFrame | null {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  const item = data as Record<string, unknown>;
+  const sequence = Number(item.sequence);
+  const timestamp = Number(item.timestamp);
+  if (!Number.isSafeInteger(sequence) || sequence < 1 ||
+      !Number.isFinite(timestamp) || timestamp <= 0 ||
+      !validHex(item.rawPacket)) return null;
+  return { sequence, timestamp, rawPacket: item.rawPacket };
+}
 
 function parseEvent(data: unknown): RailComEvent | null {
   if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
   const item = data as Record<string, unknown>;
+  const sequence = Number(item.sequence);
+  const timestamp = Number(item.timestamp);
   const sensorAddress = Number(item.sensorAddress);
   const locomotiveAddress = Number(item.locomotiveAddress);
-  if (!Number.isInteger(sensorAddress) || sensorAddress < 1 || sensorAddress > 65535 ||
+  if (!Number.isSafeInteger(sequence) || sequence < 1 ||
+      !Number.isFinite(timestamp) || timestamp <= 0 ||
+      !Number.isInteger(sensorAddress) || sensorAddress < 1 || sensorAddress > 65535 ||
       !Number.isInteger(locomotiveAddress) || locomotiveAddress < 1 || locomotiveAddress > 10239) return null;
   return {
-    timestamp: Date.now(),
+    sequence,
+    timestamp,
     sensorAddress,
     locomotiveAddress,
     source: typeof item.source === "string" ? item.source : "Unknown",
     event: typeof item.event === "string" ? item.event : "Detected",
-    ...(typeof item.rawPacket === "string" && /^(?:[0-9a-fA-F]{2}){2,128}$/.test(item.rawPacket)
-      ? { rawPacket: item.rawPacket }
-      : {}),
+    ...(validHex(item.rawPacket) ? { rawPacket: item.rawPacket } : {}),
   };
 }
 
@@ -40,7 +69,7 @@ function elapsed(ms?: number) {
 
 export default function RailComDebugTab({ opened }: Props) {
   const [events, setEvents] = useState<RailComEvent[]>([]);
-  const [total, setTotal] = useState(0);
+  const [rawFrames, setRawFrames] = useState<RailComRawFrame[]>([]);
   const [info, setInfo] = useState<CommandCenterInfo | null>(null);
   const [infoError, setInfoError] = useState("");
   const [lastRefresh, setLastRefresh] = useState<number | null>(null);
@@ -61,14 +90,22 @@ export default function RailComDebugTab({ opened }: Props) {
     refresh();
     const ticker = window.setInterval(refresh, 5000);
     const unsubscribe = wsClient.subscribeMessages(message => {
-      const raw = message as unknown as { type?: string; data?: unknown };
-      if (raw.type !== "railComDetected") return;
-      const event = parseEvent(raw.data);
-      if (!event) return;
-      setTotal(previous => previous + 1);
-      setEvents(previous => [event, ...previous].slice(0, 200));
+      if (message.type === "railComDebugSnapshot") {
+        const history = message.data.events.map(parseEvent).filter((event): event is RailComEvent => event !== null);
+        const frames = message.data.rawFrames.map(parseRawFrame).filter((frame): frame is RailComRawFrame => frame !== null);
+        setEvents(previous => mergeRecent(previous, history));
+        setRawFrames(previous => mergeRecent(previous, frames));
+      } else if (message.type === "railComDetected") {
+        const event = parseEvent(message.data);
+        if (event) setEvents(previous => mergeRecent(previous, [event]));
+      }
     });
-    return () => { live = false; window.clearInterval(ticker); unsubscribe(); };
+    // subscribeStatus immediately delivers the current state, so opening the
+    // dialog retrieves events that arrived before the browser/tab existed.
+    const unsubscribeStatus = wsClient.subscribeStatus(status => {
+      if (status === "connected") wsClient.send({ type: "getRailComDebug", data: {} });
+    });
+    return () => { live = false; window.clearInterval(ticker); unsubscribe(); unsubscribeStatus(); };
   }, [opened]);
 
   // This is a recent-event view, not an authoritative train-location cache.
@@ -102,17 +139,17 @@ export default function RailComDebugTab({ opened }: Props) {
           <Badge color={transportConnected ? "green" : "gray"} variant="light">
             LocoNet: {transportStatus}
           </Badge>
-          <Button size="xs" variant="light" onClick={() => { setEvents([]); setTotal(0); }}>
-            Clear events
+          <Button size="xs" variant="light" onClick={() => { setEvents([]); setRawFrames([]); }}>
+            Clear view
           </Button>
         </Group>
       </Group>
       <ScrollArea style={{ flex: 1, minHeight: 0 }} type="auto">
         <Stack gap="sm">
           <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="xs">
-            {card("RailCom events received", total, "This tab session only")}
-            {card("Recent DCC addresses", recentLocos, "Distinct in retained log")}
-            {card("Recent RailCom blocks", recentSensors, "Distinct in retained log")}
+            {card("RailCom address events", events.length, "Last 200 from Hub history")}
+            {card("Raw D0/E0 frames", rawFrames.length, "Last 200 from Hub history")}
+            {card("Recent RailCom blocks", recentSensors, `${recentLocos} distinct DCC addresses`)}
             {card("Last RailCom event", last ? new Date(last.timestamp).toLocaleTimeString() : "Never", last ? `#${last.locomotiveAddress} · block ${last.sensorAddress}` : "No identification received")}
           </SimpleGrid>
           <Paper withBorder p="sm">
@@ -188,7 +225,32 @@ export default function RailComDebugTab({ opened }: Props) {
               ))}
             </Table.Tbody>
           </Table>
-          <Text size="xs" c="dimmed">Event history is kept in browser memory only and starts when the debug dialog opens. Last-seen identification does not prove current presence.</Text>
+          <Text fw={700} size="sm">Raw LocoNet RailCom frames (last 200)</Text>
+          {rawFrames.length > 0 && events.length === 0 && (
+            <Alert color="yellow" variant="light" title="RailCom frames received, no addresses decoded">
+              D0/E0 traffic reaches the Hub, but no valid address entry/exit reports were decoded.
+              Compare the raw frames with the YaMoRC module's identified locomotive and block addresses.
+            </Alert>
+          )}
+          <Table striped highlightOnHover>
+            <Table.Thead>
+              <Table.Tr><Table.Th>Time</Table.Th><Table.Th>Opcode</Table.Th><Table.Th>Raw HEX frame</Table.Th></Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {rawFrames.length === 0 ? (
+                <Table.Tr><Table.Td colSpan={3}><Text c="dimmed" ta="center" py="md">
+                  No D0/E0 frames observed by the backend yet. Check the LocoNet transport and trigger a fresh detector event.
+                </Text></Table.Td></Table.Tr>
+              ) : rawFrames.map(frame => (
+                <Table.Tr key={frame.sequence}>
+                  <Table.Td>{new Date(frame.timestamp).toLocaleTimeString()}</Table.Td>
+                  <Table.Td>{frame.rawPacket.slice(0, 2)}</Table.Td>
+                  <Table.Td><Text size="xs" ff="monospace">{frame.rawPacket}</Text></Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+          <Text size="xs" c="dimmed">Retained only in backend memory (up to 200 of each); restarting the Hub clears it. Clear view only hides entries locally. Previous identifications do not prove current presence.</Text>
         </Stack>
       </ScrollArea>
     </Stack>
