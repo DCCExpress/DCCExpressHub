@@ -70,6 +70,7 @@ var useYaMoRcZ21 =
     commandCenterProtocol ==
     "yamorc7010";
 
+builder.Services.AddSingleton<RailComSenseSettings>();
 builder.Services.AddSingleton<HubState>();
 builder.Services.AddSingleton<LayoutRuntime>();
 builder.Services.AddSingleton<SignalAutomationEngine>();
