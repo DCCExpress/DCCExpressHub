@@ -81,11 +81,13 @@ public sealed class WsRuntimeCoordinator : BackgroundService
 
     void OnPowerFeedbackChanged(PowerFeedback feedback)
     {
-        if (!string.Equals(feedback.Target, "Main", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(feedback.Target, "Main", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(feedback.Target, "All", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(feedback.Target, "Joined", StringComparison.OrdinalIgnoreCase))
             return;
 
-        // Do not lose an already arriving sensor report to a delayed reset:
-        // mark everything UNKNOWN immediately, before requesting a fresh scan.
+        // Serialize the power transition with incoming sensor feedback. An OFF
+        // report arriving just after power loss must not turn UNKNOWN into FREE.
         lock (_powerResyncGate)
         {
             if (_powerOn == feedback.On)
@@ -94,9 +96,14 @@ public sealed class WsRuntimeCoordinator : BackgroundService
             _powerResyncDue = feedback.On
                 ? DateTimeOffset.UtcNow.AddMilliseconds(1500)
                 : null;
+            _runtime.InvalidateSensorStates();
         }
-        _runtime.InvalidateSensorStates();
-        _externalDevices.ReplayLiveSensorStates();
+
+        // Live external adapter feedback is valid again once track power is ON.
+        // Do not replay stale OFF values after power is switched OFF.
+        if (feedback.On)
+            _externalDevices.ReplayLiveSensorStates();
+
         _log.LogInformation("{CommandCenter} track power {Power}: sensor states UNKNOWN; {Action}",
             _cc.Name,
             feedback.On ? "ON" : "OFF",
@@ -108,11 +115,15 @@ public sealed class WsRuntimeCoordinator : BackgroundService
         if(address is <=0 or >65535)
             return;
 
-        // This is the single authoritative sensor input path on Windows.
-        // Q/q, simulated input or any future sensor adapter ends here.
-        _runtime.SetSensor(
-            (ushort)address,
-            on);
+        // A track-power OFF invalidation must not be undone by delayed R-BUS,
+        // LocoNet, S88 or adapter OFF reports. Serialize with the transition
+        // so an in-flight feedback cannot repopulate the cache after clearing.
+        lock (_powerResyncGate)
+        {
+            if (_powerOn == false)
+                return;
+            _runtime.SetSensor((ushort)address, on);
+        }
 
         _log.LogInformation(
             "Sensor {Address} = {State}",
