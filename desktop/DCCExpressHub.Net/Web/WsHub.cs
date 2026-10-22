@@ -9,6 +9,7 @@ namespace DCCExpressHub.Net.Web;
 public sealed class WsHub
 {
     private readonly ICommandCenter CommandCenter;
+    private readonly RailComSenseSettings RailComSense;
     private readonly HubState HubState;
     private readonly CommandCenterConfigStore CommandCenterConfigStore;
     readonly LayoutRuntime LayoutRuntime;
@@ -68,7 +69,8 @@ public sealed class WsHub
     private readonly object _railComStateGate = new();
     private readonly Dictionary<(int Block, int Loco), RailComPresence> _railComPresent = new();
     private sealed record RailComPresence(
-        int SensorAddress, int LocomotiveAddress, long LastSeenAt, string Source);
+        int SensorAddress, int LocomotiveAddress, long LastSeenAt, string Source,
+        bool? OrientationBit, string OrientationSource);
 
     private RailComPresence[] GetRailComPresence()
     {
@@ -93,9 +95,10 @@ public sealed class WsHub
     private static readonly TimeSpan WebSocketSendTimeout = TimeSpan.FromSeconds(2);
     public int ClientCount => Clients.Count;
 
-    public WsHub(ICommandCenter cc, HubState state, LayoutRuntime runtime, RuntimeStateStore stateStore, CommandCenterConfigStore ccConfig, LocoCounterRuntime locoCounters, FastClockRuntime fastClock, SwitchManManager switchMan, DispatcherRuntime dispatcher, MovementRuntime movement, SequentialMovementRuntime sequentialMovement, TrainDriverRuntime trainDriver, TrainTrackingRuntime trainTracking, ScriptRuntime scripts, FlowRuntime flows, TimetableRuntime timetable, ILogger<WsHub> log, IHostApplicationLifetime lifetime)
+    public WsHub(ICommandCenter cc, HubState state, LayoutRuntime runtime, RuntimeStateStore stateStore, CommandCenterConfigStore ccConfig, LocoCounterRuntime locoCounters, FastClockRuntime fastClock, SwitchManManager switchMan, DispatcherRuntime dispatcher, MovementRuntime movement, SequentialMovementRuntime sequentialMovement, TrainDriverRuntime trainDriver, TrainTrackingRuntime trainTracking, ScriptRuntime scripts, FlowRuntime flows, TimetableRuntime timetable, ILogger<WsHub> log, IHostApplicationLifetime lifetime, RailComSenseSettings railComSense)
     {
         CommandCenter = cc;
+        RailComSense = railComSense;
         HubState = state;
         LayoutRuntime = runtime;
         RuntimeStateStore = stateStore;
@@ -222,12 +225,14 @@ public sealed class WsHub
             if (raw.StartsWith("RAILCOM_EVENT ", StringComparison.Ordinal))
             {
                 var tokens = raw.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                if (tokens.Length is 4 or 5 &&
+                if (tokens.Length == 6 &&
                     int.TryParse(tokens[1], out var sensorAddress) &&
                     int.TryParse(tokens[2], out var locomotiveAddress) &&
                     sensorAddress is >= 1 and <= 65535 &&
                     locomotiveAddress is >= 1 and <= 10239 &&
-                    (tokens[3] == "Detected" || tokens[3] == "Lost"))
+                    (tokens[3] == "Detected" || tokens[3] == "Lost") &&
+                    tokens[4] is "block" or "loco" or "long" or "none" &&
+                    tokens[5] is "0" or "1" or "?")
                 {
                     // Repeated Detected events refresh the same row; Lost only
                     // removes that locomotive from that RailCom block.
@@ -237,7 +242,8 @@ public sealed class WsHub
                         if (tokens[3] == "Detected")
                             _railComPresent[key] = new RailComPresence(
                                 sensorAddress, locomotiveAddress,
-                                DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), "LocoNet");
+                                DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), "LocoNet",
+                                tokens[5] == "?" ? null : tokens[5] == "1", tokens[4]);
                         else
                             _railComPresent.Remove(key);
                     }
@@ -867,6 +873,25 @@ public sealed class WsHub
                     await SendCommandCenterInfo(ws);
                     await SendPower(ws);
                     return;
+                case "setRailComSenseMode":
+                    var requestedSenseMode = S(data, "mode");
+                    var previousSenseMode = RailComSense.ModeName;
+                    var senseSaved = RailComSense.TrySetMode(requestedSenseMode);
+                    if (senseSaved && previousSenseMode != RailComSense.ModeName)
+                    {
+                        // Previous packet interpretations may use different
+                        // addresses. Discard the old RailCom presence cache.
+                        ClearRailComPresence();
+                        QueueStateBroadcast("railComSenseModeChanged",
+                            new { mode = RailComSense.ModeName }, resyncOnDrop: false);
+                    }
+                    await Send(ws, "railComSenseModeResponse", new
+                    {
+                        ok = senseSaved,
+                        mode = RailComSense.ModeName,
+                        message = senseSaved ? "RailCom sense mode saved" : "Invalid mode or settings could not be saved"
+                    });
+                    return;
                 case "getRailComDebug":
                     // A normal snapshot only reads the current Hub state.
                     // Explicit Refresh also sends the standard LocoNet sensor
@@ -879,6 +904,7 @@ public sealed class WsHub
                     await Send(ws, "railComStateSnapshot", new
                     {
                         entries = GetRailComPresence(),
+                        senseMode = RailComSense.ModeName,
                         interrogationRequested = interrogate,
                         interrogationSent
                     });
