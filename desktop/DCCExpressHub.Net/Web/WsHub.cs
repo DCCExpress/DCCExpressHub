@@ -267,7 +267,7 @@ public sealed class WsHub
         cc.TripTelemetryChanged += x => { for (int i = 0; i < x.Length; i++) HubState.Tracks.GetOrAdd(i, _ => new()).TripMa = Math.Max(0, x[i]); };
         cc.PowerFeedbackChanged += x =>
         {
-            if (!x.On && x.Target is "Main" or "All" or "Joined")
+            if (!x.On && (x.Target is "Main" or "All" or "Joined"))
                 ClearRailComPresence();
             var wasMainOn = HubState.TrackPower;
             ApplyPower(x);
