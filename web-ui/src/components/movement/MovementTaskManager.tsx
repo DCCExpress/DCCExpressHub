@@ -20,6 +20,22 @@ type Traffic = { locks: Lock[]; leases: Lease[]; routes: Lease[] };
 const emptyTraffic: Traffic = { locks: [], leases: [], routes: [] };
 type Props = { document: MovementDocument; locos: Loco[]; layout: LayoutView };
 
+// Identify the running task from its stable owner ID, not its user-editable name.
+function dispatcherRouteType(lease: Lease): "QR" | "SR" | "S2S" | null {
+  const ownerId = lease.ownerId.toLowerCase();
+  const ownerName = lease.ownerName.toLowerCase();
+  if (ownerId.includes("sequence-step-") || ownerName.includes("sequential movement"))
+    return "SR";
+  if (ownerId.includes("quick-route-loco-")) {
+    return ownerId.includes("-station-") || ownerName.includes("station route")
+      ? "S2S" : "QR";
+  }
+  if (ownerName.includes("station route") || ownerName.includes("station-to-station"))
+    return "S2S";
+  if (ownerName.includes("quick route")) return "QR";
+  return null;
+}
+
 export default function MovementTaskManager({ document, locos, layout }: Props) {
   const [tasks, setTasks] = useState<Task[]>(getMovementTaskStates);
   const [drivers, setDrivers] = useState<TrainDriverStatePayload[]>([]);
@@ -189,12 +205,13 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
         <Divider my="xs"/>
         <Text size="sm" fw={600}>Dispatcher</Text>
         {loaded.dispatcher && reservations.length === 0 && <Text size="xs" c="dimmed">No active reservations.</Text>}
-        {reservations.map((lease, index) => (
-          <Group key={lease.ownerId + index} justify="space-between" gap="xs">
-            <Text size="xs">Loco #{lease.locoAddress}: {blockLabel(lease.fromBlockId ?? lease.sourceBlockId)} → {blockLabel(lease.toBlockId ?? lease.destinationBlockId)}</Text>
-            <Text size="xs" c="dimmed">{lease.ownerName}</Text>
-          </Group>
-        ))}
+        {reservations.map((lease, index) => {
+          const routeType = dispatcherRouteType(lease);
+          return <Group key={lease.ownerId + index} justify="space-between" gap="xs" wrap="nowrap">
+            <Text size="xs" truncate style={{ minWidth: 0 }}>Loco #{lease.locoAddress}: {blockLabel(lease.fromBlockId ?? lease.sourceBlockId)} → {blockLabel(lease.toBlockId ?? lease.destinationBlockId)}</Text>
+            {routeType && <Text size="xs" c="dimmed" fw={600}>{routeType}</Text>}
+          </Group>;
+        })}
         <Divider my="xs"/>
         <Text size="sm" fw={600}>SwitchMan</Text>
         {loaded.locks && traffic.locks.length === 0 && <Text size="xs" c="dimmed">No locked turnouts.</Text>}
