@@ -32,7 +32,7 @@ public sealed class LocoNetCommandCenter : BackgroundService, ICommandCenter
     // One read attempt by default: surface the first real NO DECODER response.
     private readonly int _serviceReadAttempts;
     private readonly int _sensorOffset;
-    private readonly bool _railComDirectionInBlockAddress;
+    private readonly RailComSenseSettings _railComSense;
     private readonly object _programmingSync = new();
     private TaskCompletionSource<ProgrammingReply>? _pendingProgramming;
     private int _pendingProgrammingCv;
@@ -45,9 +45,11 @@ public sealed class LocoNetCommandCenter : BackgroundService, ICommandCenter
     public LocoNetCommandCenter(
         ILocoNetTransport transport,
         ILogger<LocoNetCommandCenter> log,
-        IConfiguration config)
+        IConfiguration config,
+        RailComSenseSettings railComSense)
     {
         _transport = transport;
+        _railComSense = railComSense;
         _log = log;
         _serviceReadAttempts = Math.Clamp(
             config.GetValue("LocoNet:ServiceReadAttempts", 1), 1, 3);
@@ -55,7 +57,6 @@ public sealed class LocoNetCommandCenter : BackgroundService, ICommandCenter
         _sensorOffset = Math.Clamp(
             config.GetValue("LocoNet:SensorOffset", 0),
             0, YaMoRcLocoNetClient.MaxSensorOffset);
-        _railComDirectionInBlockAddress = config.GetValue("LocoNet:RailComDirectionInBlockAddress", true);
         _transport.ConnectionChanged += OnConnectionChanged;
         _transport.Information += message => RawInfo?.Invoke(message);
     }
@@ -185,7 +186,7 @@ public sealed class LocoNetCommandCenter : BackgroundService, ICommandCenter
         // RailCom MultiSense transponding reports are independent of binary
         // occupancy. Surface them to the diagnostics WebSocket bridge only;
         // never update sensor states or Dispatcher reservations from them.
-        if (RailComFrameDecoder.TryDecode(packet, out var railCom, _railComDirectionInBlockAddress))
+        if (RailComFrameDecoder.TryDecode(packet, out var railCom, _railComSense.Mode))
         {
             // This is the RailCom BLOCK address; a module can configure it
             // separately from its occupancy feedback address.
@@ -193,7 +194,7 @@ public sealed class LocoNetCommandCenter : BackgroundService, ICommandCenter
             if (hubBlockAddress is >= 1 and <= 65535)
             {
                 RawInfo?.Invoke(
-                    $"RAILCOM_EVENT {hubBlockAddress} {railCom.LocomotiveAddress} {(railCom.Present ? "Detected" : "Lost")}");
+                    $"RAILCOM_EVENT {hubBlockAddress} {railCom.LocomotiveAddress} {(railCom.Present ? "Detected" : "Lost")} {railCom.OrientationSource} {(railCom.OrientationBit.HasValue ? (railCom.OrientationBit.Value ? "1" : "0") : "?")}");
             }
         }
         if (packet.Length == 2 && packet[0] == 0x85)
