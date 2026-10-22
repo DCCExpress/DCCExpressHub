@@ -63,17 +63,32 @@ public sealed class WsHub
         public required Guid ConnectionId { get; init; }
     }
     private long _programmingToken;
-    // Retain a bounded diagnostic history even while no browser is connected.
-    // These entries are observations only, never authoritative block locations.
-    private readonly object _railComDebugGate = new();
-    private readonly List<RailComDebugEntry> _railComEvents = new();
-    private readonly List<RailComFrameEntry> _railComRawFrames = new();
-    private long _railComSequence;
-    private const int RailComHistoryLimit = 200;
-    private sealed record RailComDebugEntry(
-        long Sequence, long Timestamp, int SensorAddress, int LocomotiveAddress,
-        string Source, string Event, string? RawPacket);
-    private sealed record RailComFrameEntry(long Sequence, long Timestamp, string RawPacket);
+    // Latest RailCom transponder presence per (block, DCC address). This is
+    // diagnostic state, not occupancy authority for Dispatcher/SwitchMan.
+    private readonly object _railComStateGate = new();
+    private readonly Dictionary<(int Block, int Loco), RailComPresence> _railComPresent = new();
+    private sealed record RailComPresence(
+        int SensorAddress, int LocomotiveAddress, long LastSeenAt, string Source);
+
+    private RailComPresence[] GetRailComPresence()
+    {
+        lock (_railComStateGate)
+            return _railComPresent.Values
+                .OrderBy(x => x.SensorAddress)
+                .ThenBy(x => x.LocomotiveAddress)
+                .ToArray();
+    }
+
+    private void ClearRailComPresence()
+    {
+        lock (_railComStateGate)
+        {
+            if (_railComPresent.Count == 0) return;
+            _railComPresent.Clear();
+        }
+        QueueStateBroadcast("railComStateChanged", new { entries = Array.Empty<RailComPresence>() },
+            resyncOnDrop: false);
+    }
     private const int ProgrammingTimeoutMs = 24000;
     private static readonly TimeSpan WebSocketSendTimeout = TimeSpan.FromSeconds(2);
     public int ClientCount => Clients.Count;
@@ -204,26 +219,6 @@ public sealed class WsHub
 
         cc.RawInfo += raw =>
         {
-            // Always retain both raw packets and decoded address events.
-            // The browser may open the RailCom tab long after the locomotive
-            // first entered the block; WebSocket-only events lose that history.
-            if (raw.StartsWith("RAILCOM_FRAME ", StringComparison.Ordinal))
-            {
-                var packet = raw["RAILCOM_FRAME ".Length..].Trim();
-                if (packet.Length is >= 12 and <= 256 &&
-                    (packet.Length & 1) == 0 &&
-                    packet.All(Uri.IsHexDigit))
-                {
-                    lock (_railComDebugGate)
-                    {
-                        _railComRawFrames.Insert(0, new RailComFrameEntry(
-                            ++_railComSequence, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), packet));
-                        if (_railComRawFrames.Count > RailComHistoryLimit)
-                            _railComRawFrames.RemoveAt(RailComHistoryLimit);
-                    }
-                }
-                return;
-            }
             if (raw.StartsWith("RAILCOM_EVENT ", StringComparison.Ordinal))
             {
                 var tokens = raw.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -231,20 +226,23 @@ public sealed class WsHub
                     int.TryParse(tokens[1], out var sensorAddress) &&
                     int.TryParse(tokens[2], out var locomotiveAddress) &&
                     sensorAddress is >= 1 and <= 65535 &&
-                    locomotiveAddress is >= 1 and <= 10239)
+                    locomotiveAddress is >= 1 and <= 10239 &&
+                    (tokens[3] == "Detected" || tokens[3] == "Lost"))
                 {
-                    RailComDebugEntry entry;
-                    lock (_railComDebugGate)
+                    // Repeated Detected events refresh the same row; Lost only
+                    // removes that locomotive from that RailCom block.
+                    lock (_railComStateGate)
                     {
-                        entry = new RailComDebugEntry(
-                            ++_railComSequence, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                            sensorAddress, locomotiveAddress, "LocoNet", tokens[3],
-                            tokens.Length == 5 ? tokens[4] : null);
-                        _railComEvents.Insert(0, entry);
-                        if (_railComEvents.Count > RailComHistoryLimit)
-                            _railComEvents.RemoveAt(RailComHistoryLimit);
+                        var key = (sensorAddress, locomotiveAddress);
+                        if (tokens[3] == "Detected")
+                            _railComPresent[key] = new RailComPresence(
+                                sensorAddress, locomotiveAddress,
+                                DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), "LocoNet");
+                        else
+                            _railComPresent.Remove(key);
                     }
-                    QueueStateBroadcast("railComDetected", entry, resyncOnDrop: false);
+                    QueueStateBroadcast("railComStateChanged",
+                        new { entries = GetRailComPresence() }, resyncOnDrop: false);
                 }
                 return;
             }
@@ -269,6 +267,8 @@ public sealed class WsHub
         cc.TripTelemetryChanged += x => { for (int i = 0; i < x.Length; i++) HubState.Tracks.GetOrAdd(i, _ => new()).TripMa = Math.Max(0, x[i]); };
         cc.PowerFeedbackChanged += x =>
         {
+            if (!x.On && x.Target is "Main" or "All" or "Joined")
+                ClearRailComPresence();
             var wasMainOn = HubState.TrackPower;
             ApplyPower(x);
 
@@ -305,6 +305,7 @@ public sealed class WsHub
         {
             if (!connected)
             {
+                ClearRailComPresence();
                 LocoCounters.SetTrackPower(false);
 
                 Movement.StopAll(false);
@@ -867,17 +868,19 @@ public sealed class WsHub
                     await SendPower(ws);
                     return;
                 case "getRailComDebug":
-                    RailComDebugEntry[] recentEvents;
-                    RailComFrameEntry[] recentRawFrames;
-                    lock (_railComDebugGate)
+                    // A normal snapshot only reads the current Hub state.
+                    // Explicit Refresh also sends the standard LocoNet sensor
+                    // interrogation; modules are NOT guaranteed to replay
+                    // RailCom locomotive IDs as a response.
+                    var interrogate = B(data, "interrogate");
+                    var interrogationSent = interrogate &&
+                        CommandCenter.Connected &&
+                        await CommandCenter.RequestSensorSnapshotAsync(ct);
+                    await Send(ws, "railComStateSnapshot", new
                     {
-                        recentEvents = _railComEvents.ToArray();
-                        recentRawFrames = _railComRawFrames.ToArray();
-                    }
-                    await Send(ws, "railComDebugSnapshot", new
-                    {
-                        events = recentEvents,
-                        rawFrames = recentRawFrames
+                        entries = GetRailComPresence(),
+                        interrogationRequested = interrogate,
+                        interrogationSent
                     });
                     return;
                 case "fastClockCommand":
