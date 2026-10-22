@@ -24,8 +24,11 @@ public static class RailComFrameDecoder
         {
             kind = frame[1] & 0x60;
             sensor = ((frame[1] & 0x1F) << 7) | (frame[2] & 0x7F);
-            high = frame[4] & 0x7F;
-            low = frame[3] & 0x7F;
+            // D0 layout: D0, flags, block-low, address-high, address-low, checksum.
+            // Unlike the previous implementation the address bytes must NOT
+            // be swapped; 0x7D in address-high marks a short DCC address.
+            high = frame[3] & 0x7F;
+            low = frame[4] & 0x7F;
         }
         else return false;
 
