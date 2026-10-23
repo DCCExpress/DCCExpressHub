@@ -57,6 +57,7 @@ export default function DebugDialog({ opened, onClose, standalone = false }: Pro
           <Badge color={runtime.connected ? "green" : "red"} variant="light">
             {runtime.connected ? "CONNECTED" : "DISCONNECTED"}
           </Badge>
+          <Text size="xs" c={runtime.layoutMetadataStatus.startsWith("Loaded") ? "dimmed" : "orange"}>{runtime.layoutMetadataStatus}</Text>
         </Group>
 
         <Button
