@@ -147,6 +147,11 @@ public sealed class LayoutRuntime
     // than DCC accessory state, so it is intentionally outside Basic/Extended.
     Dictionary<ushort, bool> _vpinStates = new();
 
+    // Startup-only canvas hints from the previous session. These are NEVER
+    // returned by TryGetTurnoutClosed or the authoritative physical snapshot.
+    readonly Dictionary<(ushort Address, string Mode), bool>
+        _restoredTurnoutDisplayStates = new();
+
     public event Action<string, object>? Changed;
     // Safety runs after normal consumers, including TrainTracking, process the sensor change.
     public event Action? SensorTransitionProcessed;
@@ -468,6 +473,7 @@ public sealed class LayoutRuntime
                 _basicAccessoryStates = Reconcile(oldBasic, basicTopology, false);
                 _extendedAccessoryStates = Reconcile(oldExtended, extendedTopology, (byte)0);
                 _vpinStates = Reconcile(oldVpins, vpinTopology, false);
+                _restoredTurnoutDisplayStates.Clear();
             }
 
             if (migrated > 0)
@@ -849,6 +855,50 @@ public sealed class LayoutRuntime
         }
     }
 
+    // Display hints only. Save all accessory outputs, but restore a visual
+    // position exclusively for bindings that are CURRENTLY turnouts.
+    // No command station output and no physical runtime state is altered.
+    public void RestoreTurnoutDisplayStates(
+        IReadOnlyDictionary<ushort, bool> savedBasic,
+        IReadOnlyDictionary<ushort, byte> savedExtended)
+    {
+        lock (_gate)
+        {
+            _restoredTurnoutDisplayStates.Clear();
+
+            foreach (var turnout in _accessories.Where(
+                item => item.Kind == RuntimeAccessoryKind.Turnout))
+            {
+                if (turnout.TurnoutVPin)
+                    continue; // Existing VPIN restoration is handled separately.
+
+                if (turnout.TurnoutExtended)
+                {
+                    if (!savedExtended.TryGetValue(turnout.Address, out var aspect))
+                        continue;
+
+                    bool logicalClosed;
+                    if (aspect == turnout.TurnoutClosedAspect)
+                        logicalClosed = true;
+                    else if (aspect == turnout.TurnoutOpenedAspect)
+                        logicalClosed = false;
+                    else
+                        continue;
+
+                    var physicalValue = logicalClosed
+                        ? turnout.ClosedValue : !turnout.ClosedValue;
+                    _restoredTurnoutDisplayStates[(turnout.Address, "extended")] =
+                        physicalValue;
+                }
+                else if (savedBasic.TryGetValue(turnout.Address, out var physical))
+                {
+                    _restoredTurnoutDisplayStates[(turnout.Address, "accessory")] =
+                        physical;
+                }
+            }
+        }
+    }
+
     public IReadOnlyDictionary<ushort, bool> BasicAccessoryStatesForPersistence()
     {
         lock (_gate)
@@ -965,6 +1015,7 @@ public sealed class LayoutRuntime
 
             changed = _extendedAccessoryStates[address] != (byte)aspect;
             _extendedAccessoryStates[address] = (byte)aspect;
+            _restoredTurnoutDisplayStates.Remove((address, "extended"));
         }
 
         if (changed)
@@ -985,6 +1036,7 @@ public sealed class LayoutRuntime
 
             changed = _basicAccessoryStates[address] != active;
             _basicAccessoryStates[address] = active;
+            _restoredTurnoutDisplayStates.Remove((address, "accessory"));
         }
 
         if (changed)
@@ -1398,6 +1450,18 @@ public sealed class LayoutRuntime
                     openedAspect = turnout.TurnoutOpenedAspect
                 }));
             }
+
+            // Sent after physical state rows so the canvas shows the previous
+            // turnout drawing until fresh state or a live command supersedes it.
+            // This distinct event is NOT physical turnout feedback.
+            foreach (var saved in _restoredTurnoutDisplayStates.OrderBy(
+                state => state.Key.Address))
+                items.Add(new("turnoutDisplayRestored", new
+                {
+                    address = saved.Key.Address,
+                    closed = saved.Value,
+                    outputMode = saved.Key.Mode
+                }));
 
             items.Add(new("sensorSnapshot", SensorSnapshot()));
             items.Add(new("blockStateChanged", BlockSnapshot()));
