@@ -161,9 +161,10 @@ public sealed class RuntimeStateStore
     {
         try
         {
-            var basicAccessories = _runtime.BasicAccessoryStatesForPersistence()
+            var accessorySnapshot = _runtime.AccessorySaveSnapshot();
+            var basicAccessories = accessorySnapshot.Basic
                 .ToDictionary(x => x.Key.ToString(), x => x.Value);
-            var extendedAccessories = _runtime.ExtendedAccessoryStatesForPersistence()
+            var extendedAccessories = accessorySnapshot.Extended
                 .ToDictionary(x => x.Key.ToString(), x => x.Value);
             var vpins = _runtime.VPinStatesForPersistence()
                 .ToDictionary(x => x.Key.ToString(), x => x.Value);
