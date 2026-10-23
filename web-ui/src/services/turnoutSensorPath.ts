@@ -7,7 +7,7 @@
 export type OccupancyTurnoutLayout = {
   layers?: readonly {
     elements?: readonly {
-      id?: number;
+      id?: number | string;
       type?: string;
       address?: number;
     }[];
@@ -15,7 +15,7 @@ export type OccupancyTurnoutLayout = {
 };
 
 export type OccupancyRouteEdge = {
-  turnoutPath?: readonly { elementId?: number }[];
+  turnoutPath?: readonly { elementId?: number | string }[];
 };
 
 const TURNOUT_TYPES = new Set([
@@ -27,11 +27,11 @@ const TURNOUT_TYPES = new Set([
 ]);
 
 function positiveAddress(value: unknown): number | null {
-  return typeof value === "number" &&
-    Number.isInteger(value) &&
-    value >= 1 &&
-    value <= 65535
-    ? value
+  const numeric = typeof value === "number" || typeof value === "string"
+    ? Number(value)
+    : NaN;
+  return Number.isInteger(numeric) && numeric >= 1 && numeric <= 65535
+    ? numeric
     : null;
 }
 
