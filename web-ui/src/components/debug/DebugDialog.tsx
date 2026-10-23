@@ -1,5 +1,6 @@
 import {
   Badge,
+  Box,
   Button,
   Group,
   Tabs,
@@ -34,6 +35,7 @@ import { useRuntimeDebugState } from "./useRuntimeDebugState";
 type Props = {
   opened: boolean;
   onClose: () => void;
+  standalone?: boolean;
 };
 
 const panelStyle: CSSProperties = {
@@ -42,32 +44,11 @@ const panelStyle: CSSProperties = {
   overflow: "hidden",
 };
 
-export default function DebugDialog({ opened, onClose }: Props) {
+export default function DebugDialog({ opened, onClose, standalone = false }: Props) {
   const runtime = useRuntimeDebugState(opened);
 
-  return (
-    <AppModal
-      opened={opened}
-      onClose={onClose}
-      title={
-        <Group gap="xs">
-          <IconBug size={20} />
-          <Text fw={700}>Runtime Debug</Text>
-        </Group>
-      }
-      size="50vw"
-      centered
-      draggable
-      styles={{
-        body: {
-          height: "70vh",
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-          paddingBottom: 16,
-        },
-      }}
-    >
+  const content = (
+    <>
       <Group justify="space-between" mb="md" style={{ flexShrink: 0 }}>
         <Group gap="xs">
           <Text size="sm" c="dimmed">WebSocket</Text>
@@ -163,6 +144,45 @@ export default function DebugDialog({ opened, onClose }: Props) {
           />
         </Tabs.Panel>
       </Tabs>
+    </>
+  );
+
+  if (standalone) {
+    return (
+      <Box style={{ height: "100dvh", display: "flex", flexDirection: "column", minHeight: 0, padding: 16 }}>
+        <Group gap="xs" mb="md" style={{ flexShrink: 0 }}>
+          <IconBug size={20} />
+          <Text fw={700}>Runtime Debug</Text>
+        </Group>
+        {content}
+      </Box>
+    );
+  }
+
+  return (
+    <AppModal
+      opened={opened}
+      onClose={onClose}
+      title={
+        <Group gap="xs">
+          <IconBug size={20} />
+          <Text fw={700}>Runtime Debug</Text>
+        </Group>
+      }
+      size="50vw"
+      centered
+      draggable
+      styles={{
+        body: {
+          height: "70vh",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+          paddingBottom: 16,
+        },
+      }}
+    >
+      {content}
     </AppModal>
   );
 }
