@@ -102,6 +102,7 @@ export default function TurnoutDebugTab({
             <Table.Th>Name</Table.Th>
             <Table.Th>Mode</Table.Th>
             <Table.Th>State</Table.Th>
+            <Table.Th w={100}>Lock</Table.Th>
             <Table.Th>Control</Table.Th>
             <Table.Th>Last update</Table.Th>
           </Table.Tr>
@@ -139,7 +140,6 @@ export default function TurnoutDebugTab({
                 </Table.Td>
 
                 <Table.Td>
-                  {lockOwner && <Badge color="red" variant="light" mb={4} title={lockOwner}>LOCKED · {lockOwner}</Badge>}
                   {value.outputMode === "extended" ? (
                     <Group gap="xs">
                       <Badge color="violet" variant="light">
@@ -168,6 +168,7 @@ export default function TurnoutDebugTab({
                   )}
                 </Table.Td>
 
+                <Table.Td w={100}><Badge color="red" variant="light" title={lockOwner ?? ""} style={{ visibility: lockOwner ? "visible" : "hidden" }}>LOCKED</Badge></Table.Td>
                 <Table.Td>
                   {value.outputMode === "extended" ? (
                     <ExtendedTurnoutControl
