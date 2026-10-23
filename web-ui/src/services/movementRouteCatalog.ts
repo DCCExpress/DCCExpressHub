@@ -109,7 +109,7 @@ function turnoutOccupancySensorsByElementId(
 
   for (const layer of layout.layers ?? []) {
     for (const element of layer.elements ?? []) {
-      if (!types.has(element.type)) continue;
+      if (!types.has(element.type ?? "")) continue;
       const id = positiveInteger(element.id);
       const sensor = positiveInteger(element.address);
       // This is the rail OCCUPANCY address, never the turnout accessory address.
