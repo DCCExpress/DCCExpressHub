@@ -90,6 +90,18 @@ button,
   width: min(100%, 1440px);
 }
 
+/* Standalone Runtime Debug uses the browser width instead of the 760px mobile shell. */
+.debug-shell {
+  width: 100%;
+  max-width: none;
+}
+
+.debug-shell > .mantine-Stack-root,
+.debug-shell .mobile-content {
+  min-width: 0;
+  width: 100%;
+}
+
 .hero-card {
   overflow: hidden;
   border: 1px solid rgba(71, 196, 255, 0.18);
