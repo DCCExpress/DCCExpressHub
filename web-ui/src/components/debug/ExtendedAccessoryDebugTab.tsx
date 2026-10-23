@@ -30,7 +30,7 @@ type RowProps = {
   state: DebugStateValue<number>;
   owners: DebugLayoutOwner[];
   connected: boolean;
-  lockOwner?: string;
+  lockOwner?: string | undefined;
 };
 
 function formatTime(timestamp: number): string {
