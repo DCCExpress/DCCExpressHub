@@ -30,7 +30,7 @@ type ExtendedRowProps = {
   address: number;
   state: DebugStateValue<TurnoutDebugValue>;
   connected: boolean;
-  lockOwner?: string;
+  lockOwner?: string | undefined;
 };
 
 function formatTime(timestamp: number): string {
