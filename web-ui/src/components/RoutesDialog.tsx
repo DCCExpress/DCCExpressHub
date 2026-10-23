@@ -1466,23 +1466,39 @@ export default function RoutesDialog({
                                   </Table.Td>
 
                                   <Table.Td>
-                                    <Button
-                                      size="xs"
-                                      variant="light"
-                                      leftSection={
-                                        <IconEye size={14} />
-                                      }
-                                      onClick={
-                                        () =>
-                                          setPreviewPage(
-                                            previewCandidate(
-                                              candidate
-                                            )
+                                    <Group gap={6} wrap="nowrap">
+                                      <Button
+                                        size="xs"
+                                        variant="light"
+                                        leftSection={<IconEye size={14} />}
+                                        onClick={() =>
+                                          setPreviewPage(previewCandidate(candidate))
+                                        }
+                                      >
+                                        {t("ui.preview")}
+                                      </Button>
+                                      <Button
+                                        size="xs"
+                                        variant="light"
+                                        color="orange"
+                                        leftSection={<IconPlayerPlay size={14} />}
+                                        loading={testingKey === `candidate-${candidate.key}`}
+                                        disabled={
+                                          candidate.turnoutStates.length === 0 ||
+                                          (testingKey !== null &&
+                                            testingKey !== `candidate-${candidate.key}`)
+                                        }
+                                        onClick={() =>
+                                          void testTurnouts(
+                                            `candidate-${candidate.key}`,
+                                            `${candidate.fromBlockName} → ${candidate.toBlockName}`,
+                                            candidate.turnoutStates
                                           )
-                                      }
-                                    >
-                                      {t("ui.preview")}
-                                    </Button>
+                                        }
+                                      >
+                                        {t("ui.test")}
+                                      </Button>
+                                    </Group>
                                   </Table.Td>
 
                                   {mode === "movement" && <Table.Td>
