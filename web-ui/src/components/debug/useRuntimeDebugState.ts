@@ -948,7 +948,7 @@ export function useRuntimeDebugState(
   return useMemo(
     () => ({
       sensors,
-    layoutMetadataStatus,
+      layoutMetadataStatus,
       turnouts,
       basicAccessories,
       basicAccessoryLayoutOwners,
@@ -961,6 +961,7 @@ export function useRuntimeDebugState(
     }),
     [
       sensors,
+      layoutMetadataStatus,
       turnouts,
       basicAccessories,
       basicAccessoryLayoutOwners,
