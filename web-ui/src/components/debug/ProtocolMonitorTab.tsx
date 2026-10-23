@@ -1,5 +1,5 @@
 import { Badge, Button, Group, ScrollArea, Select, Stack, Table, Text, TextInput } from "@mantine/core";
-import { IconPlayerPause, IconPlayerPlay, IconTrash } from "@tabler/icons-react";
+import { IconDownload, IconPlayerPause, IconPlayerPlay, IconTrash } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
 import { wsClient } from "../../services/wsClient";
 
@@ -81,6 +81,16 @@ export default function ProtocolMonitorTab({ opened }: { opened: boolean }) {
     (!query || `${row.detail} ${row.raw} ${row.source}`.toLowerCase().includes(query.toLowerCase()))
   );
 
+  const exportVisible = () => {
+    const blob = new Blob([JSON.stringify([...visible].reverse(), null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "hub-protocol-monitor.json";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return <Stack h="100%" gap="xs" style={{ minHeight: 0 }}>
     <Group gap="xs" wrap="wrap">
       <Select w={155} size="xs" aria-label="Message type" value={kind} onChange={value => setKind(value ?? "all")}
@@ -88,6 +98,7 @@ export default function ProtocolMonitorTab({ opened }: { opened: boolean }) {
       <TextInput size="xs" style={{ flex: 1, minWidth: 120 }} placeholder="Search address, event or HEX…" value={query} onChange={event => setQuery(event.currentTarget.value)} />
       <Button size="xs" variant="light" color="gray" leftSection={paused ? <IconPlayerPlay size={14}/> : <IconPlayerPause size={14}/>}
         onClick={() => setPaused(value => !value)}>{paused ? "Resume" : "Pause"}</Button>
+      <Button size="xs" variant="light" color="gray" leftSection={<IconDownload size={14}/>} disabled={!visible.length} onClick={exportVisible}>Export JSON</Button>
       <Button size="xs" variant="light" color="gray" leftSection={<IconTrash size={14}/>}
         onClick={() => setRows([])}>Clear</Button>
     </Group>
