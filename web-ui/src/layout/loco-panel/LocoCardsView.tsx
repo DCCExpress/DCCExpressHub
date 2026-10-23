@@ -96,8 +96,17 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
         const cardFunctions = (loco.functions ?? []).filter(fn => fn.showOnLocoCard ?? fn.number < 5)
           .sort((a, b) => a.number - b.number).slice(0, 5);
         return <Card key={loco.id} withBorder radius="sm" padding="xs"
-          style={{ borderColor: selectedLocoId === loco.id ? "var(--mantine-color-lime-6)" : undefined }}>
-          <Group gap="xs" wrap="nowrap" onClick={() => onSelect(loco)} style={{ cursor: "pointer" }}>
+          // Capture selection before child controls handle or stop the event.
+          // Pointer-down also handles slider dragging and momentary functions.
+          onPointerDownCapture={event => {
+            if (event.button === 0 && selectedLocoId !== loco.id) onSelect(loco);
+          }}
+          // Keyboard-activated buttons emit a click without pointer-down.
+          onClickCapture={event => {
+            if (event.detail === 0 && selectedLocoId !== loco.id) onSelect(loco);
+          }}
+          style={{ borderColor: selectedLocoId === loco.id ? "var(--mantine-color-lime-6)" : undefined, cursor: "pointer" }}>
+          <Group gap="xs" wrap="nowrap">
             <LocoImage locoId={loco.id} image={loco.image} name={loco.name} width={94} height={48} />
             <Stack gap={0} style={{ minWidth: 0, flex: 1 }}>
               <Text size="sm" fw={600} truncate>{loco.name || `#${loco.address}`}</Text>
