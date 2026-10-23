@@ -1397,7 +1397,7 @@ export default function RoutesDialog({
                                   </Table.Td>
 
                                   <Table.Td>
-                                    {candidate.blockPath.length > 2 && <Text size="sm">
+                                    <Text size="sm">
                                       {
                                         candidate.blockPath
                                           .map(
@@ -1408,7 +1408,7 @@ export default function RoutesDialog({
                                             " → "
                                           )
                                       }
-                                    </Text>}
+                                    </Text>
 
                                     {
                                       candidate.nodePath.length >
