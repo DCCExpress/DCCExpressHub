@@ -1233,6 +1233,90 @@ public sealed class TrainTrackingRuntime
             .ToArray();
     }
 
+    // Diagnostics only: explain a rejected intermediate sensor without
+    // changing the candidate selection or any train-control decisions.
+    string ExplainRejectedSensor(int sensor)
+    {
+        if (_tracking.Count == 0)
+            return "No tracked locomotives.";
+
+        return string.Join("; ", _tracking.Values.Select(tracking =>
+        {
+            var loco = tracking.LocoAddress;
+            if (!tracking.CurrentBlockId.HasValue)
+                return "Loco #" + loco + ": current block unknown";
+
+            var source = tracking.CurrentBlockId.Value;
+            var direction = LocoDirection(loco);
+            var speed = _hubState.Locos.TryGetValue(loco, out var feedback)
+                ? feedback.Speed : 0;
+            var prefix = "Loco #" + loco + " at " + BlockName(source) +
+                " (" + direction + ", speed " + speed +
+                ", last sensor " + (tracking.LastSensor?.ToString() ?? "none") + "): ";
+
+            if (speed <= 0)
+                return prefix + "speed is zero; not considered moving";
+
+            var outgoing = _routes.Where(route =>
+                route.FromBlockId == source &&
+                route.BlockPath.Length == 2 &&
+                route.BlockPath[0] == source &&
+                route.BlockPath[1] == route.ToBlockId).ToArray();
+
+            if (outgoing.Length == 0)
+                return prefix + "no direct outgoing route in saved graph";
+
+            var directed = outgoing.Where(route =>
+                string.Equals(route.LocoDirection, direction,
+                    StringComparison.OrdinalIgnoreCase)).ToArray();
+
+            if (directed.Length == 0)
+                return prefix + "no route in " + direction +
+                    " direction; available: " +
+                    string.Join(", ", outgoing.Select(route =>
+                        route.ToBlockName ?? BlockName(route.ToBlockId)));
+
+            var containing = directed.Where(route =>
+                RouteSensorPath(route).Contains(sensor)).ToArray();
+
+            if (containing.Length == 0)
+                return prefix + "sensor #" + sensor +
+                    " is absent from " + directed.Length +
+                    " outgoing route sensor path(s)";
+
+            var details = containing.Select(route =>
+            {
+                var routeName = BlockName(source) + " -> " +
+                    (route.ToBlockName ?? BlockName(route.ToBlockId));
+                var badTurnouts = route.Turnouts.Where(turnout =>
+                    turnout.Address is < 1 or > 65535 ||
+                    !_layout.TryGetTurnoutClosed((ushort)turnout.Address, out var actual) ||
+                    actual != turnout.Closed)
+                    .Select(turnout =>
+                    {
+                        var known = turnout.Address is >= 1 and <= 65535 &&
+                            _layout.TryGetTurnoutClosed((ushort)turnout.Address,
+                                out var actual);
+                        return "turnout #" + turnout.Address +
+                            " expected " + (turnout.Closed ? "Closed" : "Thrown") +
+                            ", actual " + (known
+                                ? (actual ? "Closed" : "Thrown") : "UNKNOWN");
+                    }).ToArray();
+
+                if (badTurnouts.Length > 0)
+                    return routeName + ": " + string.Join(", ", badTurnouts);
+
+                if (CandidateFromRoute(tracking, route, sensor) is null)
+                    return routeName + ": sensor ordering rejected (last #" +
+                        (tracking.LastSensor?.ToString() ?? "none") + ")";
+
+                return routeName + ": candidate exists (check competing locomotives)";
+            });
+
+            return prefix + string.Join(" | ", details);
+        }));
+    }
+
     void HandleSensorOn(
         int sensor)
     {
@@ -1313,7 +1397,8 @@ public sealed class TrainTrackingRuntime
                     "warn",
                     "Sensor #" +
                     sensor +
-                    " -> ON: no moving tracked locomotive matches graph + direction + turnout state.");
+                    " -> ON: no moving tracked locomotive matches graph + direction + turnout state. " +
+                    ExplainRejectedSensor(sensor));
 
                 return;
             }
