@@ -470,7 +470,10 @@ export default function TrainTrackingPanel({
               </Text>
             )
             : (
+              <ScrollArea type="auto" scrollbarSize={9} offsetScrollbars
+                style={{ width: "100%", maxWidth: "100%" }}>
               <Table
+                miw={1050}
                 withTableBorder
                 withColumnBorders
                 verticalSpacing={3}
@@ -773,6 +776,7 @@ export default function TrainTrackingPanel({
                   }
                 </Table.Tbody>
               </Table>
+              </ScrollArea>
             )
         }
       </Stack>
