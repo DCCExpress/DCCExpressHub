@@ -9,7 +9,7 @@ import { wsApi } from "../../services/wsApi";
 import { wsClient } from "../../services/wsClient";
 import { getMovementTaskStates, subscribeMovementTaskStates } from "../../services/movementEngine";
 import { getSequentialMovementStates, subscribeSequentialMovementStates } from "../../services/sequentialMovementStates";
-import { resolveLocoTaskStatus, formatLocoTaskStatus } from "../../services/locoTaskStatus";
+import { resolveLocoTaskStatus, formatLocoTaskStatus, movementBlockLabel } from "../../services/locoTaskStatus";
 import type { TrainDriverStatePayload } from "@domain/wsTypes";
 import LocoEmergencyButton from "./LocoEmergencyButton";
 
@@ -90,12 +90,7 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
         // A parent Sequential Movement owns the loco throughout dwell times,
         // including the gap after its child Movement has completed.
         const taskStatus = resolveLocoTaskStatus(loco.address, moving, sequences, drivers,
-          id => moving.find(item => item.state.locoAddress === loco.address &&
-            (item.state.currentBlockId === id || item.state.targetBlockId === id) &&
-            (item.state.currentBlockName || item.state.targetBlockName))?.state.currentBlockId === id
-              ? moving.find(item => item.state.locoAddress === loco.address && item.state.currentBlockId === id)?.state.currentBlockName || `Block #${id}`
-              : moving.find(item => item.state.locoAddress === loco.address && item.state.targetBlockId === id)?.state.targetBlockName || `Block #${id}`,
-        );
+          id => movementBlockLabel(moving, loco.address, id));
         const movementMessage = emergencyStop ? "Emergency stop active"
           : taskStatus ? formatLocoTaskStatus(taskStatus) : null;
         const cardFunctions = (loco.functions ?? []).filter(fn => fn.showOnLocoCard ?? fn.number < 5)
