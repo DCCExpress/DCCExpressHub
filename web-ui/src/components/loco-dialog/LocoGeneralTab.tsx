@@ -90,7 +90,7 @@ export default function LocoGeneralTab({
         </Stack>
         <Stack gap="md">
           <Text fw={600}>Speed profile</Text>
-          <Text c="dimmed" size="xs">All four speed values are saved in the locomotive profile (DCC steps). No new speed-profile control behavior is enabled yet.</Text>
+          <Text c="dimmed" size="xs">DCC speed steps.</Text>
           <NumberInput
             label="Minimum speed"
             description="Lowest stable running speed · DCC step"
