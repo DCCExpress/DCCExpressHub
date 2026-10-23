@@ -20,6 +20,7 @@ export default function ProtocolMonitorTab({ opened }: { opened: boolean }) {
   const [rows, setRows] = useState<MonitorEvent[]>([]);
   const [paused, setPaused] = useState(false);
   const [kind, setKind] = useState("all");
+  const [sourceFilter, setSourceFilter] = useState("all");
   const [query, setQuery] = useState("");
   const nextId = useRef(0);
   const pausedRef = useRef(false);
@@ -77,6 +78,7 @@ export default function ProtocolMonitorTab({ opened }: { opened: boolean }) {
   }, [opened]);
 
   const visible = rows.filter(row =>
+    (sourceFilter === "all" || row.source === sourceFilter) &&
     (kind === "all" || row.kind === kind) &&
     (!query || `${row.detail} ${row.raw} ${row.source}`.toLowerCase().includes(query.toLowerCase()))
   );
@@ -93,6 +95,8 @@ export default function ProtocolMonitorTab({ opened }: { opened: boolean }) {
 
   return <Stack h="100%" gap="xs" style={{ minHeight: 0 }}>
     <Group gap="xs" wrap="wrap">
+      <Select w={155} size="xs" aria-label="Source" value={sourceFilter} onChange={value => setSourceFilter(value ?? "all")}
+        data={[{ value: "all", label: "All sources" }, ...["LocoNet", "Command center", "Hub sensor", "Hub"].map(value => ({ value, label: value }))]} />
       <Select w={155} size="xs" aria-label="Message type" value={kind} onChange={value => setKind(value ?? "all")}
         data={[{ value: "all", label: "All events" }, ...["Raw", "Sensor", "Snapshot", "Turnout", "Locomotive", "Power"].map(value => ({ value, label: value }))]} />
       <TextInput size="xs" style={{ flex: 1, minWidth: 120 }} placeholder="Search address, event or HEX…" value={query} onChange={event => setQuery(event.currentTarget.value)} />
