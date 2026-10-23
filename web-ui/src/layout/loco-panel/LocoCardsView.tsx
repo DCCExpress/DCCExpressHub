@@ -97,11 +97,14 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
         const movement = activeMovement;
         const driver = drivers.find(item => item.locoAddress === loco.address &&
           ["created", "running", "waiting", "paused", "stopping"].includes(item.status));
-        const movementMessage = movement
-          ? (movement.error || movement.info ||
+        // An active task's live info is authoritative for the loco card.
+        // Terminal Movement errors remain available in Movement diagnostics,
+        // but must not obscure a newer physical journey on the loco card.
+        // The global emergency-stop state always takes precedence.
+        const movementMessage = emergencyStop ? "Emergency stop active"
+          : movement ? (movement.info ||
             (movement.status === "stopping" ? "Stopping" :
               movement.targetBlockName ? `Moving to ${movement.targetBlockName}` : movement.status))
-          : emergencyStop ? "Emergency stop active"
           : driver ? (driver.status === "waiting" ? "Train Driver waiting" :
               driver.status === "paused" ? "Train Driver paused" : `Train Driver: ${driver.status}`) : null;
         const cardFunctions = (loco.functions ?? []).filter(fn => fn.showOnLocoCard ?? fn.number < 5)
@@ -148,7 +151,7 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
               onChange={value => setLive(old => ({ ...old, [loco.address]: { ...old[loco.address], speed: value, direction: state.direction, functionsMask: old[loco.address]?.functionsMask ?? state.functionsMask } }))}
               onChangeEnd={value => command(loco, value, state.direction)} aria-label={`Speed ${loco.name}`} />
           </Group>
-          <Text size="xs" c={movement?.error ? "red" : movementMessage ? "yellow" : "dimmed"} truncate="end" title={movementMessage ?? "Manual"} style={{ height: 18, lineHeight: "18px", width: "100%", minWidth: 0 }}>{movementMessage ?? "Manual"}</Text>
+          <Text size="xs" c={emergencyStop ? "red" : movementMessage ? "yellow" : "dimmed"} truncate="end" title={movementMessage ?? "Manual"} style={{ height: 18, lineHeight: "18px", width: "100%", minWidth: 0 }}>{movementMessage ?? "Manual"}</Text>
         </Card>;
       })}
     </Stack>
