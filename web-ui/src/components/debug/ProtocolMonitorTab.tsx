@@ -2,6 +2,7 @@ import { Badge, Button, Group, ScrollArea, Select, Stack, Table, Text, TextInput
 import { IconDownload, IconPlayerPause, IconPlayerPlay, IconTrash } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
 import { wsClient } from "../../services/wsClient";
+import { decodeLocoNetRawInfo } from "../../services/loconetMessageDecoder";
 
 type MonitorEvent = {
   id: number;
@@ -43,7 +44,7 @@ export default function ProtocolMonitorTab({ opened }: { opened: boolean }) {
         if (!value) return;
         source = /loconet/i.test(value) ? "LocoNet" : "Command center";
         kind = "Raw";
-        detail = value;
+        detail = decodeLocoNetRawInfo(value) ?? value;
         raw = value;
       } else if (type === "sensorChanged") {
         source = "Hub sensor";
