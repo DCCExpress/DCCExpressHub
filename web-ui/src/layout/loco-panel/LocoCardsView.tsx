@@ -95,13 +95,12 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
           : taskStatus ? formatLocoTaskStatus(taskStatus) : null;
         const cardFunctions = (loco.functions ?? []).filter(fn => fn.showOnLocoCard ?? fn.number < 5)
           .sort((a, b) => a.number - b.number).slice(0, 5);
+        // Capture selection before child controls handle or stop the event.
+        // Pointer-down also handles slider dragging and momentary functions.
         return <Card key={loco.id} withBorder radius="sm" padding="xs"
-          // Capture selection before child controls handle or stop the event.
-          // Pointer-down also handles slider dragging and momentary functions.
           onPointerDownCapture={event => {
             if (event.button === 0 && selectedLocoId !== loco.id) onSelect(loco);
           }}
-          // Keyboard-activated buttons emit a click without pointer-down.
           onClickCapture={event => {
             if (event.detail === 0 && selectedLocoId !== loco.id) onSelect(loco);
           }}
