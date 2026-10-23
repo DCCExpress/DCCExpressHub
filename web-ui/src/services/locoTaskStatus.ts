@@ -84,6 +84,25 @@ export function resolveLocoTaskStatus(
   return { message, progress, sequence, movement, driver };
 }
 
+/** Resolve a block label from the last backend Movement snapshots, including
+ * completed sequence legs (which still carry their known block names). */
+export function movementBlockLabel(
+  movements: readonly LiveMovementTask[],
+  locoAddress: number,
+  blockId: number,
+): string {
+  const recent = movements
+    .filter(item => item.state.locoAddress === locoAddress)
+    .sort((a, b) => (b.state.startedAt ?? 0) - (a.state.startedAt ?? 0));
+  for (const item of recent) {
+    if (item.state.currentBlockId === blockId && item.state.currentBlockName)
+      return item.state.currentBlockName;
+    if (item.state.targetBlockId === blockId && item.state.targetBlockName)
+      return item.state.targetBlockName;
+  }
+  return `Block #${blockId}`;
+}
+
 export function formatLocoTaskStatus(status: LocoTaskStatus): string {
   return status.progress
     ? `${status.message} (${status.progress})`
