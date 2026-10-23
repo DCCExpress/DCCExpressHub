@@ -89,7 +89,8 @@ public sealed class TrainTrackingRuntime
         TrackingState Tracking,
         RouteEntry Route,
         int[] SensorPath,
-        int SensorIndex);
+        int SensorIndex,
+        bool ReturningToSource);
 
     readonly object _gate = new();
     readonly AppPaths _env;
@@ -1233,11 +1234,17 @@ public sealed class TrainTrackingRuntime
     Candidate? CandidateFromRoute(
         TrackingState tracking,
         RouteEntry route,
-        int sensor)
+        int sensor,
+        bool returningToSource = false)
     {
         var path =
             RouteSensorPath(
                 route);
+
+        // Reversing between blocks traverses the committed path backwards.
+        // Changing direction alone must never change the assigned block.
+        if (returningToSource)
+            path = path.Reverse().ToArray();
 
         var targetIndex =
             Array.IndexOf(
@@ -1273,7 +1280,8 @@ public sealed class TrainTrackingRuntime
             tracking,
             route,
             path,
-            targetIndex);
+            targetIndex,
+            returningToSource);
     }
 
     Candidate[] CandidatesForSensor(
@@ -1292,21 +1300,31 @@ public sealed class TrainTrackingRuntime
         if (_committedRoutes.TryGetValue(
                 tracking.LocoAddress,
                 out var committed) &&
-            committed.FromBlockId ==
-                tracking.CurrentBlockId &&
-            string.Equals(
+            committed.FromBlockId == tracking.CurrentBlockId)
+        {
+            var originalDirection = string.Equals(
                 committed.LocoDirection,
                 direction,
-                StringComparison.OrdinalIgnoreCase))
-        {
-            var candidate =
-                CandidateFromRoute(
+                StringComparison.OrdinalIgnoreCase);
+            var returningToSource =
+                !originalDirection &&
+                (committed.LocoDirection is "forward" or "reverse") &&
+                (direction is "forward" or "reverse");
+
+            // Retain normal forward tracking. Returning requires the current
+            // turnout positions to remain consistent with the path traversed.
+            if (originalDirection ||
+                (returningToSource && RouteMatchesTurnouts(committed)))
+            {
+                var candidate = CandidateFromRoute(
                     tracking,
                     committed,
-                    sensor);
+                    sensor,
+                    returningToSource);
 
-            if (candidate is not null)
-                return [candidate];
+                if (candidate is not null)
+                    return [candidate];
+            }
         }
 
         return DirectRoutesFromBlock(
@@ -1527,11 +1545,14 @@ public sealed class TrainTrackingRuntime
             state.UpdatedAt =
                 NowMs();
 
+            var expectedArrivalBlockId = candidate.ReturningToSource
+                ? candidate.Route.FromBlockId
+                : candidate.Route.ToBlockId;
+
             if (_blockSensorToId.TryGetValue(
                     sensor,
                     out var destinationBlockId) &&
-                destinationBlockId ==
-                    candidate.Route.ToBlockId)
+                destinationBlockId == expectedArrivalBlockId)
             {
                 state.CurrentBlockId =
                     destinationBlockId;
@@ -1544,8 +1565,8 @@ public sealed class TrainTrackingRuntime
                 _committedRoutes.Remove(
                     state.LocoAddress);
 
-                if (!_movement.IsLocoManaged(
-                        state.LocoAddress))
+                if (!candidate.ReturningToSource &&
+                    !_movement.IsLocoManaged(state.LocoAddress))
                 {
                     // Do not overwrite a reservation held by another locomotive.
                     var reservedForOtherLoco = _layout.BlocksForPersistence()
@@ -1568,7 +1589,7 @@ public sealed class TrainTrackingRuntime
                     "match",
                     "Tracked loco #" +
                     state.LocoAddress +
-                    " into " +
+                    (candidate.ReturningToSource ? " returned to " : " into ") +
                     state.CurrentBlockName +
                     " via sensor #" +
                     sensor +
@@ -1580,7 +1601,7 @@ public sealed class TrainTrackingRuntime
                     "match",
                     "Tracked loco #" +
                     state.LocoAddress +
-                    " at sensor #" +
+                    (candidate.ReturningToSource ? " returning via sensor #" : " at sensor #") +
                     sensor +
                     ".");
             }
