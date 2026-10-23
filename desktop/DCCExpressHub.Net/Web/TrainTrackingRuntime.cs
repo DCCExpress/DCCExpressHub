@@ -80,6 +80,7 @@ public sealed class TrainTrackingRuntime
         public string? ToBlockName { get; set; }
         public int[] BlockPath { get; set; } = [];
         public RoutePart[] PartPath { get; set; } = [];
+        public string[] Nodes { get; set; } = [];
         public TurnoutRequirement[] Turnouts { get; set; } = [];
         public string LocoDirection { get; set; } = "unknown";
     }
@@ -102,6 +103,10 @@ public sealed class TrainTrackingRuntime
     readonly Dictionary<int, int> _blockSensorToId = [];
     readonly Dictionary<int, int> _blockIdToSensor = [];
     readonly Dictionary<int, string> _blockNames = [];
+    // Ordinary rail occupancy addresses are independent from turnout addresses.
+    readonly Dictionary<int, int> _railSensorsByElementId = [];
+    readonly Dictionary<string, int[]> _nodeSensors =
+        new(StringComparer.Ordinal);
     readonly Dictionary<int, bool> _sensorStates = [];
     readonly Dictionary<int, TrackingState> _tracking = [];
     readonly Dictionary<int, RouteEntry> _committedRoutes = [];
@@ -422,6 +427,17 @@ public sealed class TrainTrackingRuntime
             }
         }
 
+        var nodes = route.TryGetProperty(
+                "nodes",
+                out var rawNodes) &&
+            rawNodes.ValueKind == JsonValueKind.Array
+                ? rawNodes.EnumerateArray()
+                    .Where(item => item.ValueKind == JsonValueKind.String)
+                    .Select(item => item.GetString() ?? "")
+                    .Where(name => name.Length > 0)
+                    .ToArray()
+                : [];
+
         var turnouts =
             new Dictionary<int, bool>();
 
@@ -460,6 +476,7 @@ public sealed class TrainTrackingRuntime
                 blocks.ToArray(),
             PartPath =
                 parts.ToArray(),
+            Nodes = nodes,
             Turnouts =
                 turnouts
                     .Select(pair =>
@@ -481,6 +498,7 @@ public sealed class TrainTrackingRuntime
         _blockSensorToId.Clear();
         _blockIdToSensor.Clear();
         _blockNames.Clear();
+        _railSensorsByElementId.Clear();
 
         if (!root.TryGetProperty(
                 "layers",
@@ -504,13 +522,25 @@ public sealed class TrainTrackingRuntime
             foreach (var element in
                      elements.EnumerateArray())
             {
-                if (element.ValueKind !=
-                        JsonValueKind.Object ||
-                    !string.Equals(
-                        StringValue(
-                            element,
-                            "type"),
-                        "trackblock",
+                if (element.ValueKind != JsonValueKind.Object)
+                    continue;
+
+                var type = StringValue(element, "type");
+                // Mirror the Routes Preview rail-element occupancy lookup.
+                // A turnout's accessory address must never become a sensor.
+                if (type is "trackstraight" or "trackbridge" or
+                    "trackdirection" or "trackend" or "trackcorner" or
+                    "trackcurve" or "trackcrossing" or "tracklevelcrossing")
+                {
+                    var elementId = PositiveInt(element, "id");
+                    var railSensor = PositiveInt(element, "address");
+                    if (elementId.HasValue &&
+                        railSensor is >= 1 and <= 65535)
+                        _railSensorsByElementId[elementId.Value] =
+                            railSensor.Value;
+                }
+
+                if (!string.Equals(type, "trackblock",
                         StringComparison.Ordinal))
                     continue;
 
@@ -553,6 +583,49 @@ public sealed class TrainTrackingRuntime
                         sensor.Value;
                 }
             }
+        }
+    }
+
+    // routeTable entries have ordered "nodes" but currently no "partPath".
+    // Resolve their intermediate sensors using the same saved graph nodes and
+    // ordinary rail-element occupancy addresses used by Routes Preview.
+    void BuildNodeSensors(JsonElement topology)
+    {
+        _nodeSensors.Clear();
+        if (!topology.TryGetProperty("graph", out var graph) ||
+            graph.ValueKind != JsonValueKind.Object ||
+            !graph.TryGetProperty("nodes", out var nodes) ||
+            nodes.ValueKind != JsonValueKind.Array)
+            return;
+
+        foreach (var node in nodes.EnumerateArray())
+        {
+            if (node.ValueKind != JsonValueKind.Object)
+                continue;
+
+            var name = StringValue(node, "name");
+            if (name.Length == 0)
+                continue;
+
+            var addresses = new HashSet<int>();
+            if (node.TryGetProperty("detectors", out var detectors) &&
+                detectors.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var detector in detectors.EnumerateArray())
+                {
+                    if (detector.ValueKind != JsonValueKind.Object)
+                        continue;
+                    var address = PositiveInt(detector, "address");
+                    if (address is >= 1 and <= 65535)
+                        addresses.Add(address.Value);
+                }
+            }
+
+            foreach (var id in IntArray(node, "elementIds"))
+                if (_railSensorsByElementId.TryGetValue(id, out var address))
+                    addresses.Add(address);
+
+            _nodeSensors[name] = addresses.OrderBy(value => value).ToArray();
         }
     }
 
@@ -655,6 +728,7 @@ public sealed class TrainTrackingRuntime
         lock (_gate)
         {
             _routes.Clear();
+            _nodeSensors.Clear();
 
             var path =
                 LayoutPath();
@@ -696,6 +770,8 @@ public sealed class TrainTrackingRuntime
                 {
                     topology =
                         rawTopology.Clone();
+
+                    BuildNodeSensors(rawTopology);
 
                     if (rawTopology.TryGetProperty(
                             "routeTable",
@@ -1061,19 +1137,25 @@ public sealed class TrainTrackingRuntime
             values.Add(
                 fromSensor);
 
-        foreach (var part in
-                 route.PartPath)
+        if (route.PartPath.Length > 0)
         {
-            if (part.FromSensor.HasValue)
-                values.Add(
-                    part.FromSensor.Value);
-
-            values.AddRange(
-                part.Detectors);
-
-            if (part.ToSensor.HasValue)
-                values.Add(
-                    part.ToSensor.Value);
+            // Preserve the ordering of layouts that already carry partPath.
+            foreach (var part in route.PartPath)
+            {
+                if (part.FromSensor.HasValue)
+                    values.Add(part.FromSensor.Value);
+                values.AddRange(part.Detectors);
+                if (part.ToSensor.HasValue)
+                    values.Add(part.ToSensor.Value);
+            }
+        }
+        else
+        {
+            // Current persisted routeTable uses ordered graph node names.
+            // Source/destination block sensors remain the endpoints.
+            foreach (var name in route.Nodes)
+                if (_nodeSensors.TryGetValue(name, out var detectors))
+                    values.AddRange(detectors);
         }
 
         if (_blockIdToSensor.TryGetValue(
@@ -1095,6 +1177,14 @@ public sealed class TrainTrackingRuntime
     {
         var active =
             sensors.ToHashSet();
+
+        if (route.PartPath.Length == 0)
+            return route.Nodes
+                .Where(name =>
+                    _nodeSensors.TryGetValue(name, out var nodeSensors) &&
+                    nodeSensors.Any(active.Contains))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
 
         return route.PartPath
             .Where(part =>
