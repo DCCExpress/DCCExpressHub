@@ -31,6 +31,7 @@ import SensorDebugTab from "./SensorDebugTab";
 import RailComDebugTab from "./RailComDebugTab";
 import TurnoutDebugTab from "./TurnoutDebugTab";
 import { useRuntimeDebugState } from "./useRuntimeDebugState";
+import { useDebugTurnoutLocks } from "./useDebugTurnoutLocks";
 
 type Props = {
   opened: boolean;
@@ -46,6 +47,7 @@ const panelStyle: CSSProperties = {
 
 export default function DebugDialog({ opened, onClose, standalone = false }: Props) {
   const runtime = useRuntimeDebugState(opened);
+  const turnoutLocks = useDebugTurnoutLocks(opened);
 
   const content = (
     <>
@@ -122,6 +124,7 @@ export default function DebugDialog({ opened, onClose, standalone = false }: Pro
 
         <Tabs.Panel value="turnouts" style={panelStyle}>
           <TurnoutDebugTab
+            turnoutLocks={turnoutLocks}
             turnouts={runtime.turnouts}
             layoutOwners={runtime.turnoutLayoutOwners}
             connected={runtime.connected}
@@ -130,6 +133,7 @@ export default function DebugDialog({ opened, onClose, standalone = false }: Pro
 
         <Tabs.Panel value="basic-accessories" style={panelStyle}>
           <BasicAccessoryDebugTab
+            turnoutLocks={turnoutLocks}
             accessories={runtime.basicAccessories}
             layoutOwners={runtime.basicAccessoryLayoutOwners}
             connected={runtime.connected}
@@ -138,6 +142,7 @@ export default function DebugDialog({ opened, onClose, standalone = false }: Pro
 
         <Tabs.Panel value="extended-accessories" style={panelStyle}>
           <ExtendedAccessoryDebugTab
+            turnoutLocks={turnoutLocks}
             accessories={runtime.extendedAccessories}
             layoutOwners={runtime.extendedAccessoryLayoutOwners}
             connected={runtime.connected}
