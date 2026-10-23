@@ -1,4 +1,6 @@
-import type { TrainDriverStatePayload, SequentialMovementStatePayload } from "@/domain/wsTypes";
+import type { TrainDriverStatePayload } from "@/domain/wsTypes";
+import { getSequentialMovementStates, subscribeSequentialMovementStates } from "../../services/sequentialMovementStates";
+import { resolveLocoTaskStatus } from "../../services/locoTaskStatus";
 import { ActionIcon, Badge, Button, Group, Paper, Stack, Text, Tooltip, Divider, SimpleGrid, ScrollArea } from "@mantine/core";
 import { IconX, IconPlayerStop, IconPlayerPlay, IconFlag } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
@@ -39,12 +41,13 @@ function routeTypeForOwner(owner: Pick<Lease, "ownerId" | "ownerName">): "QR" | 
 export default function MovementTaskManager({ document, locos, layout }: Props) {
   const [tasks, setTasks] = useState<Task[]>(getMovementTaskStates);
   const [drivers, setDrivers] = useState<TrainDriverStatePayload[]>([]);
-  const [sequences, setSequences] = useState<SequentialMovementStatePayload[]>([]);
+  const [sequences, setSequences] = useState(getSequentialMovementStates);
   const [traffic, setTraffic] = useState<Traffic>(emptyTraffic);
   const [loaded, setLoaded] = useState({ locks: false, dispatcher: false });
   const liveTraffic = loaded.locks && loaded.dispatcher;
 
   useEffect(() => subscribeMovementTaskStates(() => setTasks(getMovementTaskStates())), []);
+  useEffect(() => subscribeSequentialMovementStates(() => setSequences(getSequentialMovementStates())), []);
 
   // The backend's initial broadcasts may arrive before the Tasks tab mounts.
   // Request authoritative snapshots on mount AND after every reconnect,
@@ -62,17 +65,6 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
           extra?: { locks?: Lock[]; leases?: Lease[]; routes?: Lease[] } | null;
         };
       };
-      if (frame.type === "sequentialMovementStateChanged") {
-        const sequence = frame.data as unknown as SequentialMovementStatePayload;
-        if (sequence?.sequenceId)
-          setSequences(previous => [
-            ...previous.filter(item => item.sequenceId !== sequence.sequenceId), sequence,
-          ]);
-      } else if (frame.type === "movementResponse" &&
-                 frame.data?.action === "sequenceSnapshot" && frame.data?.ok === true) {
-        const states = (frame.data?.extra as unknown as { states?: SequentialMovementStatePayload[] } | undefined)?.states;
-        if (Array.isArray(states)) setSequences(states);
-      }
       if (frame.type === "trainDriverStateChanged") {
         const driver = frame.data as unknown as TrainDriverStatePayload;
         if (driver?.taskId) setDrivers(previous => [...previous.filter(t => t.taskId !== driver.taskId), driver]);
@@ -107,7 +99,6 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
     const unsubscribeStatus = wsClient.subscribeStatus(status => {
       if (status !== "connected") {
         setDrivers([]);
-        setSequences([]);
         setTraffic(emptyTraffic);
         setLoaded({ locks: false, dispatcher: false });
         return;
@@ -122,7 +113,6 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
         data: { action: "snapshot", requestId: requestId() },
       });
       wsClient.send({ type: "trainDriverCommand", data: { action: "snapshot", requestId: requestId() } });
-      wsClient.send({ type: "movementCommand", data: { action: "sequenceSnapshot", requestId: requestId() } });
       wsClient.send({
         type: "dispatcherCommand",
         data: { action: "snapshot", requestId: requestId() },
@@ -250,8 +240,13 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
             const definition = document.sequences.find(item => item.id === state.sequenceId);
             const loco = locos.find(item => item.address === state.locoAddress);
             const route = definition?.steps.map(step => blockLabel(step.blockId)).join(" → ");
-            const formattedInfo = (state.info ?? "").replace(/\bblock\s+#(\d+)\b/gi,
-              (_match, id: string) => blockLabel(Number(id)));
+            const taskStatus = state.locoAddress == null ? null : resolveLocoTaskStatus(
+              state.locoAddress, tasks, sequences, drivers,
+              id => blockLabel(id),
+            );
+            const formattedInfo = taskStatus?.message ??
+              (state.info ?? "").replace(/\bblock\s+#(\d+)\b/gi,
+                (_match, id: string) => blockLabel(Number(id)));
             return <Paper key={state.sequenceId} withBorder p="sm" radius="sm">
               <Group justify="space-between" align="center" wrap="nowrap">
                 <Stack gap={2} align="center" style={{ width: 110, flexShrink: 0 }}>
@@ -267,7 +262,8 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
                     <Text size="xs" c="dimmed">{state.stepIndex} / {state.stepCount} blocks</Text>
                   </Group>
                   {route && <Text size="xs" lineClamp={2}>{route}</Text>}
-                  {formattedInfo && <Text size="xs" c="dimmed">{formattedInfo}</Text>}
+                  {formattedInfo && <Text size="xs" fw={500}>{formattedInfo}</Text>}
+                  {taskStatus?.progress && <Text size="xs" c="dimmed">({taskStatus.progress})</Text>}
                 </Stack>
                 <Group gap={5} wrap="nowrap">
                   <Tooltip label="Finish at next block"><ActionIcon color="teal" variant="light"
@@ -303,6 +299,10 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
         const isStationRoute = isQuickRoute && fullName.startsWith("Station Route ·");
         const title = isStationRoute ? fullName : isQuickRoute ? "Quick route" : fullName;
         const route = state.routeDescription?.trim() || quickRouteMatch?.[1]?.trim() || null;
+        const taskStatus = state.locoAddress == null ? null : resolveLocoTaskStatus(
+          state.locoAddress, tasks, sequences, drivers,
+          id => blockLabel(id),
+        );
         return (
           <Paper key={pageId} withBorder p="sm" radius="sm">
             <Group justify="space-between" align="center" wrap="nowrap">
@@ -351,9 +351,10 @@ export default function MovementTaskManager({ document, locos, layout }: Props) 
                 </Tooltip>
               </Group>
             </Group>
-            {state.info && (
-              <Text size="xs" c="dimmed" mt="xs" style={{ width: "100%" }}>
-                {state.info}
+            {taskStatus && (
+              <Text size="xs" fw={500} mt="xs" style={{ width: "100%" }}>
+                {taskStatus.message}
+                {taskStatus.progress ? ` (${taskStatus.progress})` : ""}
               </Text>
             )}
           </Paper>
