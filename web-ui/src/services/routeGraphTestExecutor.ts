@@ -505,7 +505,9 @@ export async function testRouteTurnoutStates(
         ownerId,
         ownerName,
         addresses,
-        timeoutMs: 5000,
+        // A route test must never wait for a locked turnout to become
+        // available and then unexpectedly throw it. Fail immediately.
+        timeoutMs: 0,
       },
       7000
     );
