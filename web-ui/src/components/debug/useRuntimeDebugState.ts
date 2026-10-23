@@ -918,8 +918,9 @@ export function useRuntimeDebugState(
         });
       });
 
-    // Sensor state is rebuilt from the backend-neutral authoritative snapshot.
-    setSensors(new Map());
+    // wsClient.on("sensorChanged" / "sensorSnapshot") immediately replays its
+    // cached authoritative values. Do not erase them after subscribing: doing
+    // so makes every sensor appear FREE/UNKNOWN until another live update.
     setTurnouts(new Map());
 
     void refresh();
