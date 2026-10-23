@@ -22,7 +22,7 @@ import {
   IconDeviceFloppy,
   IconPlayerPause,
   IconPlayerPlay,
-  IconPlayerStop,
+  IconFlag,
   IconRefresh,
 } from "@tabler/icons-react";
 
@@ -849,7 +849,7 @@ export default function TimetablePanel({
               <Button
                 color="red"
                 variant="light"
-                leftSection={<IconPlayerStop size={16} />}
+                leftSection={<IconFlag size={16} />}
                 disabled={!schedulerState.running}
                 onClick={() => timetableScheduler.stop()}
               >
