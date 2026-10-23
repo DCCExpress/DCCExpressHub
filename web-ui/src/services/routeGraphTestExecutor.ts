@@ -92,15 +92,15 @@ async function switchManRequest(
             }
 
             if (!raw.data.ok) {
-              finish(() =>
-                reject(
-                  new Error(
-                    raw.data?.message ||
-                    `SwitchMan ${action} failed.`
-                  )
-                )
-              );
-
+              const firstConflict = raw.data?.extra?.conflicts?.[0] as
+                | { address?: number; ownerName?: string }
+                | undefined;
+              const message = raw.data?.message === "turnout_locked"
+                ? firstConflict?.address
+                  ? `A #${firstConflict.address} váltó zárolt (${firstConflict.ownerName || "másik folyamat"}). A teszt nem állított át váltót.`
+                  : "Az útvonal egyik váltója zárolt. A teszt nem állított át váltót."
+                : raw.data?.message || `SwitchMan ${action} failed.`;
+              finish(() => reject(new Error(message)));
               return;
             }
 
