@@ -30,6 +30,8 @@ export type MovementRouteCandidate = {
     blockType: string;
   }>;
   nodePath: string[];
+  /** Ordered occupancy feedback regions traversed between each node pair. */
+  turnoutSensorPaths: number[][];
   locoDirection:
     | "unknown"
     | "forward"
@@ -94,6 +96,28 @@ function positiveInteger(
   )
     ? numeric
     : null;
+}
+
+function turnoutOccupancySensorsByElementId(
+  layout: SerializedLayoutDto
+): Map<number, number> {
+  const types = new Set([
+    "trackturnoutleft", "trackturnoutright", "trackturnouttwoway",
+    "trackturnouttreeway", "trackturnoutdouble",
+  ]);
+  const sensors = new Map<number, number>();
+
+  for (const layer of layout.layers ?? []) {
+    for (const element of layer.elements ?? []) {
+      if (!types.has(element.type)) continue;
+      const id = positiveInteger(element.id);
+      const sensor = positiveInteger(element.address);
+      // This is the rail OCCUPANCY address, never the turnout accessory address.
+      if (id !== null && sensor !== null)
+        sensors.set(id, sensor);
+    }
+  }
+  return sensors;
 }
 
 function blockTypeById(
@@ -276,6 +300,7 @@ export function buildMovementRouteCandidates(
     blockTypeById(
       layout
     );
+  const turnoutOccupancySensors = turnoutOccupancySensorsByElementId(layout);
 
   const candidates:
     MovementRouteCandidate[] = [];
@@ -466,6 +491,21 @@ export function buildMovementRouteCandidates(
             index
         );
 
+    const turnoutSensorPaths = (
+      Array.isArray(raw.edgePath) ? raw.edgePath : []
+    ).map(edge => {
+      const addresses: number[] = [];
+      for (const passage of Array.isArray(edge.turnoutPath) ? edge.turnoutPath : []) {
+        const id = positiveInteger(passage.elementId);
+        const address = id === null ? undefined : turnoutOccupancySensors.get(id);
+        // Adjacent turnout elements using the same detector belong to ONE
+        // virtual occupancy region, rather than producing duplicate steps.
+        if (address !== undefined && addresses[addresses.length - 1] !== address)
+          addresses.push(address);
+      }
+      return addresses;
+    });
+
     const turnoutCount =
       new Set(
         (
@@ -551,6 +591,7 @@ export function buildMovementRouteCandidates(
             ]!.name
         ),
       blockPath,
+      turnoutSensorPaths,
       nodePath:
         Array.isArray(
           raw.nodes
