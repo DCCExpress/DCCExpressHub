@@ -1365,6 +1365,28 @@ public sealed class TrainTrackingRuntime
             if (speed <= 0)
                 return prefix + "speed is zero; not considered moving";
 
+            if (_committedRoutes.TryGetValue(loco, out var committed) &&
+                committed.FromBlockId == source &&
+                !string.Equals(committed.LocoDirection, direction,
+                    StringComparison.OrdinalIgnoreCase) &&
+                (committed.LocoDirection is "forward" or "reverse") &&
+                (direction is "forward" or "reverse"))
+            {
+                var backPath = RouteSensorPath(committed).Reverse().ToArray();
+                if (!RouteMatchesTurnouts(committed))
+                    return prefix + "returning on " + BlockName(source) +
+                        " <- " + BlockName(committed.ToBlockId) +
+                        ", but turnout state no longer matches committed route";
+                if (!backPath.Contains(sensor))
+                    return prefix + "sensor #" + sensor +
+                        " not on committed return path [" +
+                        string.Join(" -> ", backPath) + "]";
+                if (CandidateFromRoute(tracking, committed, sensor, true) is null)
+                    return prefix + "return path sensor ordering rejected [" +
+                        string.Join(" -> ", backPath) + "]";
+                return prefix + "return-path candidate exists (check competing locomotives)";
+            }
+
             var outgoing = _routes.Where(route =>
                 route.FromBlockId == source &&
                 route.BlockPath.Length == 2 &&
@@ -1763,28 +1785,36 @@ public sealed class TrainTrackingRuntime
             if (_committedRoutes.TryGetValue(
                     state.LocoAddress,
                     out var committed) &&
-                committed.FromBlockId ==
-                    state.CurrentBlockId &&
-                string.Equals(
-                    committed.LocoDirection,
-                    direction,
-                    StringComparison.OrdinalIgnoreCase))
-                route =
-                    committed;
-            else
+                committed.FromBlockId == state.CurrentBlockId)
             {
-                var routes =
-                    DirectRoutesFromBlock(
-                        state.CurrentBlockId.Value,
-                        direction);
+                if (string.Equals(
+                        committed.LocoDirection,
+                        direction,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    route = committed;
+                }
+                else if ((committed.LocoDirection is "forward" or "reverse") &&
+                         (direction is "forward" or "reverse") &&
+                         RouteMatchesTurnouts(committed))
+                {
+                    // On a mid-route reversal, the next block sensor belongs
+                    // to the original departure block, not to a new graph leg.
+                    state.PredictedNextBlockId = committed.FromBlockId;
+                    state.PredictedNextBlockName = BlockName(committed.FromBlockId);
+                    continue;
+                }
+            }
 
-                if (routes.Select(item =>
-                        item.ToBlockId)
-                        .Distinct()
-                        .Count() ==
-                    1)
-                    route =
-                        routes.FirstOrDefault();
+            if (route is null)
+            {
+                var routes = DirectRoutesFromBlock(
+                    state.CurrentBlockId.Value,
+                    direction);
+
+                if (routes.Select(item => item.ToBlockId)
+                    .Distinct().Count() == 1)
+                    route = routes.FirstOrDefault();
             }
 
             if (route is null)
