@@ -475,12 +475,14 @@ export default function TrackCanvas({
   useEffect(() => {
     const applyTurnoutRuntime = (
       address: number,
-      physicalValue: boolean
+      physicalValue: boolean,
+      outputMode: "accessory" | "extended" | "vpin" = "accessory",
+      displayOnly = false
     ) => {
       for (const element of layout.getAllElements()) {
         if (
           isTurnoutElement(element) &&
-          element.outputMode === "accessory" &&
+          element.outputMode === outputMode &&
           element.turnoutAddress === address
         ) {
           element.turnoutClosed = physicalValue;
@@ -492,7 +494,7 @@ export default function TrackCanvas({
             element instanceof TrackTurnoutDoubleElement ||
             element instanceof TrackTurnoutThreeWayElement
           ) &&
-          element.outputMode === "accessory"
+          element.outputMode === outputMode
         ) {
           if (element.turnout1Address === address) {
             element.turnout1Closed = physicalValue;
@@ -506,7 +508,7 @@ export default function TrackCanvas({
 
       // Every physical turnout/accessory event may change which legacy
       // RouteButton is active. Recalculate immediately and redraw.
-      layout.checkRoutes();
+      if (!displayOnly) layout.checkRoutes();
       invalidate();
     };
 
@@ -526,9 +528,14 @@ export default function TrackCanvas({
         );
       });
 
+    const unsubscribeDisplay = wsClient.on("turnoutDisplayRestored", data => {
+      applyTurnoutRuntime(data.address, data.closed, data.outputMode, true);
+    });
+
     return () => {
       unsubscribeTurnout();
       unsubscribeAccessory();
+      unsubscribeDisplay();
     };
   }, [layout, invalidate]);
 
