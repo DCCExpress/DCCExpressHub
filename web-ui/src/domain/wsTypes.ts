@@ -577,6 +577,12 @@ export type ServerWsPayloadMap = {
   powerInfo: WsPowerInfoPayload;
 
   turnoutChanged: TurnoutChangedPayload;
+  // Previous-session canvas position only, never physical turnout feedback.
+  turnoutDisplayRestored: {
+    address: number;
+    closed: boolean;
+    outputMode: "accessory" | "extended" | "vpin";
+  };
   sensorChanged: SensorChangedPayload;
   sensorSnapshot: SensorSnapshotPayload;
   sensorSettings: { sensorOffDelayMs: number; turnoutCommandIntervalMs: number; turnoutSettlingTimeMs: number; saved?: boolean };
