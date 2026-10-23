@@ -170,7 +170,6 @@ import {
   importFullBackup,
 } from "@/services/backupService";
 import "@/styles/propertypanel.css";
-import DebugDialog from "@/components/debug/DebugDialog";
 import EmbeddedCommandCenterConfigDialog from "@/components/EmbeddedCommandCenterConfigDialog";
 import { getCommandCenterInfo } from "@/api/commandCenterInfo";
 type LiteLayoutPageProps = {
@@ -1187,7 +1186,6 @@ export default function LiteLayoutPage({
   const [runtimeTab, setRuntimeTab] = useState<RuntimeTab>(readStoredRuntimeTab);
   const resizeRef = useRef<{ side: "left" | "right"; startX: number; startWidth: number } | null>(null);
   const temperatureCriticalRef = useRef(false);
-  const [debugOpened, setDebugOpened] = useState(false);
   const [commandCenterConfigOpened, setCommandCenterConfigOpened] = useState(false);
   const [embeddedCommandCenter, setEmbeddedCommandCenter] = useState(false);
   const [timetableOpened, setTimetableOpened] = useState(false);
@@ -2217,7 +2215,7 @@ export default function LiteLayoutPage({
               </span>
             </Button>
             <Button size="xs" variant="light" color="teal" leftSection={<IconShieldCheck size={16} />} onClick={() => setIntegrityCheckOpened(true)} title={i18next.t("ui.checkAllProjectReferences")}> {i18next.t("ui.check")} </Button>
-            <Button variant="light" leftSection={<IconBug size={16} />} onClick={() => setDebugOpened(true)}>
+            <Button component="a" href="#debug" target="_blank" rel="noopener noreferrer" variant="light" leftSection={<IconBug size={16} />}>
               Debug
             </Button>
             <Button
@@ -2799,11 +2797,6 @@ export default function LiteLayoutPage({
         onClose={() => setIntegrityCheckOpened(false)}
         layout={layout}
         locos={locos}
-      />
-
-      <DebugDialog
-        opened={debugOpened}
-        onClose={() => setDebugOpened(false)}
       />
 
       <RoutesDialog
