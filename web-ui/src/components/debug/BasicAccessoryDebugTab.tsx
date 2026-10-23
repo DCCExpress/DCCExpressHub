@@ -18,6 +18,7 @@ type Props = {
   accessories: BasicAccessoryDebugState;
   layoutOwners: BasicAccessoryLayoutOwners;
   connected: boolean;
+  turnoutLocks: Map<number, string>;
 };
 
 function formatTime(timestamp: number): string {
@@ -28,6 +29,7 @@ export default function BasicAccessoryDebugTab({
   accessories,
   layoutOwners,
   connected,
+  turnoutLocks,
 }: Props) {
   const rows = [...accessories.entries()].sort(([a], [b]) => a - b);
 
@@ -50,6 +52,7 @@ export default function BasicAccessoryDebugTab({
         </Table.Thead>
         <Table.Tbody>
           {rows.map(([address, state]) => {
+            const lockOwner = turnoutLocks.get(address);
             const owners = layoutOwners.get(address) ?? [];
 
             return (
@@ -63,9 +66,10 @@ export default function BasicAccessoryDebugTab({
               </Table.Td>
               <Table.Td>
                 <Group gap="xs">
+                  {lockOwner && <Badge color="red" variant="light" title={lockOwner}>LOCKED</Badge>}
                   <Switch
                     checked={state.value}
-                    disabled={!connected}
+                    disabled={!connected || Boolean(lockOwner)}
                     onChange={event => wsApi.setBasicAccessory(address, event.currentTarget.checked)}
                     aria-label={`Basic accessory ${address}`}
                   />
