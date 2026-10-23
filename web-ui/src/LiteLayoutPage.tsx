@@ -1757,6 +1757,27 @@ export default function LiteLayoutPage({
     invalidate();
   }), [layout, invalidate]);
 
+  // Previous-session turnout positions are canvas hints, not physical feedback.
+  useEffect(() => wsClient.on("turnoutDisplayRestored", data => {
+    for (const element of layout.getAllElements()) {
+      if (isTurnoutElement(element) &&
+          element.outputMode === data.outputMode &&
+          element.turnoutAddress === data.address) {
+        element.turnoutClosed = data.closed;
+      } else if (
+        (element instanceof TrackTurnoutDoubleElement ||
+          element instanceof TrackTurnoutThreeWayElement) &&
+        element.outputMode === data.outputMode
+      ) {
+        if (element.turnout1Address === data.address)
+          element.turnout1Closed = data.closed;
+        if (element.turnout2Address === data.address)
+          element.turnout2Closed = data.closed;
+      }
+    }
+    invalidate();
+  }), [layout, invalidate]);
+
   useEffect(() => wsClient.on("sensorChanged", data => {
     for (const element of layout.getAllElements()) {
       if (element instanceof TrackSensorElement && element.address === data.address) {
