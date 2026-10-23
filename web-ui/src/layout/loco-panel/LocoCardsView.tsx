@@ -83,8 +83,22 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
         const state = live[loco.address] ?? { speed: 0, direction: "forward" as Direction, functionsMask: 0 };
         // Train Driver / Movement ownership is advisory here: manual override remains available.
         const locked = disabled;
-        const movement = moving.find(item => item.state.locoAddress === loco.address &&
-          ["running", "stopping", "error"].includes(item.state.status))?.state;
+        // The movement cache retains terminal errors for diagnostics. A loco card
+        // must show the CURRENT task, not an older failed route that happens to
+        // be the first entry in the cache. Keep safety errors visible while the
+        // emergency stop is active; otherwise they belong to Movement diagnostics.
+        const locoMovements = moving
+          .filter(item => item.state.locoAddress === loco.address);
+        const newestFirst = (a: typeof locoMovements[number], b: typeof locoMovements[number]) =>
+          (b.state.startedAt ?? 0) - (a.state.startedAt ?? 0);
+        const activeMovement = locoMovements
+          .filter(item => ["running", "stopping"].includes(item.state.status))
+          .sort(newestFirst)[0]?.state;
+        const movement = activeMovement ?? (emergencyStop
+          ? locoMovements
+              .filter(item => item.state.status === "error")
+              .sort(newestFirst)[0]?.state
+          : undefined);
         const driver = drivers.find(item => item.locoAddress === loco.address &&
           ["created", "running", "waiting", "paused", "stopping"].includes(item.status));
         const movementMessage = movement
