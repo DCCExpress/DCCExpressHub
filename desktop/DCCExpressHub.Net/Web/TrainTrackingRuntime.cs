@@ -1372,7 +1372,10 @@ public sealed class TrainTrackingRuntime
             if (containing.Length == 0)
                 return prefix + "sensor #" + sensor +
                     " is absent from " + directed.Length +
-                    " outgoing route sensor path(s)";
+                    " outgoing route sensor path(s): " +
+                    string.Join(" | ", directed.Select(route =>
+                        (route.ToBlockName ?? BlockName(route.ToBlockId)) +
+                        " [" + string.Join(" -> ", RouteSensorPath(route)) + "]"));
 
             var details = containing.Select(route =>
             {
