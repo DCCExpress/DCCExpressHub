@@ -728,6 +728,33 @@ export default function RoutesDialog({
       .sort((left, right) => left - right);
   };
 
+  // Route previews also include sensors on the actually traversed
+  // turnout chain. These are virtual occupancy regions, not new blocks.
+  const formatCandidateSensorPath = (candidate: MovementRouteCandidate) => {
+    const items: string[] = [];
+    let lastSensor: number | undefined;
+
+    candidate.nodePath.forEach((name, index) => {
+      const node = result?.graph.nodes.find(entry => entry.name === name);
+      const sensors = node ? segmentDetectorAddresses(node) : [];
+      items.push(sensors.length
+        ? `${name} (#${sensors.join(", #")})`
+        : name);
+
+      if (sensors.length > 0) lastSensor = sensors[sensors.length - 1];
+
+      // edgePath[i] connects nodePath[i] and nodePath[i + 1].
+      // Only collapse adjacent equal detectors (e.g. #30 and #31).
+      for (const sensor of candidate.turnoutSensorPaths[index] ?? []) {
+        if (sensor === lastSensor) continue;
+        items.push(`V (#${sensor})`);
+        lastSensor = sensor;
+      }
+    });
+
+    return items.join(" → ");
+  };
+
   const nodes =
     result?.graph.nodes ?? [];
 
@@ -1418,14 +1445,7 @@ export default function RoutesDialog({
                                           c="dimmed"
                                         >
                                           {
-                                            candidate.nodePath.map(nodeName => {
-                                              const node = nodes.find(item => item.name === nodeName);
-                                              if (!node) return nodeName;
-                                              const sensors = segmentDetectorAddresses(node);
-                                              return sensors.length
-                                                ? nodeName + " (#" + sensors.join(", #") + ")"
-                                                : nodeName;
-                                            }).join(" → ")
+                                            formatCandidateSensorPath(candidate)
                                           }
                                         </Text>
                                       )
