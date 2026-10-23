@@ -81,6 +81,9 @@ public sealed class TrainTrackingRuntime
         public int[] BlockPath { get; set; } = [];
         public RoutePart[] PartPath { get; set; } = [];
         public string[] Nodes { get; set; } = [];
+        // Occupancy sensors on the traversed turnout chain of each graph edge.
+        // Edge index i connects Nodes[i] to Nodes[i + 1].
+        public int[][] EdgeSensorPaths { get; set; } = [];
         public TurnoutRequirement[] Turnouts { get; set; } = [];
         public string LocoDirection { get; set; } = "unknown";
     }
@@ -446,16 +449,45 @@ public sealed class TrainTrackingRuntime
             route,
             turnouts);
 
+        var edgeSensorPaths = new List<int[]>();
         if (route.TryGetProperty(
                 "edgePath",
                 out var edgePath) &&
             edgePath.ValueKind ==
                 JsonValueKind.Array)
-            foreach (var edge in
-                     edgePath.EnumerateArray())
-                AddTurnoutRequirements(
-                    edge,
-                    turnouts);
+        {
+            foreach (var edge in edgePath.EnumerateArray())
+            {
+                AddTurnoutRequirements(edge, turnouts);
+
+                var sensors = new List<int>();
+                if (edge.ValueKind == JsonValueKind.Object &&
+                    edge.TryGetProperty("turnoutPath", out var turnoutPath) &&
+                    turnoutPath.ValueKind == JsonValueKind.Array)
+                {
+                    // turnoutPath is already in physical traversal order.
+                    // Resolve each turnout's RAIL occupancy "address", never
+                    // its accessory turnoutAddress / turnout1Address.
+                    foreach (var passage in turnoutPath.EnumerateArray())
+                    {
+                        if (passage.ValueKind != JsonValueKind.Object)
+                            continue;
+
+                        var elementId = PositiveInt(passage, "elementId");
+                        if (!elementId.HasValue ||
+                            !_railSensorsByElementId.TryGetValue(
+                                elementId.Value, out var occupancySensor))
+                            continue;
+
+                        // Consecutive connected turnouts with the same
+                        // detector form one virtual occupancy region.
+                        if (sensors.Count == 0 || sensors[^1] != occupancySensor)
+                            sensors.Add(occupancySensor);
+                    }
+                }
+                edgeSensorPaths.Add(sensors.ToArray());
+            }
+        }
 
         return new RouteEntry
         {
@@ -478,6 +510,7 @@ public sealed class TrainTrackingRuntime
             PartPath =
                 parts.ToArray(),
             Nodes = nodes,
+            EdgeSensorPaths = edgeSensorPaths.ToArray(),
             Turnouts =
                 turnouts
                     .Select(pair =>
@@ -531,7 +564,10 @@ public sealed class TrainTrackingRuntime
                 // A turnout's accessory address must never become a sensor.
                 if (type is "trackstraight" or "trackbridge" or
                     "trackdirection" or "trackend" or "trackcorner" or
-                    "trackcurve" or "trackcrossing" or "tracklevelcrossing")
+                    "trackcurve" or "trackcrossing" or "tracklevelcrossing" or
+                    "trackturnoutleft" or "trackturnoutright" or
+                    "trackturnouttwoway" or "trackturnouttreeway" or
+                    "trackturnoutdouble")
                 {
                     var elementId = PositiveInt(element, "id");
                     var railSensor = PositiveInt(element, "address");
@@ -1152,11 +1188,20 @@ public sealed class TrainTrackingRuntime
         }
         else
         {
-            // Current persisted routeTable uses ordered graph node names.
-            // Source/destination block sensors remain the endpoints.
-            foreach (var name in route.Nodes)
-                if (_nodeSensors.TryGetValue(name, out var detectors))
+            // Interleave graph node sensors with the traversed edge's
+            // turnout-occupancy regions. Nodes alone omit sensors on
+            // directly connected turnouts (e.g. #30/#31 -> #1021).
+            // The saved edgePath/turnoutPath already contains the exact
+            // traversed turnout sequence for each route direction.
+            for (var i = 0; i < route.Nodes.Length; i++)
+            {
+                if (_nodeSensors.TryGetValue(
+                        route.Nodes[i], out var detectors))
                     values.AddRange(detectors);
+
+                if (i < route.EdgeSensorPaths.Length)
+                    values.AddRange(route.EdgeSensorPaths[i]);
+            }
         }
 
         if (_blockIdToSensor.TryGetValue(
