@@ -108,20 +108,20 @@ export default function LocoGeneralTab({
             onChange={value => onPatch({ mediumSpeed: Math.max(1, Math.min(126, Number(value) || 1)) })}
           />
         <NumberInput
-          label={t("locodialog.loco_max_speed")}
-          value={loco.maxSpeed}
-          min={1}
-          max={1000}
-          onChange={value => onPatch({ maxSpeed: Number(value) || 0 })}
-        />
-
-        <NumberInput
           label={t("locodialog.loco_cruising_speed")}
           description={t("locodialog.loco_cruising_speed_description")}
           value={loco.cruisingSpeed ?? 20}
           min={1}
           max={Math.min(126, Math.max(1, loco.maxSpeed))}
           onChange={value => onPatch({ cruisingSpeed: Math.max(1, Math.min(Number(value) || 1, 126, loco.maxSpeed)) })}
+        />
+
+        <NumberInput
+          label={t("locodialog.loco_max_speed")}
+          value={loco.maxSpeed}
+          min={1}
+          max={1000}
+          onChange={value => onPatch({ maxSpeed: Number(value) || 0 })}
         />
         </Stack>
       </SimpleGrid>
