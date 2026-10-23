@@ -1343,10 +1343,6 @@ export default function RoutesDialog({
                               {t("ui.direction")}
                             </Table.Th>
 
-                            <Table.Th>
-                              {t("ui.turnouts")}
-                            </Table.Th>
-
                             <Table.Th
                               style={{ width: 110 }}
                             >
@@ -1401,7 +1397,7 @@ export default function RoutesDialog({
                                   </Table.Td>
 
                                   <Table.Td>
-                                    <Text size="sm">
+                                    {candidate.blockPath.length > 2 && <Text size="sm">
                                       {
                                         candidate.blockPath
                                           .map(
@@ -1412,7 +1408,7 @@ export default function RoutesDialog({
                                             " → "
                                           )
                                       }
-                                    </Text>
+                                    </Text>}
 
                                     {
                                       candidate.nodePath.length >
@@ -1434,6 +1430,14 @@ export default function RoutesDialog({
                                         </Text>
                                       )
                                     }
+
+                                    {candidate.turnoutStates.length > 0 && (
+                                      <Text size="xs" c="dimmed">
+                                        {candidate.turnoutStates.map(state =>
+                                          `#${state.address}(${state.closed ? "C" : "T"})`
+                                        ).join(" · ")}
+                                      </Text>
+                                    )}
                                   </Table.Td>
 
                                   <Table.Td>
@@ -1459,12 +1463,6 @@ export default function RoutesDialog({
                                             : t("ui.unknown")
                                       }
                                     </Badge>
-                                  </Table.Td>
-
-                                  <Table.Td>
-                                    {
-                                      candidate.turnoutCount
-                                    }
                                   </Table.Td>
 
                                   <Table.Td>
