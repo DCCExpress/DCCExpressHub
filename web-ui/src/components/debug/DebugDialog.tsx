@@ -11,6 +11,7 @@ import type { CSSProperties } from "react";
 import {
   IconBug,
   IconActivity,
+  IconListDetails,
   IconRefresh,
   IconRoute,
   IconBroadcast,
@@ -23,6 +24,7 @@ import AppModal from "@/components/common/AppModal";
 
 import BasicAccessoryDebugTab from "./BasicAccessoryDebugTab";
 import SystemDiagnosticsTab from "./SystemDiagnosticsTab";
+import ProtocolMonitorTab from "./ProtocolMonitorTab";
 import ExtendedAccessoryDebugTab from "./ExtendedAccessoryDebugTab";
 import SensorDebugTab from "./SensorDebugTab";
 import RailComDebugTab from "./RailComDebugTab";
@@ -96,6 +98,7 @@ export default function DebugDialog({ opened, onClose }: Props) {
       >
         <Tabs.List mb="md" style={{ flexShrink: 0 }}>
           <Tabs.Tab value="system" leftSection={<IconActivity size={16} />}>System</Tabs.Tab>
+          <Tabs.Tab value="protocol" leftSection={<IconListDetails size={16} />}>Protocol Monitor</Tabs.Tab>
           <Tabs.Tab value="sensors" leftSection={<IconRoute size={16} />}>
             Sensors ({runtime.sensors.size})
           </Tabs.Tab>
@@ -119,6 +122,10 @@ export default function DebugDialog({ opened, onClose }: Props) {
 
         <Tabs.Panel value="system" style={panelStyle}>
           <SystemDiagnosticsTab opened={opened} />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="protocol" style={panelStyle}>
+          <ProtocolMonitorTab opened={opened} />
         </Tabs.Panel>
 
         <Tabs.Panel value="sensors" style={panelStyle}>
