@@ -54,6 +54,7 @@ public sealed class RuntimeStateStore
                 foreach (var pair in savedExtended.EnumerateObject())
                 {
                     if (!ushort.TryParse(pair.Name, out var address) || address == 0 ||
+                        pair.Value.ValueKind != JsonValueKind.Number ||
                         !pair.Value.TryGetInt32(out var aspect) || aspect is < 0 or > 255)
                         continue;
                     extended[address] = (byte)aspect;
