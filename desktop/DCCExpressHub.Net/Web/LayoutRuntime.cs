@@ -899,6 +899,47 @@ public sealed class LayoutRuntime
         }
     }
 
+    // RuntimeStateStore must preserve saved turnout drawings even if the
+    // operator restarts the backend without issuing any new turnout commands.
+    // Snapshot these persisted hints ONLY for disk storage: the authoritative
+    // basic/extended maps and physical queries remain unchanged.
+    public (IReadOnlyDictionary<ushort, bool> Basic,
+        IReadOnlyDictionary<ushort, byte> Extended) AccessorySaveSnapshot()
+    {
+        lock (_gate)
+        {
+            var basic = new Dictionary<ushort, bool>(_basicAccessoryStates);
+            var extended = new Dictionary<ushort, byte>(_extendedAccessoryStates);
+
+            foreach (var saved in _restoredTurnoutDisplayStates)
+            {
+                var (address, mode) = saved.Key;
+                if (mode == "accessory")
+                {
+                    basic[address] = saved.Value;
+                    continue;
+                }
+
+                if (mode != "extended")
+                    continue;
+
+                var turnout = _accessories.FirstOrDefault(item =>
+                    item.Kind == RuntimeAccessoryKind.Turnout &&
+                    item.TurnoutExtended && item.Address == address);
+                if (turnout is null)
+                    continue;
+
+                bool logicalClosed = saved.Value == turnout.ClosedValue;
+                var aspect = logicalClosed
+                    ? turnout.TurnoutClosedAspect
+                    : turnout.TurnoutOpenedAspect;
+                extended[address] = (byte)aspect;
+            }
+
+            return (basic, extended);
+        }
+    }
+
     public IReadOnlyDictionary<ushort, bool> BasicAccessoryStatesForPersistence()
     {
         lock (_gate)
