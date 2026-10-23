@@ -4,7 +4,7 @@ import type { TrainDriverStatePayload } from "@domain/wsTypes";
 import { wsClient } from "../../services/wsClient";
 import { getMovementTaskStates, subscribeMovementTaskStates } from "../../services/movementEngine";
 import { getSequentialMovementStates, subscribeSequentialMovementStates } from "../../services/sequentialMovementStates";
-import { resolveLocoTaskStatus, formatLocoTaskStatus } from "../../services/locoTaskStatus";
+import { resolveLocoTaskStatus, formatLocoTaskStatus, movementBlockLabel } from "../../services/locoTaskStatus";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type {
@@ -99,7 +99,8 @@ export default function LocoControlCard({
   }, []);
   const driver = drivers.find(item => item.locoAddress === loco.address &&
     ["created", "running", "waiting", "paused", "stopping"].includes(item.status));
-  const taskStatus = resolveLocoTaskStatus(loco.address, movementTasks, sequences, drivers);
+  const taskStatus = resolveLocoTaskStatus(loco.address, movementTasks, sequences, drivers,
+    id => movementBlockLabel(movementTasks, loco.address, id));
   const movement = taskStatus?.movement;
   const driverAction = (action: "stop" | "resume" | "abort") => {
     if (!driver) return;
