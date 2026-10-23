@@ -933,9 +933,15 @@ export function useRuntimeDebugState(
     // so makes every sensor appear FREE/UNKNOWN until another live update.
     setTurnouts(new Map());
 
-    void refresh();
+    // The standalone #debug page may mount before its WebSocket is ready.
+    // Load owners and the runtime snapshot only once connected, and retry on reconnect.
+    const unsubscribeRefreshStatus = wsClient.subscribeStatus(status => {
+      if (status === "connected") void refresh();
+    });
+    if (wsClient.isConnected()) void refresh();
 
     return () => {
+      unsubscribeRefreshStatus();
       unsubscribeMessages();
       unsubscribeSensorChanged();
       unsubscribeSensorSnapshot();
