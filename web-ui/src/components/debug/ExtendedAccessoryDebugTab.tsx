@@ -55,9 +55,9 @@ function ExtendedAccessoryRow({
       <Table.Td><Badge variant="light" color="gray">{address}</Badge></Table.Td>
       <DebugLayoutOwnerCells owners={owners} />
       <Table.Td><Badge color="violet" variant="light">{state.value}</Badge></Table.Td>
+      <Table.Td w={100}><Badge color="red" variant="light" title={lockOwner ?? ""} style={{ visibility: lockOwner ? "visible" : "hidden" }}>LOCKED</Badge></Table.Td>
       <Table.Td>
         <Group gap="xs" wrap="nowrap">
-          {lockOwner && <Badge color="red" variant="light" title={lockOwner}>LOCKED</Badge>}
           <NumberInput
             value={value}
             min={0}
@@ -107,6 +107,7 @@ export default function ExtendedAccessoryDebugTab({
             <Table.Th>Type</Table.Th>
             <Table.Th>Name</Table.Th>
             <Table.Th>Current value</Table.Th>
+            <Table.Th w={100}>Lock</Table.Th>
             <Table.Th>Control</Table.Th>
             <Table.Th>Last update</Table.Th>
           </Table.Tr>
