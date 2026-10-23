@@ -104,7 +104,7 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
           onClickCapture={event => {
             if (event.detail === 0 && selectedLocoId !== loco.id) onSelect(loco);
           }}
-          style={{ borderColor: selectedLocoId === loco.id ? "var(--mantine-color-lime-6)" : undefined, cursor: "pointer" }}>
+          style={{ borderColor: selectedLocoId === loco.id ? "var(--mantine-color-lime-6)" : undefined, cursor: "default" }}>
           <Group gap="xs" wrap="nowrap">
             <LocoImage locoId={loco.id} image={loco.image} name={loco.name} width={94} height={48} />
             <Stack gap={0} style={{ minWidth: 0, flex: 1 }}>
@@ -117,7 +117,7 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
                   return <Tooltip key={number} label={fn?.name ? `F${number} · ${fn.name}` : `Function F${number}`}>
                     <ActionIcon size={30} radius="sm" variant={(state.functionsMask & (1 << number)) !== 0 ? "filled" : "light"}
                       color={(state.functionsMask & (1 << number)) !== 0 ? "blue" : "gray"}
-                      disabled={locked} aria-label={`Function F${number}`}
+                      disabled={locked} style={{ cursor: locked ? "default" : "pointer" }} aria-label={`Function F${number}`}
                       onPointerDown={event => {
                         event.stopPropagation();
                         if (fn.momentary) { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); toggleFunction(loco, number, true); }
@@ -135,12 +135,13 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
           </Group>
           <Group wrap="nowrap" gap={5} mt={5} onClick={event => event.stopPropagation()}>
             <Tooltip label="Reverse"><ActionIcon size="sm" variant={state.direction === "reverse" ? "filled" : "light"}
-              disabled={locked} onClick={() => command(loco, state.speed, "reverse")} aria-label="Reverse"><IconArrowBigLeft size={14}/></ActionIcon></Tooltip>
-            <Tooltip label="Stop"><ActionIcon size="sm" color="red" variant="light" disabled={locked}
+              disabled={locked} style={{ cursor: locked ? "default" : "pointer" }} onClick={() => command(loco, state.speed, "reverse")} aria-label="Reverse"><IconArrowBigLeft size={14}/></ActionIcon></Tooltip>
+            <Tooltip label="Stop"><ActionIcon size="sm" color="red" variant="light" disabled={locked} style={{ cursor: locked ? "default" : "pointer" }}
               onClick={() => command(loco, 0, state.direction)} aria-label="Stop"><IconPlayerStopFilled size={14}/></ActionIcon></Tooltip>
             <Tooltip label="Forward"><ActionIcon size="sm" variant={state.direction === "forward" ? "filled" : "light"}
-              disabled={locked} onClick={() => command(loco, state.speed, "forward")} aria-label="Forward"><IconArrowBigRight size={14}/></ActionIcon></Tooltip>
-            <Slider style={{ flex: 1, minWidth: 35 }} size="xs" min={0} max={Math.max(1, Math.min(126, loco.maxSpeed || 126))}
+              disabled={locked} style={{ cursor: locked ? "default" : "pointer" }} onClick={() => command(loco, state.speed, "forward")} aria-label="Forward"><IconArrowBigRight size={14}/></ActionIcon></Tooltip>
+            <Slider style={{ flex: 1, minWidth: 35, cursor: locked ? "default" : "pointer" }}
+              styles={{ thumb: { cursor: locked ? "default" : "pointer" }, track: { cursor: locked ? "default" : "pointer" } }} size="xs" min={0} max={Math.max(1, Math.min(126, loco.maxSpeed || 126))}
               value={Math.min(state.speed, Math.max(1, Math.min(126, loco.maxSpeed || 126)))} disabled={locked}
               onChange={value => setLive(old => ({ ...old, [loco.address]: { ...old[loco.address], speed: value, direction: state.direction, functionsMask: old[loco.address]?.functionsMask ?? state.functionsMask } }))}
               onChangeEnd={value => command(loco, value, state.direction)} aria-label={`Speed ${loco.name}`} />
