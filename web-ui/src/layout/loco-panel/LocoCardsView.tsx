@@ -85,8 +85,8 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
         const locked = disabled;
         // The movement cache retains terminal errors for diagnostics. A loco card
         // must show the CURRENT task, not an older failed route that happens to
-        // be the first entry in the cache. Keep safety errors visible while the
-        // emergency stop is active; otherwise they belong to Movement diagnostics.
+        // be the first entry in the cache. Active safety stops have their own
+        // global indicator; never recycle a previous trip's reason on this card.
         const locoMovements = moving
           .filter(item => item.state.locoAddress === loco.address);
         const newestFirst = (a: typeof locoMovements[number], b: typeof locoMovements[number]) =>
@@ -94,17 +94,14 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
         const activeMovement = locoMovements
           .filter(item => ["running", "stopping"].includes(item.state.status))
           .sort(newestFirst)[0]?.state;
-        const movement = activeMovement ?? (emergencyStop
-          ? locoMovements
-              .filter(item => item.state.status === "error")
-              .sort(newestFirst)[0]?.state
-          : undefined);
+        const movement = activeMovement;
         const driver = drivers.find(item => item.locoAddress === loco.address &&
           ["created", "running", "waiting", "paused", "stopping"].includes(item.status));
         const movementMessage = movement
           ? (movement.error || movement.info ||
             (movement.status === "stopping" ? "Stopping" :
               movement.targetBlockName ? `Moving to ${movement.targetBlockName}` : movement.status))
+          : emergencyStop ? "Emergency stop active"
           : driver ? (driver.status === "waiting" ? "Train Driver waiting" :
               driver.status === "paused" ? "Train Driver paused" : `Train Driver: ${driver.status}`) : null;
         const cardFunctions = (loco.functions ?? []).filter(fn => fn.showOnLocoCard ?? fn.number < 5)
