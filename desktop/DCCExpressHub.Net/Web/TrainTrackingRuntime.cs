@@ -1294,9 +1294,10 @@ public sealed class TrainTrackingRuntime
                     actual != turnout.Closed)
                     .Select(turnout =>
                     {
+                        bool actual = false;
                         var known = turnout.Address is >= 1 and <= 65535 &&
                             _layout.TryGetTurnoutClosed((ushort)turnout.Address,
-                                out var actual);
+                                out actual);
                         return "turnout #" + turnout.Address +
                             " expected " + (turnout.Closed ? "Closed" : "Thrown") +
                             ", actual " + (known
