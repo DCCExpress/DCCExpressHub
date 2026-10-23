@@ -1422,9 +1422,14 @@ export default function RoutesDialog({
                                           c="dimmed"
                                         >
                                           {
-                                            candidate.nodePath.join(
-                                              " → "
-                                            )
+                                            candidate.nodePath.map(nodeName => {
+                                              const node = nodes.find(item => item.name === nodeName);
+                                              if (!node) return nodeName;
+                                              const sensors = segmentDetectorAddresses(node);
+                                              return sensors.length
+                                                ? nodeName + " (#" + sensors.join(", #") + ")"
+                                                : nodeName;
+                                            }).join(" → ")
                                           }
                                         </Text>
                                       )
