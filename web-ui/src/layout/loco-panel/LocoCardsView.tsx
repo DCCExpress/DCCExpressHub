@@ -8,6 +8,9 @@ import FunctionIconAsset from "../../components/loco/FunctionIconAsset";
 import { wsApi } from "../../services/wsApi";
 import { wsClient } from "../../services/wsClient";
 import { getMovementTaskStates, subscribeMovementTaskStates } from "../../services/movementEngine";
+import { getSequentialMovementStates, subscribeSequentialMovementStates } from "../../services/sequentialMovementStates";
+import { resolveLocoTaskStatus, formatLocoTaskStatus } from "../../services/locoTaskStatus";
+import type { TrainDriverStatePayload } from "@domain/wsTypes";
 import LocoEmergencyButton from "./LocoEmergencyButton";
 
 type LiveState = { speed: number; direction: Direction; functionsMask: number };
@@ -15,12 +18,14 @@ type Props = { locos: Loco[]; selectedLocoId: string; onSelect: (loco: Loco) => 
 
 export default function LocoCardsView({ locos, selectedLocoId, onSelect, disabled, emergencyStop, onEmergencyToggle }: Props) {
   const [live, setLive] = useState<Record<number, LiveState>>({});
-  const [moving, setMoving] = useState(() => getMovementTaskStates());
-  const [drivers, setDrivers] = useState<Array<{ locoAddress: number; status: string }>>([]);
+  const [moving, setMoving] = useState(getMovementTaskStates);
+  const [sequences, setSequences] = useState(getSequentialMovementStates);
+  const [drivers, setDrivers] = useState<TrainDriverStatePayload[]>([]);
   useEffect(() => {
     const update = () => setMoving(getMovementTaskStates());
     return subscribeMovementTaskStates(update);
   }, []);
+  useEffect(() => subscribeSequentialMovementStates(() => setSequences(getSequentialMovementStates())), []);
   useEffect(() => {
     const unsub = wsClient.on("locoState", data => {
       if (!data.loco) return;
@@ -49,9 +54,8 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
     }
     return () => { unsub(); driverUnsub(); connection(); };
   }, [locos]);
-  const blocked = (address: number) =>
-    moving.some(item => item.state.locoAddress === address && ["running", "stopping"].includes(item.state.status)) ||
-    drivers.some(item => item.locoAddress === address && ["created", "running", "waiting", "paused", "stopping"].includes(item.status));
+  // Task ownership and display share the same live selection criteria.
+  // Manual throttle override behavior itself remains unchanged.
   const command = (loco: Loco, speed: number, direction: Direction) => {
     if (disabled) return;
     const value = Math.max(0, Math.min(126, loco.maxSpeed > 0 ? loco.maxSpeed : 126, Math.round(speed)));
@@ -83,30 +87,17 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
         const state = live[loco.address] ?? { speed: 0, direction: "forward" as Direction, functionsMask: 0 };
         // Train Driver / Movement ownership is advisory here: manual override remains available.
         const locked = disabled;
-        // The movement cache retains terminal errors for diagnostics. A loco card
-        // must show the CURRENT task, not an older failed route that happens to
-        // be the first entry in the cache. Active safety stops have their own
-        // global indicator; never recycle a previous trip's reason on this card.
-        const locoMovements = moving
-          .filter(item => item.state.locoAddress === loco.address);
-        const newestFirst = (a: typeof locoMovements[number], b: typeof locoMovements[number]) =>
-          (b.state.startedAt ?? 0) - (a.state.startedAt ?? 0);
-        const activeMovement = locoMovements
-          .filter(item => ["running", "stopping"].includes(item.state.status))
-          .sort(newestFirst)[0]?.state;
-        const movement = activeMovement;
-        const driver = drivers.find(item => item.locoAddress === loco.address &&
-          ["created", "running", "waiting", "paused", "stopping"].includes(item.status));
-        // An active task's live info is authoritative for the loco card.
-        // Terminal Movement errors remain available in Movement diagnostics,
-        // but must not obscure a newer physical journey on the loco card.
-        // The global emergency-stop state always takes precedence.
+        // A parent Sequential Movement owns the loco throughout dwell times,
+        // including the gap after its child Movement has completed.
+        const taskStatus = resolveLocoTaskStatus(loco.address, moving, sequences, drivers,
+          id => moving.find(item => item.state.locoAddress === loco.address &&
+            (item.state.currentBlockId === id || item.state.targetBlockId === id) &&
+            (item.state.currentBlockName || item.state.targetBlockName))?.state.currentBlockId === id
+              ? moving.find(item => item.state.locoAddress === loco.address && item.state.currentBlockId === id)?.state.currentBlockName || `Block #${id}`
+              : moving.find(item => item.state.locoAddress === loco.address && item.state.targetBlockId === id)?.state.targetBlockName || `Block #${id}`,
+        );
         const movementMessage = emergencyStop ? "Emergency stop active"
-          : movement ? (movement.info ||
-            (movement.status === "stopping" ? "Stopping" :
-              movement.targetBlockName ? `Moving to ${movement.targetBlockName}` : movement.status))
-          : driver ? (driver.status === "waiting" ? "Train Driver waiting" :
-              driver.status === "paused" ? "Train Driver paused" : `Train Driver: ${driver.status}`) : null;
+          : taskStatus ? formatLocoTaskStatus(taskStatus) : null;
         const cardFunctions = (loco.functions ?? []).filter(fn => fn.showOnLocoCard ?? fn.number < 5)
           .sort((a, b) => a.number - b.number).slice(0, 5);
         return <Card key={loco.id} withBorder radius="sm" padding="xs"
