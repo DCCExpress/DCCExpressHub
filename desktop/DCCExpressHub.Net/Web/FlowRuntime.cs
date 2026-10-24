@@ -1462,7 +1462,7 @@ public sealed class FlowRuntime : BackgroundService
                             data,
                             "turnoutAddress");
 
-                    return address is >= 1 and <= 2048
+                    return address is >= 1 and <= 32767
                         ? "await dcc.setTurnout(" +
                           address +
                           ", " +
