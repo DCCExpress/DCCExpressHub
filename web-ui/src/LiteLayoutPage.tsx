@@ -482,7 +482,7 @@ function applySwitchManLocksToLayout(
     for (const rawLock of rawLocks) {
       const lock = rawLock as SwitchManLockSnapshotItem | null;
       const address = Number(lock?.address);
-      if (Number.isInteger(address) && address >= 1 && address <= 2048) {
+      if (Number.isInteger(address) && address >= 1 && address <= 32767) {
         lockColors.set(address, switchManLockColor(
           typeof lock?.ownerId === "string" ? lock.ownerId : "", ownOwnerId));
       }
