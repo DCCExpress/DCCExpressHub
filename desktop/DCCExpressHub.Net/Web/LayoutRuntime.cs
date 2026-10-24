@@ -813,13 +813,14 @@ public sealed class LayoutRuntime
         }
     }
 
-    public bool TryGetSignalValue(ushort address, out int value)
+    public bool TryGetSignalValue(ushort address, out int value, ushort signalId = 0)
     {
         lock (_gate)
         {
             var signal = _accessories.FirstOrDefault(x =>
                 x.Kind == RuntimeAccessoryKind.Signal &&
-                x.Address == address);
+                x.Address == address &&
+                (signalId == 0 || x.Id == signalId));
 
             if (signal is null)
             {
