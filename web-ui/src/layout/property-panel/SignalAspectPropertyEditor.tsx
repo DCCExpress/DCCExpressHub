@@ -288,7 +288,9 @@ export default function SignalAspectPropertyEditor({
           {" aspects · "}
           {signal.signalOutput.protocol === "dccext"
             ? "DCC Extended"
-            : "DCC"}
+            : signal.signalOutput.protocol === "vpin"
+              ? "DCC-EX OUTPUT (Vpin)"
+              : "DCC"}
         </Text>
 
         <Text size="xs" fw={700}> {i18next.t("ui.aspects")} </Text>
