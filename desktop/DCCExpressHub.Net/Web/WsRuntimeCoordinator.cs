@@ -158,7 +158,7 @@ public sealed class WsRuntimeCoordinator : BackgroundService
             !DccExTurnoutFeedbackParser.TryParse(frame, out var id, out var thrown))
             return;
 
-        if (_runtime.SetDccExTurnoutState(id, thrown))
+        if (_runtime.SetDccExTurnoutState(id, thrown, fromFeedback: true))
             _log.LogDebug("DCC-EX turnout #{Id} feedback {Position}",
                 id, thrown ? "Thrown" : "Closed");
     }
