@@ -5,8 +5,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
-  <!-- No external packages: deterministic parser smoke tests in CI. -->
+  <!-- Reuse the actual backend runtime; no separate test framework/NuGet dependencies. -->
   <ItemGroup>
-    <Compile Include="../DCCExpressHub.Net/CommandCenter/DccExTurnoutFeedbackParser.cs" Link="DccExTurnoutFeedbackParser.cs" />
+    <ProjectReference Include="../DCCExpressHub.Net/DCCExpressHub.Net.csproj" />
   </ItemGroup>
 </Project>
