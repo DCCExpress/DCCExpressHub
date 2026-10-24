@@ -1,6 +1,6 @@
 # DCCExpressHub
 
-[![Release](https://img.shields.io/github/v/release/DCCExpress/DCCExpressHub?include_prereleases&label=Release)](https://github.com/DCCExpress/DCCExpressHub/releases)
+[![Release](https://img.shields.io/github/v/release/DCCExpress/DCCExpressHub?include_prereleases&sort=date&display_name=release&label=Release&color=brightgreen)](https://github.com/DCCExpress/DCCExpressHub/releases)
 [![Last Commit](https://img.shields.io/github/last-commit/DCCExpress/DCCExpressHub/main)](https://github.com/DCCExpress/DCCExpressHub/commits/main)
 ![Windows](https://img.shields.io/badge/Platform-Windows-0078D4?logo=windows)
 ![Linux](https://img.shields.io/badge/Platform-Linux-FCC624?logo=linux&logoColor=black)
