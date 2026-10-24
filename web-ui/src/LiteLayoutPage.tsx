@@ -46,7 +46,6 @@ import {
   IconListCheck,
   IconClipboardList,
   IconCalendarTime,
-  IconInfoCircle,
   IconRoute,
   IconVolume,
   IconServerCog,
@@ -62,7 +61,6 @@ import FullscreenLoader from "@/components/FullscreenLoader";
 import AppModal from "@/components/common/AppModal";
 import SignalLogicDialog from "@/components/SignalLogicDialog";
 import IntegrityCheckDialog from "@/components/IntegrityCheckDialog";
-import SystemInfoPanel from "@/components/SystemInfoPanel";
 import SafetyEmergencyStopDialog from "@/components/SafetyEmergencyStopDialog";
 import VisibilitySettings from "@/components/VisibilitySettings";
 import EditorShortcutsHelp from "@/layout/property-panel/EditorShortcutsHelp";
@@ -179,20 +177,6 @@ type LiteLayoutPageProps = {
   ) => void;
   onBack: () => void;
   onOpenLocoEditor: () => void;
-};
-
-type FlashInfo = {
-  total: number;
-  used: number;
-  free: number;
-  totalBytes?: number;
-  usedBytes?: number;
-  freeBytes?: number;
-  flashChipBytes?: number;
-  firmwareBytes?: number;
-  firmwarePartitionBytes?: number;
-  otaPartitionBytes?: number;
-  systemReservedBytes?: number;
 };
 
 type PickerItem = {
@@ -433,7 +417,7 @@ const LAYOUT_ELEMENT_PICKER_TAB_KEY = "dcc-express-lite.layout.elementPickerTab"
 
 type LayoutElementPickerTab = "railway" | "decorations";
 type RightPanelMode = "property" | "loco";
-type RuntimeTab = "tasks" | "automation" | "timetable" | "info" | "log";
+type RuntimeTab = "tasks" | "automation" | "timetable" | "settings" | "log";
 
 type SwitchManLockSnapshotItem = {
   address?: unknown;
@@ -531,8 +515,10 @@ function readStoredRuntimeTab(): RuntimeTab {
   } catch {
     // Storage may be disabled; the UI still works with its default tab.
   }
+  // Keep the saved Info tab selection when upgrading to Settings.
+  if (value === "info") return "settings";
   return value === "tasks" || value === "automation" ||
-    value === "timetable" || value === "info" || value === "log"
+    value === "timetable" || value === "settings" || value === "log"
     ? value : "automation";
 }
 
@@ -1173,7 +1159,6 @@ export default function LiteLayoutPage({
   const [error, setError] = useState<string | null>(null);
   const [wsStatus, setWsStatus] = useState<WsConnectionStatus>(() => wsClient.getStatus());
   const [dccExStatus, setDccExStatus] = useState<DccExStatusPayload | null>(null);
-  const [flashInfo, setFlashInfo] = useState<FlashInfo | null>(null);
   const [locoPanelWidth, setLocoPanelWidth] = useState(() => readStoredNumber(LOCO_WIDTH_KEY, 380));
   const [propertyPanelWidth, setPropertyPanelWidth] = useState(() => readStoredNumber(PROPERTY_WIDTH_KEY, 380));
   const [locoPanelCollapsed, setLocoPanelCollapsed] = useState(() => readStoredBoolean(LOCO_COLLAPSED_KEY));
@@ -1620,16 +1605,6 @@ export default function LiteLayoutPage({
       temperatureCriticalRef.current = false;
     }
   }, [dccExStatus?.chipTemperatureC]);
-
-  useEffect(() => {
-    void fetch("/fsinfo", { cache: "no-store" })
-      .then(response => {
-        if (!response.ok) throw new Error(i18next.t("ui.flashInformationIsUnavailable"));
-        return response.json() as Promise<FlashInfo>;
-      })
-      .then(setFlashInfo)
-      .catch(() => setFlashInfo(null));
-  }, []);
 
   useEffect(() => wsClient.on("error", data => {
     if (data.message === "track_power_off") {
@@ -2339,7 +2314,7 @@ export default function LiteLayoutPage({
                     const nextTab: RuntimeTab =
                       value === "timetable" ||
                       value === "tasks" ||
-                      value === "info" ||
+                      value === "settings" ||
                       value === "log"
                         ? value
                         : "automation";
@@ -2359,8 +2334,8 @@ export default function LiteLayoutPage({
                     <Tooltip label={i18next.t("ui.timetable")} withArrow>
                       <Tabs.Tab value="timetable" aria-label={i18next.t("ui.timetable")}><IconCalendarTime size={20} aria-hidden="true" /></Tabs.Tab>
                     </Tooltip>
-                    <Tooltip label={i18next.t("ui.info")} withArrow>
-                      <Tabs.Tab value="info" aria-label={i18next.t("ui.info")}><IconInfoCircle size={20} aria-hidden="true" /></Tabs.Tab>
+                    <Tooltip label={i18next.t("ui.settings")} withArrow>
+                      <Tabs.Tab value="settings" aria-label={i18next.t("ui.settings")}><IconSettings size={20} aria-hidden="true" /></Tabs.Tab>
                     </Tooltip>
                   </Tabs.List>
 
@@ -2435,17 +2410,9 @@ export default function LiteLayoutPage({
                     />
                   </Tabs.Panel>
 
-                  <Tabs.Panel value="info" className="lite-info-tab-panel">
+                  <Tabs.Panel value="settings" className="lite-info-tab-panel">
                     <ScrollArea h="100%" type="auto" scrollbarSize={9} className="lite-info-scroll">
-                      <Stack gap="sm">
-                        <SensorSettingsCard />
-                        <SystemInfoPanel
-                          status={dccExStatus}
-                          wsStatus={wsStatus}
-                          flashInfo={flashInfo}
-                          version={version}
-                        />
-                      </Stack>
+                      <SensorSettingsCard />
                     </ScrollArea>
                   </Tabs.Panel>
 
