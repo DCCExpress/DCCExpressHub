@@ -1007,7 +1007,9 @@ public sealed class ScriptRuntime
         bool closed,
         double rawTimeoutMs)
     {
-        if (address is < 1 or > 2048)
+        if (address is < 1 or > 32767 ||
+            (address > 2048 &&
+             _layout.FindAccessory(RuntimeAccessoryKind.Turnout, (ushort)address)?.TurnoutDccExId != true))
             throw new ArgumentOutOfRangeException(
                 nameof(address));
 
@@ -1469,7 +1471,7 @@ public sealed class ScriptRuntime
         string? ownerId,
         CancellationToken ct)
     {
-        if (rawAddress is < 1 or > 2048)
+        if (rawAddress is < 1 or > 32767)
             throw new ArgumentOutOfRangeException(
                 nameof(rawAddress));
 
@@ -1483,6 +1485,9 @@ public sealed class ScriptRuntime
             throw new InvalidOperationException(
                 "turnout_not_found:" +
                 address);
+
+        if (address > 2048 && !turnout.TurnoutDccExId)
+            throw new ArgumentOutOfRangeException(nameof(rawAddress));
 
         if (!_switchMan.CanOperate(
                 address,
@@ -2162,7 +2167,9 @@ public sealed class ScriptRuntime
         var valid =
             addresses
                 .Where(address =>
-                    address is >= 1 and <= 2048)
+                    address is >= 1 and <= 32767 &&
+                    (address <= 2048 ||
+                     _layout.FindAccessory(RuntimeAccessoryKind.Turnout, (ushort)address)?.TurnoutDccExId == true))
                 .Select(address =>
                     (ushort)address)
                 .Distinct()
@@ -4416,7 +4423,7 @@ async function smartDispatcher(blocks, callback, options = {}) {
                         (ushort)Math.Clamp(
                             (int)Math.Round(address),
                             1,
-                            2048),
+                            32767),
                         out var closed) &&
                     closed));
 
