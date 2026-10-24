@@ -450,7 +450,8 @@ public sealed class LayoutRuntime
                                     blocks,
                                     basicTopology,
                                     extendedTopology,
-                                    vpinTopology);
+                                    vpinTopology,
+                                    dccExTurnoutTopology);
                             }
 
                             ei++;
@@ -520,7 +521,8 @@ public sealed class LayoutRuntime
         List<RuntimeBlock> blocks,
         HashSet<ushort> basicTopology,
         HashSet<ushort> extendedTopology,
-        HashSet<ushort> vpinTopology)
+        HashSet<ushort> vpinTopology,
+        HashSet<ushort> dccExTurnoutTopology)
     {
         var type = S(e, "type");
         int elementAddress = I(e, "address");
@@ -583,7 +585,8 @@ public sealed class LayoutRuntime
                 int closedAspect,
                 int openedAspect)
             {
-                if (address is <= 0 or > 65535)
+                if (address is <= 0 or > 65535 ||
+                    (dccexId && address > 32767))
                     return;
 
                 var a = (ushort)address;
