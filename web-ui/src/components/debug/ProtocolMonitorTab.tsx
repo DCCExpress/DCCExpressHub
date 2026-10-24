@@ -71,7 +71,8 @@ export default function ProtocolMonitorTab({ opened }: { opened: boolean }) {
       }
 
       if (!raw) raw = JSON.stringify(payload);
-      const time = new Date().toTimeString().slice(0, 8) + "." + String(new Date().getMilliseconds()).padStart(3, "0");
+      const now = new Date();
+      const time = `${now.toTimeString().slice(0, 8)}.${String(now.getMilliseconds()).padStart(3, "0")}`;
       const row: MonitorEvent = { id: ++nextId.current, time, source, kind, detail, raw };
       setRows(previous => [row, ...previous].slice(0, MAX_ROWS));
     });
