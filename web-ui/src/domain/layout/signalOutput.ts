@@ -2,7 +2,8 @@ export const MAX_SIGNAL_LAMPS = 5;
 
 export type SignalOutputProtocol =
   | "dcc"
-  | "dccext";
+  | "dccext"
+  | "vpin";
 
 export type SignalDccDirection =
   | "R"
@@ -29,7 +30,7 @@ export type SignalOutputState = {
   lamps: SignalLampState[];
 
   /**
-   * Basic DCC mapping for consecutive accessory addresses.
+   * Binary output mapping for consecutive DCC accessory addresses or DCC-EX Vpins.
    */
   dccOutputs: SignalDccDirection[];
 };
@@ -40,11 +41,12 @@ export type SignalOutputConfiguration = {
   /**
    * DCC Extended: common signal address.
    * Basic DCC: first consecutive accessory address.
+   * DCC-EX OUTPUT: first consecutive Vpin.
    */
   address: number;
 
   /**
-   * Basic DCC only.
+   * Basic DCC and DCC-EX Vpin output count.
    */
   outputCount: number;
 
