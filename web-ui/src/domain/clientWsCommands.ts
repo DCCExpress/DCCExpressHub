@@ -474,6 +474,7 @@ export type ClientWsPayloadMap = {
   releaseLocoReservation: ReleaseLocoReservationCommandPayload;
 
   setTurnout: SetTurnoutCommandPayload;
+  setDccExTurnout: SetTurnoutCommandPayload;
   setSensor: SetSensorCommandPayload;
   setBasicAccessory: SetBasicAccessoryCommandPayload;
   setVpin: SetVpinCommandPayload;
