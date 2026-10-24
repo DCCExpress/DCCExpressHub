@@ -196,6 +196,12 @@ public sealed class PrecisionBrakingRuntime
             if (ok) _layout.SetSignal(address, aspect);
             return ok;
         }
+        if (turnout.TurnoutDccExId)
+        {
+            var ok = await _commandCenter.SetDccExTurnoutAsync(address, physicalValue, token);
+            if (ok) _layout.SetTurnout(address, physicalValue);
+            return ok;
+        }
         if (turnout.TurnoutVPin)
         {
             var ok = await _commandCenter.SetVPinAsync(address, physicalValue, token);
