@@ -1527,7 +1527,7 @@ public sealed class ScriptRuntime
         {
             if (!await _commandCenter.SetDccExTurnoutAsync(address, physical, ct))
                 throw new InvalidOperationException("turnout_command_failed");
-            _layout.SetTurnout(address, physical);
+            _layout.SetDccExTurnoutState(address, physical);
             return;
         }
 
