@@ -141,7 +141,7 @@ export abstract class TrackTurnoutElement extends TrackElement {
         options: TURNOUT_OUTPUT_MODE_OPTIONS,
       },
       {
-        label: i18next.t("ui.accessoryAddress"),
+        label: `${i18next.t("ui.accessoryAddress")}/id`,
         key: "turnoutAddress",
         type: "number",
         readonly: false,
