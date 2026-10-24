@@ -1128,7 +1128,7 @@ public sealed class WsHub
                             {
                                 var saved = LayoutRuntime.FindAccessory(RuntimeAccessoryKind.Turnout, address);
                                 if (saved?.TurnoutDccExId == true)
-                                    LayoutRuntime.SetTurnout(address, thrown);
+                                    LayoutRuntime.SetDccExTurnoutState(address, thrown);
                             }
                         }
                         finally
@@ -1524,7 +1524,7 @@ public sealed class WsHub
                     else if (turnout.TurnoutDccExId)
                     {
                         ok = await CommandCenter.SetDccExTurnoutAsync(address, physicalValue, ct);
-                        if (ok) LayoutRuntime.SetTurnout(address, physicalValue);
+                        if (ok) LayoutRuntime.SetDccExTurnoutState(address, physicalValue);
                     }
                     else if (turnout.TurnoutVPin)
                     {
