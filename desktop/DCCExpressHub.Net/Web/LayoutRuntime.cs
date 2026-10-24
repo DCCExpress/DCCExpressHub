@@ -149,6 +149,11 @@ public sealed class LayoutRuntime
     // than DCC accessory state, so it is intentionally outside Basic/Extended.
     Dictionary<ushort, bool> _vpinStates = new();
 
+    // DCC-EX native <T id> is a separate namespace from DCC accessories.
+    // Only received <H id state> / <jT id C|T> or successful local commands
+    // populate this cache. Unknown state is represented by a missing key.
+    Dictionary<ushort, bool> _dccExTurnoutStates = new();
+
     // Startup-only canvas hints from the previous session. These are NEVER
     // returned by TryGetTurnoutClosed or the authoritative physical snapshot.
     readonly Dictionary<(ushort Address, string Mode), bool>
@@ -385,6 +390,7 @@ public sealed class LayoutRuntime
                 _basicAccessoryStates.Clear();
                 _extendedAccessoryStates.Clear();
                 _vpinStates.Clear();
+                _dccExTurnoutStates.Clear();
             }
 
             Console.WriteLine($"LayoutRuntime: no layout at {path}");
@@ -402,6 +408,7 @@ public sealed class LayoutRuntime
             Dictionary<ushort, bool> oldBasic;
             Dictionary<ushort, byte> oldExtended;
             Dictionary<ushort, bool> oldVpins;
+            Dictionary<ushort, bool> oldDccExTurnouts;
 
             lock (_gate)
             {
@@ -410,6 +417,7 @@ public sealed class LayoutRuntime
                 oldBasic = new(_basicAccessoryStates);
                 oldExtended = new(_extendedAccessoryStates);
                 oldVpins = new(_vpinStates);
+                oldDccExTurnouts = new(_dccExTurnoutStates);
             }
 
             var bindings = new List<RuntimeAccessory>();
@@ -418,6 +426,7 @@ public sealed class LayoutRuntime
             var basicTopology = new HashSet<ushort>();
             var extendedTopology = new HashSet<ushort>();
             var vpinTopology = new HashSet<ushort>();
+            var dccExTurnoutTopology = new HashSet<ushort>();
 
             if (root.TryGetProperty("layers", out var layers) && layers.ValueKind == JsonValueKind.Array)
             {
@@ -475,6 +484,11 @@ public sealed class LayoutRuntime
                 _basicAccessoryStates = Reconcile(oldBasic, basicTopology, false);
                 _extendedAccessoryStates = Reconcile(oldExtended, extendedTopology, (byte)0);
                 _vpinStates = Reconcile(oldVpins, vpinTopology, false);
+                // Preserve only known native turnout states across a layout edit,
+                // never synthesize an OFF state for a newly configured turnout.
+                _dccExTurnoutStates = oldDccExTurnouts
+                    .Where(pair => dccExTurnoutTopology.Contains(pair.Key))
+                    .ToDictionary(pair => pair.Key, pair => pair.Value);
                 _restoredTurnoutDisplayStates.Clear();
             }
 
@@ -592,6 +606,8 @@ public sealed class LayoutRuntime
                     extendedTopology.Add(a);
                 else if (vpin)
                     vpinTopology.Add(a);
+                else if (dccexId)
+                    dccExTurnoutTopology.Add(a);
                 else
                     basicTopology.Add(a);
             }
@@ -794,7 +810,15 @@ public sealed class LayoutRuntime
             }
 
             bool physical;
-            if (turnout.TurnoutVPin)
+            if (turnout.TurnoutDccExId)
+            {
+                if (!_dccExTurnoutStates.TryGetValue(address, out physical))
+                {
+                    closed = false;
+                    return false;
+                }
+            }
+            else if (turnout.TurnoutVPin)
             {
                 if (!_vpinStates.TryGetValue(address, out physical))
                 {
@@ -879,8 +903,8 @@ public sealed class LayoutRuntime
             foreach (var turnout in _accessories.Where(
                 item => item.Kind == RuntimeAccessoryKind.Turnout))
             {
-                if (turnout.TurnoutVPin)
-                    continue; // Existing VPIN restoration is handled separately.
+                if (turnout.TurnoutVPin || turnout.TurnoutDccExId)
+                    continue; // Neither HAL VPIN nor native <T> is a DCC accessory.
 
                 if (turnout.TurnoutExtended)
                 {
@@ -1050,8 +1074,48 @@ public sealed class LayoutRuntime
 
         if (turnout.TurnoutVPin)
             return SetVPin(address, physicalValue);
+        if (turnout.TurnoutDccExId)
+            return SetDccExTurnoutState(address, physicalValue);
 
         return SetAccessory(address, physicalValue);
+    }
+
+    // A native <T> confirmation or <jT>/<H> feedback must never touch the
+    // legacy DCC accessory map, even when both use the same numeric address.
+    public bool SetDccExTurnoutState(ushort id, bool thrown)
+    {
+        bool changed;
+        lock (_gate)
+        {
+            if (!_accessories.Any(x => x.Kind == RuntimeAccessoryKind.Turnout &&
+                x.TurnoutDccExId && x.Address == id))
+                return false;
+            changed = !_dccExTurnoutStates.TryGetValue(id, out var previous) || previous != thrown;
+            _dccExTurnoutStates[id] = thrown;
+        }
+        if (changed)
+            EmitTurnoutDerivedEventsForAddress(id);
+        return true;
+    }
+
+    public ushort[] DccExTurnoutIds()
+    {
+        lock (_gate)
+            return _accessories
+                .Where(x => x.Kind == RuntimeAccessoryKind.Turnout && x.TurnoutDccExId)
+                .Select(x => x.Address).Distinct().OrderBy(x => x).ToArray();
+    }
+
+    public void InvalidateDccExTurnoutStates()
+    {
+        ushort[] ids;
+        lock (_gate)
+        {
+            ids = _dccExTurnoutStates.Keys.ToArray();
+            _dccExTurnoutStates.Clear();
+        }
+        foreach (var id in ids)
+            EmitTurnoutDerivedEventsForAddress(id);
     }
 
     public bool SetSignal(ushort address, int aspect)
