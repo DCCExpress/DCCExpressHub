@@ -20,10 +20,18 @@ const numberFormat = (value: number) => ({
   hex: "0x" + value.toString(16).toUpperCase().padStart(2, "0"),
   binary: value.toString(2).padStart(8, "0"),
 });
+function cvInfo(cv: number, cvs: Record<string, CvInfo>): CvInfo | undefined {
+  const exact = cvs[String(cv)];
+  if (exact) return exact;
+  for (const [key, entry] of Object.entries(cvs)) {
+    const match = /^(\\d+)-(\\d+)$/.exec(key);
+    if (match && cv >= Number(match[1]) && cv <= Number(match[2])) return entry;
+  }
+  return undefined;
+}
 function meaning(cv: number, info?: CvInfo): string {
-  if (info?.name) return info.name;
   if (cv >= 67 && cv <= 94) return `Extended speed table point ${cv - 66}`;
-  return "Unknown / manufacturer-specific";
+  return info?.name ?? "No verified generic definition — check decoder model";
 }
 
 function CvCurve({ values }: { values: Record<number, Result> }) {
@@ -292,8 +300,8 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
     const safeName = fileName.trim().replace(/[\\/:*?"<>|]/g, "_");
     if (!safeName) { setError("Enter an export filename."); return; }
     const data: ExportRow[] = successful.map(({cv,result}) => ({
-      cv, value: result.value!, name: meaning(cv, help.cvs[String(cv)]),
-      description: help.cvs[String(cv)]?.description ?? "",
+      cv, value: result.value!, name: meaning(cv, cvInfo(cv, help.cvs)),
+      description: cvInfo(cv, help.cvs)?.description ?? "",
     }));
     const json = JSON.stringify({
       schemaVersion: 1, type: "dcc-decoder-cv-profile", exportedAt: new Date().toISOString(),
@@ -317,7 +325,7 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
     <Alert color="orange">
       Service-mode read only: use an isolated PROG track with one decoder.
       A complete CV1–1024 scan can take a long time, and unsupported CVs may fail.
-      Reading does not modify decoder settings.
+      Reading does not modify decoder settings. Names in this table follow the approved NMRA multifunction-decoder specification; manufacturer-specific meanings require a matching decoder definition (as in JMRI DecoderPro).
     </Alert>
     <Card withBorder>
       <Stack gap="sm">
@@ -381,19 +389,19 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
         <Text size="sm">Decoder manufacturer CV8: {identifier.manufacturerId ?? "not read"} · version CV7: {identifier.decoderVersion ?? "not read"} · user IDs CV105/106: {identifier.userId1 ?? "?"}/{identifier.userId2 ?? "?"}</Text>
         <Group>
           <Button variant="light" disabled={busy || disconnected}
-            onClick={() => void readAddress()}>Read DCC-EX address (&lt;R&gt;)</Button>
+            onClick={() => void readAddress()}>Read decoder address</Button>
           <Badge color={addressRead === null ? "gray" : "green"}>
-            {addressRead === null ? "Address not verified" : `DCC-EX address: ${addressRead}`}
+            {addressRead === null ? "Address not verified" : `Decoder address: ${addressRead}`}
           </Badge>
         </Group>
         {addressError && <Alert color="red">{addressError}</Alert>}
         <Text size="sm">CV-derived address (diagnostic): {decodedAddress ?? "incomplete"}.
           {addressRead !== null && decodedAddress !== null && addressRead !== decodedAddress
-            ? " WARNING: CV-derived address disagrees with the direct DCC-EX address read." : ""}
+            ? " WARNING: CV-derived address disagrees with the command station address read." : ""}
         </Text>
         <Text size="xs" c="dimmed">No universal unique decoder serial number is defined by these CVs. Address and manufacturer/version are clues, not proof that the same physical decoder is present. Read CV1/17/18/29/7/8/105/106 to include available identification.</Text>
         <Group align="end">
-          <NumberInput label="Locomotive DCC address (from DCC-EX)" min={1} max={10239} value={locoAddress} readOnly w={190}/>
+          <NumberInput label="Locomotive DCC address (verified)" min={1} max={10239} value={locoAddress} readOnly w={190}/>
           <Button onClick={() => void saveToHub()} disabled={!successful.length || addressRead === null || Number(locoAddress) !== addressRead}>Save to Hub profiles</Button>
         </Group>
         {savedMessage && <Text size="sm" c="green">{savedMessage}</Text>}
@@ -417,7 +425,7 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
           </Table.Tr></Table.Thead>
           <Table.Tbody>
             {rows.map(({cv,result}) => {
-              const info = help.cvs[String(cv)];
+              const info = cvInfo(cv, help.cvs);
               const value = result.value;
               const format = value !== undefined ? numberFormat(value) : null;
               return <Table.Tr key={cv}>
