@@ -74,6 +74,69 @@ Check(runtime.TryGetVPinState(10, out var vpinActive) && vpinActive,
     "Reconnect does not clear Vpin output state");
 Console.WriteLine("DCC-EX native turnout runtime isolation: PASS");
 
+// Reproduce the reported Console path: <T 20 0> -> <H 20 0> while
+// the current editor has not saved any turnout in layout.json.
+var unsavedRoot = Path.Combine(Path.GetTempPath(), "dcc-ex-unsaved-" + Guid.NewGuid().ToString("N"));
+try
+{
+    Directory.CreateDirectory(unsavedRoot);
+    var live = new DCCExpressHub.Net.Web.LayoutRuntime(new DCCExpressHub.Net.Web.AppPaths(unsavedRoot));
+    var events = new List<System.Text.Json.JsonElement>();
+    live.Changed += (type, data) =>
+    {
+        if (type == "turnoutChanged")
+            events.Add(System.Text.Json.JsonSerializer.SerializeToElement(data));
+    };
+    Check(DccExTurnoutFeedbackParser.TryParse("<H 20 0>", out var id, out var state),
+        "Real <H 20 0> feedback parses");
+    Check(live.SetDccExTurnoutState(id, state, fromFeedback: true),
+        "Native <H> accepted without a saved turnout binding");
+    Check(events.Count == 1, "One canvas turnoutChanged event published from <H>");
+    Check(events[0].GetProperty("address").GetInt32() == 20 &&
+        !events[0].GetProperty("closed").GetBoolean() &&
+        events[0].GetProperty("outputMode").GetString() == "dccex-turnout",
+        "Canvas event uses physical H state and native output mode");
+    Check(live.DccExTurnoutIds().Length == 0,
+        "Unsaved turnout is not falsely registered as configured layout");
+    Check(live.RuntimeSnapshot().Any(item =>
+        item.Type == "turnoutChanged" &&
+        System.Text.Json.JsonSerializer.SerializeToElement(item.Data)
+            .GetProperty("address").GetInt32() == 20),
+        "Late-opening canvas receives native feedback via runtime snapshot");
+    Check(live.SetDccExTurnoutState(20, false, fromFeedback: true) && events.Count == 2,
+        "Repeated same-state H feedback still refreshes an open canvas");
+    Check(live.Rebuild(), "Unsaved native state survives layout rebuild without config");
+    Check(live.RuntimeSnapshot().Any(item =>
+        item.Type == "turnoutChanged" &&
+        System.Text.Json.JsonSerializer.SerializeToElement(item.Data)
+            .GetProperty("address").GetInt32() == 20),
+        "Rebuild does not discard native H feedback");
+
+    var cfg = Path.Combine(unsavedRoot, "data", "config");
+    Directory.CreateDirectory(cfg);
+    File.WriteAllText(Path.Combine(cfg, "layout.json"), """
+        {"layers":[{"elements":[
+          {"id":1,"type":"trackturnoutleft","turnoutAddress":20,
+           "outputMode":"dccex-turnout","turnoutClosedValue":false}
+        ]}]}
+        """);
+    Check(live.Rebuild(), "Saving previously unsaved native turnout rebuilds layout");
+    Check(live.TryGetTurnoutClosed(20, out var logical) && logical,
+        "Saved turnout immediately adopts previously reported <H 20 0> state");
+    Check(live.SetDccExTurnoutState(20, true, fromFeedback: true),
+        "Changing H state updates saved runtime turnout");
+    Check(live.TryGetTurnoutClosed(20, out logical) && !logical,
+        "Native H 20 1 switches corresponding logical turnout state");
+    live.InvalidateDccExTurnoutStates();
+    Check(!live.TryGetTurnoutClosed(20, out _),
+        "Native H state invalidates on disconnect");
+    Console.WriteLine("DCC-EX unsaved H feedback and canvas propagation: PASS");
+}
+finally
+{
+    try { Directory.Delete(unsavedRoot, recursive: true); } catch { /* best effort */ }
+}
+
 static void Check(bool actual, string message)
 {
     if (!actual) throw new Exception(message);
