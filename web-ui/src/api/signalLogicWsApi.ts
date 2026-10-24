@@ -60,7 +60,7 @@ type CompiledSignal = {
   kind: "signal";
   id: LayoutElementId;
   address?: number;
-  mode: "extended" | "basic";
+  mode: "extended" | "basic" | "vpin";
   outputs?: number;
   default: number;
   rules: CompiledRule[];
@@ -93,7 +93,7 @@ type LegacyCompiledRule = {
 type LegacyCompiledSignal = {
   kind: "signal";
   address: number;
-  mode: "extended" | "basic";
+  mode: "extended" | "basic" | "vpin";
   outputs?: number;
   default: number;
   rules: LegacyCompiledRule[];
@@ -394,7 +394,7 @@ function turnoutClosedValueForChannel(
 function findSignalByAddress(
   elements: SerializedLayoutElementDto[],
   address: number,
-  mode?: "extended" | "basic"
+  mode?: "extended" | "basic" | "vpin"
 ): SerializedLayoutElementDto | undefined {
   const matches =
     elements.filter(element => {
@@ -420,7 +420,9 @@ function findSignalByAddress(
       const elementMode =
         config.protocol === "dccext"
           ? "extended"
-          : "basic";
+          : config.protocol === "vpin"
+            ? "vpin"
+            : "basic";
 
       return elementMode === mode;
     });
@@ -846,7 +848,9 @@ function compileDocument(
           config.protocol ===
           "dccext"
             ? "extended"
-            : "basic",
+            : config.protocol === "vpin"
+              ? "vpin"
+              : "basic",
         default:
           stateValue(
             config,
@@ -877,8 +881,8 @@ function compileDocument(
       };
 
       if (
-        compiled.mode ===
-        "basic"
+        compiled.mode !==
+        "extended"
       ) {
         compiled.outputs =
           Math.max(
@@ -1175,7 +1179,8 @@ function parseCompiled(
 
     if (
       mode !== "extended" &&
-      mode !== "basic"
+      mode !== "basic" &&
+      mode !== "vpin"
     ) {
       warnings.push(
         `Signal automation line ${lineNumber} has unsupported mode "${String(mode)}"; skipped.`
@@ -1308,7 +1313,7 @@ Array.isArray(
             }
           : {}),
         mode,
-        ...(mode === "basic"
+        ...((mode === "basic" || mode === "vpin")
           ? {
               outputs:
                 Math.max(
@@ -1454,7 +1459,7 @@ Array.isArray(
       kind: "signal",
       address,
       mode,
-      ...(mode === "basic"
+      ...((mode === "basic" || mode === "vpin")
         ? {
             outputs:
               Math.max(
