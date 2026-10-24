@@ -17,6 +17,7 @@ import { TrackSignalElement } from "./models/editor/elements/TrackSignalElement"
 import { BlockElement } from "./models/editor/elements/BlockElement";
 import { ButtonElement } from "./models/editor/elements/ButtonElement";
 import TrackTurnoutDoubleElement from "./models/editor/elements/TrackTurnoutDoubleElement";
+import { TrackTurnoutThreeWayElement } from "./models/editor/elements/TrackTurnoutThreeWayElement";
 import { getCanvasImage } from "@/models/editor/rendering/ImageCache";
 import type { EditorTool } from "@/models/editor/types/EditorTypes";
 import { wsApi } from "@/services/wsApi";
@@ -80,7 +81,7 @@ export default function RuntimeLayoutOverlay({ locos, open }: RuntimeLayoutOverl
     for (const element of layout.getAllElements()) {
       if (isTurnoutElement(element) && element.outputMode === (data.outputMode ?? "accessory") && element.turnoutAddress === data.address) {
         element.turnoutClosed = data.closed;
-      } else if (element instanceof TrackTurnoutDoubleElement && element.outputMode === (data.outputMode ?? "accessory")) {
+      } else if ((element instanceof TrackTurnoutDoubleElement || element instanceof TrackTurnoutThreeWayElement) && element.outputMode === (data.outputMode ?? "accessory")) {
         if (element.turnout1Address === data.address) element.turnout1Closed = data.closed;
         if (element.turnout2Address === data.address) element.turnout2Closed = data.closed;
       }
