@@ -196,6 +196,21 @@
         }
       ]
     },
+    "28": {
+      "name": "RailCom configuration",
+      "description": "Bi-directional DCC communication settings. CV29 bit 3 must also be enabled. Exact supported options depend on decoder model; bit 3 is reserved in the NMRA specification.",
+      "bits": [
+        {"bit": 0, "name": "RailCom Channel 1 (address broadcast)", "off": "Disabled", "on": "Enabled"},
+        {"bit": 1, "name": "RailCom Channel 2 (data and ACK)", "off": "Disabled", "on": "Enabled"},
+        {"bit": 2, "name": "Automatic Channel 1 disable", "off": "Disabled", "on": "Enabled"},
+        {"bit": 3, "name": "Reserved / decoder-specific", "reserved": true},
+        {"bit": 4, "name": "Programming address 0003 support", "off": "Disabled", "on": "Enabled (where supported)"},
+        {"bit": 5, "name": "Reserved", "reserved": true},
+        {"bit": 6, "name": "High-current RailCom", "off": "Disabled", "on": "Enabled (where supported)"},
+        {"bit": 7, "name": "Automatic registration / RailComPlus", "off": "Disabled", "on": "Enabled (where supported)"}
+      ],
+      "related": [29]
+    },
     "29": {
       "name": "Configurations supported",
       "description": "Main multifunction-decoder configuration bit field.",
