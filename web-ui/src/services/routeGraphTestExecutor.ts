@@ -168,7 +168,7 @@ function normalizeRequirements(
     if (
       !Number.isInteger(address) ||
       address <= 0 ||
-      address > 2048
+      address > 32767
     ) {
       throw new Error(
         `Érvénytelen váltócím a gráfban: ${state.address}.`
