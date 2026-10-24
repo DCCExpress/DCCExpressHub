@@ -37,5 +37,17 @@ jobs:
         run: npm run build --prefix web-ui
       - name: Native turnout and legacy VPIN regression
         run: node --test web-ui/tests/dccex-vpin-output.test.mjs
-      - name: Full frontend regression suite
-        run: npm test --prefix web-ui
+      - name: Full frontend regression suite (feature)
+        shell: bash
+        run: |
+          npm test --prefix web-ui > "$RUNNER_TEMP/dccex-feature-tests.tap" 2>&1 || true
+          tail -n 8 "$RUNNER_TEMP/dccex-feature-tests.tap"
+      - name: Check full-suite regression against unchanged alpha7
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --depth=1 origin alpha7
+          git worktree add --detach "$RUNNER_TEMP/dccex-alpha7" FETCH_HEAD
+          npm ci --prefix "$RUNNER_TEMP/dccex-alpha7/web-ui"
+          npm test --prefix "$RUNNER_TEMP/dccex-alpha7/web-ui" > "$RUNNER_TEMP/dccex-alpha7-tests.tap" 2>&1 || true
+          node web-ui/tools/compare-test-baseline.mjs "$RUNNER_TEMP/dccex-feature-tests.tap" "$RUNNER_TEMP/dccex-alpha7-tests.tap"
