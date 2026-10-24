@@ -13,7 +13,6 @@ export const OUTPUT_COMMAND_MODE_OPTIONS = [
 export const TURNOUT_OUTPUT_MODE_OPTIONS = [
   { value: "accessory", get label() { return i18next.t("ui.basicAccessoryAAddress01"); } },
   { value: "extended", get label() { return i18next.t("ui.extendedAccessoryAAddressAspect"); } },
-  { value: "vpin", label: "DCC-EX OUTPUT (Vpin) · <z ±vpin>" },
   { value: "dccex-turnout", label: "DCC-EX Turnout ID · <T id 0/1>" },
 ] satisfies Array<{ value: TurnoutOutputMode; label: string }>;
 
