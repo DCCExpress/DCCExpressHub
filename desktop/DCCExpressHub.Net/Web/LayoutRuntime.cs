@@ -776,15 +776,23 @@ public sealed class LayoutRuntime
         lock (_gate)
         {
             var turnout = _accessories.FirstOrDefault(x =>
-                x.Kind == RuntimeAccessoryKind.Turnout &&
-                x.Address == address);
-
+                x.Kind == RuntimeAccessoryKind.Turnout && x.Address == address);
             if (turnout is null)
             {
                 closed = false;
                 return false;
             }
+            return TryGetTurnoutClosedForBinding(turnout, out closed);
+        }
+    }
 
+    // Each protocol has its own state namespace. UI events must resolve the
+    // requested binding (not the first same-numbered accessory on the layout).
+    bool TryGetTurnoutClosedForBinding(RuntimeAccessory turnout, out bool closed)
+    {
+        lock (_gate)
+        {
+            var address = turnout.Address;
             if (turnout.TurnoutExtended)
             {
                 if (!_extendedAccessoryStates.TryGetValue(address, out var aspect))
@@ -792,47 +800,30 @@ public sealed class LayoutRuntime
                     closed = false;
                     return false;
                 }
-
                 if (aspect == turnout.TurnoutClosedAspect)
                 {
                     closed = true;
                     return true;
                 }
-
                 if (aspect == turnout.TurnoutOpenedAspect)
                 {
                     closed = false;
                     return true;
                 }
-
                 closed = false;
                 return false;
             }
 
             bool physical;
-            if (turnout.TurnoutDccExId)
+            bool known = turnout.TurnoutDccExId
+                ? _dccExTurnoutStates.TryGetValue(address, out physical)
+                : turnout.TurnoutVPin
+                    ? _vpinStates.TryGetValue(address, out physical)
+                    : _basicAccessoryStates.TryGetValue(address, out physical);
+            if (!known)
             {
-                if (!_dccExTurnoutStates.TryGetValue(address, out physical))
-                {
-                    closed = false;
-                    return false;
-                }
-            }
-            else if (turnout.TurnoutVPin)
-            {
-                if (!_vpinStates.TryGetValue(address, out physical))
-                {
-                    closed = false;
-                    return false;
-                }
-            }
-            else
-            {
-                if (!_basicAccessoryStates.TryGetValue(address, out physical))
-                {
-                    closed = false;
-                    return false;
-                }
+                closed = false;
+                return false;
             }
 
             closed = physical == turnout.ClosedValue;
@@ -1019,7 +1010,7 @@ public sealed class LayoutRuntime
 
         foreach (var turnout in turnouts)
         {
-            bool logicalKnown = TryGetTurnoutClosed(address, out var logicalClosed);
+            bool logicalKnown = TryGetTurnoutClosedForBinding(turnout, out var logicalClosed);
             bool physicalValue = logicalKnown
                 ? logicalClosed ? turnout.ClosedValue : !turnout.ClosedValue
                 : false;
@@ -1543,7 +1534,7 @@ public sealed class LayoutRuntime
             // Semantic turnout rows are derived from topology + physical state.
             foreach (var turnout in _accessories.Where(x => x.Kind == RuntimeAccessoryKind.Turnout))
             {
-                bool logicalKnown = TryGetTurnoutClosed(turnout.Address, out var logicalClosed);
+                bool logicalKnown = TryGetTurnoutClosedForBinding(turnout, out var logicalClosed);
                 bool physicalValue = logicalKnown
                     ? logicalClosed ? turnout.ClosedValue : !turnout.ClosedValue
                     : false;
