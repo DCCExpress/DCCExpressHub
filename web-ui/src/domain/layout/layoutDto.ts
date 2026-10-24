@@ -236,7 +236,7 @@ export type ButtonBehaviorDto =
   | "push"
   | "momentary";
 
-export type TurnoutOutputModeDto = OutputCommandModeDto | "extended";
+export type TurnoutOutputModeDto = OutputCommandModeDto | "extended" | "dccex-turnout";
 
 export interface TrackTurnoutElementDto extends TrackElementDto {
   outputMode?: TurnoutOutputModeDto;
@@ -273,7 +273,7 @@ export interface TrackTurnoutDoubleElementDto extends TrackElementDto {
 
 export interface TrackTurnoutThreeWayElementDto extends TrackElementDto {
   type: "trackturnouttreeway";
-  outputMode?: OutputCommandModeDto;
+  outputMode?: OutputCommandModeDto | "dccex-turnout";
   turnout1Address: number;
   turnout2Address: number;
   turnout1ClosedValue: boolean;
