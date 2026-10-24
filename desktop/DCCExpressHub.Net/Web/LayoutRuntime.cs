@@ -22,6 +22,7 @@ public sealed class RuntimeAccessory
 
     // Signal binding metadata.
     public bool SignalExtended { get; set; } = true;
+    public bool SignalVPin { get; set; }
     public byte SignalOutputCount { get; set; } = 1;
 }
 
@@ -648,6 +649,7 @@ public sealed class LayoutRuntime
                 : Math.Clamp(I(e, "addressLength", 1), 1, 16);
 
             bool extended = protocol == "dccext";
+            bool signalVPin = protocol == "vpin";
 
             bindings.Add(new RuntimeAccessory
             {
@@ -655,11 +657,14 @@ public sealed class LayoutRuntime
                 Kind = RuntimeAccessoryKind.Signal,
                 Address = (ushort)address,
                 SignalExtended = extended,
+                SignalVPin = signalVPin,
                 SignalOutputCount = (byte)Math.Clamp(outputCount, 1, 16)
             });
 
             if (extended)
                 extendedTopology.Add((ushort)address);
+            else if (signalVPin)
+                AddRange(vpinTopology, address, outputCount);
             else
                 AddRange(basicTopology, address, outputCount);
 
@@ -840,7 +845,8 @@ public sealed class LayoutRuntime
             {
                 var outputAddress = (ushort)(signal.Address + i);
 
-                if (!_basicAccessoryStates.TryGetValue(outputAddress, out var active))
+                var states = signal.SignalVPin ? _vpinStates : _basicAccessoryStates;
+                if (!states.TryGetValue(outputAddress, out var active))
                 {
                     value = 0;
                     return false;
