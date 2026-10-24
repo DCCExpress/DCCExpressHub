@@ -390,7 +390,8 @@ public sealed class LayoutRuntime
                 _basicAccessoryStates.Clear();
                 _extendedAccessoryStates.Clear();
                 _vpinStates.Clear();
-                _dccExTurnoutStates.Clear();
+                // Native <H> state belongs to the connected command center,
+                // not to a saved layout. An unsaved editor must still receive it.
             }
 
             Console.WriteLine($"LayoutRuntime: no layout at {path}");
@@ -485,11 +486,9 @@ public sealed class LayoutRuntime
                 _basicAccessoryStates = Reconcile(oldBasic, basicTopology, false);
                 _extendedAccessoryStates = Reconcile(oldExtended, extendedTopology, (byte)0);
                 _vpinStates = Reconcile(oldVpins, vpinTopology, false);
-                // Preserve only known native turnout states across a layout edit,
-                // never synthesize an OFF state for a newly configured turnout.
-                _dccExTurnoutStates = oldDccExTurnouts
-                    .Where(pair => dccExTurnoutTopology.Contains(pair.Key))
-                    .ToDictionary(pair => pair.Key, pair => pair.Value);
+                // Keep native <H>/<jT> state even when a turnout has not yet
+                // been saved to layout.json. Disconnect invalidates it separately.
+                _dccExTurnoutStates = oldDccExTurnouts;
                 _restoredTurnoutDisplayStates.Clear();
             }
 
@@ -1076,19 +1075,58 @@ public sealed class LayoutRuntime
 
     // A native <T> confirmation or <jT>/<H> feedback must never touch the
     // legacy DCC accessory map, even when both use the same numeric address.
-    public bool SetDccExTurnoutState(ushort id, bool thrown)
+    public bool SetDccExTurnoutState(ushort id, bool thrown, bool fromFeedback = false)
     {
+        if (id is < 1 or > 32767)
+            return false;
+
         bool changed;
+        RuntimeAccessory[] bindings;
         lock (_gate)
         {
-            if (!_accessories.Any(x => x.Kind == RuntimeAccessoryKind.Turnout &&
-                x.TurnoutDccExId && x.Address == id))
-                return false;
-            changed = !_dccExTurnoutStates.TryGetValue(id, out var previous) || previous != thrown;
+            changed = !_dccExTurnoutStates.TryGetValue(id, out var previous) ||
+                previous != thrown;
             _dccExTurnoutStates[id] = thrown;
+            // DCC-EX <H> is authoritative for the native Turnout ID, even
+            // before the editor's layout has been saved to the backend.
+            bindings = _accessories
+                .Where(x => x.Kind == RuntimeAccessoryKind.Turnout &&
+                    x.TurnoutDccExId && x.Address == id)
+                .ToArray();
         }
-        if (changed)
-            EmitTurnoutDerivedEventsForAddress(id);
+
+        // Always republish an actual <H>/<jT> response, even if its value is
+        // unchanged. This resynchronizes an open editor/canvas after reload.
+        if (!changed && !fromFeedback)
+            return true;
+
+        if (bindings.Length == 0)
+        {
+            Changed?.Invoke("turnoutChanged", new
+            {
+                address = id,
+                closed = thrown,
+                logicalClosed = (bool?)null,
+                outputMode = "dccex-turnout",
+                aspect = (byte?)null
+            });
+        }
+        else
+        {
+            foreach (var turnout in bindings)
+            {
+                Changed?.Invoke("turnoutChanged", new
+                {
+                    address = id,
+                    closed = thrown,
+                    logicalClosed = (bool?)(thrown == turnout.ClosedValue),
+                    outputMode = "dccex-turnout",
+                    aspect = (byte?)null,
+                    closedAspect = turnout.TurnoutClosedAspect,
+                    openedAspect = turnout.TurnoutOpenedAspect
+                });
+            }
+        }
         return true;
     }
 
@@ -1561,6 +1599,26 @@ public sealed class LayoutRuntime
                     aspect,
                     closedAspect = turnout.TurnoutClosedAspect,
                     openedAspect = turnout.TurnoutOpenedAspect
+                }));
+            }
+
+            // Feedback for a native DCC-EX turnout may arrive before its
+            // element has been saved. Rehydrate these live Turnout IDs too.
+            var savedNativeIds = _accessories
+                .Where(x => x.Kind == RuntimeAccessoryKind.Turnout && x.TurnoutDccExId)
+                .Select(x => x.Address)
+                .ToHashSet();
+            foreach (var native in _dccExTurnoutStates.OrderBy(x => x.Key))
+            {
+                if (savedNativeIds.Contains(native.Key))
+                    continue;
+                items.Add(new("turnoutChanged", new
+                {
+                    address = native.Key,
+                    closed = native.Value,
+                    logicalClosed = (bool?)null,
+                    outputMode = "dccex-turnout",
+                    aspect = (byte?)null
                 }));
             }
 
