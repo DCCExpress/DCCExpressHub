@@ -230,7 +230,22 @@ public sealed class PrecisionBrakingRuntime
             {
                 hadFeedback = true;
                 lastClosed = closed;
-                if (closed == expectedClosed) return (true, "");
+                if (closed == expectedClosed)
+                {
+                    // Native <T> and <jT>/<H> report the logical turnout state,
+                    // not proof that a Slow servo has completed its travel.
+                    // Respect the existing operator-configured settling time.
+                    var turnout = _layout.FindAccessory(RuntimeAccessoryKind.Turnout, address);
+                    if (turnout?.TurnoutDccExId == true)
+                    {
+                        await Task.Delay(_layout.TurnoutSettlingTimeMs, token);
+                        if (!_commandCenter.Connected ||
+                            !_layout.TryGetTurnoutClosed(address, out var settled) ||
+                            settled != expectedClosed)
+                            return (false, $"braking_turnout_{address}_position_changed");
+                    }
+                    return (true, "");
+                }
             }
             await Task.Delay(100, token);
         }
