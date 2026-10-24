@@ -1,11 +1,10 @@
 import i18next from "i18next";
 import { getDirectionXy } from "../../../domain/helpers";
 import { ELEMENT_TYPES } from "../../../domain/layout/elementTypes";
-import type { OutputCommandModeDto } from "../../../domain/layout/layoutDto";
 import "../../../domain/layout/threeWayTurnoutDtoAugmentation";
 import { Point } from "../../../domain/Rect";
 import { generateId } from "../../../helpers";
-import { OUTPUT_COMMAND_MODE_OPTIONS, sendTurnoutOutput } from "../../../services/layoutOutput";
+import { TURNOUT_OUTPUT_MODE_OPTIONS, sendTurnoutOutput } from "../../../services/layoutOutput";
 import {
   isSwitchManModeEnabled,
   operateSwitchManTurnouts,
@@ -40,7 +39,7 @@ function physicalState(closedValue: boolean, logicalClosed: boolean): boolean {
 }
 export class TrackTurnoutThreeWayElement extends TrackMultiMotorTurnoutElement {
   override name: string = ELEMENT_TYPES.TRACK_TURNOUT_THREE_WAY;
-  outputMode: OutputCommandModeDto = "accessory";
+  outputMode: "accessory" | "vpin" | "dccex-turnout" = "accessory";
   /**
    * Physical output bits for each of the three logical W positions.
    *
@@ -198,7 +197,7 @@ export class TrackTurnoutThreeWayElement extends TrackMultiMotorTurnoutElement {
         key: "outputMode",
         type: "select",
         readonly: false,
-        options: OUTPUT_COMMAND_MODE_OPTIONS,
+        options: TURNOUT_OUTPUT_MODE_OPTIONS.filter((option) => option.value !== "extended"),
       },
       {
         label: i18next.t("ui.leftMotorAddressVpin"),
