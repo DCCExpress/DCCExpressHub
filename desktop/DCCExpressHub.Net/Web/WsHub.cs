@@ -1113,20 +1113,29 @@ public sealed class WsHub
                         int id = I(data, "address");
                         if (id <= 0 || id > 32767) { ok = false; break; }
                         ushort address = (ushort)id;
-                        var turnout = LayoutRuntime.FindAccessory(RuntimeAccessoryKind.Turnout, address);
-                        if (turnout?.TurnoutDccExId != true) { ok = false; break; }
-                        var lease = await AcquireManualTurnoutOperation(ws, address, ct);
+                        // A turnout under edit may not exist in the saved layout yet.
+                        // This explicit manual command must be testable without saving.
+                        // Still acquire the same SwitchMan lock and respect cooldown.
+                        var lease = await AcquireManualTurnoutOperation(ws, address, ct, 32767);
                         if (!lease.Ok) return;
                         try
                         {
                             bool thrown = B(data, "closed");
                             ok = await CommandCenter.SetDccExTurnoutAsync(address, thrown, ct);
-                            if (ok) LayoutRuntime.SetTurnout(address, thrown);
+                            // Only update the runtime cache when its saved binding really
+                            // is a DCC-EX turnout. Unsaved editor state is not runtime state.
+                            if (ok)
+                            {
+                                var saved = LayoutRuntime.FindAccessory(RuntimeAccessoryKind.Turnout, address);
+                                if (saved?.TurnoutDccExId == true)
+                                    LayoutRuntime.SetTurnout(address, thrown);
+                            }
                         }
                         finally
                         {
                             await Task.Delay(LayoutRuntime.TurnoutSettlingTimeMs, CancellationToken.None);
-                            SwitchMan.ReleaseOwned(new[] { address }, lease.OwnerId);
+                            if (lease.OwnerId is not null)
+                                SwitchMan.ReleaseOwned(new[] { address }, lease.OwnerId);
                         }
                         break;
                     }
@@ -1291,9 +1300,10 @@ public sealed class WsHub
     private async Task<(bool Ok, string? OwnerId)> AcquireManualTurnoutOperation(
         IHubWebSocketClient ws,
         ushort address,
-        CancellationToken ct)
+        CancellationToken ct,
+        ushort maxAddress = 2048)
     {
-        if (address is < 1 or > 2048)
+        if (address < 1 || address > maxAddress)
         {
             await Send(ws, "error", new { message = "turnout_address_out_of_range", address });
             return (false, null);
