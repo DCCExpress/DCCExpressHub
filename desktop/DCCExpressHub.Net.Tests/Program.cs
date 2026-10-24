@@ -49,7 +49,7 @@ Check(runtime.TryGetTurnoutClosed(3001, out var highClosed) && highClosed,
     "High native turnout state resolves correctly");
 Check(runtime.SetSignal(9, 2), "Extended accessory remains operational");
 Check(runtime.SetVPin(10, true), "Legacy Vpin remains operational");
-Check(runtime.TryGetAccessoryState(7, out var basicActive) && basicActive,
+Check(runtime.TryGetBasicAccessoryState(7, out var basicActive) && basicActive,
     "Native turnout command does not override same-numbered Basic output");
 var rows = runtime.RuntimeSnapshot()
     .Where(row => row.Type == "turnoutChanged")
@@ -66,7 +66,7 @@ Check(runtime.TryGetTurnoutClosed(7, out nativeClosed) && !nativeClosed,
     "Native state survives an edit of unchanged bindings");
 runtime.InvalidateDccExTurnoutStates();
 Check(!runtime.TryGetTurnoutClosed(7, out _), "Reconnect invalidates stale native state");
-Check(runtime.TryGetAccessoryState(7, out basicActive) && basicActive,
+Check(runtime.TryGetBasicAccessoryState(7, out basicActive) && basicActive,
     "Reconnect does not clear legacy Basic accessory state");
 Check(runtime.TryGetExtendedAccessoryState(9, out var aspect) && aspect == 2,
     "Reconnect does not clear Extended accessory state");
