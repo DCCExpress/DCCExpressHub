@@ -205,6 +205,8 @@ export class TrackTurnoutThreeWayElement extends TrackMultiMotorTurnoutElement {
         key: "turnout1Address",
         type: "number",
         readonly: false,
+        min: 1,
+        max: this.outputMode === "vpin" ? 32767 : 2048,
         validate: () => true,
       },
       {
@@ -212,6 +214,8 @@ export class TrackTurnoutThreeWayElement extends TrackMultiMotorTurnoutElement {
         key: "turnout2Address",
         type: "number",
         readonly: false,
+        min: 1,
+        max: this.outputMode === "vpin" ? 32767 : 2048,
         validate: () => true,
       },
       {
