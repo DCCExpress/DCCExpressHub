@@ -109,7 +109,7 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
     setLocoAddress("");
     setAddressError("");
     try {
-      // DCC-EX implements a dedicated <R> service-track address read.
+      // The backend provides an address read for supported programming stations.
       // This is authoritative; CV1 may contain an unused short address.
       const response = await wsApi.programmingRequest(
         `cv-profile-address-${Date.now()}`, "readAddress", {}, 30000
@@ -117,7 +117,7 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
       const address = response.value;
       if (!response.ok || typeof address !== "number" ||
           !Number.isInteger(address) || address < 1 || address > 10239)
-        throw new Error(response.message ?? "No valid DCC-EX address reply");
+        throw new Error(response.message ?? "No valid decoder address reply");
       setLocoAddress(address);
       setAddressRead(address);
       return address;
@@ -193,9 +193,9 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
           consecutiveNoDecoder += 1;
         else
           consecutiveNoDecoder = 0;
-        if (consecutiveNoDecoder >= 2) {
+        if (consecutiveNoDecoder >= 5) {
           setError(
-            "Profile read stopped: the command station reported NO DECODER twice in a row. " +
+            "Profile read stopped: the command station reported NO DECODER on five consecutive CVs (including retries). " +
             "Check the PROG TRACK contact and try reading a single CV before starting a full scan."
           );
           break;
@@ -204,7 +204,7 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
       // JMRI-style per-CV recovery: after completing the first sweep,
       // revisit only intermittent decoder-ACK failures. A successful retry
       // replaces NOK; a failed retry remains NOK with the original cause.
-      if (!cancel.current && consecutiveNoDecoder < 2 && failedAckCvs.length) {
+      if (!cancel.current && consecutiveNoDecoder < 5 && failedAckCvs.length) {
         await new Promise<void>(resolve => setTimeout(resolve, 1500));
         for (const cv of failedAckCvs) {
           if (cancel.current) break;
@@ -266,7 +266,7 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
   const saveToHub = async () => {
     const address = Number(locoAddress);
     if (addressRead === null || address !== addressRead) {
-      setError("Read the actual decoder address with DCC-EX before saving. Manual/unverified addresses are not allowed."); return;
+      setError("Read the actual decoder address before saving. Manual/unverified addresses are not allowed."); return;
     }
     if (!Number.isInteger(address) || address < 1 || address > 10239) {
       setError("Enter a valid locomotive address."); return;
@@ -286,7 +286,7 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
   };
   const exportProfile = () => {
     if (addressRead === null || Number(locoAddress) !== addressRead) {
-      setError("Read the DCC-EX decoder address before exporting."); return;
+      setError("Read the decoder address before exporting."); return;
     }
     if (!successful.length) { setError("Nothing has been read successfully."); return; }
     const safeName = fileName.trim().replace(/[\\/:*?"<>|]/g, "_");
