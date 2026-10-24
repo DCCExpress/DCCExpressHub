@@ -604,7 +604,8 @@ public sealed class DispatcherRuntime
         // Extended/VPin outputs keep the old cache short-circuit because they do not
         // use the magnetic-accessory turnout pulse/feedback path.
         if ((turnout.TurnoutExtended ||
-             turnout.TurnoutVPin) &&
+             turnout.TurnoutVPin ||
+             turnout.TurnoutDccExId) &&
             _runtime.TryGetTurnoutClosed(
                 requirement.Address,
                 out var current) &&
@@ -634,6 +635,11 @@ public sealed class DispatcherRuntime
                 _runtime.SetSignal(
                     requirement.Address,
                     aspect);
+        }
+        else if (turnout.TurnoutDccExId)
+        {
+            ok = await _commandCenter.SetDccExTurnoutAsync(requirement.Address, physicalValue, ct);
+            if (ok) _runtime.SetTurnout(requirement.Address, physicalValue);
         }
         else if (turnout.TurnoutVPin)
         {
@@ -880,7 +886,8 @@ public sealed class DispatcherRuntime
                 var needsChange =
                     runtimeTurnout is null ||
                     (!runtimeTurnout.TurnoutExtended &&
-                     !runtimeTurnout.TurnoutVPin) ||
+                     !runtimeTurnout.TurnoutVPin &&
+                     !runtimeTurnout.TurnoutDccExId) ||
                     !_runtime.TryGetTurnoutClosed(
                         turnout.Address,
                         out var currentClosed) ||
@@ -1197,7 +1204,8 @@ public sealed class DispatcherRuntime
                 var needsChange =
                     runtimeTurnout is null ||
                     (!runtimeTurnout.TurnoutExtended &&
-                     !runtimeTurnout.TurnoutVPin) ||
+                     !runtimeTurnout.TurnoutVPin &&
+                     !runtimeTurnout.TurnoutDccExId) ||
                     !_runtime.TryGetTurnoutClosed(
                         turnout.Address,
                         out var currentClosed) ||
