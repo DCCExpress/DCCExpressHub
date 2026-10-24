@@ -170,7 +170,7 @@ function normalizeLocks(
         address <
           1 ||
         address >
-          2048 ||
+          32767 ||
         typeof value.ownerId !==
           "string"
       ) {
@@ -687,7 +687,7 @@ export async function operateSwitchManTurnouts(
       command.address >=
         1 &&
       command.address <=
-        2048
+        32767
     ) {
       commandByAddress.set(
         command.address,
