@@ -17,6 +17,7 @@ public sealed class RuntimeAccessory
     public bool ClosedValue { get; set; }
     public bool TurnoutExtended { get; set; }
     public bool TurnoutVPin { get; set; }
+    public bool TurnoutDccExId { get; set; }
     public int TurnoutClosedAspect { get; set; } = 0;
     public int TurnoutOpenedAspect { get; set; } = 1;
 
@@ -558,6 +559,7 @@ public sealed class LayoutRuntime
             string mode = S(e, "outputMode", "accessory");
             bool extended = mode == "extended";
             bool vpin = mode == "vpin";
+            bool dccexId = mode == "dccex-turnout";
             bool dual = type is "trackturnoutdouble" or "trackturnouttreeway";
 
             void AddTurnout(
@@ -581,6 +583,7 @@ public sealed class LayoutRuntime
                     ClosedValue = closedValue,
                     TurnoutExtended = extended,
                     TurnoutVPin = vpin,
+                    TurnoutDccExId = dccexId,
                     TurnoutClosedAspect = Math.Clamp(closedAspect, 0, 255),
                     TurnoutOpenedAspect = Math.Clamp(openedAspect, 0, 255)
                 });
@@ -1010,7 +1013,9 @@ public sealed class LayoutRuntime
                     ? "extended"
                     : turnout.TurnoutVPin
                         ? "vpin"
-                        : "accessory",
+                        : turnout.TurnoutDccExId
+                            ? "dccex-turnout"
+                            : "accessory",
                 aspect,
                 closedAspect = turnout.TurnoutClosedAspect,
                 openedAspect = turnout.TurnoutOpenedAspect
@@ -1492,7 +1497,9 @@ public sealed class LayoutRuntime
                         ? "extended"
                         : turnout.TurnoutVPin
                             ? "vpin"
-                            : "accessory",
+                            : turnout.TurnoutDccExId
+                                ? "dccex-turnout"
+                                : "accessory",
                     aspect,
                     closedAspect = turnout.TurnoutClosedAspect,
                     openedAspect = turnout.TurnoutOpenedAspect
