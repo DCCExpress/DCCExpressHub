@@ -639,7 +639,7 @@ public sealed class DispatcherRuntime
         else if (turnout.TurnoutDccExId)
         {
             ok = await _commandCenter.SetDccExTurnoutAsync(requirement.Address, physicalValue, ct);
-            if (ok) _runtime.SetTurnout(requirement.Address, physicalValue);
+            if (ok) _runtime.SetDccExTurnoutState(requirement.Address, physicalValue);
         }
         else if (turnout.TurnoutVPin)
         {
