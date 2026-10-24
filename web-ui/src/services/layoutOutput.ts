@@ -3,7 +3,7 @@ import type { OutputCommandModeDto } from "@domain/layout/layoutDto";
 
 import { wsApi } from "./wsApi";
 
-export type TurnoutOutputMode = "accessory" | "extended" | "vpin";
+export type TurnoutOutputMode = "accessory" | "extended" | "vpin" | "dccex-turnout";
 
 export const OUTPUT_COMMAND_MODE_OPTIONS = [
   { value: "accessory", get label() { return i18next.t("ui.dccAccessoryAAddress01"); } },
@@ -14,6 +14,7 @@ export const TURNOUT_OUTPUT_MODE_OPTIONS = [
   { value: "accessory", get label() { return i18next.t("ui.basicAccessoryAAddress01"); } },
   { value: "extended", get label() { return i18next.t("ui.extendedAccessoryAAddressAspect"); } },
   { value: "vpin", label: "DCC-EX OUTPUT (Vpin) · <z ±vpin>" },
+  { value: "dccex-turnout", label: "DCC-EX Turnout ID · <T id 0/1>" },
 ] satisfies Array<{ value: TurnoutOutputMode; label: string }>;
 
 export function normalizeOutputCommandMode(value: unknown): OutputCommandModeDto {
@@ -21,7 +22,7 @@ export function normalizeOutputCommandMode(value: unknown): OutputCommandModeDto
 }
 
 export function normalizeTurnoutOutputMode(value: unknown): TurnoutOutputMode {
-  return value === "extended" ? "extended" : value === "vpin" ? "vpin" : "accessory";
+  return value === "extended" ? "extended" : value === "vpin" ? "vpin" : value === "dccex-turnout" ? "dccex-turnout" : "accessory";
 }
 
 export function sendBinaryOutput(
@@ -46,7 +47,7 @@ export function sendTurnoutOutput(
   physicalValue: boolean,
   options: TurnoutOutputOptions = {}
 ): boolean {
-  const maxAddress = mode === "vpin" ? 32767 : 2048;
+  const maxAddress = mode === "vpin" || mode === "dccex-turnout" ? 32767 : 2048;
   if (!Number.isInteger(address) || address <= 0 || address > maxAddress) return false;
 
   if (mode === "extended") {
@@ -61,5 +62,6 @@ export function sendTurnoutOutput(
   }
 
   if (mode === "vpin") return wsApi.setVpin(address, physicalValue);
+  if (mode === "dccex-turnout") return wsApi.setDccExTurnout(address, physicalValue);
   return wsApi.setTurnout(address, physicalValue);
 }
