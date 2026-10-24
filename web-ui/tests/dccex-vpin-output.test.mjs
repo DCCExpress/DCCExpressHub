@@ -14,12 +14,13 @@ const {
 const { TrackSignalElement } = await load("models/editor/elements/TrackSignalElement");
 const { createDefaultSignalOutputConfiguration } = await load("domain/layout/signalOutput");
 
-test("turnout editor retains the VPIN mode alongside DCC basic and extended", () => {
+test("turnout editor hides direct VPIN but preserves existing layouts and signal VPIN", () => {
   assert.deepEqual(
     TURNOUT_OUTPUT_MODE_OPTIONS.map(option => option.value),
-    ["accessory", "extended", "vpin"]
+    ["accessory", "extended", "dccex-turnout"]
   );
   assert.equal(normalizeTurnoutOutputMode("vpin"), "vpin");
+  assert.equal(normalizeTurnoutOutputMode("dccex-turnout"), "dccex-turnout");
   assert.equal(normalizeTurnoutOutputMode("extended"), "extended");
   assert.equal(normalizeTurnoutOutputMode(undefined), "accessory");
 });
@@ -91,4 +92,42 @@ test("Windows signal automation uses VPIN output transport, not a DCC accessory"
   assert.match(source, /_runtime\.SetVPin\(address, active\)/);
   assert.match(runtime, /SignalVPin = signalVPin/);
   assert.match(runtime, /AddRange\(vpinTopology, address, outputCount\)/);
+});
+
+test("native DCC-EX turnout sends T ID commands for both physical bit states", () => {
+  const sent = [];
+  const oldNative = wsApi.setDccExTurnout;
+  const oldBasic = wsApi.setTurnout;
+  wsApi.setDccExTurnout = (...args) => { sent.push(["T", ...args]); return true; };
+  wsApi.setTurnout = (...args) => { sent.push(["basic", ...args]); return true; };
+  try {
+    assert.equal(sendTurnoutOutput("dccex-turnout", 1, true), true);
+    assert.equal(sendTurnoutOutput("dccex-turnout", 1, false), true);
+    assert.equal(sendTurnoutOutput("dccex-turnout", 32767, true), true);
+    assert.equal(sendTurnoutOutput("dccex-turnout", 32768, true), false);
+    assert.deepEqual(sent, [
+      ["T", 1, true],
+      ["T", 1, false],
+      ["T", 32767, true],
+    ]);
+  } finally {
+    wsApi.setDccExTurnout = oldNative;
+    wsApi.setTurnout = oldBasic;
+  }
+});
+
+test("unsaved native turnout tests do not require a saved runtime binding, but retain SwitchMan locks", () => {
+  const hub = fs.readFileSync(
+    new URL("../../desktop/DCCExpressHub.Net/Web/WsHub.cs", import.meta.url),
+    "utf8"
+  );
+  const start = hub.indexOf('case "setDccExTurnout":');
+  const end = hub.indexOf('case "setSignalAspect":', start);
+  assert.ok(start >= 0 && end > start);
+  const handler = hub.slice(start, end);
+  assert.match(handler, /AcquireManualTurnoutOperation\(ws, address, ct, 32767\)/);
+  assert.match(handler, /SetDccExTurnoutAsync\(address, thrown, ct\)/);
+  assert.doesNotMatch(handler, /TurnoutDccExId != true/);
+  assert.match(handler, /saved\?\.TurnoutDccExId == true/);
+  assert.match(hub, /ushort maxAddress = 2048/);
 });
