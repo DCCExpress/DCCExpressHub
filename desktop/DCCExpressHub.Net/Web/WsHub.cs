@@ -1108,6 +1108,28 @@ public sealed class WsHub
                         }
                         break;
                     }
+                case "setDccExTurnout":
+                    {
+                        int id = I(data, "address");
+                        if (id <= 0 || id > 32767) { ok = false; break; }
+                        ushort address = (ushort)id;
+                        var turnout = LayoutRuntime.FindAccessory(RuntimeAccessoryKind.Turnout, address);
+                        if (turnout?.TurnoutDccExId != true) { ok = false; break; }
+                        var lease = await AcquireManualTurnoutOperation(ws, address, ct);
+                        if (!lease.Ok) return;
+                        try
+                        {
+                            bool thrown = B(data, "closed");
+                            ok = await CommandCenter.SetDccExTurnoutAsync(address, thrown, ct);
+                            if (ok) LayoutRuntime.SetTurnout(address, thrown);
+                        }
+                        finally
+                        {
+                            await Task.Delay(LayoutRuntime.TurnoutSettlingTimeMs, CancellationToken.None);
+                            SwitchMan.ReleaseOwned(new[] { address }, lease.OwnerId);
+                        }
+                        break;
+                    }
                 case "setSignalAspect":
                     {
                         var a = (ushort)I(data, "address");
@@ -1484,6 +1506,11 @@ public sealed class WsHub
                         ok = await CommandCenter.SetSignalAspectAsync(address, aspect, ct);
                         if (ok)
                             LayoutRuntime.SetSignal(address, aspect);
+                    }
+                    else if (turnout.TurnoutDccExId)
+                    {
+                        ok = await CommandCenter.SetDccExTurnoutAsync(address, physicalValue, ct);
+                        if (ok) LayoutRuntime.SetTurnout(address, physicalValue);
                     }
                     else if (turnout.TurnoutVPin)
                     {
