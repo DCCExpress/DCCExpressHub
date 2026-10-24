@@ -128,7 +128,7 @@ test("unsaved native turnout tests do not require a saved runtime binding, but r
   assert.match(handler, /AcquireManualTurnoutOperation\(ws, address, ct, 32767\)/);
   assert.match(handler, /SetDccExTurnoutAsync\(address, thrown, ct\)/);
   assert.doesNotMatch(handler, /TurnoutDccExId != true/);
-  assert.match(handler, /saved\?\.TurnoutDccExId == true/);
+  assert.match(handler, /DccExTurnoutIds\(\)\.Contains\(address\)/);
   assert.match(hub, /ushort maxAddress = 2048/);
   const locks = fs.readFileSync(
     new URL("../../desktop/DCCExpressHub.Net/Web/SwitchManManager.cs", import.meta.url),
