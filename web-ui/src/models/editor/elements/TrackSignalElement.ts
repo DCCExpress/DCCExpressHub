@@ -557,7 +557,7 @@ export class TrackSignalElement extends TrackElement {
         : []),
     ];
     element.setSignalOutput({
-      protocol: "dcc",
+      protocol: data.outputMode === "vpin" ? "vpin" : "dcc",
       address: Math.max(1, data.address ?? 1),
       outputCount,
       lampCount,
