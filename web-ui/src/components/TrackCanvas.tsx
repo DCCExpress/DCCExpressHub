@@ -516,7 +516,8 @@ export default function TrackCanvas({
       wsClient.on("turnoutChanged", data => {
         applyTurnoutRuntime(
           data.address,
-          data.closed
+          data.closed,
+          data.outputMode ?? "accessory"
         );
       });
 
