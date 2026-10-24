@@ -1385,7 +1385,7 @@ public sealed class WsHub
                 return Array.Empty<ushort>();
 
             return raw.EnumerateArray()
-                .Select(x => x.TryGetInt32(out var n) && n is >= 1 and <= 2048 ? (ushort)n : (ushort)0)
+                .Select(x => x.TryGetInt32(out var n) && n is >= 1 and <= 32767 ? (ushort)n : (ushort)0)
                 .Where(x => x != 0)
                 .Distinct()
                 .OrderBy(x => x)
@@ -1402,7 +1402,11 @@ public sealed class WsHub
                 {
                     var addresses = ReadAddresses();
                     if (addresses.Length == 0 ||
-                        addresses.Any(address => LayoutRuntime.FindAccessory(RuntimeAccessoryKind.Turnout, address) is null))
+                        addresses.Any(address =>
+                        {
+                            var turnout = LayoutRuntime.FindAccessory(RuntimeAccessoryKind.Turnout, address);
+                            return turnout is null || (address > 2048 && !turnout.TurnoutDccExId);
+                        }))
                     {
                         await Reply(false, "invalid_turnout_addresses");
                         return;
@@ -1468,7 +1472,7 @@ public sealed class WsHub
             case "set":
                 {
                     var rawAddress = I(data, "address");
-                    if (rawAddress is < 1 or > 2048)
+                    if (rawAddress is < 1 or > 32767)
                     {
                         await Reply(false, "invalid_turnout_address");
                         return;
@@ -1477,7 +1481,7 @@ public sealed class WsHub
                     var address = (ushort)rawAddress;
                     var turnout = LayoutRuntime.FindAccessory(RuntimeAccessoryKind.Turnout, address);
 
-                    if (turnout is null)
+                    if (turnout is null || (address > 2048 && !turnout.TurnoutDccExId))
                     {
                         await Reply(false, "turnout_not_found");
                         return;
@@ -2613,7 +2617,7 @@ public sealed class WsHub
                 if (item.ValueKind != JsonValueKind.Object ||
                     !item.TryGetProperty("address", out var addressElement) ||
                     !addressElement.TryGetInt32(out var address) ||
-                    address is < 1 or > 2048)
+                    address is < 1 or > 32767)
                     continue;
 
                 var closed =
