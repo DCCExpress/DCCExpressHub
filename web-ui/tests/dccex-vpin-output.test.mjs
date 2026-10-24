@@ -67,6 +67,16 @@ test("signal states map consecutive DCC-EX VPINs to HIGH and LOW", () => {
   }
 });
 
+test("legacy VPIN signals are loaded with VPIN output mode", () => {
+  const original = new TrackSignalElement(0, 0).toJSON();
+  delete original.signalOutput;
+  original.outputMode = "vpin";
+  original.address = 3001;
+  const migrated = TrackSignalElement.fromJSON(original);
+  assert.equal(migrated.signalOutput.protocol, "vpin");
+  assert.equal(migrated.signalOutput.address, 3001);
+});
+
 test("Windows signal automation uses VPIN output transport, not a DCC accessory", () => {
   const source = fs.readFileSync(
     new URL("../../desktop/DCCExpressHub.Net/Web/SignalAutomationEngine.cs", import.meta.url),
