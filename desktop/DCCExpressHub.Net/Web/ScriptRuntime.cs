@@ -1518,6 +1518,14 @@ public sealed class ScriptRuntime
                 ? turnout.ClosedValue
                 : !turnout.ClosedValue;
 
+        if (turnout.TurnoutDccExId)
+        {
+            if (!await _commandCenter.SetDccExTurnoutAsync(address, physical, ct))
+                throw new InvalidOperationException("turnout_command_failed");
+            _layout.SetTurnout(address, physical);
+            return;
+        }
+
         if (turnout.TurnoutVPin)
         {
             if (!await _commandCenter.SetVPinAsync(
