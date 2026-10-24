@@ -18,6 +18,8 @@ public sealed class WsRuntimeCoordinator : BackgroundService
 
     public void RefreshLocomotives() => _locomotiveConfigurationChanged = true;
     readonly Queue<int> _locoSync=new();
+    readonly Queue<ushort> _dccExTurnoutSync = new();
+    DateTimeOffset _nextDccExTurnoutRefresh = DateTimeOffset.MinValue;
     readonly Queue<(int Address,int Function)> _startupFunctions=new();
     bool _startupFunctionsApplied;
     // Power ON may boot feedback modules on any command center. Delay the
@@ -49,6 +51,9 @@ public sealed class WsRuntimeCoordinator : BackgroundService
         cc.SensorFeedbackChanged+=OnSensorFeedbackChanged;
         cc.PowerFeedbackChanged+=OnPowerFeedbackChanged;
         cc.AccessoryFeedbackChanged+=OnAccessoryFeedbackChanged;
+        // DCC-EX <H> broadcasts and <jT> detail replies are NOT DCC
+        // accessory messages. Process them in a separate state namespace.
+        cc.RawInfo += OnDccExRawInfo;
         // Every sensor source uses the same authoritative LayoutRuntime path.
         externalDevices.SensorFeedbackChanged += OnSensorFeedbackChanged;
         externalDevices.SensorRangeUnavailable +=
@@ -69,6 +74,8 @@ public sealed class WsRuntimeCoordinator : BackgroundService
                 _powerOn = null;
                 _powerResyncDue = null;
                 _runtime.InvalidateSensorStates();
+                if (_cc.Type.StartsWith("dcc-ex", StringComparison.OrdinalIgnoreCase))
+                    _runtime.InvalidateDccExTurnoutStates();
             }
             _log.LogWarning(
                 "Command center disconnected: previous sensor states are UNKNOWN pending fresh power and sensor feedback");
@@ -145,11 +152,23 @@ public sealed class WsRuntimeCoordinator : BackgroundService
             active ? 1 : 0);
     }
 
+    void OnDccExRawInfo(string frame)
+    {
+        if (!_cc.Type.StartsWith("dcc-ex", StringComparison.OrdinalIgnoreCase) ||
+            !DccExTurnoutFeedbackParser.TryParse(frame, out var id, out var thrown))
+            return;
+
+        if (_runtime.SetDccExTurnoutState(id, thrown))
+            _log.LogDebug("DCC-EX turnout #{Id} feedback {Position}",
+                id, thrown ? "Thrown" : "Closed");
+    }
+
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
         var nextCurrent=DateTimeOffset.MinValue;
         var nextStatus=DateTimeOffset.MinValue;
         var nextLoco=DateTimeOffset.MinValue;
+        var nextDccExTurnout=DateTimeOffset.MinValue;
         var nextStartupFunction=DateTimeOffset.MinValue;
 
         if(_connected)
@@ -167,6 +186,7 @@ public sealed class WsRuntimeCoordinator : BackgroundService
                 {
                     _locoSync.Clear();
                     _startupFunctions.Clear();
+                    _dccExTurnoutSync.Clear();
                     _startupFunctionsApplied=false;
                     nextCurrent=DateTimeOffset.MinValue;
                 }
@@ -181,6 +201,16 @@ public sealed class WsRuntimeCoordinator : BackgroundService
             }
 
             var now=DateTimeOffset.UtcNow;
+            // Periodic refresh also discovers newly saved turnout bindings.
+            // Throttle queries individually rather than dumping a <JT> burst.
+            if (_cc.Connected &&
+                _cc.Type.StartsWith("dcc-ex", StringComparison.OrdinalIgnoreCase) &&
+                now >= _nextDccExTurnoutRefresh && _dccExTurnoutSync.Count == 0)
+            {
+                foreach (var id in _runtime.DccExTurnoutIds())
+                    _dccExTurnoutSync.Enqueue(id);
+                _nextDccExTurnoutRefresh = now.AddSeconds(60);
+            }
             bool requestPowerOnSensors = false;
             if (_cc.Connected)
             {
@@ -202,6 +232,14 @@ public sealed class WsRuntimeCoordinator : BackgroundService
                     requested ? "sent" : "not sent");
             }
 
+
+            if (_cc.Connected && _dccExTurnoutSync.Count > 0 && now >= nextDccExTurnout)
+            {
+                var id = _dccExTurnoutSync.Peek();
+                if (await _cc.SendRawAsync($"<JT {id}>", false, ct))
+                    _dccExTurnoutSync.Dequeue();
+                nextDccExTurnout = now.AddMilliseconds(100);
+            }
 
             if(_cc.Connected && _locoSync.Count>0 && now>=nextLoco)
             {
@@ -282,6 +320,16 @@ public sealed class WsRuntimeCoordinator : BackgroundService
 
     async Task ConnectedAsync(CancellationToken ct)
     {
+        _dccExTurnoutSync.Clear();
+        if (_cc.Type.StartsWith("dcc-ex", StringComparison.OrdinalIgnoreCase))
+        {
+            // Do not treat a stale state from an earlier controller session
+            // as authoritative. <JT id> repopulates it after reconnect.
+            _runtime.InvalidateDccExTurnoutStates();
+            foreach (var id in _runtime.DccExTurnoutIds())
+                _dccExTurnoutSync.Enqueue(id);
+            _nextDccExTurnoutRefresh = DateTimeOffset.UtcNow.AddSeconds(60);
+        }
         await _cc.RequestTrackConfigurationAsync(ct);
         await _cc.RequestTripTelemetryAsync(ct);
 
