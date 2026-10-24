@@ -1126,8 +1126,7 @@ public sealed class WsHub
                             // is a DCC-EX turnout. Unsaved editor state is not runtime state.
                             if (ok)
                             {
-                                var saved = LayoutRuntime.FindAccessory(RuntimeAccessoryKind.Turnout, address);
-                                if (saved?.TurnoutDccExId == true)
+                                if (LayoutRuntime.DccExTurnoutIds().Contains(address))
                                     LayoutRuntime.SetDccExTurnoutState(address, thrown);
                             }
                         }
