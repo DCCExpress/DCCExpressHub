@@ -61,6 +61,7 @@ import FullscreenLoader from "@/components/FullscreenLoader";
 import AppModal from "@/components/common/AppModal";
 import SignalLogicDialog from "@/components/SignalLogicDialog";
 import IntegrityCheckDialog from "@/components/IntegrityCheckDialog";
+import SystemInfoPanel from "@/components/SystemInfoPanel";
 import SafetyEmergencyStopDialog from "@/components/SafetyEmergencyStopDialog";
 import VisibilitySettings from "@/components/VisibilitySettings";
 import EditorShortcutsHelp from "@/layout/property-panel/EditorShortcutsHelp";
@@ -2412,7 +2413,16 @@ export default function LiteLayoutPage({
 
                   <Tabs.Panel value="settings" className="lite-info-tab-panel">
                     <ScrollArea h="100%" type="auto" scrollbarSize={9} className="lite-info-scroll">
-                      <SensorSettingsCard />
+                      <Stack gap="sm">
+                        <SensorSettingsCard />
+                        <SystemInfoPanel
+                          status={dccExStatus}
+                          wsStatus={wsStatus}
+                          flashInfo={null}
+                          version={version}
+                          showHubInfo={false}
+                        />
+                      </Stack>
                     </ScrollArea>
                   </Tabs.Panel>
 
