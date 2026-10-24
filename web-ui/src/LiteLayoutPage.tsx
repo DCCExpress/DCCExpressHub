@@ -47,7 +47,6 @@ import {
   IconClipboardList,
   IconCalendarTime,
   IconInfoCircle,
-  IconListDetails,
   IconRoute,
   IconVolume,
   IconServerCog,
@@ -63,8 +62,6 @@ import FullscreenLoader from "@/components/FullscreenLoader";
 import AppModal from "@/components/common/AppModal";
 import SignalLogicDialog from "@/components/SignalLogicDialog";
 import IntegrityCheckDialog from "@/components/IntegrityCheckDialog";
-import LayoutRuntimeLogPanel from "@/components/LayoutRuntimeLogPanel";
-import CollapsiblePanelCard from "@/components/common/CollapsiblePanelCard";
 import SystemInfoPanel from "@/components/SystemInfoPanel";
 import SafetyEmergencyStopDialog from "@/components/SafetyEmergencyStopDialog";
 import VisibilitySettings from "@/components/VisibilitySettings";
@@ -2354,7 +2351,6 @@ export default function LiteLayoutPage({
                       <Tabs.Tab value="info" aria-label={i18next.t("ui.info")}><IconInfoCircle size={20} aria-hidden="true" /></Tabs.Tab>
                     </Tooltip>
                     <Tooltip label={i18next.t("ui.log")} withArrow>
-                      <Tabs.Tab value="log" aria-label={i18next.t("ui.log")}><IconListDetails size={20} aria-hidden="true" /></Tabs.Tab>
                     </Tooltip>
                   </Tabs.List>
 
@@ -2443,24 +2439,7 @@ export default function LiteLayoutPage({
                     </ScrollArea>
                   </Tabs.Panel>
 
-                  <Tabs.Panel value="log" className="lite-info-tab-panel">
-                    <ScrollArea h="100%" type="auto" scrollbarSize={9} className="lite-info-scroll">
-                      <Stack gap="xs" pb="xs">
-                        <CollapsiblePanelCard
-                          title="Console log"
-                          collapsedStorageKey="dcc-express-lite.layout.log.console-collapsed"
-                          expandTooltip="Show console log"
-                          collapseTooltip="Hide console log"
-                          defaultCollapsed
-                          clickableHeader
-                        >
-                          <div style={{ height: 300, minHeight: 0 }}>
-                            <LayoutRuntimeLogPanel />
-                          </div>
-                        </CollapsiblePanelCard>
-                      </Stack>
-                    </ScrollArea>
-                  </Tabs.Panel>
+
                 </Tabs>
               )}
             </Card>
