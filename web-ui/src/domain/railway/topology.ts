@@ -204,7 +204,7 @@ function createTurnoutThreeWayElement(data: SerializedLayoutElementDto): TrackTu
   element.turnout2Address = numberValue(data.turnout2Address, element.turnout2Address);
   element.turnout1ClosedValue = boolValue(data.turnout1ClosedValue, element.turnout1ClosedValue);
   element.turnout2ClosedValue = boolValue(data.turnout2ClosedValue, element.turnout2ClosedValue);
-  if (data.outputMode === "vpin" || data.outputMode === "accessory" || data.outputMode === "extended") element.outputMode = data.outputMode;
+  if (data.outputMode === "vpin" || data.outputMode === "accessory") element.outputMode = data.outputMode;
   return element;
 }
 
