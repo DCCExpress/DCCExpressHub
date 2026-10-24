@@ -130,4 +130,9 @@ test("unsaved native turnout tests do not require a saved runtime binding, but r
   assert.doesNotMatch(handler, /TurnoutDccExId != true/);
   assert.match(handler, /saved\?\.TurnoutDccExId == true/);
   assert.match(hub, /ushort maxAddress = 2048/);
+  const locks = fs.readFileSync(
+    new URL("../../desktop/DCCExpressHub.Net/Web/SwitchManManager.cs", import.meta.url),
+    "utf8"
+  );
+  assert.match(locks, /x is >= 1 and <= 32767/);
 });
