@@ -1772,8 +1772,8 @@ function migrateParsedCompiled(
             rawSignal.address,
           mode:
             rawSignal.mode,
-          ...(rawSignal.mode ===
-          "basic"
+          ...(rawSignal.mode !==
+          "extended"
             ? {
                 outputs:
                   rawSignal.outputs ??
