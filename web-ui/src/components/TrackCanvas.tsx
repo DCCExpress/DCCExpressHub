@@ -42,6 +42,7 @@ import {
   subscribeTrainTrackingPredictions,
 } from "../services/trainTrackingPredictionRuntime";
 import { wsClient } from "../services/wsClient";
+import { subscribeRailComSensorChanges } from "../services/railComSensorRuntime";
 import "../styles/TrackCanvas.css";
 
 import {
@@ -474,12 +475,14 @@ export default function TrackCanvas({
   useEffect(() => {
     const applyTurnoutRuntime = (
       address: number,
-      physicalValue: boolean
+      physicalValue: boolean,
+      outputMode: "accessory" | "extended" | "vpin" | "dccex-turnout" = "accessory",
+      displayOnly = false
     ) => {
       for (const element of layout.getAllElements()) {
         if (
           isTurnoutElement(element) &&
-          element.outputMode === "accessory" &&
+          element.outputMode === outputMode &&
           element.turnoutAddress === address
         ) {
           element.turnoutClosed = physicalValue;
@@ -491,7 +494,7 @@ export default function TrackCanvas({
             element instanceof TrackTurnoutDoubleElement ||
             element instanceof TrackTurnoutThreeWayElement
           ) &&
-          element.outputMode === "accessory"
+          element.outputMode === outputMode
         ) {
           if (element.turnout1Address === address) {
             element.turnout1Closed = physicalValue;
@@ -505,7 +508,7 @@ export default function TrackCanvas({
 
       // Every physical turnout/accessory event may change which legacy
       // RouteButton is active. Recalculate immediately and redraw.
-      layout.checkRoutes();
+      if (!displayOnly) layout.checkRoutes();
       invalidate();
     };
 
@@ -513,7 +516,8 @@ export default function TrackCanvas({
       wsClient.on("turnoutChanged", data => {
         applyTurnoutRuntime(
           data.address,
-          data.closed
+          data.closed,
+          data.outputMode ?? "accessory"
         );
       });
 
@@ -525,9 +529,14 @@ export default function TrackCanvas({
         );
       });
 
+    const unsubscribeDisplay = wsClient.on("turnoutDisplayRestored", data => {
+      applyTurnoutRuntime(data.address, data.closed, data.outputMode, true);
+    });
+
     return () => {
       unsubscribeTurnout();
       unsubscribeAccessory();
+      unsubscribeDisplay();
     };
   }, [layout, invalidate]);
 
@@ -544,6 +553,10 @@ export default function TrackCanvas({
       onInvalidate();
     });
   }, [onInvalidate]);
+
+  // RailCom badges must update on Detected/Lost and when snapshots reset.
+  // One shared cache coalesces repeated reports without constant redraws.
+  useEffect(() => subscribeRailComSensorChanges(invalidate), [invalidate]);
 
   useEffect(() => {
     void fastClockStore.ensureLoaded();
@@ -1572,6 +1585,11 @@ export default function TrackCanvas({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && editModeRef.current && toolRef.current.mode === "delete") {
+        event.preventDefault();
+        onToolChange?.({mode:"cursor",elementType:"general"});
+        return;
+      }
       if (blockSelectionRef.current && event.key === "Escape") {
         exitBlockSelection();
         event.preventDefault();

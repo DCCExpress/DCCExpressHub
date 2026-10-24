@@ -141,12 +141,12 @@ export abstract class TrackTurnoutElement extends TrackElement {
         options: TURNOUT_OUTPUT_MODE_OPTIONS,
       },
       {
-        label: i18next.t("ui.accessoryAddress"),
+        label: `${i18next.t("ui.accessoryAddress")}/id`,
         key: "turnoutAddress",
         type: "number",
         readonly: false,
         min: 1,
-        max: 2048,
+        max: this.outputMode === "vpin" || this.outputMode === "dccex-turnout" ? 32767 : 2048,
         validate: () => true,
       },
       {

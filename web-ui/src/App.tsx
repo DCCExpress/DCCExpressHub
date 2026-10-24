@@ -52,6 +52,7 @@ import type { Loco } from "@domain/types";
 
 import { getLocos } from "@/api/domainApi";
 import LocoDialog from "@/components/LocoDialog";
+import DebugDialog from "@/components/debug/DebugDialog";
 import CommandCenterSettingsDialog from "@/components/CommandCenterSettingsDialog";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import LocoPanel from "@/layout/LocoPanel";
@@ -95,7 +96,7 @@ const GamepadPage = lazy(() => import("./GamepadPage"));
 const ConsolePage = lazy(() => import("./ConsolePage"));
 
 type LoadState = "idle" | "loading" | "ready" | "error";
-type Page = "home" | "drive" | "layout" | "flows" | "programming" | "s88-adapter" | "external-devices" | "settings" | "device-config" | "gamepad" | "console" | "files" | "backup";
+type Page = "home" | "drive" | "layout" | "flows" | "programming" | "s88-adapter" | "external-devices" | "settings" | "device-config" | "gamepad" | "console" | "files" | "backup" | "debug";
 
 type NetworkSettingsDto = {
   configured: boolean;
@@ -139,7 +140,7 @@ function formatStatus(status: WsConnectionStatus): string {
 
 function pageFromHash(): Page {
   const page = window.location.hash.replace("#", "");
-  return page === "drive" || page === "layout" || page === "flows" || page === "programming" || page === "s88-adapter" || page === "external-devices" || page === "settings" || page === "device-config" || page === "gamepad" || page === "console" || page === "files" || page === "backup" ? page : "home";
+  return page === "drive" || page === "layout" || page === "flows" || page === "programming" || page === "s88-adapter" || page === "external-devices" || page === "settings" || page === "device-config" || page === "gamepad" || page === "console" || page === "files" || page === "backup" || page === "debug" ? page : "home";
 }
 
 function AppHeader({
@@ -1199,6 +1200,7 @@ export default function App() {
   };
 
   const renderPage = () => {
+    if (page === "debug") return <DebugDialog opened onClose={() => navigate("home")} standalone />;
     if (page === "settings") return <SettingsPage onBack={() => navigate("home")} status={status} />;
 
     if (page === "files") return <FilesPage onBack={() => navigate("home")} />;
@@ -1311,7 +1313,7 @@ export default function App() {
 
   return (
     <Box
-      className={`mobile-shell${page === "layout" ? " layout-shell" : ""
+      className={`mobile-shell${page === "debug" ? " debug-shell" : ""}${page === "layout" ? " layout-shell" : ""
         }${page === "drive" ? " drive-shell" : ""
         }${page === "device-config" ? " device-config-shell" : ""
         }`}

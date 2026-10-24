@@ -487,7 +487,7 @@ namespace DCCExpressHub.Desktop
                 protocol == "yamorc7010" ? Visibility.Visible : Visibility.Collapsed;
 
             YaMoRcOffsetsPanel.Visibility =
-                protocol is "yamorc7010" or "loconet-serial"
+                protocol is "yamorc7010" or "loconet" or "loconet-serial"
                     ? Visibility.Visible
                     : Visibility.Collapsed;
 
@@ -1334,39 +1334,6 @@ namespace DCCExpressHub.Desktop
                         rBusOffset;
                 }
 
-                if (protocol is "yamorc7010" or "loconet-serial")
-                {
-                    if (
-                        !int.TryParse(
-                            YaMoRcRBusOffsetText.Text.Trim(),
-                            out var yaMoRcRBusOffset) ||
-                        yaMoRcRBusOffset is < 0 or > 65375
-                    )
-                    {
-                        error =
-                            L("validationYaMoRcRBusOffset");
-                        return false;
-                    }
-
-                    if (
-                        !int.TryParse(
-                            YaMoRcLocoNetOffsetText.Text.Trim(),
-                            out var yaMoRcLocoNetOffset) ||
-                        yaMoRcLocoNetOffset is < 0 or > 61439
-                    )
-                    {
-                        error =
-                            L("validationYaMoRcLocoNetOffset");
-                        return false;
-                    }
-
-                    settings.YaMoRcRBusOffset =
-                        yaMoRcRBusOffset;
-
-                    settings.YaMoRcLocoNetOffset =
-                        yaMoRcLocoNetOffset;
-                    settings.UseLocoNet = UseLocoNetCheckBox.IsChecked == true;
-                }
             }
             else
             {
@@ -1385,6 +1352,34 @@ namespace DCCExpressHub.Desktop
 
                 settings.SerialBaudRate =
                     115200;
+            }
+
+            // Native LocoNet TCP and Serial must use the same sensor-address
+            // mapping as the existing combined YaMoRC profile.
+            if (protocol is "yamorc7010" or "loconet" or "loconet-serial")
+            {
+                if (!int.TryParse(
+                        YaMoRcRBusOffsetText.Text.Trim(),
+                        out var yaMoRcRBusOffset) ||
+                    yaMoRcRBusOffset is < 0 or > 65375)
+                {
+                    error = L("validationYaMoRcRBusOffset");
+                    return false;
+                }
+
+                if (!int.TryParse(
+                        YaMoRcLocoNetOffsetText.Text.Trim(),
+                        out var locoNetOffset) ||
+                    locoNetOffset is < 0 or > 61439)
+                {
+                    error = L("validationYaMoRcLocoNetOffset");
+                    return false;
+                }
+
+                settings.YaMoRcRBusOffset = yaMoRcRBusOffset;
+                settings.YaMoRcLocoNetOffset = locoNetOffset;
+                if (protocol == "yamorc7010")
+                    settings.UseLocoNet = UseLocoNetCheckBox.IsChecked == true;
             }
 
             if (validateWorkspace)
@@ -2252,7 +2247,7 @@ namespace DCCExpressHub.Desktop
                 (
                     _settings.Protocol == "z21"
                         ? _settings.RBusOffset
-                        : _settings.Protocol is "yamorc7010" or "loconet-serial"
+                        : _settings.Protocol is "yamorc7010" or "loconet" or "loconet-serial"
                             ? _settings.YaMoRcRBusOffset
                             : 0
                 ).ToString();
@@ -2262,7 +2257,7 @@ namespace DCCExpressHub.Desktop
 
             psi.Environment["LocoNet__SensorOffset"] =
                 (
-                    _settings.Protocol is "yamorc7010" or "loconet-serial"
+                    _settings.Protocol is "yamorc7010" or "loconet" or "loconet-serial"
                         ? _settings.YaMoRcLocoNetOffset
                         : 0
                 ).ToString();

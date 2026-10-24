@@ -22,6 +22,7 @@ export const TrackColors = {
   routeOccupied: "#ff3333",
   busy: "orange",
   transit: "#fd2020",
+  unknown: "#6b7280",
 };
 
 // Central occupancy cache fed by the existing Hub sensorChanged /
@@ -115,6 +116,11 @@ export abstract class TrackElement extends BaseElement {
     );
   }
 
+  protected isSensorAddressUnknown(address: unknown): boolean {
+    const normalizedAddress = normalizeOccupancyAddress(address);
+    return normalizedAddress > 0 && !occupancyByAddress.has(normalizedAddress);
+  }
+
   isTrackOccupied(): boolean {
     return (
       this.isSensorAddressOccupied(this.address) ||
@@ -133,7 +139,8 @@ export abstract class TrackElement extends BaseElement {
      * occupied         -> red
      * transit          -> transit red
      * busy/reserved    -> orange
-     * route            -> yellow
+     * route            -> yellow (also when the sensor is UNKNOWN)
+     * unknown sensor   -> graphite gray (when no route is highlighted)
      * selected         -> yellow
      * free             -> light gray
      *
@@ -155,8 +162,15 @@ export abstract class TrackElement extends BaseElement {
       return TrackColors.busy;
     }
 
+    // A route highlight describes the configured physical path, not sensor
+    // availability. Keep it visible even when occupancy feedback is UNKNOWN.
+    // Train safety still sees and handles the underlying UNKNOWN sensor state.
     if (isRoute) {
       return TrackColors.route;
+    }
+
+    if (this.hasOccupancySensor && this.isSensorAddressUnknown(this.address)) {
+      return TrackColors.unknown;
     }
 
     if (this.state === TrackStates.selected) {
@@ -238,7 +252,7 @@ export abstract class TrackElement extends BaseElement {
     return [
       ...properties,
       {
-        label: i18next.t("ui.occupancySensorAddress"),
+        label: i18next.t("ui.sensorAddress"),
         key: "address",
         type: "number",
         readonly: false,

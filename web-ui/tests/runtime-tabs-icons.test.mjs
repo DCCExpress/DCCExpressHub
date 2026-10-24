@@ -7,7 +7,7 @@ const page = readFileSync(new URL("../src/LiteLayoutPage.tsx", import.meta.url),
 test("all runtime tabs have icon-only labels with tooltips and accessible names", () => {
   const tabs = [
     ["tasks", "IconClipboardList", '"TaskMan"'],
-    ["automation", "IconRobot", 'i18next.t("ui.automation2")'],
+    ["automation", "IconRoute", 'i18next.t("ui.automation2")'],
     ["timetable", "IconCalendarTime", 'i18next.t("ui.timetable")'],
     ["info", "IconInfoCircle", 'i18next.t("ui.info")'],
     ["log", "IconListDetails", 'i18next.t("ui.log")'],

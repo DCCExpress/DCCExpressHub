@@ -1,0 +1,1015 @@
+import { ActionIcon, Card, Text, Tooltip } from "@mantine/core";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { IconLayoutGrid, IconSettings, IconAdjustmentsHorizontal } from "@tabler/icons-react";
+
+import type {
+  Direction,
+  Loco,
+  LocoReservation,
+} from "@domain/types";
+
+import LocoPicker from "../components/loco/LocoPicker";
+import { useCommandCenter } from "../context/CommandCenterContext";
+import { showErrorMessage } from "../helpers";
+import { wsApi } from "../services/wsApi";
+import { wsClient } from "../services/wsClient";
+import LocoControlCard from "./loco-panel/LocoControlCard";
+import LocoCardsView from "./loco-panel/LocoCardsView";
+import { subscribeDriveToBlockLoco } from "../services/driveToBlockSelection";
+import LocoPanelSettingsDialog from "./loco-panel/LocoPanelSettingsDialog";
+import {
+  getLocoPanelCounterDisplaySettings,
+  setLocoPanelCounterDisplaySettings,
+  subscribeLocoPanelCounterDisplaySettings,
+  type LocoPanelCounterDisplaySettings,
+} from "../services/locoPanelCounterDisplaySettings";
+import LocoFunctionGrid from "./loco-panel/LocoFunctionGrid";
+import { useGamepadAction } from "../context/GamepadContext";
+
+type LocoPanelProps = {
+  locos?: Loco[];
+  selectedLocoStorageKey?: string;
+  mobileViewport?: boolean;
+};
+
+const SELECTED_LOCO_STORAGE_KEY =
+  "dcc-express.loco-panel.selected-loco-id";
+
+const SPEED_SEND_THROTTLE_MS = 75;
+const SPEED_FEEDBACK_TIMEOUT_MS = 1000;
+
+function functionsMaskToRecord(mask: number): Record<number, boolean> {
+  const result: Record<number, boolean> = {};
+  const normalized = mask >>> 0;
+
+  for (let fn = 0; fn <= 28; fn += 1) {
+    result[fn] = ((normalized >>> fn) & 1) !== 0;
+  }
+
+  return result;
+}
+
+export default function LocoPanel({
+  locos = [],
+  selectedLocoStorageKey = SELECTED_LOCO_STORAGE_KEY,
+  mobileViewport = false,
+}: LocoPanelProps) {
+  const { t } = useTranslation();
+  const [panelView, setPanelView] = useState<"control" | "cards">(() =>
+    window.localStorage.getItem("dccexpresshub.loco-panel.view") === "cards" ? "cards" : "control");
+  const togglePanelView = () => setPanelView(view => {
+    const next = view === "control" ? "cards" : "control";
+    window.localStorage.setItem("dccexpresshub.loco-panel.view", next);
+    return next;
+  });
+
+  const [selectedLocoId, setSelectedLocoId] =
+    useState<string>(() => {
+      return (
+        window.localStorage.getItem(
+          selectedLocoStorageKey
+        ) ?? ""
+      );
+    });
+
+  const currentAddressRef =
+    useRef<number | null>(null);
+
+  const currentDirectionRef =
+    useRef<Direction>("forward");
+
+  const aliveRef =
+    useRef(false);
+
+  const speedDraggingRef =
+    useRef(false);
+
+  const pendingSpeedRef =
+    useRef<number | null>(null);
+
+  const queuedSpeedRef =
+    useRef<number | null>(null);
+
+  const speedSendTimerRef =
+    useRef<number | null>(null);
+
+  const speedFeedbackTimerRef =
+    useRef<number | null>(null);
+
+  const lastSpeedSendAtRef =
+    useRef(0);
+
+  const [pickerOpened, setPickerOpened] =
+    useState(false);
+
+  const [
+    settingsOpened,
+    setSettingsOpened,
+  ] =
+    useState(false);
+
+  const [
+    counterDisplaySettings,
+    setCounterDisplaySettingsState,
+  ] =
+    useState<LocoPanelCounterDisplaySettings>(
+      () =>
+        getLocoPanelCounterDisplaySettings()
+    );
+
+  const [speed, setSpeed] =
+    useState(0);
+
+  const [direction, setDirection] =
+    useState<Direction>("forward");
+
+  const [activeFunctions, setActiveFunctions] =
+    useState<Record<number, boolean>>({});
+
+  const [reservation, setReservation] =
+    useState<LocoReservation | null>(null);
+
+  const { powerInfo, alive } =
+    useCommandCenter();
+
+  const controlsDisabled = !alive;
+
+  const fitContainerRef = useRef<HTMLDivElement>(null);
+  const fitContentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    aliveRef.current = alive;
+  }, [alive]);
+
+  useEffect(
+    () => {
+      return subscribeLocoPanelCounterDisplaySettings(
+        settings => {
+          setCounterDisplaySettingsState(
+            settings
+          );
+        }
+      );
+    },
+    []
+  );
+
+  const updateCounterDisplaySettings =
+    useCallback(
+      (
+        patch:
+          Partial<LocoPanelCounterDisplaySettings>
+      ) => {
+        setLocoPanelCounterDisplaySettings(
+          patch
+        );
+      },
+      []
+    );
+
+  const clearSpeedTimers = useCallback(() => {
+    if (speedSendTimerRef.current !== null) {
+      window.clearTimeout(speedSendTimerRef.current);
+      speedSendTimerRef.current = null;
+    }
+
+    if (speedFeedbackTimerRef.current !== null) {
+      window.clearTimeout(speedFeedbackTimerRef.current);
+      speedFeedbackTimerRef.current = null;
+    }
+  }, []);
+
+  const clearSpeedControlState = useCallback(() => {
+    clearSpeedTimers();
+    speedDraggingRef.current = false;
+    pendingSpeedRef.current = null;
+    queuedSpeedRef.current = null;
+    lastSpeedSendAtRef.current = 0;
+  }, [clearSpeedTimers]);
+
+  const clearRuntimeState = useCallback(() => {
+    clearSpeedControlState();
+    setSpeed(0);
+    setDirection("forward");
+    currentDirectionRef.current = "forward";
+    setActiveFunctions({});
+    setReservation(null);
+  }, [clearSpeedControlState]);
+
+  const armSpeedFeedbackFailSafe = useCallback(() => {
+    if (speedFeedbackTimerRef.current !== null) {
+      window.clearTimeout(speedFeedbackTimerRef.current);
+    }
+
+    speedFeedbackTimerRef.current = window.setTimeout(() => {
+      pendingSpeedRef.current = null;
+      speedFeedbackTimerRef.current = null;
+    }, SPEED_FEEDBACK_TIMEOUT_MS);
+  }, []);
+
+  const sendSpeedCommand = useCallback(
+    (nextSpeed: number) => {
+      const address = currentAddressRef.current;
+
+      if (address === null || !aliveRef.current) {
+        return;
+      }
+
+      pendingSpeedRef.current = nextSpeed;
+      lastSpeedSendAtRef.current = performance.now();
+
+      wsApi.setLoco(
+        address,
+        nextSpeed,
+        currentDirectionRef.current
+      );
+
+      armSpeedFeedbackFailSafe();
+    },
+    [armSpeedFeedbackFailSafe]
+  );
+
+  const cancelQueuedSpeedSend = useCallback(() => {
+    queuedSpeedRef.current = null;
+
+    if (speedSendTimerRef.current !== null) {
+      window.clearTimeout(speedSendTimerRef.current);
+      speedSendTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleThrottledSpeedSend = useCallback(
+    (nextSpeed: number) => {
+      queuedSpeedRef.current = nextSpeed;
+
+      if (speedSendTimerRef.current !== null) {
+        return;
+      }
+
+      const elapsed =
+        performance.now() - lastSpeedSendAtRef.current;
+
+      const delay = Math.max(
+        0,
+        SPEED_SEND_THROTTLE_MS - elapsed
+      );
+
+      if (delay === 0) {
+        const queued = queuedSpeedRef.current;
+        queuedSpeedRef.current = null;
+
+        if (queued !== null) {
+          sendSpeedCommand(queued);
+        }
+
+        return;
+      }
+
+      speedSendTimerRef.current = window.setTimeout(() => {
+        speedSendTimerRef.current = null;
+
+        const queued = queuedSpeedRef.current;
+        queuedSpeedRef.current = null;
+
+        if (queued !== null) {
+          sendSpeedCommand(queued);
+        }
+      }, delay);
+    },
+    [sendSpeedCommand]
+  );
+
+  useEffect(() => {
+    return () => {
+      clearSpeedTimers();
+    };
+  }, [clearSpeedTimers]);
+
+  const requestCurrentLocoState = useCallback(() => {
+    const address = currentAddressRef.current;
+
+    if (address !== null) {
+      wsApi.getLoco(address);
+    }
+  }, []);
+
+  const selectLocoId = useCallback(
+    (id: string) => {
+      setSelectedLocoId(id);
+
+      if (id) {
+        window.localStorage.setItem(
+          selectedLocoStorageKey,
+          id
+        );
+      } else {
+        window.localStorage.removeItem(
+          selectedLocoStorageKey
+        );
+      }
+    },
+    [selectedLocoStorageKey]
+  );
+
+  useEffect(() => subscribeDriveToBlockLoco(id => {
+    if (locos.some(loco => loco.id === id)) selectLocoId(id);
+  }), [locos, selectLocoId]);
+
+  useEffect(() => {
+    if (locos.length === 0) {
+      if (selectedLocoId) {
+        selectLocoId("");
+      }
+
+      return;
+    }
+
+    if (
+      selectedLocoId &&
+      locos.some(loco => loco.id === selectedLocoId)
+    ) {
+      return;
+    }
+
+    selectLocoId(locos[0]?.id ?? "");
+  }, [locos, selectedLocoId, selectLocoId]);
+
+  const currentLoco = useMemo(() => {
+    if (selectedLocoId) {
+      const found =
+        locos.find(loco => loco.id === selectedLocoId);
+
+      if (found) {
+        return found;
+      }
+    }
+
+    return locos.length > 0
+      ? locos[0]
+      : null;
+  }, [locos, selectedLocoId]);
+
+  const currentLocoAddress = currentLoco?.address ?? null;
+
+  useEffect(() => {
+    currentAddressRef.current = currentLocoAddress;
+    clearRuntimeState();
+
+    if (currentLocoAddress !== null) {
+      // Loco state is cached per DCC address by WsClient. Restoring the
+      // selected address synchronously from that cache prevents the F0–F28
+      // buttons from staying cleared when the command station does not
+      // immediately answer a getLoco request (e.g. a LocoNet slot lookup).
+      // Never reuse function states belonging to the previous locomotive.
+      const cached = wsClient.getLatestLocoState(currentLocoAddress);
+      if (cached) {
+        setSpeed(cached.speed);
+        setDirection(cached.direction);
+        currentDirectionRef.current = cached.direction;
+        setActiveFunctions(functionsMaskToRecord(cached.functionsMask ?? 0));
+        setReservation(cached.reservation ?? null);
+      }
+
+      wsApi.getLoco(currentLocoAddress);
+    }
+  }, [currentLocoAddress, clearRuntimeState]);
+
+  useEffect(() => {
+    const unsubscribe =
+      wsClient.subscribeStatus(status => {
+        if (status === "connected") {
+          requestCurrentLocoState();
+          return;
+        }
+
+        if (
+          status === "disconnected" ||
+          status === "reconnecting" ||
+          status === "error"
+        ) {
+          clearRuntimeState();
+        }
+      });
+
+    return unsubscribe;
+  }, [
+    clearRuntimeState,
+    requestCurrentLocoState,
+  ]);
+
+  useEffect(() => {
+    const unsubscribe =
+      wsClient.on("locoState", data => {
+        const loco = data.loco;
+
+        if (!loco) {
+          showErrorMessage(
+            t("loco.stateTitle"),
+            t("loco.errors.stateConvertFailed")
+          );
+          return;
+        }
+
+        if (
+          loco.address !==
+          currentAddressRef.current
+        ) {
+          return;
+        }
+
+        const pendingSpeed =
+          pendingSpeedRef.current;
+
+        if (!speedDraggingRef.current) {
+          if (
+            pendingSpeed === null ||
+            loco.speed === pendingSpeed
+          ) {
+            if (
+              pendingSpeed !== null &&
+              loco.speed === pendingSpeed
+            ) {
+              pendingSpeedRef.current = null;
+
+              if (
+                speedFeedbackTimerRef.current !== null
+              ) {
+                window.clearTimeout(
+                  speedFeedbackTimerRef.current
+                );
+                speedFeedbackTimerRef.current = null;
+              }
+            }
+
+            setSpeed(loco.speed);
+          }
+        }
+
+        currentDirectionRef.current = loco.direction;
+        setDirection(loco.direction);
+
+        setActiveFunctions(
+          functionsMaskToRecord(
+            loco.functionsMask ?? 0
+          )
+        );
+
+        setReservation(
+          loco.reservation ?? null
+        );
+      });
+
+    return unsubscribe;
+  }, [t]);
+
+  useEffect(() => {
+    const unsubscribe =
+      wsClient.on("locoReservationChanged", data => {
+        if (
+          data.locoAddress !==
+          currentAddressRef.current
+        ) {
+          return;
+        }
+
+        wsApi.getLoco(data.locoAddress);
+      });
+
+    return unsubscribe;
+  }, []);
+
+  const handleSelectLoco = (
+    loco: Loco
+  ) => {
+    selectLocoId(loco.id);
+    setPickerOpened(false);
+    clearRuntimeState();
+  };
+
+  const setLocoSpeed = (
+    nextSpeed: number
+  ) => {
+    if (!currentLoco || controlsDisabled) {
+      return;
+    }
+
+    speedDraggingRef.current = false;
+    cancelQueuedSpeedSend();
+
+    setSpeed(nextSpeed);
+    sendSpeedCommand(nextSpeed);
+  };
+
+  const handleSliderSpeedChange = (
+    nextSpeed: number
+  ) => {
+    if (!currentLoco || controlsDisabled) {
+      return;
+    }
+
+    speedDraggingRef.current = true;
+    setSpeed(nextSpeed);
+    scheduleThrottledSpeedSend(nextSpeed);
+  };
+
+  const handleSliderSpeedChangeEnd = (
+    nextSpeed: number
+  ) => {
+    if (!currentLoco || controlsDisabled) {
+      return;
+    }
+
+    speedDraggingRef.current = false;
+    cancelQueuedSpeedSend();
+
+    setSpeed(nextSpeed);
+
+    // Always send the final slider position immediately.
+    // This guarantees that the command station receives the exact
+    // value shown by the UI even if the last throttled update was older.
+    sendSpeedCommand(nextSpeed);
+  };
+
+  const setLocoSpeedByPercent = (
+    percent: number
+  ) => {
+    if (!currentLoco || controlsDisabled) {
+      return;
+    }
+
+    const maxSpeed =
+      currentLoco.maxSpeed || 100;
+
+    const nextSpeed =
+      Math.max(
+        0,
+        Math.min(
+          Math.round(
+            (maxSpeed * percent) / 100
+          ),
+          maxSpeed
+        )
+      );
+
+    setLocoSpeed(nextSpeed);
+  };
+
+  const handleForward = () => {
+    if (!currentLoco || controlsDisabled) {
+      return;
+    }
+
+    currentDirectionRef.current = "forward";
+    setDirection("forward");
+
+    wsApi.setLoco(
+      currentLoco.address,
+      speed,
+      "forward"
+    );
+  };
+
+  const handleReverse = () => {
+    if (!currentLoco || controlsDisabled) {
+      return;
+    }
+
+    currentDirectionRef.current = "reverse";
+    setDirection("reverse");
+
+    wsApi.setLoco(
+      currentLoco.address,
+      speed,
+      "reverse"
+    );
+  };
+
+  const handleStop = () => {
+    if (!currentLoco || controlsDisabled) {
+      return;
+    }
+
+    setLocoSpeed(0);
+  };
+
+  const handleEmergencyToggle = () => {
+    if (!powerInfo || !alive) {
+      return;
+    }
+
+    wsApi.emergencyStop();
+  };
+
+  const handleFunctionToggle = (
+    functionNumber: number
+  ) => {
+    if (!currentLoco || controlsDisabled) {
+      return;
+    }
+
+    const active = !activeFunctions[functionNumber];
+
+    setActiveFunctions(current => ({
+      ...current,
+      [functionNumber]: active,
+    }));
+
+    wsApi.setLocoFunction(
+      currentLoco.address,
+      functionNumber,
+      active
+    );
+  };
+
+
+  useEffect(() => {
+    if (!mobileViewport) return;
+
+    const container = fitContainerRef.current;
+    const content = fitContentRef.current;
+
+    if (!container || !content) return;
+
+    let frame = 0;
+
+    const updateScale = () => {
+      content.style.setProperty("--throttle-scale", "1");
+      content.style.setProperty("--throttle-offset-x", "0px");
+      content.style.setProperty("--throttle-offset-y", "0px");
+
+      const availableWidth = container.clientWidth;
+      const availableHeight = container.clientHeight;
+
+      const contentWidth = Math.max(
+        content.offsetWidth,
+        content.scrollWidth
+      );
+      const contentHeight = Math.max(
+        content.offsetHeight,
+        content.scrollHeight
+      );
+
+      if (
+        availableWidth <= 0 ||
+        availableHeight <= 0 ||
+        contentWidth <= 0 ||
+        contentHeight <= 0
+      ) {
+        return;
+      }
+
+      const scale = Math.min(
+        availableWidth / contentWidth,
+        availableHeight / contentHeight,
+        1.25
+      );
+
+      const scaledWidth = contentWidth * scale;
+      const scaledHeight = contentHeight * scale;
+
+      content.style.setProperty(
+        "--throttle-scale",
+        String(scale)
+      );
+
+      content.style.setProperty(
+        "--throttle-offset-x",
+        `${Math.max(0, (availableWidth - scaledWidth) / 2)}px`
+      );
+
+      content.style.setProperty(
+        "--throttle-offset-y",
+        `${Math.max(0, (availableHeight - scaledHeight) / 2)}px`
+      );
+    };
+
+    const scheduleUpdate = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(updateScale);
+    };
+
+    const observer = new ResizeObserver(scheduleUpdate);
+
+    observer.observe(container);
+    observer.observe(content);
+
+    window.addEventListener("orientationchange", scheduleUpdate);
+    window.addEventListener("resize", scheduleUpdate);
+    window.visualViewport?.addEventListener(
+      "resize",
+      scheduleUpdate
+    );
+
+    scheduleUpdate();
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer.disconnect();
+      window.removeEventListener(
+        "orientationchange",
+        scheduleUpdate
+      );
+      window.removeEventListener(
+        "resize",
+        scheduleUpdate
+      );
+      window.visualViewport?.removeEventListener(
+        "resize",
+        scheduleUpdate
+      );
+    };
+  }, [currentLoco, mobileViewport]);
+
+
+  useGamepadAction(
+    "speedUp",
+    () => {
+      if (
+        !currentLoco ||
+        controlsDisabled
+      ) {
+        return;
+      }
+
+      const maxSpeed =
+        currentLoco.maxSpeed || 100;
+
+      setLocoSpeed(
+        Math.min(
+          speed + 5,
+          maxSpeed
+        )
+      );
+    }
+  );
+
+  useGamepadAction(
+    "speedDown",
+    () => {
+      if (
+        !currentLoco ||
+        controlsDisabled
+      ) {
+        return;
+      }
+
+      setLocoSpeed(
+        Math.max(
+          speed - 5,
+          0
+        )
+      );
+    }
+  );
+
+
+  useGamepadAction(
+    "forward",
+    handleForward
+  );
+
+  useGamepadAction(
+    "reverse",
+    handleReverse
+  );
+
+  useGamepadAction(
+    "stop",
+    handleStop
+  );
+
+  useGamepadAction(
+    "emergency",
+    handleEmergencyToggle
+  );
+
+  useGamepadAction(
+    "function0",
+    () => handleFunctionToggle(0)
+  );
+
+  useGamepadAction(
+    "function1",
+    () => handleFunctionToggle(1)
+  );
+
+  useGamepadAction(
+    "function2",
+    () => handleFunctionToggle(2)
+  );
+
+  useGamepadAction(
+    "function3",
+    () => handleFunctionToggle(3)
+  );
+
+  return (
+    <Card
+      withBorder
+      radius="sm"
+      p="xs"
+      h="100%"
+      opacity={alive ? 1 : 0.75}
+    >
+      <div
+        style={{
+          position: "relative",
+          height: "100%",
+        }}
+      >
+        <LocoPicker
+          opened={pickerOpened}
+          locos={locos}
+          selectedLocoId={currentLoco?.id}
+          onClose={() => setPickerOpened(false)}
+          onSelect={handleSelectLoco}
+        />
+
+        <LocoPanelSettingsDialog
+          opened={
+            settingsOpened
+          }
+          settings={
+            counterDisplaySettings
+          }
+          onClose={
+            () =>
+              setSettingsOpened(
+                false
+              )
+          }
+          onChange={
+            updateCounterDisplaySettings
+          }
+          t={t}
+        />
+
+        <Tooltip
+          label={t(
+            "locopanel.counter_settings_title"
+          )}
+        >
+          <ActionIcon
+            aria-label={t(
+              "locopanel.counter_settings_title"
+            )}
+            size="sm"
+            variant="subtle"
+            color="gray"
+            onClick={
+              () =>
+                setSettingsOpened(
+                  true
+                )
+            }
+            style={{
+              position:
+                "absolute",
+              left: 2,
+              top: 2,
+              zIndex: 20,
+            }}
+          >
+            <IconSettings
+              size={15}
+            />
+          </ActionIcon>
+        </Tooltip>
+
+        <Tooltip label={panelView === "control" ? "Cards view" : "Control view"}>
+          <ActionIcon aria-label="Toggle locomotive panel view" size="sm" variant="subtle" color="gray"
+            onClick={togglePanelView} style={{ position: "absolute", right: 2, top: 2, zIndex: 20 }}>
+            {panelView === "control" ? <IconLayoutGrid size={15} /> : <IconAdjustmentsHorizontal size={15} />}
+          </ActionIcon>
+        </Tooltip>
+
+        {/* <Stack gap="xs" h="100%">
+          {!currentLoco ? (
+            <Text size="sm" c="dimmed">
+              {t("locopanel.nolocos")}
+            </Text>
+          ) : (
+            <>
+              <LocoControlCard
+                loco={currentLoco}
+                speed={speed}
+                direction={direction}
+                alive={alive}
+                emergencyStop={
+                  powerInfo?.emergencyStop ?? false
+                }
+                reservation={reservation}
+                controlsDisabled={controlsDisabled}
+                onOpenPicker={() =>
+                  setPickerOpened(true)
+                }
+                onSpeedChange={handleSliderSpeedChange}
+                onSpeedChangeEnd={
+                  handleSliderSpeedChangeEnd
+                }
+                onSpeedPercentChange={
+                  setLocoSpeedByPercent
+                }
+                onForward={handleForward}
+                onReverse={handleReverse}
+                onStop={handleStop}
+                onEmergencyToggle={
+                  handleEmergencyToggle
+                }
+              />
+
+              <LocoFunctionGrid
+                loco={currentLoco}
+                activeFunctions={activeFunctions}
+                disabled={controlsDisabled}
+                onActiveFunctionsChange={
+                  setActiveFunctions
+                }
+              />
+            </>
+          )}
+        </Stack> */}
+
+        <div style={{ display: panelView === "cards" ? "block" : "none", height: "100%" }}>
+          {panelView === "cards" && <LocoCardsView locos={locos} selectedLocoId={selectedLocoId}
+            onSelect={loco => selectLocoId(loco.id)} disabled={controlsDisabled}
+            emergencyStop={powerInfo?.emergencyStop ?? false} onEmergencyToggle={handleEmergencyToggle} />}
+        </div>
+        <div
+          ref={fitContainerRef}
+          style={{ display: panelView === "control" ? undefined : "none" }}
+          className={
+            mobileViewport
+              ? "mobile-throttle-fit mobile-throttle-fit--viewport"
+              : "mobile-throttle-fit"
+          }
+        >
+          <div
+            ref={fitContentRef}
+            className={
+              mobileViewport
+                ? "mobile-throttle-layout mobile-throttle-layout--viewport"
+                : "mobile-throttle-layout"
+            }
+          >
+            {!currentLoco ? (
+              <Text size="sm" c="dimmed">
+                {t("locopanel.nolocos")}
+              </Text>
+            ) : (
+              <>
+                <div className="mobile-throttle-controls">
+                  <LocoControlCard
+                    loco={currentLoco}
+                    speed={speed}
+                    direction={direction}
+                    alive={alive}
+                    emergencyStop={
+                      powerInfo?.emergencyStop ?? false
+                    }
+                    reservation={reservation}
+                    controlsDisabled={controlsDisabled}
+                    onOpenPicker={() =>
+                      setPickerOpened(true)
+                    }
+                    onSpeedChange={
+                      handleSliderSpeedChange
+                    }
+                    onSpeedChangeEnd={
+                      handleSliderSpeedChangeEnd
+                    }
+                    onSpeedPercentChange={
+                      setLocoSpeedByPercent
+                    }
+                    onForward={handleForward}
+                    onReverse={handleReverse}
+                    onStop={handleStop}
+                    onEmergencyToggle={
+                      handleEmergencyToggle
+                    }
+                    counterDisplaySettings={
+                      counterDisplaySettings
+                    }
+                  />
+                </div>
+
+                <div className="mobile-throttle-functions">
+                  <LocoFunctionGrid
+                    key={currentLoco.id}
+                    loco={currentLoco}
+                    activeFunctions={activeFunctions}
+                    disabled={controlsDisabled}
+                    onActiveFunctionsChange={
+                      setActiveFunctions
+                    }
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}

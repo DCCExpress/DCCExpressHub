@@ -194,10 +194,15 @@ public sealed class MovementRuntime
         public bool Fired { get; set; }
     }
 
+    sealed record StationAlternative(MovementPageModel Page, MovementPlanModel Plan);
+
     sealed class Execution
     {
-        public required MovementPageModel Page { get; init; }
-        public required MovementPlanModel Plan { get; init; }
+        // Station-to-station AUTO may change the destination only while stopped
+        // at an already reached block, before claiming the next Dispatcher leg.
+        public required MovementPageModel Page { get; set; }
+        public required MovementPlanModel Plan { get; set; }
+        public StationAlternative[] StationAlternatives { get; init; } = [];
         public required int LocoAddress { get; init; }
         public required bool Forward { get; init; }
         public required CancellationTokenSource Cancellation { get; init; }
@@ -205,6 +210,7 @@ public sealed class MovementRuntime
         public int DesiredSpeed { get; set; }
         public bool Moving { get; set; }
         public bool EmergencyAbort { get; set; }
+        public volatile bool FinishAtNextBlock;
         public string? SafetyError { get; set; }
         public bool MotionStartedPublished { get; set; }
         public bool ResumeAfterExternalHold { get; set; }
@@ -242,6 +248,8 @@ public sealed class MovementRuntime
     readonly AutomationExclusiveGate _exclusiveGate;
     readonly ILogger<MovementRuntime> _log;
     readonly Dictionary<string, Execution> _executions = new(StringComparer.Ordinal);
+    // Reserve a locomotive across Sequential Movement waits and direction changes.
+    readonly Dictionary<int, string> _sequenceOwners = [];
     readonly Dictionary<string, MovementRuntimeState> _states = new(StringComparer.Ordinal);
     readonly ConcurrentDictionary<string, TaskCompletionSource<bool>> _pendingAudio = new(StringComparer.Ordinal);
     readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web);
@@ -845,14 +853,40 @@ public sealed class MovementRuntime
                 : Idle(pageId);
     }
 
-    public bool IsLocoManaged(
-        int locoAddress)
+    public bool IsLocoManaged(int locoAddress)
     {
         lock (_gate)
-            return _executions.Values.Any(
-                execution =>
-                    execution.LocoAddress ==
-                    locoAddress);
+            return _sequenceOwners.ContainsKey(locoAddress) ||
+                _executions.Values.Any(execution => execution.LocoAddress == locoAddress);
+    }
+
+    public bool IsLocoExecutionRunning(int locoAddress)
+    {
+        lock (_gate)
+            return _executions.Values.Any(execution => execution.LocoAddress == locoAddress);
+    }
+
+    public bool ReserveSequentialLocomotive(int locoAddress, string prefix)
+    {
+        if (locoAddress <= 0 || string.IsNullOrWhiteSpace(prefix)) return false;
+        lock (_gate)
+        {
+            if (_sequenceOwners.ContainsKey(locoAddress) ||
+                _executions.Values.Any(execution => execution.LocoAddress == locoAddress))
+                return false;
+            _sequenceOwners[locoAddress] = prefix;
+            return true;
+        }
+    }
+
+    public void ReleaseSequentialLocomotive(int locoAddress, string prefix)
+    {
+        lock (_gate)
+        {
+            if (_sequenceOwners.TryGetValue(locoAddress, out var owner) &&
+                owner == prefix)
+                _sequenceOwners.Remove(locoAddress);
+        }
     }
 
     public MovementRuntimeState[] Snapshot()
@@ -2416,7 +2450,121 @@ public sealed class MovementRuntime
                 "blocking",
                 StringComparison.Ordinal));
 
-    async Task WaitPreDepartureAvailability(
+    // Return the exact current blocker from the authoritative runtime state.
+    // Do not infer FREE from a stale UI indicator or a sensor that is UNKNOWN.
+    // Dispatcher still independently checks leases, locks and all safety sensors
+    // before granting authority to the next leg.
+    string? NextLegAvailabilityBlocker(
+        MovementPlanLegModel leg,
+        IReadOnlyList<ushort> sensors)
+    {
+        if (leg.To.BlockId is not (>= 1 and <= 65535))
+            return "destination block is not configured";
+
+        var target = Block(leg.To.BlockId.Value);
+        if (target is null)
+            return "destination block " + leg.To.Name + " is missing";
+
+        if (target.LocoAddress > 0)
+            return "destination " + leg.To.Name +
+                   " is still assigned to loco #" + target.LocoAddress;
+
+        if (target.TargetOnly)
+            return "destination " + leg.To.Name +
+                   " still has a target reservation" +
+                   (target.TargetLocoAddress > 0
+                       ? " for loco #" + target.TargetLocoAddress
+                       : "");
+
+        if (!string.IsNullOrEmpty(target.LocoId))
+            return "destination " + leg.To.Name +
+                   " still has an occupied block assignment";
+
+        foreach (var sensor in sensors)
+        {
+            if (!_layout.TryGetSensorState(sensor, out var on))
+                return "safety sensor #" + sensor + " is UNKNOWN";
+            if (on)
+                return "safety sensor #" + sensor + " is ON (occupied)";
+        }
+
+        return null;
+    }
+
+    static bool SameCompletedLeg(
+        MovementPlanLegModel completed,
+        MovementPlanLegModel candidate) =>
+        completed.From.BlockId == candidate.From.BlockId &&
+        completed.To.BlockId == candidate.To.BlockId &&
+        completed.Resources.Select(item => item.Key)
+            .SequenceEqual(candidate.Resources.Select(item => item.Key)) &&
+        completed.TurnoutStates.SequenceEqual(candidate.TurnoutStates);
+
+    MovementPlanLegModel? TrySelectStationAlternative(
+        Execution execution,
+        MovementPlanLegModel blockedLeg)
+    {
+        // The physical locomotive is stopped at blockedLeg.From. A candidate
+        // must represent exactly the already traversed physical legs; a mere
+        // common station name or destination is NOT sufficient.
+        if (execution.StationAlternatives.Length < 2 ||
+            blockedLeg.From.BlockId is null ||
+            execution.Moving)
+            return null;
+
+        var legIndex = blockedLeg.Index;
+        var currentPlan = execution.Plan;
+        var candidate = execution.StationAlternatives
+            .Where(option =>
+                option.Plan.Legs.Length > legIndex &&
+                option.Plan.Legs[legIndex].From.BlockId ==
+                    blockedLeg.From.BlockId &&
+                // A different arrival track can still share the next block.
+                // Do not wait for C1 when the branch to C2 diverges later.
+                option.Plan.Blocks[^1].BlockId !=
+                    currentPlan.Blocks[^1].BlockId &&
+                Enumerable.Range(0, legIndex).All(index =>
+                    SameCompletedLeg(currentPlan.Legs[index],
+                        option.Plan.Legs[index])) &&
+                // A currently occupied later block is not a safe alternative.
+                // Waiting is better than repeatedly diverting between blocked
+                // station tracks.
+                option.Plan.Legs.Skip(legIndex).All(next =>
+                    TargetBlockBasicallyFree(next) &&
+                    SafetyFree(EffectiveSafetySensors(option.Page, next))))
+            .OrderBy(option => option.Plan.Legs.Length - legIndex)
+            .ThenBy(option => option.Plan.Legs.Skip(legIndex)
+                .Sum(next => next.TurnoutStates.Length))
+            .FirstOrDefault();
+
+        if (candidate is null)
+            return null;
+
+        var alternateLeg = candidate.Plan.Legs[legIndex];
+        _log.LogInformation(
+            "Station Route {Movement} loco #{Loco}: replanning at {Current} from blocked {OldTarget} to {NewTarget}; destination {Destination}",
+            execution.Page.Name,
+            execution.LocoAddress,
+            blockedLeg.From.Name,
+            blockedLeg.To.Name,
+            alternateLeg.To.Name,
+            candidate.Plan.Blocks[^1].Name);
+
+        execution.Page = candidate.Page;
+        execution.Plan = candidate.Plan;
+        Publish(execution, execution.State with
+        {
+            RouteDescription = string.Join(" → ",
+                candidate.Plan.Blocks.Select(item => item.Name)),
+            Info = "Station Route replanned at " + blockedLeg.From.Name +
+                ": destination " + currentPlan.Blocks[^1].Name +
+                " unavailable; new destination " +
+                candidate.Plan.Blocks[^1].Name
+        });
+        return alternateLeg;
+    }
+
+    async Task<MovementPlanLegModel> WaitPreDepartureAvailability(
         Execution execution,
         MovementPlanLegModel leg)
     {
@@ -2425,18 +2573,79 @@ public sealed class MovementRuntime
                 execution.Page,
                 leg);
 
-        await WaitUntil(
-            execution,
-            () =>
-                TargetBlockBasicallyFree(
-                    leg) &&
-                SafetyFree(
-                    sensors),
-            "Waiting for next leg availability",
-            stopWhileWaiting:
-                true,
-            pollMs:
-                150);
+        string? previousBlocker = null;
+        while (true)
+        {
+            execution.Cancellation.Token.ThrowIfCancellationRequested();
+
+            // Re-read block assignments and live feedback every 150 ms. A
+            // temporarily blocked train automatically resumes as soon as ALL
+            // checks clear; it never requires a manual restart.
+            var blocker =
+                NextLegAvailabilityBlocker(leg, sensors);
+            if (blocker is null)
+            {
+                if (previousBlocker is not null)
+                {
+                    _log.LogInformation(
+                        "Movement {Movement} loco #{Loco}: next leg {From}->{To} became available after waiting for {Blocker}",
+                        execution.Page.Name,
+                        execution.LocoAddress,
+                        leg.From.Name,
+                        leg.To.Name,
+                        previousBlocker);
+
+                    Patch(
+                        execution,
+                        info: "Next leg available: " +
+                              leg.From.Name + " -> " + leg.To.Name,
+                        setInfo: true);
+                }
+                return leg;
+            }
+
+            execution.Moving = false;
+            await ApplySpeed(execution, force: false);
+
+            // Replanning is allowed ONLY at a confirmed stopped block,
+            // before the next leg's Dispatcher lease is acquired. The
+            // Dispatcher performs full live checks again after the switch.
+            var alternative = TrySelectStationAlternative(execution, leg);
+            if (alternative is not null)
+                return alternative;
+
+            if (!string.Equals(
+                    previousBlocker,
+                    blocker,
+                    StringComparison.Ordinal))
+            {
+                _log.LogInformation(
+                    "Movement {Movement} loco #{Loco}: next leg {From}->{To} waiting: {Blocker}",
+                    execution.Page.Name,
+                    execution.LocoAddress,
+                    leg.From.Name,
+                    leg.To.Name,
+                    blocker);
+                previousBlocker = blocker;
+            }
+
+            Patch(
+                execution,
+                info: "Waiting for next leg " +
+                      leg.From.Name + " -> " + leg.To.Name +
+                      ": " + blocker +
+                      (execution.StationAlternatives.Length > 1
+                          ? "; checking " + (execution.StationAlternatives
+                              .Select(item => item.Plan.Blocks[^1].BlockId)
+                              .Distinct().Count() - 1) +
+                            " alternative station destination(s)"
+                          : ""),
+                setInfo: true);
+
+            await Task.Delay(
+                150,
+                execution.Cancellation.Token);
+        }
     }
 
     static bool RetryableDispatcherFailure(
@@ -2662,7 +2871,7 @@ public sealed class MovementRuntime
          */
         if (preparedLease is null)
         {
-            await WaitPreDepartureAvailability(
+            leg = await WaitPreDepartureAvailability(
                 execution,
                 leg);
         }
@@ -3008,6 +3217,7 @@ public sealed class MovementRuntime
                 false;
 
             var finalLeg =
+                execution.FinishAtNextBlock ||
                 ReferenceEquals(
                     execution.Plan.Legs.LastOrDefault(),
                     leg) ||
@@ -3122,6 +3332,7 @@ public sealed class MovementRuntime
 
                 var mayPrepareNext =
                     !held &&
+                    !execution.FinishAtNextBlock &&
                     next is not null &&
                     !blockApproachState.NextLegTurnoutBlocked &&
                     next.DepartWhen.Length == 0 &&
@@ -3409,8 +3620,24 @@ public sealed class MovementRuntime
                 "movement",
                 "start");
 
-            foreach (var leg in execution.Plan.Legs)
-                await TraverseLeg(execution, leg);
+            // A Station Route can choose a different *future* leg while
+            // stopped. Re-read the plan after every completed block.
+            for (var legIndex = 0; legIndex < execution.Plan.Legs.Length; legIndex++)
+            {
+                await TraverseLeg(execution, execution.Plan.Legs[legIndex]);
+                // Finish means the last block arrival has completed with the
+                // normal final-leg zero-speed command, not a task cancellation.
+                if (execution.FinishAtNextBlock)
+                {
+                    // Verify the train is stopped before releasing even a
+                    // previously prepared route reservation.
+                    execution.Moving = false;
+                    execution.DesiredSpeed = 0;
+                    await ApplySpeed(execution, force: true);
+                    ReleaseAllPreparedLegs(execution);
+                    break;
+                }
+            }
 
             await DrainReadyResourceLeaves(
                 execution);
@@ -3787,14 +4014,17 @@ public sealed class MovementRuntime
 
     public (bool Ok, string? Error) StartTransient(
         MovementPageModel page,
-        bool calibrationBypass = true) =>
+        bool calibrationBypass = true,
+        MovementPageModel[]? stationAlternatives = null) =>
         StartSavedPage(
             page,
-            calibrationBypass);
+            calibrationBypass,
+            stationAlternatives);
 
     (bool Ok, string? Error) StartSavedPage(
         MovementPageModel page,
-        bool calibrationBypass)
+        bool calibrationBypass,
+        MovementPageModel[]? stationAlternatives = null)
     {
         if (!calibrationBypass &&
             _exclusiveGate.CalibrationActive)
@@ -3971,11 +4201,44 @@ public sealed class MovementRuntime
                 false,
                 "movement_source_loco_mismatch");
 
+        // Build the allowed station alternatives on the backend, from the
+        // same saved route graph as the active Movement. Never take an
+        // arbitrary browser path as a live Dispatcher authorization.
+        var alternatives = new List<StationAlternative>();
+        if (stationAlternatives is { Length: > 1 and <= 128 })
+        {
+            foreach (var alternative in stationAlternatives)
+            {
+                if (alternative?.RouteRef is null ||
+                    alternative.Id != page.Id ||
+                    alternative.ExpectedLocoAddress != sourceBlock.LocoAddress ||
+                    alternative.RouteRef.FromBlockId != source.BlockId ||
+                    alternative.RouteRef.Direction != plan.Direction ||
+                    alternative.Speed != page.Speed)
+                    continue;
+                try
+                {
+                    var candidatePlan = _planBuilder.Build(alternative);
+                    if (candidatePlan.Direction == plan.Direction &&
+                        candidatePlan.Legs.Length > 0 &&
+                        candidatePlan.Blocks[0].BlockId == source.BlockId)
+                        alternatives.Add(new StationAlternative(alternative, candidatePlan));
+                }
+                catch (Exception ex)
+                {
+                    _log.LogWarning(ex,
+                        "Skipping invalid alternative for Station Route {Movement}",
+                        page.Name);
+                }
+            }
+        }
+
         var execution =
             new Execution
             {
                 Page = page,
                 Plan = plan,
+                StationAlternatives = alternatives.ToArray(),
                 LocoAddress =
                     sourceBlock.LocoAddress,
                 Forward =
@@ -4015,6 +4278,12 @@ public sealed class MovementRuntime
         // requests can race through the initial validation.
         lock (_gate)
         {
+            if (_sequenceOwners.TryGetValue(execution.LocoAddress, out var reservedPrefix) &&
+                !page.Id.StartsWith(reservedPrefix + "-", StringComparison.Ordinal))
+            {
+                execution.Cancellation.Dispose();
+                return (false, "locomotive_reserved_by_sequence");
+            }
             if (_executions.ContainsKey(page.Id))
             {
                 execution.Cancellation.Dispose();
@@ -4216,6 +4485,19 @@ public sealed class MovementRuntime
                     x => x,
                     StringComparer.Ordinal)
                 .ToArray();
+    }
+
+    // A graceful finish is carried out by TraverseLeg at the next verified
+    // block ARRIVED boundary. Do not cancel or drop Dispatcher authority here.
+    public bool FinishAtNextBlock(string pageId)
+    {
+        lock (_gate)
+        {
+            if (!_executions.TryGetValue(pageId, out var execution))
+                return false;
+            execution.FinishAtNextBlock = true;
+            return true;
+        }
     }
 
     public bool Stop(string pageId)

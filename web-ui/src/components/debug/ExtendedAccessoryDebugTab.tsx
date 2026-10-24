@@ -22,6 +22,7 @@ type Props = {
   accessories: ExtendedAccessoryDebugState;
   layoutOwners: DebugLayoutOwners;
   connected: boolean;
+  turnoutLocks: Map<number, string>;
 };
 
 type RowProps = {
@@ -29,6 +30,7 @@ type RowProps = {
   state: DebugStateValue<number>;
   owners: DebugLayoutOwner[];
   connected: boolean;
+  lockOwner?: string | undefined;
 };
 
 function formatTime(timestamp: number): string {
@@ -40,6 +42,7 @@ function ExtendedAccessoryRow({
   state,
   owners,
   connected,
+  lockOwner,
 }: RowProps) {
   const [value, setValue] = useState<number | string>(state.value);
   useEffect(() => setValue(state.value), [state.value]);
@@ -52,6 +55,7 @@ function ExtendedAccessoryRow({
       <Table.Td><Badge variant="light" color="gray">{address}</Badge></Table.Td>
       <DebugLayoutOwnerCells owners={owners} />
       <Table.Td><Badge color="violet" variant="light">{state.value}</Badge></Table.Td>
+      <Table.Td w={100}><Badge color="red" variant="light" title={lockOwner ?? ""} style={{ visibility: lockOwner ? "visible" : "hidden" }}>LOCKED</Badge></Table.Td>
       <Table.Td>
         <Group gap="xs" wrap="nowrap">
           <NumberInput
@@ -62,7 +66,7 @@ function ExtendedAccessoryRow({
             allowDecimal={false}
             allowNegative={false}
             clampBehavior="strict"
-            disabled={!connected}
+            disabled={!connected || Boolean(lockOwner)}
             onChange={setValue}
             w={110}
             aria-label={`Extended accessory ${address} value`}
@@ -70,7 +74,7 @@ function ExtendedAccessoryRow({
           <Button
             size="xs"
             variant="light"
-            disabled={!connected || !valid}
+            disabled={!connected || Boolean(lockOwner) || !valid}
             onClick={() => valid && wsApi.setSignalAspect(address, parsedValue)}
           >
             Set
@@ -86,6 +90,7 @@ export default function ExtendedAccessoryDebugTab({
   accessories,
   layoutOwners,
   connected,
+  turnoutLocks,
 }: Props) {
   const rows = [...accessories.entries()].sort(([a], [b]) => a - b);
 
@@ -102,6 +107,7 @@ export default function ExtendedAccessoryDebugTab({
             <Table.Th>Type</Table.Th>
             <Table.Th>Name</Table.Th>
             <Table.Th>Current value</Table.Th>
+            <Table.Th w={100}>Lock</Table.Th>
             <Table.Th>Control</Table.Th>
             <Table.Th>Last update</Table.Th>
           </Table.Tr>
@@ -114,6 +120,7 @@ export default function ExtendedAccessoryDebugTab({
               state={state}
               owners={layoutOwners.get(address) ?? []}
               connected={connected}
+              lockOwner={turnoutLocks.get(address)}
             />
           ))}
         </Table.Tbody>

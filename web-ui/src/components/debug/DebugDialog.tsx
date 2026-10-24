@@ -1,7 +1,9 @@
 import {
   Badge,
+  Box,
   Button,
   Group,
+  ScrollArea,
   Tabs,
   Text,
 } from "@mantine/core";
@@ -11,8 +13,10 @@ import type { CSSProperties } from "react";
 import {
   IconBug,
   IconActivity,
+  IconListDetails,
   IconRefresh,
   IconRoute,
+  IconBroadcast,
   IconSwitch3,
   IconToggleLeft,
   IconTrafficLights,
@@ -22,14 +26,19 @@ import AppModal from "@/components/common/AppModal";
 
 import BasicAccessoryDebugTab from "./BasicAccessoryDebugTab";
 import SystemDiagnosticsTab from "./SystemDiagnosticsTab";
+import ProtocolMonitorTab from "./ProtocolMonitorTab";
+import RailComLiveSensorPanel from "@/components/RailComLiveSensorPanel";
 import ExtendedAccessoryDebugTab from "./ExtendedAccessoryDebugTab";
 import SensorDebugTab from "./SensorDebugTab";
+import RailComDebugTab from "./RailComDebugTab";
 import TurnoutDebugTab from "./TurnoutDebugTab";
 import { useRuntimeDebugState } from "./useRuntimeDebugState";
+import { useDebugTurnoutLocks } from "./useDebugTurnoutLocks";
 
 type Props = {
   opened: boolean;
   onClose: () => void;
+  standalone?: boolean;
 };
 
 const panelStyle: CSSProperties = {
@@ -38,38 +47,19 @@ const panelStyle: CSSProperties = {
   overflow: "hidden",
 };
 
-export default function DebugDialog({ opened, onClose }: Props) {
+export default function DebugDialog({ opened, onClose, standalone = false }: Props) {
   const runtime = useRuntimeDebugState(opened);
+  const turnoutLocks = useDebugTurnoutLocks(opened);
 
-  return (
-    <AppModal
-      opened={opened}
-      onClose={onClose}
-      title={
-        <Group gap="xs">
-          <IconBug size={20} />
-          <Text fw={700}>Runtime Debug</Text>
-        </Group>
-      }
-      size="50vw"
-      centered
-      draggable
-      styles={{
-        body: {
-          height: "70vh",
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-          paddingBottom: 16,
-        },
-      }}
-    >
+  const content = (
+    <>
       <Group justify="space-between" mb="md" style={{ flexShrink: 0 }}>
         <Group gap="xs">
           <Text size="sm" c="dimmed">WebSocket</Text>
           <Badge color={runtime.connected ? "green" : "red"} variant="light">
             {runtime.connected ? "CONNECTED" : "DISCONNECTED"}
           </Badge>
+          <Text size="xs" c={runtime.layoutMetadataStatus.startsWith("Loaded") ? "dimmed" : "orange"}>{runtime.layoutMetadataStatus}</Text>
         </Group>
 
         <Button
@@ -94,8 +84,14 @@ export default function DebugDialog({ opened, onClose }: Props) {
       >
         <Tabs.List mb="md" style={{ flexShrink: 0 }}>
           <Tabs.Tab value="system" leftSection={<IconActivity size={16} />}>System</Tabs.Tab>
+          <Tabs.Tab value="protocol" leftSection={<IconListDetails size={16} />}>Protocol Monitor</Tabs.Tab>
+          <Tabs.Tab value="railcom-live" leftSection={<IconBroadcast size={16} />}>RailCom live sensors</Tabs.Tab>
           <Tabs.Tab value="sensors" leftSection={<IconRoute size={16} />}>
             Sensors ({runtime.sensors.size})
+          </Tabs.Tab>
+
+          <Tabs.Tab value="railcom" leftSection={<IconBroadcast size={16} />}>
+            RailCom
           </Tabs.Tab>
 
           <Tabs.Tab value="turnouts" leftSection={<IconSwitch3 size={16} />}>
@@ -115,6 +111,16 @@ export default function DebugDialog({ opened, onClose }: Props) {
           <SystemDiagnosticsTab opened={opened} />
         </Tabs.Panel>
 
+        <Tabs.Panel value="protocol" style={panelStyle}>
+          <ProtocolMonitorTab opened={opened} />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="railcom-live" style={panelStyle}>
+          <ScrollArea h="100%" type="auto" offsetScrollbars>
+            <RailComLiveSensorPanel />
+          </ScrollArea>
+        </Tabs.Panel>
+
         <Tabs.Panel value="sensors" style={panelStyle}>
           <SensorDebugTab
             sensors={runtime.sensors}
@@ -122,8 +128,13 @@ export default function DebugDialog({ opened, onClose }: Props) {
           />
         </Tabs.Panel>
 
+        <Tabs.Panel value="railcom" style={panelStyle}>
+          <RailComDebugTab opened={opened} />
+        </Tabs.Panel>
+
         <Tabs.Panel value="turnouts" style={panelStyle}>
           <TurnoutDebugTab
+            turnoutLocks={turnoutLocks}
             turnouts={runtime.turnouts}
             layoutOwners={runtime.turnoutLayoutOwners}
             connected={runtime.connected}
@@ -132,6 +143,7 @@ export default function DebugDialog({ opened, onClose }: Props) {
 
         <Tabs.Panel value="basic-accessories" style={panelStyle}>
           <BasicAccessoryDebugTab
+            turnoutLocks={turnoutLocks}
             accessories={runtime.basicAccessories}
             layoutOwners={runtime.basicAccessoryLayoutOwners}
             connected={runtime.connected}
@@ -140,12 +152,52 @@ export default function DebugDialog({ opened, onClose }: Props) {
 
         <Tabs.Panel value="extended-accessories" style={panelStyle}>
           <ExtendedAccessoryDebugTab
+            turnoutLocks={turnoutLocks}
             accessories={runtime.extendedAccessories}
             layoutOwners={runtime.extendedAccessoryLayoutOwners}
             connected={runtime.connected}
           />
         </Tabs.Panel>
       </Tabs>
+    </>
+  );
+
+  if (standalone) {
+    return (
+      <Box style={{ height: "100dvh", display: "flex", flexDirection: "column", minHeight: 0, padding: 16 }}>
+        <Group gap="xs" mb="md" style={{ flexShrink: 0 }}>
+          <IconBug size={20} />
+          <Text fw={700}>Runtime Debug</Text>
+        </Group>
+        {content}
+      </Box>
+    );
+  }
+
+  return (
+    <AppModal
+      opened={opened}
+      onClose={onClose}
+      title={
+        <Group gap="xs">
+          <IconBug size={20} />
+          <Text fw={700}>Runtime Debug</Text>
+        </Group>
+      }
+      size="50vw"
+      centered
+      draggable
+      styles={{
+        body: {
+          height: "70vh",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+          paddingBottom: 16,
+        },
+      }}
+    >
+      {content}
     </AppModal>
   );
 }

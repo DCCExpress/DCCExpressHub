@@ -2,6 +2,8 @@ import type {
   SerializedLayoutDto,
 } from "../domain/layout/layoutDto";
 
+import { collectTurnoutSensorPaths } from "./turnoutSensorPath";
+
 import {
   type MovementDocument,
   type MovementPage,
@@ -30,11 +32,14 @@ export type MovementRouteCandidate = {
     blockType: string;
   }>;
   nodePath: string[];
+  /** Ordered occupancy feedback regions traversed between each node pair. */
+  turnoutSensorPaths: number[][];
   locoDirection:
     | "unknown"
     | "forward"
     | "reverse";
   turnoutCount: number;
+  turnoutStates: Array<{ address: number; closed: boolean }>;
   intermediateArrivalDefaults:
     MovementIntermediateArrivalDefault[];
   used: boolean;
@@ -465,6 +470,11 @@ export function buildMovementRouteCandidates(
             index
         );
 
+    const turnoutSensorPaths = collectTurnoutSensorPaths(
+      layout,
+      Array.isArray(raw.edgePath) ? raw.edgePath : [],
+    );
+
     const turnoutCount =
       new Set(
         (
@@ -494,6 +504,24 @@ export function buildMovementRouteCandidates(
               0
         )
       ).size;
+
+    // Use the route's required turnout positions, not the current live
+    // state. Multi-motor turnouts therefore show each motor address.
+    const turnoutSources = Array.isArray(raw.turnoutStates)
+      ? raw.turnoutStates
+      : (Array.isArray(raw.edgePath)
+          ? raw.edgePath.flatMap(edge => edge.turnoutStates ?? [])
+          : []);
+    const turnoutByAddress = new Map<number, boolean>();
+    for (const entry of turnoutSources) {
+      const value = record(entry);
+      if (!value || typeof value.closed !== "boolean") continue;
+      const address = positiveInteger(value.address);
+      if (address !== null) turnoutByAddress.set(address, value.closed);
+    }
+    const turnoutStates = [...turnoutByAddress]
+      .sort(([a], [b]) => a - b)
+      .map(([address, closed]) => ({ address, closed }));
 
     const intermediateArrivalDefaults =
       buildMovementIntermediateArrivalDefaults(
@@ -532,6 +560,7 @@ export function buildMovementRouteCandidates(
             ]!.name
         ),
       blockPath,
+      turnoutSensorPaths,
       nodePath:
         Array.isArray(
           raw.nodes
@@ -548,6 +577,7 @@ export function buildMovementRouteCandidates(
           raw.locoDirection
         ),
       turnoutCount,
+      turnoutStates,
       intermediateArrivalDefaults,
       used:
         usedByMovementNames.length >

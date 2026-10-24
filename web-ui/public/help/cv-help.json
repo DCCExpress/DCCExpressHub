@@ -3,84 +3,209 @@
   "dataset": "nmra-multifunction-decoder-cv-help",
   "language": "en",
   "source": {
-    "name": "NMRA S-9.2.2 Draft - Configuration Variables for Digital Command Control",
-    "revision": "2026-06-08",
-    "url": "https://www.nmra.org/sites/default/files/standards/sandrp/Draft/DCC/s-9.2.2_configuration_variables_draft_13.pdf"
+    "name": "NMRA S-9.2.2, Configuration Variables (approved standard, multifunction decoders)",
+    "revision": "July 2012 (approved; checked 2026-10-24)",
+    "url": "https://www.nmra.org/sites/default/files/standards/sandrp/DCC/S/s-9.2.2_decoder_cvs_2012.07.pdf"
   },
   "notes": [
-    "This database describes standard/common NMRA CV meanings.",
-    "Decoder manufacturers may add manufacturer-specific CVs and restrictions. Always check the decoder manual before writing an unfamiliar CV."
+    "This is an NMRA baseline for MULTIFUNCTION (locomotive) decoders; accessory decoders have different CV assignments.",
+    "An NMRA CV assignment does not imply every decoder implements the CV or uses identical values. DecoderPro identifies the decoder model before applying manufacturer-specific definitions.",
+    "JMRI DecoderPro reference: https://github.com/JMRI/JMRI/tree/master/xml/decoders ; for CV28 compare lenz/railcom_cv28_29.xml, piko/cv28.xml and zimo profiles.",
+    "Reserved CVs or bits must not be interpreted as universally safe to change; actual decoder manuals and firmware revisions take precedence.",
+    "CV8 identifies the manufacturer when successfully read; writing CV8 may trigger a manufacturer-specific reset and should never be treated as an ordinary ID write.",
+    "Read-only descriptions do not modify the decoder and do not confirm support of an optional CV."
   ],
   "cvs": {
     "1": {
-      "name": "Primary address",
-      "description": "Short locomotive address used when CV29 bit 5 is off.",
-      "range": {
-        "min": 1,
-        "max": 127
-      },
-      "default": 3,
+      "name": "Primary (short) address",
+      "description": "Short locomotive address 1–127; selected when CV29 bit 5 = 0. Value 3 is the standard uninstalled-decoder default.",
       "related": [
+        17,
+        18,
         29
       ]
     },
     "2": {
       "name": "Vstart",
-      "description": "Motor drive level at the first speed step."
+      "description": "Motor drive level at first speed step; decoder motor control implementation may differ."
     },
     "3": {
       "name": "Acceleration rate",
-      "description": "Acceleration momentum. Value 0 disables programmed acceleration delay."
+      "description": "Acceleration momentum; zero disables this programmed acceleration delay."
     },
     "4": {
       "name": "Deceleration rate",
-      "description": "Braking/deceleration momentum. Value 0 disables programmed braking delay."
+      "description": "Deceleration momentum; zero disables this programmed braking delay."
     },
     "5": {
-      "name": "Vhigh",
-      "description": "Motor drive level at the maximum speed step. Values 0 or 1 mean Vhigh is not used."
+      "name": "Vhigh (maximum drive)",
+      "description": "Motor drive level at the highest speed step. Values 0 and 1 mean Vhigh is not used in the NMRA three-point curve."
     },
     "6": {
-      "name": "Vmid",
-      "description": "Motor drive level near the middle speed step. Values 0 or 1 mean Vmid is not used."
+      "name": "Vmid (middle drive)",
+      "description": "Motor drive level around the midpoint of the speed curve. Values 0 and 1 mean Vmid is not used in the NMRA three-point curve."
     },
     "7": {
       "name": "Manufacturer version",
-      "description": "Decoder version value assigned by the manufacturer.",
-      "readOnlyValue": true,
-      "warning": "Some standards/manufacturers define special actions when this CV is written."
+      "description": "Manufacturer-defined decoder version/revision. The meaning of any write depends on the decoder manual.",
+      "readOnlyValue": true
     },
     "8": {
       "name": "Manufacturer ID",
-      "description": "NMRA-assigned decoder manufacturer identifier.",
+      "description": "NMRA-assigned manufacturer identifier; this value is read-only under the NMRA specification.",
       "readOnlyValue": true,
-      "warning": "Writing CV8 is commonly used by decoders for reset or other manufacturer-defined actions."
+      "warning": "Do not write CV8 without the decoder manual: many manufacturers use writes to CV8 for reset or other special commands."
+    },
+    "9": {
+      "name": "Total PWM period",
+      "description": "Motor output PWM period/frequency configuration; optional and dependent on decoder motor control."
+    },
+    "10": {
+      "name": "EMF feedback cutout",
+      "description": "Speed-step threshold above which back-EMF motor control is cut out, where supported."
+    },
+    "11": {
+      "name": "Packet timeout",
+      "description": "Maximum period the decoder maintains speed without receiving a valid packet; see NMRA fail-safe requirements."
+    },
+    "12": {
+      "name": "Power source conversion",
+      "description": "Selects the alternate power source/mode when supported and permitted by CV29 bit 2.",
+      "related": [
+        29
+      ]
+    },
+    "13": {
+      "name": "Alternate-mode functions F1–F8",
+      "description": "F1–F8 states when running in an alternate power mode without function packets.",
+      "bits": [
+        {
+          "bit": 0,
+          "name": "F1 in alternate mode",
+          "off": "Off",
+          "on": "On"
+        },
+        {
+          "bit": 1,
+          "name": "F2 in alternate mode",
+          "off": "Off",
+          "on": "On"
+        },
+        {
+          "bit": 2,
+          "name": "F3 in alternate mode",
+          "off": "Off",
+          "on": "On"
+        },
+        {
+          "bit": 3,
+          "name": "F4 in alternate mode",
+          "off": "Off",
+          "on": "On"
+        },
+        {
+          "bit": 4,
+          "name": "F5 in alternate mode",
+          "off": "Off",
+          "on": "On"
+        },
+        {
+          "bit": 5,
+          "name": "F6 in alternate mode",
+          "off": "Off",
+          "on": "On"
+        },
+        {
+          "bit": 6,
+          "name": "F7 in alternate mode",
+          "off": "Off",
+          "on": "On"
+        },
+        {
+          "bit": 7,
+          "name": "F8 in alternate mode",
+          "off": "Off",
+          "on": "On"
+        }
+      ]
+    },
+    "14": {
+      "name": "Alternate-mode lights/F9–F12",
+      "description": "Lighting and F9–F12 states in alternate power mode; bits 6–7 reserved.",
+      "bits": [
+        {
+          "bit": 0,
+          "name": "Forward light",
+          "off": "Off",
+          "on": "On"
+        },
+        {
+          "bit": 1,
+          "name": "Reverse light",
+          "off": "Off",
+          "on": "On"
+        },
+        {
+          "bit": 2,
+          "name": "F9",
+          "off": "Off",
+          "on": "On"
+        },
+        {
+          "bit": 3,
+          "name": "F10",
+          "off": "Off",
+          "on": "On"
+        },
+        {
+          "bit": 4,
+          "name": "F11",
+          "off": "Off",
+          "on": "On"
+        },
+        {
+          "bit": 5,
+          "name": "F12",
+          "off": "Off",
+          "on": "On"
+        },
+        {
+          "bit": 6,
+          "name": "Reserved",
+          "reserved": true
+        },
+        {
+          "bit": 7,
+          "name": "Reserved",
+          "reserved": true
+        }
+      ]
     },
     "15": {
       "name": "Decoder lock select",
-      "description": "Selects which decoder may accept writes when decoder locking is used.",
+      "description": "Decoder lock selection value. A protected decoder accepts configuration writes when CV15 equals CV16; check the manual before changing.",
       "related": [
         16
       ]
     },
     "16": {
       "name": "Decoder lock ID",
-      "description": "Decoder lock identity. Value 0 disables decoder locking.",
+      "description": "Decoder lock identity; CV16 = 0 disables locking under the standard.",
       "related": [
         15
       ]
     },
     "17": {
-      "name": "Extended address high byte",
-      "description": "High byte of the extended locomotive address.",
+      "name": "Extended address (high byte)",
+      "description": "High part of the two-byte locomotive address; used together with CV18 when CV29 bit 5 is enabled.",
       "related": [
         18,
         29
       ]
     },
     "18": {
-      "name": "Extended address low byte",
-      "description": "Low byte of the extended locomotive address.",
+      "name": "Extended address (low byte)",
+      "description": "Low part of the two-byte locomotive address; used together with CV17 when CV29 bit 5 is enabled.",
       "related": [
         17,
         29
@@ -88,7 +213,15 @@
     },
     "19": {
       "name": "Consist address",
-      "description": "Consist address and relative direction information."
+      "description": "Bits 0–6: consist address (0 means inactive); bit 7: relative reversed direction.",
+      "bits": [
+        {
+          "bit": 7,
+          "name": "Consist relative direction",
+          "off": "Normal",
+          "on": "Reversed"
+        }
+      ]
     },
     "21": {
       "name": "Consist functions F1-F8",
@@ -196,45 +329,78 @@
         }
       ]
     },
-    "29": {
-      "name": "Configurations supported",
-      "description": "Main multifunction-decoder configuration bit field.",
+    "23": {
+      "name": "Acceleration adjustment",
+      "description": "Signed acceleration adjustment relative to CV3, typically for consist operation; bit 7 is the subtract flag.",
+      "bits": [
+        {
+          "bit": 7,
+          "name": "Adjustment sign",
+          "off": "Add to base acceleration",
+          "on": "Subtract from base acceleration"
+        }
+      ],
+      "related": [
+        3
+      ]
+    },
+    "24": {
+      "name": "Deceleration adjustment",
+      "description": "Signed deceleration adjustment relative to CV4, typically for consist operation; bit 7 is the subtract flag.",
+      "bits": [
+        {
+          "bit": 7,
+          "name": "Adjustment sign",
+          "off": "Add to base deceleration",
+          "on": "Subtract from base deceleration"
+        }
+      ],
+      "related": [
+        4
+      ]
+    },
+    "25": {
+      "name": "Speed table / mid-cab step selection",
+      "description": "Selects a factory speed table or midpoint speed-step position on supporting decoders. Values 0 and 1 mean it is not used."
+    },
+    "27": {
+      "name": "Automatic stopping configuration",
+      "description": "Selects automatic braking/stopping triggers, where supported. Do not confuse with CV28 RailCom.",
       "bits": [
         {
           "bit": 0,
-          "name": "Locomotive direction",
-          "off": "Normal direction",
-          "on": "Reversed direction"
+          "name": "Asymmetric DCC, right rail more positive",
+          "off": "Disabled",
+          "on": "Auto stop enabled"
         },
         {
           "bit": 1,
-          "name": "Speed/function packet mode",
-          "off": "14-step style; F0 carried in speed command",
-          "on": "28-step style; F0 carried in function command"
+          "name": "Asymmetric DCC, left rail more positive",
+          "off": "Disabled",
+          "on": "Auto stop enabled"
         },
         {
           "bit": 2,
-          "name": "Power source conversion",
-          "off": "NMRA digital only",
-          "on": "Alternate power conversion enabled"
+          "name": "Signal Controlled Influence cutout",
+          "off": "Disabled",
+          "on": "Auto stop enabled"
         },
         {
           "bit": 3,
-          "name": "Bi-directional communication",
-          "off": "Disabled",
-          "on": "Enabled"
+          "name": "Reserved",
+          "reserved": true
         },
         {
           "bit": 4,
-          "name": "Speed table",
-          "off": "Use CV2/CV5/CV6",
-          "on": "Use extended speed table"
+          "name": "Reverse-polarity DC stop",
+          "off": "Disabled",
+          "on": "Auto stop enabled"
         },
         {
           "bit": 5,
-          "name": "DCC addressing",
-          "off": "Short address from CV1",
-          "on": "Extended address from CV17/CV18"
+          "name": "Forward-polarity DC stop",
+          "off": "Disabled",
+          "on": "Auto stop enabled"
         },
         {
           "bit": 6,
@@ -243,7 +409,112 @@
         },
         {
           "bit": 7,
-          "name": "Decoder control type",
+          "name": "Reserved",
+          "reserved": true
+        }
+      ]
+    },
+    "28": {
+      "name": "Bi-directional communication (RailCom) configuration",
+      "description": "The approved NMRA S-9.2.2 baseline controls decoder-initiated transmissions when CV29 bit 3 is set. JMRI/decoder manufacturers can define different meanings for CV28 bits, including Channel 1/2 and RailComPlus; these must be selected by decoder model.",
+      "warning": "Decoder-specific! JMRI Lenz/PIKO profiles map bits 0/1 to RailCom channels; PIKO SmartDecoder XP5.1 uses bit 3 for an address-broadcast option, and some PIKO profiles use bit 7 for RailComPlus. These meanings are not universal NMRA assignments. Preserve reserved/unknown bits and check the precise decoder model.",
+      "bits": [
+        {
+          "bit": 0,
+          "name": "Unsolicited decoder-initiated transmission",
+          "off": "Disabled",
+          "on": "Enabled"
+        },
+        {
+          "bit": 1,
+          "name": "Broadcast initiated by asymmetric DCC",
+          "off": "Disabled",
+          "on": "Enabled"
+        },
+        {
+          "bit": 2,
+          "name": "Broadcast initiated by Signal Controlled Influence",
+          "off": "Disabled",
+          "on": "Enabled"
+        },
+        {
+          "bit": 3,
+          "name": "Reserved",
+          "reserved": true
+        },
+        {
+          "bit": 4,
+          "name": "Reserved",
+          "reserved": true
+        },
+        {
+          "bit": 5,
+          "name": "Reserved",
+          "reserved": true
+        },
+        {
+          "bit": 6,
+          "name": "Reserved flag bit",
+          "reserved": true
+        },
+        {
+          "bit": 7,
+          "name": "Reserved flag bit",
+          "reserved": true
+        }
+      ],
+      "related": [
+        29
+      ]
+    },
+    "29": {
+      "name": "Decoder configuration",
+      "description": "Multifunction-decoder configuration flags. The bit meanings below are from the approved NMRA S-9.2.2 standard.",
+      "bits": [
+        {
+          "bit": 0,
+          "name": "Locomotive direction",
+          "off": "Normal",
+          "on": "Reversed"
+        },
+        {
+          "bit": 1,
+          "name": "Headlight (FL/F0) command location",
+          "off": "FL in speed/direction instruction (14-step style)",
+          "on": "FL in function group instruction (28/128-step style)"
+        },
+        {
+          "bit": 2,
+          "name": "Alternate power source conversion",
+          "off": "NMRA digital only",
+          "on": "Alternate power conversion enabled"
+        },
+        {
+          "bit": 3,
+          "name": "Bi-directional communication / RailCom",
+          "off": "Disabled",
+          "on": "Enabled"
+        },
+        {
+          "bit": 4,
+          "name": "Speed table selection",
+          "off": "Use CV2/CV5/CV6 curve",
+          "on": "Use extended speed table (CV66–95)"
+        },
+        {
+          "bit": 5,
+          "name": "Addressing mode",
+          "off": "Short address CV1",
+          "on": "Extended address CV17/CV18"
+        },
+        {
+          "bit": 6,
+          "name": "Reserved for multifunction decoders",
+          "reserved": true
+        },
+        {
+          "bit": 7,
+          "name": "Decoder type",
           "off": "Multifunction decoder",
           "on": "Accessory decoder"
         }
@@ -256,42 +527,172 @@
         12,
         17,
         18,
-        28
+        28,
+        66,
+        67,
+        95
       ]
+    },
+    "30": {
+      "name": "Decoder error information",
+      "description": "Manufacturer-specific error code; zero indicates no error under the NMRA standard."
     },
     "31": {
       "name": "Index high byte",
-      "description": "High byte used for indexed CV page selection.",
+      "description": "High byte of the index page used to access indexed CV257–512; interpretation depends on the decoder.",
       "related": [
         32
       ]
     },
     "32": {
       "name": "Index low byte",
-      "description": "Low byte used for indexed CV page selection.",
+      "description": "Low byte of the index page used to access indexed CV257–512; interpretation depends on the decoder.",
       "related": [
         31
       ]
     },
+    "33": {
+      "name": "Function output mapping — Forward headlight FL(f)",
+      "description": "Standard output mapping matrix for this function in multifunction decoders. Exact supported outputs and mappings may vary by decoder."
+    },
+    "34": {
+      "name": "Function output mapping — Reverse headlight FL(r)",
+      "description": "Standard output mapping matrix for this function in multifunction decoders. Exact supported outputs and mappings may vary by decoder."
+    },
+    "35": {
+      "name": "Function output mapping — F1",
+      "description": "Standard output mapping matrix for this function in multifunction decoders. Exact supported outputs and mappings may vary by decoder."
+    },
+    "36": {
+      "name": "Function output mapping — F2",
+      "description": "Standard output mapping matrix for this function in multifunction decoders. Exact supported outputs and mappings may vary by decoder."
+    },
+    "37": {
+      "name": "Function output mapping — F3",
+      "description": "Standard output mapping matrix for this function in multifunction decoders. Exact supported outputs and mappings may vary by decoder."
+    },
+    "38": {
+      "name": "Function output mapping — F4",
+      "description": "Standard output mapping matrix for this function in multifunction decoders. Exact supported outputs and mappings may vary by decoder."
+    },
+    "39": {
+      "name": "Function output mapping — F5",
+      "description": "Standard output mapping matrix for this function in multifunction decoders. Exact supported outputs and mappings may vary by decoder."
+    },
+    "40": {
+      "name": "Function output mapping — F6",
+      "description": "Standard output mapping matrix for this function in multifunction decoders. Exact supported outputs and mappings may vary by decoder."
+    },
+    "41": {
+      "name": "Function output mapping — F7",
+      "description": "Standard output mapping matrix for this function in multifunction decoders. Exact supported outputs and mappings may vary by decoder."
+    },
+    "42": {
+      "name": "Function output mapping — F8",
+      "description": "Standard output mapping matrix for this function in multifunction decoders. Exact supported outputs and mappings may vary by decoder."
+    },
+    "43": {
+      "name": "Function output mapping — F9",
+      "description": "Standard output mapping matrix for this function in multifunction decoders. Exact supported outputs and mappings may vary by decoder."
+    },
+    "44": {
+      "name": "Function output mapping — F10",
+      "description": "Standard output mapping matrix for this function in multifunction decoders. Exact supported outputs and mappings may vary by decoder."
+    },
+    "45": {
+      "name": "Function output mapping — F11",
+      "description": "Standard output mapping matrix for this function in multifunction decoders. Exact supported outputs and mappings may vary by decoder."
+    },
+    "46": {
+      "name": "Function output mapping — F12",
+      "description": "Standard output mapping matrix for this function in multifunction decoders. Exact supported outputs and mappings may vary by decoder."
+    },
     "65": {
       "name": "Kick start",
-      "description": "Extra motor drive applied when starting from stop."
+      "description": "Extra motor drive supplied when transitioning from stop to the first speed step."
     },
     "66": {
       "name": "Forward trim",
-      "description": "Forward motor-voltage scale factor; interpreted relative to 128."
+      "description": "Forward motor-drive scaling factor n/128 under the NMRA specification; 0 means trim is not implemented."
+    },
+    "95": {
+      "name": "Reverse trim",
+      "description": "Reverse motor-drive scaling factor n/128 under the NMRA specification; 0 means trim is not implemented."
+    },
+    "105": {
+      "name": "User identifier 1",
+      "description": "User-defined identification value; not a guaranteed unique hardware ID."
+    },
+    "106": {
+      "name": "User identifier 2",
+      "description": "User-defined identification value; not a guaranteed unique hardware ID."
+    },
+    "892": {
+      "name": "Decoder load",
+      "description": "Dynamic value representing decoder load (manufacturer/decoder support required)."
+    },
+    "893": {
+      "name": "Dynamic flags",
+      "description": "Dynamic decoder flags; specific bits were reserved in the approved NMRA baseline."
+    },
+    "894": {
+      "name": "Fuel / coal",
+      "description": "Dynamic fuel or coal level where supported."
+    },
+    "895": {
+      "name": "Water",
+      "description": "Dynamic water level where supported."
+    },
+    "20-20": {
+      "name": "NMRA reserved CV",
+      "description": "Reserved in the approved S-9.2.2 multifunction-decoder mapping; do not infer a standard function."
+    },
+    "26-26": {
+      "name": "NMRA reserved CV",
+      "description": "Reserved in the approved S-9.2.2 multifunction-decoder mapping; do not infer a standard function."
+    },
+    "47-64": {
+      "name": "Manufacturer-specific CV range",
+      "description": "Reserved for manufacturer use; no universal bit or value meanings. Select the exact DecoderPro decoder definition or manufacturer manual."
     },
     "67-94": {
       "name": "Extended speed table",
-      "description": "Twenty-eight speed-table entries used when CV29 bit 4 is on.",
-      "rangeEntry": true,
+      "description": "28 individual motor-drive curve values (CV67 to CV94), selected when CV29 bit 4 is on.",
       "related": [
         29
       ]
     },
-    "95": {
-      "name": "Reverse trim",
-      "description": "Reverse motor-voltage scale factor; interpreted relative to 128."
+    "96-104": {
+      "name": "NMRA reserved CV range",
+      "description": "Reserved by the NMRA in the approved multifunction-decoder specification; do not assume a universal function."
+    },
+    "107-111": {
+      "name": "NMRA reserved / extended ID area",
+      "description": "Reserved in the approved 2012 standard. Some newer draft specifications and decoder implementations use parts of this area for extended manufacturer/version identifiers; verify the exact decoder."
+    },
+    "112-256": {
+      "name": "Manufacturer-specific CV range",
+      "description": "Reserved for manufacturer use; no standard cross-manufacturer meaning. See the specific JMRI decoder profile."
+    },
+    "257-512": {
+      "name": "Indexed CV area",
+      "description": "Indexed CV pages, normally selected using CV31 and CV32. A numeric CV alone may not identify the parameter without the active page.",
+      "related": [
+        31,
+        32
+      ]
+    },
+    "513-879": {
+      "name": "NMRA reserved CV range",
+      "description": "Reserved for future NMRA use in the approved 2012 multifunction decoder map; later drafts or manufacturer implementations may differ."
+    },
+    "880-891": {
+      "name": "Dynamic CV area",
+      "description": "NMRA dynamic/volatile CV area; not a generic persistent user configuration field."
+    },
+    "896-1024": {
+      "name": "SUSI sound/function module CV area",
+      "description": "Configuration space for SUSI sound and function modules; definitions vary by module/manufacturer."
     }
   }
 }

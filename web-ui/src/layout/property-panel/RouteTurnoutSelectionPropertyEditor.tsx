@@ -50,6 +50,7 @@ type RouteTurnoutSelectionPropertyEditorProps = {
   turnoutSelectionMode: boolean;
   setTurnoutSelectionMode: (on: boolean) => void;
   onLayoutChange: LayoutSetter;
+  onBeforeLayoutChange?: () => void;
   onUpdateSelectedElement: SelectedElementUpdateHandler;
   setBusy?: (busy: boolean, text?: string) => void;
   routeSelectOpened: boolean;
@@ -71,9 +72,11 @@ function getItems(
 function removeTurnout(
   selectedElement: BaseElement,
   turnoutId: LayoutElementId,
-  onUpdateSelectedElement: SelectedElementUpdateHandler
+  onUpdateSelectedElement: SelectedElementUpdateHandler,
+  onBeforeLayoutChange?: () => void
 ) {
   const routeButton = selectedElement as RouteButtonElement;
+  onBeforeLayoutChange?.();
   routeButton.removeTurnout(turnoutId);
   onUpdateSelectedElement(selectedElement);
 }
@@ -135,6 +138,7 @@ export default function RouteTurnoutSelectionPropertyEditor({
   turnoutSelectionMode,
   setTurnoutSelectionMode,
   onLayoutChange,
+  onBeforeLayoutChange,
   onUpdateSelectedElement,
   setBusy,
   routeSelectOpened,
@@ -336,6 +340,7 @@ export default function RouteTurnoutSelectionPropertyEditor({
       return;
     }
 
+    onBeforeLayoutChange?.();
     applyGeneratedRouteButtonCandidate(
       selectedElement,
       candidate
@@ -366,6 +371,7 @@ export default function RouteTurnoutSelectionPropertyEditor({
     const item = routeItems.find(routeItem => routeItem.turnoutId === turnoutId);
     if (!item) return;
 
+    onBeforeLayoutChange?.();
     if (
       selectedElement instanceof
         RouteButtonElement
@@ -748,7 +754,7 @@ export default function RouteTurnoutSelectionPropertyEditor({
                     size="sm"
                     color="red"
                     variant="subtle"
-                    onClick={() => removeTurnout(selectedElement, item.turnoutId, onUpdateSelectedElement)}
+                    onClick={() => removeTurnout(selectedElement, item.turnoutId, onUpdateSelectedElement, onBeforeLayoutChange)}
                   >
                     <IconTrash size={14} />
                   </ActionIcon>
@@ -830,7 +836,7 @@ export default function RouteTurnoutSelectionPropertyEditor({
                   title={i18next.t("ui.removeTurnout")}
                   onClick={event => {
                     event.stopPropagation();
-                    removeTurnout(selectedElement, item.turnoutId, onUpdateSelectedElement);
+                    removeTurnout(selectedElement, item.turnoutId, onUpdateSelectedElement, onBeforeLayoutChange);
                   }}
                 >
                   <IconTrash size={14} />

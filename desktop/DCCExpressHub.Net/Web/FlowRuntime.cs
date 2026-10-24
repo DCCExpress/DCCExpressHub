@@ -356,6 +356,26 @@ public sealed class FlowRuntime : BackgroundService
         return true;
     }
 
+    // Wildcard Train Event inputs may receive notifications, but must not
+    // block departure. Only an explicitly selected beforeStart handler can
+    // participate in the blocking event pipeline.
+    static bool MatchesBlockingTrainEvent(
+        NodeDef node,
+        TrainEventPayload trainEvent)
+    {
+        var eventTypes =
+            StringArray(
+                node.Data,
+                "trainEventTypes");
+
+        return eventTypes.Contains(
+                   trainEvent.Event,
+                   StringComparer.OrdinalIgnoreCase) &&
+               MatchesTrainEvent(
+                   node,
+                   trainEvent);
+    }
+
     static string Js(
         string value) =>
         JsonSerializer.Serialize(
@@ -767,7 +787,7 @@ public sealed class FlowRuntime : BackgroundService
                                  page.Id &&
                              node.Kind ==
                                  "trainEventInput" &&
-                             MatchesTrainEvent(
+                             MatchesBlockingTrainEvent(
                                  node,
                                  trainEvent)))
                 {
@@ -1442,7 +1462,7 @@ public sealed class FlowRuntime : BackgroundService
                             data,
                             "turnoutAddress");
 
-                    return address is >= 1 and <= 2048
+                    return address is >= 1 and <= 32767
                         ? "await dcc.setTurnout(" +
                           address +
                           ", " +

@@ -70,6 +70,7 @@ var useYaMoRcZ21 =
     commandCenterProtocol ==
     "yamorc7010";
 
+builder.Services.AddSingleton<RailComSenseSettings>();
 builder.Services.AddSingleton<HubState>();
 builder.Services.AddSingleton<LayoutRuntime>();
 builder.Services.AddSingleton<SignalAutomationEngine>();
@@ -192,6 +193,7 @@ builder.Services.AddSingleton<DispatcherRuntime>();
 builder.Services.AddSingleton<MovementPlanBuilder>();
 builder.Services.AddSingleton<TrainEventRuntime>();
 builder.Services.AddSingleton<MovementRuntime>();
+builder.Services.AddSingleton<SequentialMovementRuntime>();
 builder.Services.AddSingleton<TrainDriverRuntime>();
 builder.Services.AddSingleton<TrainTrackingRuntime>();
 builder.Services.AddSingleton<ScriptRuntime>();

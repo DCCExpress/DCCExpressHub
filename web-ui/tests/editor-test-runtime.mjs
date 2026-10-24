@@ -11,9 +11,19 @@ globalThis.localStorage = {
   setItem: (key, value) => storage.set(key, String(value)),
 };
 
+// Browser-backed SwitchMan ownership uses sessionStorage. Keep this
+// sandboxed from localStorage just as in a real browser session.
+const sessionStorage = new Map();
+globalThis.sessionStorage = {
+  getItem: key => sessionStorage.get(key) ?? null,
+  setItem: (key, value) => sessionStorage.set(key, String(value)),
+  removeItem: key => sessionStorage.delete(key),
+};
+
 globalThis.window = {
   location: { search: "" },
   localStorage,
+  sessionStorage: globalThis.sessionStorage,
   setTimeout: callback => setTimeout(callback, 0),
 };
 

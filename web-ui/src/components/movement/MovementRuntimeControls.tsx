@@ -16,7 +16,7 @@ import {
 } from "@mantine/notifications";
 
 import {
-  IconAlertTriangle,
+  IconX,
   IconPlayerPlay,
   IconPlayerStop,
 } from "@tabler/icons-react";
@@ -42,6 +42,7 @@ import {
 import {
   useMovementTranslation,
 } from "./movementI18n";
+import { MOVEMENT_CARD_ACTION_SIZE, MOVEMENT_CARD_ICON_SIZE } from "./movementCardActionSizing";
 
 type Props = {
   page:
@@ -221,12 +222,12 @@ export default function MovementRuntimeControls({
 
   const iconSize =
     compact
-      ? 13
+      ? MOVEMENT_CARD_ICON_SIZE
       : 15;
 
   const buttonSize =
     compact
-      ? "xs"
+      ? MOVEMENT_CARD_ACTION_SIZE
       : "sm";
 
   return (
@@ -372,7 +373,7 @@ export default function MovementRuntimeControls({
             }
           }
         >
-          <IconAlertTriangle
+          <IconX
             size={
               iconSize
             }

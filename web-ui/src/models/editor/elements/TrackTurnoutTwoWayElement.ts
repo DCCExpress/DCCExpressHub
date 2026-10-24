@@ -117,7 +117,6 @@ export class TrackTurnoutTwoWayElement extends TrackTurnoutElement {
     element.bg = data.bg;
     element.fg = data.fg;
     element.readTurnoutConfiguration(data);
-    if (data.outputMode === "vpin") element.outputMode = "vpin";
     return element;
   }
   override clone(): TrackTurnoutTwoWayElement {

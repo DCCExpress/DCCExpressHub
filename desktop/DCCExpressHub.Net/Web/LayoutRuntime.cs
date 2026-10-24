@@ -17,11 +17,13 @@ public sealed class RuntimeAccessory
     public bool ClosedValue { get; set; }
     public bool TurnoutExtended { get; set; }
     public bool TurnoutVPin { get; set; }
+    public bool TurnoutDccExId { get; set; }
     public int TurnoutClosedAspect { get; set; } = 0;
     public int TurnoutOpenedAspect { get; set; } = 1;
 
     // Signal binding metadata.
     public bool SignalExtended { get; set; } = true;
+    public bool SignalVPin { get; set; }
     public byte SignalOutputCount { get; set; } = 1;
 }
 
@@ -40,6 +42,8 @@ public sealed class RuntimeBlock
     public ushort Id { get; set; }
     public string Name { get; set; } = "";
     public ushort SensorAddress { get; set; }
+    // RailCom uses SensorAddress; no separate address or runtime occupancy authority.
+    public bool RailCom { get; set; }
     public string LocoId { get; set; } = "";
     public ushort LocoAddress { get; set; }
 
@@ -144,6 +148,16 @@ public sealed class LayoutRuntime
     // Kept for existing VPIN turnout/output support. VPIN is HAL state rather
     // than DCC accessory state, so it is intentionally outside Basic/Extended.
     Dictionary<ushort, bool> _vpinStates = new();
+
+    // DCC-EX native <T id> is a separate namespace from DCC accessories.
+    // Only received <H id state> / <jT id C|T> or successful local commands
+    // populate this cache. Unknown state is represented by a missing key.
+    Dictionary<ushort, bool> _dccExTurnoutStates = new();
+
+    // Startup-only canvas hints from the previous session. These are NEVER
+    // returned by TryGetTurnoutClosed or the authoritative physical snapshot.
+    readonly Dictionary<(ushort Address, string Mode), bool>
+        _restoredTurnoutDisplayStates = new();
 
     public event Action<string, object>? Changed;
     // Safety runs after normal consumers, including TrainTracking, process the sensor change.
@@ -376,6 +390,8 @@ public sealed class LayoutRuntime
                 _basicAccessoryStates.Clear();
                 _extendedAccessoryStates.Clear();
                 _vpinStates.Clear();
+                // Native <H> state belongs to the connected command center,
+                // not to a saved layout. An unsaved editor must still receive it.
             }
 
             Console.WriteLine($"LayoutRuntime: no layout at {path}");
@@ -393,6 +409,7 @@ public sealed class LayoutRuntime
             Dictionary<ushort, bool> oldBasic;
             Dictionary<ushort, byte> oldExtended;
             Dictionary<ushort, bool> oldVpins;
+            Dictionary<ushort, bool> oldDccExTurnouts;
 
             lock (_gate)
             {
@@ -401,6 +418,7 @@ public sealed class LayoutRuntime
                 oldBasic = new(_basicAccessoryStates);
                 oldExtended = new(_extendedAccessoryStates);
                 oldVpins = new(_vpinStates);
+                oldDccExTurnouts = new(_dccExTurnoutStates);
             }
 
             var bindings = new List<RuntimeAccessory>();
@@ -409,6 +427,7 @@ public sealed class LayoutRuntime
             var basicTopology = new HashSet<ushort>();
             var extendedTopology = new HashSet<ushort>();
             var vpinTopology = new HashSet<ushort>();
+            var dccExTurnoutTopology = new HashSet<ushort>();
 
             if (root.TryGetProperty("layers", out var layers) && layers.ValueKind == JsonValueKind.Array)
             {
@@ -432,7 +451,8 @@ public sealed class LayoutRuntime
                                     blocks,
                                     basicTopology,
                                     extendedTopology,
-                                    vpinTopology);
+                                    vpinTopology,
+                                    dccExTurnoutTopology);
                             }
 
                             ei++;
@@ -466,6 +486,10 @@ public sealed class LayoutRuntime
                 _basicAccessoryStates = Reconcile(oldBasic, basicTopology, false);
                 _extendedAccessoryStates = Reconcile(oldExtended, extendedTopology, (byte)0);
                 _vpinStates = Reconcile(oldVpins, vpinTopology, false);
+                // Keep native <H>/<jT> state even when a turnout has not yet
+                // been saved to layout.json. Disconnect invalidates it separately.
+                _dccExTurnoutStates = oldDccExTurnouts;
+                _restoredTurnoutDisplayStates.Clear();
             }
 
             if (migrated > 0)
@@ -496,7 +520,8 @@ public sealed class LayoutRuntime
         List<RuntimeBlock> blocks,
         HashSet<ushort> basicTopology,
         HashSet<ushort> extendedTopology,
-        HashSet<ushort> vpinTopology)
+        HashSet<ushort> vpinTopology,
+        HashSet<ushort> dccExTurnoutTopology)
     {
         var type = S(e, "type");
         int elementAddress = I(e, "address");
@@ -537,7 +562,8 @@ public sealed class LayoutRuntime
                     SensorAddress =
                         sensorAddress is >= 1 and <= 65535
                             ? (ushort)sensorAddress
-                            : (ushort)0
+                            : (ushort)0,
+                    RailCom = B(e, "railCom")
                 });
 
             return;
@@ -548,6 +574,7 @@ public sealed class LayoutRuntime
             string mode = S(e, "outputMode", "accessory");
             bool extended = mode == "extended";
             bool vpin = mode == "vpin";
+            bool dccexId = mode == "dccex-turnout";
             bool dual = type is "trackturnoutdouble" or "trackturnouttreeway";
 
             void AddTurnout(
@@ -557,7 +584,8 @@ public sealed class LayoutRuntime
                 int closedAspect,
                 int openedAspect)
             {
-                if (address is <= 0 or > 65535)
+                if (address is <= 0 or > 65535 ||
+                    (dccexId && address > 32767))
                     return;
 
                 var a = (ushort)address;
@@ -571,6 +599,7 @@ public sealed class LayoutRuntime
                     ClosedValue = closedValue,
                     TurnoutExtended = extended,
                     TurnoutVPin = vpin,
+                    TurnoutDccExId = dccexId,
                     TurnoutClosedAspect = Math.Clamp(closedAspect, 0, 255),
                     TurnoutOpenedAspect = Math.Clamp(openedAspect, 0, 255)
                 });
@@ -579,6 +608,8 @@ public sealed class LayoutRuntime
                     extendedTopology.Add(a);
                 else if (vpin)
                     vpinTopology.Add(a);
+                else if (dccexId)
+                    dccExTurnoutTopology.Add(a);
                 else
                     basicTopology.Add(a);
             }
@@ -639,6 +670,7 @@ public sealed class LayoutRuntime
                 : Math.Clamp(I(e, "addressLength", 1), 1, 16);
 
             bool extended = protocol == "dccext";
+            bool signalVPin = protocol == "vpin";
 
             bindings.Add(new RuntimeAccessory
             {
@@ -646,11 +678,14 @@ public sealed class LayoutRuntime
                 Kind = RuntimeAccessoryKind.Signal,
                 Address = (ushort)address,
                 SignalExtended = extended,
+                SignalVPin = signalVPin,
                 SignalOutputCount = (byte)Math.Clamp(outputCount, 1, 16)
             });
 
             if (extended)
                 extendedTopology.Add((ushort)address);
+            else if (signalVPin)
+                AddRange(vpinTopology, address, outputCount);
             else
                 AddRange(basicTopology, address, outputCount);
 
@@ -743,15 +778,23 @@ public sealed class LayoutRuntime
         lock (_gate)
         {
             var turnout = _accessories.FirstOrDefault(x =>
-                x.Kind == RuntimeAccessoryKind.Turnout &&
-                x.Address == address);
-
+                x.Kind == RuntimeAccessoryKind.Turnout && x.Address == address);
             if (turnout is null)
             {
                 closed = false;
                 return false;
             }
+            return TryGetTurnoutClosedForBinding(turnout, out closed);
+        }
+    }
 
+    // Each protocol has its own state namespace. UI events must resolve the
+    // requested binding (not the first same-numbered accessory on the layout).
+    bool TryGetTurnoutClosedForBinding(RuntimeAccessory turnout, out bool closed)
+    {
+        lock (_gate)
+        {
+            var address = turnout.Address;
             if (turnout.TurnoutExtended)
             {
                 if (!_extendedAccessoryStates.TryGetValue(address, out var aspect))
@@ -759,39 +802,30 @@ public sealed class LayoutRuntime
                     closed = false;
                     return false;
                 }
-
                 if (aspect == turnout.TurnoutClosedAspect)
                 {
                     closed = true;
                     return true;
                 }
-
                 if (aspect == turnout.TurnoutOpenedAspect)
                 {
                     closed = false;
                     return true;
                 }
-
                 closed = false;
                 return false;
             }
 
             bool physical;
-            if (turnout.TurnoutVPin)
+            bool known = turnout.TurnoutDccExId
+                ? _dccExTurnoutStates.TryGetValue(address, out physical)
+                : turnout.TurnoutVPin
+                    ? _vpinStates.TryGetValue(address, out physical)
+                    : _basicAccessoryStates.TryGetValue(address, out physical);
+            if (!known)
             {
-                if (!_vpinStates.TryGetValue(address, out physical))
-                {
-                    closed = false;
-                    return false;
-                }
-            }
-            else
-            {
-                if (!_basicAccessoryStates.TryGetValue(address, out physical))
-                {
-                    closed = false;
-                    return false;
-                }
+                closed = false;
+                return false;
             }
 
             closed = physical == turnout.ClosedValue;
@@ -799,13 +833,14 @@ public sealed class LayoutRuntime
         }
     }
 
-    public bool TryGetSignalValue(ushort address, out int value)
+    public bool TryGetSignalValue(ushort address, out int value, ushort signalId = 0)
     {
         lock (_gate)
         {
             var signal = _accessories.FirstOrDefault(x =>
                 x.Kind == RuntimeAccessoryKind.Signal &&
-                x.Address == address);
+                x.Address == address &&
+                (signalId == 0 || x.Id == signalId));
 
             if (signal is null)
             {
@@ -831,7 +866,8 @@ public sealed class LayoutRuntime
             {
                 var outputAddress = (ushort)(signal.Address + i);
 
-                if (!_basicAccessoryStates.TryGetValue(outputAddress, out var active))
+                var states = signal.SignalVPin ? _vpinStates : _basicAccessoryStates;
+                if (!states.TryGetValue(outputAddress, out var active))
                 {
                     value = 0;
                     return false;
@@ -843,6 +879,91 @@ public sealed class LayoutRuntime
 
             value = bits;
             return true;
+        }
+    }
+
+    // Display hints only. Save all accessory outputs, but restore a visual
+    // position exclusively for bindings that are CURRENTLY turnouts.
+    // No command station output and no physical runtime state is altered.
+    public void RestoreTurnoutDisplayStates(
+        IReadOnlyDictionary<ushort, bool> savedBasic,
+        IReadOnlyDictionary<ushort, byte> savedExtended)
+    {
+        lock (_gate)
+        {
+            _restoredTurnoutDisplayStates.Clear();
+
+            foreach (var turnout in _accessories.Where(
+                item => item.Kind == RuntimeAccessoryKind.Turnout))
+            {
+                if (turnout.TurnoutVPin || turnout.TurnoutDccExId)
+                    continue; // Neither HAL VPIN nor native <T> is a DCC accessory.
+
+                if (turnout.TurnoutExtended)
+                {
+                    if (!savedExtended.TryGetValue(turnout.Address, out var aspect))
+                        continue;
+
+                    bool logicalClosed;
+                    if (aspect == turnout.TurnoutClosedAspect)
+                        logicalClosed = true;
+                    else if (aspect == turnout.TurnoutOpenedAspect)
+                        logicalClosed = false;
+                    else
+                        continue;
+
+                    var physicalValue = logicalClosed
+                        ? turnout.ClosedValue : !turnout.ClosedValue;
+                    _restoredTurnoutDisplayStates[(turnout.Address, "extended")] =
+                        physicalValue;
+                }
+                else if (savedBasic.TryGetValue(turnout.Address, out var physical))
+                {
+                    _restoredTurnoutDisplayStates[(turnout.Address, "accessory")] =
+                        physical;
+                }
+            }
+        }
+    }
+
+    // RuntimeStateStore must preserve saved turnout drawings even if the
+    // operator restarts the backend without issuing any new turnout commands.
+    // Snapshot these persisted hints ONLY for disk storage: the authoritative
+    // basic/extended maps and physical queries remain unchanged.
+    public (IReadOnlyDictionary<ushort, bool> Basic,
+        IReadOnlyDictionary<ushort, byte> Extended) AccessorySaveSnapshot()
+    {
+        lock (_gate)
+        {
+            var basic = new Dictionary<ushort, bool>(_basicAccessoryStates);
+            var extended = new Dictionary<ushort, byte>(_extendedAccessoryStates);
+
+            foreach (var saved in _restoredTurnoutDisplayStates)
+            {
+                var (address, mode) = saved.Key;
+                if (mode == "accessory")
+                {
+                    basic[address] = saved.Value;
+                    continue;
+                }
+
+                if (mode != "extended")
+                    continue;
+
+                var turnout = _accessories.FirstOrDefault(item =>
+                    item.Kind == RuntimeAccessoryKind.Turnout &&
+                    item.TurnoutExtended && item.Address == address);
+                if (turnout is null)
+                    continue;
+
+                bool logicalClosed = saved.Value == turnout.ClosedValue;
+                var aspect = logicalClosed
+                    ? turnout.TurnoutClosedAspect
+                    : turnout.TurnoutOpenedAspect;
+                extended[address] = (byte)aspect;
+            }
+
+            return (basic, extended);
         }
     }
 
@@ -872,6 +993,7 @@ public sealed class LayoutRuntime
                 Id = x.Id,
                 Name = x.Name,
                 SensorAddress = x.SensorAddress,
+                RailCom = x.RailCom,
                 LocoId = x.LocoId,
                 LocoAddress = x.LocoAddress
             }).ToArray();
@@ -890,7 +1012,7 @@ public sealed class LayoutRuntime
 
         foreach (var turnout in turnouts)
         {
-            bool logicalKnown = TryGetTurnoutClosed(address, out var logicalClosed);
+            bool logicalKnown = TryGetTurnoutClosedForBinding(turnout, out var logicalClosed);
             bool physicalValue = logicalKnown
                 ? logicalClosed ? turnout.ClosedValue : !turnout.ClosedValue
                 : false;
@@ -908,7 +1030,9 @@ public sealed class LayoutRuntime
                     ? "extended"
                     : turnout.TurnoutVPin
                         ? "vpin"
-                        : "accessory",
+                        : turnout.TurnoutDccExId
+                            ? "dccex-turnout"
+                            : "accessory",
                 aspect,
                 closedAspect = turnout.TurnoutClosedAspect,
                 openedAspect = turnout.TurnoutOpenedAspect
@@ -943,8 +1067,87 @@ public sealed class LayoutRuntime
 
         if (turnout.TurnoutVPin)
             return SetVPin(address, physicalValue);
+        if (turnout.TurnoutDccExId)
+            return SetDccExTurnoutState(address, physicalValue);
 
         return SetAccessory(address, physicalValue);
+    }
+
+    // A native <T> confirmation or <jT>/<H> feedback must never touch the
+    // legacy DCC accessory map, even when both use the same numeric address.
+    public bool SetDccExTurnoutState(ushort id, bool thrown, bool fromFeedback = false)
+    {
+        if (id is < 1 or > 32767)
+            return false;
+
+        bool changed;
+        RuntimeAccessory[] bindings;
+        lock (_gate)
+        {
+            changed = !_dccExTurnoutStates.TryGetValue(id, out var previous) ||
+                previous != thrown;
+            _dccExTurnoutStates[id] = thrown;
+            // DCC-EX <H> is authoritative for the native Turnout ID, even
+            // before the editor's layout has been saved to the backend.
+            bindings = _accessories
+                .Where(x => x.Kind == RuntimeAccessoryKind.Turnout &&
+                    x.TurnoutDccExId && x.Address == id)
+                .ToArray();
+        }
+
+        // Always republish an actual <H>/<jT> response, even if its value is
+        // unchanged. This resynchronizes an open editor/canvas after reload.
+        if (!changed && !fromFeedback)
+            return true;
+
+        if (bindings.Length == 0)
+        {
+            Changed?.Invoke("turnoutChanged", new
+            {
+                address = id,
+                closed = thrown,
+                logicalClosed = (bool?)null,
+                outputMode = "dccex-turnout",
+                aspect = (byte?)null
+            });
+        }
+        else
+        {
+            foreach (var turnout in bindings)
+            {
+                Changed?.Invoke("turnoutChanged", new
+                {
+                    address = id,
+                    closed = thrown,
+                    logicalClosed = (bool?)(thrown == turnout.ClosedValue),
+                    outputMode = "dccex-turnout",
+                    aspect = (byte?)null,
+                    closedAspect = turnout.TurnoutClosedAspect,
+                    openedAspect = turnout.TurnoutOpenedAspect
+                });
+            }
+        }
+        return true;
+    }
+
+    public ushort[] DccExTurnoutIds()
+    {
+        lock (_gate)
+            return _accessories
+                .Where(x => x.Kind == RuntimeAccessoryKind.Turnout && x.TurnoutDccExId)
+                .Select(x => x.Address).Distinct().OrderBy(x => x).ToArray();
+    }
+
+    public void InvalidateDccExTurnoutStates()
+    {
+        ushort[] ids;
+        lock (_gate)
+        {
+            ids = _dccExTurnoutStates.Keys.ToArray();
+            _dccExTurnoutStates.Clear();
+        }
+        foreach (var id in ids)
+            EmitTurnoutDerivedEventsForAddress(id);
     }
 
     public bool SetSignal(ushort address, int aspect)
@@ -961,6 +1164,7 @@ public sealed class LayoutRuntime
 
             changed = _extendedAccessoryStates[address] != (byte)aspect;
             _extendedAccessoryStates[address] = (byte)aspect;
+            _restoredTurnoutDisplayStates.Remove((address, "extended"));
         }
 
         if (changed)
@@ -981,6 +1185,7 @@ public sealed class LayoutRuntime
 
             changed = _basicAccessoryStates[address] != active;
             _basicAccessoryStates[address] = active;
+            _restoredTurnoutDisplayStates.Remove((address, "accessory"));
         }
 
         if (changed)
@@ -1370,7 +1575,7 @@ public sealed class LayoutRuntime
             // Semantic turnout rows are derived from topology + physical state.
             foreach (var turnout in _accessories.Where(x => x.Kind == RuntimeAccessoryKind.Turnout))
             {
-                bool logicalKnown = TryGetTurnoutClosed(turnout.Address, out var logicalClosed);
+                bool logicalKnown = TryGetTurnoutClosedForBinding(turnout, out var logicalClosed);
                 bool physicalValue = logicalKnown
                     ? logicalClosed ? turnout.ClosedValue : !turnout.ClosedValue
                     : false;
@@ -1388,12 +1593,46 @@ public sealed class LayoutRuntime
                         ? "extended"
                         : turnout.TurnoutVPin
                             ? "vpin"
-                            : "accessory",
+                            : turnout.TurnoutDccExId
+                                ? "dccex-turnout"
+                                : "accessory",
                     aspect,
                     closedAspect = turnout.TurnoutClosedAspect,
                     openedAspect = turnout.TurnoutOpenedAspect
                 }));
             }
+
+            // Feedback for a native DCC-EX turnout may arrive before its
+            // element has been saved. Rehydrate these live Turnout IDs too.
+            var savedNativeIds = _accessories
+                .Where(x => x.Kind == RuntimeAccessoryKind.Turnout && x.TurnoutDccExId)
+                .Select(x => x.Address)
+                .ToHashSet();
+            foreach (var native in _dccExTurnoutStates.OrderBy(x => x.Key))
+            {
+                if (savedNativeIds.Contains(native.Key))
+                    continue;
+                items.Add(new("turnoutChanged", new
+                {
+                    address = native.Key,
+                    closed = native.Value,
+                    logicalClosed = (bool?)null,
+                    outputMode = "dccex-turnout",
+                    aspect = (byte?)null
+                }));
+            }
+
+            // Sent after physical state rows so the canvas shows the previous
+            // turnout drawing until fresh state or a live command supersedes it.
+            // This distinct event is NOT physical turnout feedback.
+            foreach (var saved in _restoredTurnoutDisplayStates.OrderBy(
+                state => state.Key.Address))
+                items.Add(new("turnoutDisplayRestored", new
+                {
+                    address = saved.Key.Address,
+                    closed = saved.Value,
+                    outputMode = saved.Key.Mode
+                }));
 
             items.Add(new("sensorSnapshot", SensorSnapshot()));
             items.Add(new("blockStateChanged", BlockSnapshot()));

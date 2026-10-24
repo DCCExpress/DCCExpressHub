@@ -522,6 +522,12 @@ public sealed class CommandCenterConfigStore
                 "z21",
                 StringComparison.OrdinalIgnoreCase);
 
+        var isLocoNetTcp =
+            string.Equals(
+                value.Transport,
+                "loconet",
+                StringComparison.OrdinalIgnoreCase);
+
         var tcpHost =
             (value.TcpHost ?? "").Trim();
 
@@ -539,7 +545,9 @@ public sealed class CommandCenterConfigStore
             tcpPort =
                 isZ21
                     ? RocoZ21CommandCenter.DefaultPort
-                    : 2560;
+                    : isLocoNetTcp
+                        ? YaMoRcLocoNetClient.DefaultLbServerPort
+                        : 2560;
         }
 
         if (serialPort.Length == 0)
@@ -563,7 +571,9 @@ public sealed class CommandCenterConfigStore
                     ? (string.Equals(value.Transport, "loconet-serial", StringComparison.OrdinalIgnoreCase) ? "loconet-serial" : "serial")
                     : isZ21
                         ? "z21"
-                        : "tcp",
+                        : isLocoNetTcp
+                            ? "loconet"
+                            : "tcp",
 
             TcpHost = tcpHost,
             TcpPort = tcpPort,

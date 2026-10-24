@@ -237,7 +237,12 @@ export function useLocoDialogState(
       setSaving(true);
       setMessage("");
       await Promise.all([
-        persistLocos(locos.map(ensureLocoFunctions)),
+        persistLocos(locos.map(loco => ensureLocoFunctions({
+          ...loco,
+          minimumSpeed: loco.minimumSpeed ?? 8,
+          mediumSpeed: loco.mediumSpeed ?? 24,
+          cruisingSpeed: loco.cruisingSpeed ?? 20,
+        }))),
         saveFunctionBindings(
           functionBindings
         ),

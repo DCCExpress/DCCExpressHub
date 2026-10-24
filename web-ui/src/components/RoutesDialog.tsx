@@ -61,7 +61,6 @@ import AppModal from "@/components/common/AppModal";
 
 import RoutePreviewDialog from "@/components/routes/RoutePreviewDialog";
 import RouteGraphVisualization from "@/components/routes/RouteGraphVisualization";
-import StationRoutesTab from "@/components/routes/StationRoutesTab";
 
 import {
   testRouteTurnoutStates,
@@ -77,8 +76,9 @@ import {
 
 // Enable this only while diagnosing route topology; keep the viewer available for debugging.
 const SHOW_DEBUG_GRAPH_VISUALIZATION = false;
-// Temporarily hide Station Routes without removing its editor or saved data.
-const SHOW_STATION_ROUTES_TAB = true;
+// The Movements overview already covers these physical routes. Retain the
+// original Route Network panel for diagnostics without duplicating the UI.
+const SHOW_ROUTE_NETWORK_TAB = false;
 
 type RoutesDialogProps = {
   opened: boolean;
@@ -87,7 +87,6 @@ type RoutesDialogProps = {
   movements: MovementDocument;
   editingMovementId:
     string | null;
-  editingStationRouteId?: string | null;
   onMovementsChange: (
     document:
       MovementDocument
@@ -95,6 +94,8 @@ type RoutesDialogProps = {
   onPersistRouteTopology?: () => Promise<void>;
   onGenerated?: () => void;
   onSelectRoute?: (page: MovementPage) => void;
+  /** Network inspection vs. the standalone Movement route chooser. */
+  mode?: "network" | "movement";
   initialRoute?: Pick<MovementPage, "name" | "speed" | "routeRef"> | null;
 };
 
@@ -214,11 +215,11 @@ export default function RoutesDialog({
   layout,
   movements,
   editingMovementId,
-  editingStationRouteId,
   onMovementsChange,
   onPersistRouteTopology,
   onGenerated,
   onSelectRoute,
+  mode = "network",
   initialRoute,
 }: RoutesDialogProps) {
   const { t } = useTranslation();
@@ -727,6 +728,33 @@ export default function RoutesDialog({
       .sort((left, right) => left - right);
   };
 
+  // Route previews also include sensors on the actually traversed
+  // turnout chain. These are virtual occupancy regions, not new blocks.
+  const formatCandidateSensorPath = (candidate: MovementRouteCandidate) => {
+    const items: string[] = [];
+    let lastSensor: number | undefined;
+
+    candidate.nodePath.forEach((name, index) => {
+      const node = result?.graph.nodes.find(entry => entry.name === name);
+      const sensors = node ? segmentDetectorAddresses(node) : [];
+      items.push(sensors.length
+        ? `${name} (#${sensors.join(", #")})`
+        : name);
+
+      if (sensors.length > 0) lastSensor = sensors[sensors.length - 1];
+
+      // edgePath[i] connects nodePath[i] and nodePath[i + 1].
+      // Only collapse adjacent equal detectors (e.g. #30 and #31).
+      for (const sensor of candidate.turnoutSensorPaths[index] ?? []) {
+        if (sensor === lastSensor) continue;
+        items.push(`V (#${sensor})`);
+        lastSensor = sensor;
+      }
+    });
+
+    return items.join(" → ");
+  };
+
   const nodes =
     result?.graph.nodes ?? [];
 
@@ -1048,7 +1076,7 @@ export default function RoutesDialog({
         <Group gap="xs">
           <IconRoute size={19} />
           <Text fw={700}>
-            {t("ui.routes")}
+            {mode === "movement" ? t("ui.movementSelectRouteTitle") : t("ui.routes")}
           </Text>
         </Group>
       }
@@ -1076,7 +1104,7 @@ export default function RoutesDialog({
           minHeight: 0,
         }}
       >
-        <Group justify="space-between">
+        {mode === "network" && <Group justify="space-between">
           <Group gap="xs">
             <Badge variant="light">
               {t("ui.segmentsCount", { value1: nodes.length })}
@@ -1117,7 +1145,7 @@ export default function RoutesDialog({
           >
             {t("ui.regenerate")}
           </Button>
-        </Group>
+        </Group>}
 
         {error && (
           <Alert
@@ -1130,6 +1158,7 @@ export default function RoutesDialog({
 
         {!error && result && (
           <Tabs
+            key={mode}
             defaultValue="selectRoute"
             keepMounted={false}
             style={{
@@ -1139,39 +1168,13 @@ export default function RoutesDialog({
               flexDirection: "column",
             }}
           >
-            <Tabs.List>
-              {SHOW_STATION_ROUTES_TAB && !onSelectRoute && <Tabs.Tab value="stationRoutes">Station Routes</Tabs.Tab>}
-              <Tabs.Tab value="selectRoute">
-                {t("ui.movementSelectRouteTitle")}
-              </Tabs.Tab>
-
-              <Tabs.Tab value="routes">
-                {t("ui.routeNetwork")}
-              </Tabs.Tab>
-
-              <Tabs.Tab value="graph">
-                {t("ui.graph")}
-              </Tabs.Tab>
-
+            {mode === "network" && <Tabs.List>
+              <Tabs.Tab value="selectRoute">Movements</Tabs.Tab>
+              {SHOW_ROUTE_NETWORK_TAB && <Tabs.Tab value="routes">{t("ui.routeNetwork")}</Tabs.Tab>}
+              <Tabs.Tab value="graph">{t("ui.graph")}</Tabs.Tab>
               {SHOW_DEBUG_GRAPH_VISUALIZATION && <Tabs.Tab value="graphVisualization">Graph visualization</Tabs.Tab>}
-
-              <Tabs.Tab value="segments">
-                {t("ui.segments")}
-              </Tabs.Tab>
-            </Tabs.List>
-
-            {SHOW_STATION_ROUTES_TAB && !onSelectRoute && <Tabs.Panel value="stationRoutes" pt="sm" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-              <StationRoutesTab
-                layout={layout}
-                editingRouteId={editingStationRouteId ?? null}
-                graph={result.graph}
-                onSave={async () => {
-                  if (!onPersistRouteTopology) throw new Error("Layout saving is unavailable.");
-                  await onPersistRouteTopology();
-                }}
-                onChanged={() => onGenerated?.()}
-              />
-            </Tabs.Panel>}
+              <Tabs.Tab value="segments">{t("ui.segments")}</Tabs.Tab>
+            </Tabs.List>}
 
             <Tabs.Panel
               value="selectRoute"
@@ -1183,7 +1186,7 @@ export default function RoutesDialog({
               }}
             >
               <Stack gap="sm">
-                <Group
+                {mode === "movement" && <Group
                   gap="sm"
                   align="flex-end"
                   wrap="nowrap"
@@ -1233,7 +1236,7 @@ export default function RoutesDialog({
                     allowDecimal={false}
                     w={170}
                   />
-                </Group>
+                </Group>}
 
                 <Group
                   gap="sm"
@@ -1367,19 +1370,15 @@ export default function RoutesDialog({
                               {t("ui.direction")}
                             </Table.Th>
 
-                            <Table.Th>
-                              {t("ui.turnouts")}
-                            </Table.Th>
-
                             <Table.Th
                               style={{ width: 110 }}
                             >
                               {t("ui.preview")}
                             </Table.Th>
 
-                            <Table.Th
+                            {mode === "movement" && <Table.Th
                               style={{ width: 110 }}
-                            />
+                            />}
                           </Table.Tr>
                         </Table.Thead>
 
@@ -1408,7 +1407,7 @@ export default function RoutesDialog({
                                       </Text>
 
                                       {
-                                        candidate.used && (
+                                        mode === "movement" && candidate.used && (
                                           <Text
                                             size="xs"
                                             c="red"
@@ -1446,13 +1445,19 @@ export default function RoutesDialog({
                                           c="dimmed"
                                         >
                                           {
-                                            candidate.nodePath.join(
-                                              " → "
-                                            )
+                                            formatCandidateSensorPath(candidate)
                                           }
                                         </Text>
                                       )
                                     }
+
+                                    {candidate.turnoutStates.length > 0 && (
+                                      <Text size="xs" c="dimmed">
+                                        {candidate.turnoutStates.map(state =>
+                                          `#${state.address}(${state.closed ? "C" : "T"})`
+                                        ).join(" · ")}
+                                      </Text>
+                                    )}
                                   </Table.Td>
 
                                   <Table.Td>
@@ -1481,32 +1486,42 @@ export default function RoutesDialog({
                                   </Table.Td>
 
                                   <Table.Td>
-                                    {
-                                      candidate.turnoutCount
-                                    }
-                                  </Table.Td>
-
-                                  <Table.Td>
-                                    <Button
-                                      size="xs"
-                                      variant="light"
-                                      leftSection={
-                                        <IconEye size={14} />
-                                      }
-                                      onClick={
-                                        () =>
-                                          setPreviewPage(
-                                            previewCandidate(
-                                              candidate
-                                            )
+                                    <Group gap={6} wrap="nowrap">
+                                      <Button
+                                        size="xs"
+                                        variant="light"
+                                        leftSection={<IconEye size={14} />}
+                                        onClick={() =>
+                                          setPreviewPage(previewCandidate(candidate))
+                                        }
+                                      >
+                                        {t("ui.preview")}
+                                      </Button>
+                                      <Button
+                                        size="xs"
+                                        variant="light"
+                                        color="orange"
+                                        leftSection={<IconPlayerPlay size={14} />}
+                                        loading={testingKey === `candidate-${candidate.key}`}
+                                        disabled={
+                                          candidate.turnoutStates.length === 0 ||
+                                          (testingKey !== null &&
+                                            testingKey !== `candidate-${candidate.key}`)
+                                        }
+                                        onClick={() =>
+                                          void testTurnouts(
+                                            `candidate-${candidate.key}`,
+                                            `${candidate.fromBlockName} → ${candidate.toBlockName}`,
+                                            candidate.turnoutStates
                                           )
-                                      }
-                                    >
-                                      {t("ui.preview")}
-                                    </Button>
+                                        }
+                                      >
+                                        {t("ui.test")}
+                                      </Button>
+                                    </Group>
                                   </Table.Td>
 
-                                  <Table.Td>
+                                  {mode === "movement" && <Table.Td>
                                     <Button
                                       size="xs"
                                       fullWidth
@@ -1537,7 +1552,7 @@ export default function RoutesDialog({
                                     >
                                       {t("ui.select")}
                                     </Button>
-                                  </Table.Td>
+                                  </Table.Td>}
                                 </Table.Tr>
                               )
                             )
@@ -1730,7 +1745,7 @@ export default function RoutesDialog({
               </ScrollArea.Autosize>
             </Tabs.Panel>
 
-            <Tabs.Panel
+            {SHOW_ROUTE_NETWORK_TAB && <Tabs.Panel
               value="routes"
               pt="sm"
               style={{
@@ -1899,7 +1914,7 @@ export default function RoutesDialog({
                 </Table>
               </ScrollArea.Autosize>
               </Stack>
-            </Tabs.Panel>
+            </Tabs.Panel>}
           </Tabs>
         )}
       </Stack>

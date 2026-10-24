@@ -1,0 +1,61 @@
+export const ELEMENT_TYPES = {
+  GENERAL: "general",
+  ADDRESSED_ELEMENT: "addressedelement",
+
+  TRACK_STRAIGHT: "trackstraight",
+  TRACK_BRIDGE: "trackbridge",
+  TRACK_DIRECTION: "trackdirection",
+  TRACK_END: "trackend",
+  TRACK_CORNER: "trackcorner",
+  TRACK_CURVE: "trackcurve",
+  TRACK_CROSSING: "trackcrossing",
+  TRACK_LEVEL_CROSSING: "tracklevelcrossing",
+
+  TRACK_TURNOUT: "trackturnout",
+  TRACK_TURNOUT_LEFT: "trackturnoutleft",
+  TRACK_TURNOUT_RIGHT: "trackturnoutright",
+  TRACK_TURNOUT_DOUBLE: "trackturnoutdouble",
+  TRACK_TURNOUT_TWO_WAY: "trackturnouttwoway",
+  TRACK_TURNOUT_THREE_WAY: "trackturnouttreeway",
+
+  TRACK_SENSOR: "tracksensor",
+
+  /**
+   * New canonical signal type.
+   */
+  TRACK_SIGNAL: "tracksignal",
+
+  TRACK_BLOCK: "trackblock",
+
+  BUTTON: "button",
+  BUTTON_SCRIPT: "buttonscript",
+  BUTTON_AUDIO: "audiobutton",
+  BUTTON_EMERGENCY: "emergencybutton",
+  BUTTON_AUDIO_LIST: "audiolistbutton",
+  BUTTON_ROUTE: "routebutton",
+  BUTTON_ROUTE_EXTENDED: "extendedroutebutton",
+
+  CLOCK: "clcok",
+  TREE: "tree",
+  BUSH: "bush",
+  LAMP: "lamp",
+  STATION_BUILDING: "stationbuilding",
+  SWITCHMAN_HUT: "switchmanhut",
+  GARDEN_HOUSE: "gardenhouse",
+  LABEL: "label",
+} as const;
+
+export type ElementType =
+  typeof ELEMENT_TYPES[keyof typeof ELEMENT_TYPES];
+
+export const BLOCK_TYPES = {
+  NORMAL: "normal",
+  STATION: "station",
+  TERMINAL: "terminal",
+  STAGING: "staging",
+  SIDING: "siding",
+  YARD: "yard",
+} as const;
+
+export type BlockType =
+  typeof BLOCK_TYPES[keyof typeof BLOCK_TYPES];

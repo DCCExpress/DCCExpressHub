@@ -45,10 +45,7 @@ import {
   IconLockOpen,
   IconListCheck,
   IconClipboardList,
-  IconRobot,
   IconCalendarTime,
-  IconInfoCircle,
-  IconListDetails,
   IconRoute,
   IconVolume,
   IconServerCog,
@@ -64,7 +61,6 @@ import FullscreenLoader from "@/components/FullscreenLoader";
 import AppModal from "@/components/common/AppModal";
 import SignalLogicDialog from "@/components/SignalLogicDialog";
 import IntegrityCheckDialog from "@/components/IntegrityCheckDialog";
-import LayoutRuntimeLogPanel from "@/components/LayoutRuntimeLogPanel";
 import SystemInfoPanel from "@/components/SystemInfoPanel";
 import SafetyEmergencyStopDialog from "@/components/SafetyEmergencyStopDialog";
 import VisibilitySettings from "@/components/VisibilitySettings";
@@ -84,6 +80,8 @@ import MovementTaskManager from "@/components/movement/MovementTaskManager";
 import TimetableDialog from "@/components/TimetableDialog";
 import TimetablePanel from "@/components/TimetablePanel";
 import RoutesDialog from "@/components/RoutesDialog";
+import SelectMovementRouteDialog from "@/components/routes/SelectMovementRouteDialog";
+import StationRouteEditorDialog from "@/components/routes/StationRouteEditorDialog";
 import AutomationFlowDialog from "@/components/automation/AutomationFlowDialog";
 import { restorePersistedTopologyMetadata } from "@/services/layoutTopologyPersistence";
 import {
@@ -167,7 +165,6 @@ import {
   importFullBackup,
 } from "@/services/backupService";
 import "@/styles/propertypanel.css";
-import DebugDialog from "@/components/debug/DebugDialog";
 import EmbeddedCommandCenterConfigDialog from "@/components/EmbeddedCommandCenterConfigDialog";
 import { getCommandCenterInfo } from "@/api/commandCenterInfo";
 type LiteLayoutPageProps = {
@@ -181,20 +178,6 @@ type LiteLayoutPageProps = {
   ) => void;
   onBack: () => void;
   onOpenLocoEditor: () => void;
-};
-
-type FlashInfo = {
-  total: number;
-  used: number;
-  free: number;
-  totalBytes?: number;
-  usedBytes?: number;
-  freeBytes?: number;
-  flashChipBytes?: number;
-  firmwareBytes?: number;
-  firmwarePartitionBytes?: number;
-  otaPartitionBytes?: number;
-  systemReservedBytes?: number;
 };
 
 type PickerItem = {
@@ -435,7 +418,7 @@ const LAYOUT_ELEMENT_PICKER_TAB_KEY = "dcc-express-lite.layout.elementPickerTab"
 
 type LayoutElementPickerTab = "railway" | "decorations";
 type RightPanelMode = "property" | "loco";
-type RuntimeTab = "tasks" | "automation" | "timetable" | "info" | "log";
+type RuntimeTab = "tasks" | "automation" | "timetable" | "settings" | "log";
 
 type SwitchManLockSnapshotItem = {
   address?: unknown;
@@ -484,7 +467,7 @@ function applySwitchManLocksToLayout(
     for (const rawLock of rawLocks) {
       const lock = rawLock as SwitchManLockSnapshotItem | null;
       const address = Number(lock?.address);
-      if (Number.isInteger(address) && address >= 1 && address <= 2048) {
+      if (Number.isInteger(address) && address >= 1 && address <= 32767) {
         lockColors.set(address, switchManLockColor(
           typeof lock?.ownerId === "string" ? lock.ownerId : "", ownOwnerId));
       }
@@ -533,8 +516,10 @@ function readStoredRuntimeTab(): RuntimeTab {
   } catch {
     // Storage may be disabled; the UI still works with its default tab.
   }
+  // Keep the saved Info tab selection when upgrading to Settings.
+  if (value === "info") return "settings";
   return value === "tasks" || value === "automation" ||
-    value === "timetable" || value === "info" || value === "log"
+    value === "timetable" || value === "settings" || value === "log"
     ? value : "automation";
 }
 
@@ -574,6 +559,8 @@ function LitePropertyPanel({
   selectedElement,
   layout,
   setLayout,
+  onBeforeLayoutChange,
+  onLayoutEdited,
   turnoutSelectionMode,
   setTurnoutSelectionMode,
   setBusy,
@@ -583,6 +570,8 @@ function LitePropertyPanel({
   selectedElement: BaseElement | null;
   layout: LayoutView;
   setLayout: React.Dispatch<React.SetStateAction<LayoutView>>;
+  onBeforeLayoutChange: () => void;
+  onLayoutEdited: () => void;
   turnoutSelectionMode: boolean;
   setTurnoutSelectionMode: (on: boolean) => void;
   setBusy: (busy: boolean, text?: string) => void;
@@ -700,7 +689,7 @@ function LitePropertyPanel({
               <NumberInput
                 label={
                   i18next.t(
-                    "ui.occupancySensorAddress"
+                    "ui.sensorAddress"
                   )
                 }
                 min={0}
@@ -736,6 +725,8 @@ function LitePropertyPanel({
                       return;
                     }
 
+                    if (bulkOccupancyTracks.every(element => element.address === numeric)) return;
+                    onBeforeLayoutChange();
                     for (
                       const element of
                       bulkOccupancyTracks
@@ -743,7 +734,7 @@ function LitePropertyPanel({
                       element.address =
                         numeric;
                     }
-
+                    onLayoutEdited();
                     invalidate();
                   }
                 }
@@ -803,7 +794,10 @@ function LitePropertyPanel({
   }
 
   const onChange = (property: IEditableProperty, value: unknown) => {
+    if (property.readonly) return;
+    onBeforeLayoutChange();
     updateProperty(selectedElement, property, value);
+    onLayoutEdited();
     invalidate();
   };
 
@@ -856,7 +850,8 @@ function LitePropertyPanel({
                 turnoutSelectionMode={turnoutSelectionMode}
                 setTurnoutSelectionMode={setTurnoutSelectionMode}
                 onLayoutChange={setLayout}
-                onUpdateSelectedElement={() => invalidate()}
+                onBeforeLayoutChange={onBeforeLayoutChange}
+                onUpdateSelectedElement={() => { onLayoutEdited(); invalidate(); }}
                 setBusy={setBusy}
                 routeSelectOpened={
                   routeSelectOpened
@@ -878,13 +873,15 @@ function LitePropertyPanel({
               <SignalAspectPropertyEditor
                 prop={property}
                 selectedElement={selectedElement}
-                onUpdateSelectedElement={invalidate}
+                onBeforeLayoutChange={onBeforeLayoutChange}
+                onUpdateSelectedElement={() => { onLayoutEdited(); invalidate(); }}
               />
             ) : property.type === "stationSelect" && selectedElement instanceof BlockElement ? (
               <StationSelectPropertyEditor
                 block={selectedElement}
                 layout={layout}
-                onChange={invalidate}
+                onBeforeLayoutChange={onBeforeLayoutChange}
+                onChange={() => { onLayoutEdited(); invalidate(); }}
               />
             ) : property.type === "blockTypeSelect" ? (
               <BlockTypeSelectPropertyEditor
@@ -1163,7 +1160,6 @@ export default function LiteLayoutPage({
   const [error, setError] = useState<string | null>(null);
   const [wsStatus, setWsStatus] = useState<WsConnectionStatus>(() => wsClient.getStatus());
   const [dccExStatus, setDccExStatus] = useState<DccExStatusPayload | null>(null);
-  const [flashInfo, setFlashInfo] = useState<FlashInfo | null>(null);
   const [locoPanelWidth, setLocoPanelWidth] = useState(() => readStoredNumber(LOCO_WIDTH_KEY, 380));
   const [propertyPanelWidth, setPropertyPanelWidth] = useState(() => readStoredNumber(PROPERTY_WIDTH_KEY, 380));
   const [locoPanelCollapsed, setLocoPanelCollapsed] = useState(() => readStoredBoolean(LOCO_COLLAPSED_KEY));
@@ -1172,11 +1168,11 @@ export default function LiteLayoutPage({
   const [runtimeTab, setRuntimeTab] = useState<RuntimeTab>(readStoredRuntimeTab);
   const resizeRef = useRef<{ side: "left" | "right"; startX: number; startWidth: number } | null>(null);
   const temperatureCriticalRef = useRef(false);
-  const [debugOpened, setDebugOpened] = useState(false);
   const [commandCenterConfigOpened, setCommandCenterConfigOpened] = useState(false);
   const [embeddedCommandCenter, setEmbeddedCommandCenter] = useState(false);
   const [timetableOpened, setTimetableOpened] = useState(false);
   const [routesOpened, setRoutesOpened] = useState(false);
+  const [selectMovementRouteOpened, setSelectMovementRouteOpened] = useState(false);
   const [stationRouteEditId, setStationRouteEditId] = useState<string | null>(null);
   const [routesMovementPageId, setRoutesMovementPageId] =
     useState<string | null>(
@@ -1190,6 +1186,54 @@ export default function LiteLayoutPage({
   const [timetableRevision, setTimetableRevision] = useState(0);
 
   const invalidate = useCallback(() => setInvalidateCounter(value => value + 1), []);
+
+  // Editor-only undo/redo. History contains serialized layout states, never DCC commands.
+  const historyLayoutRef = useRef(layout);
+  historyLayoutRef.current = layout;
+  const undoHistoryRef = useRef<string[]>([]);
+  const redoHistoryRef = useRef<string[]>([]);
+  const pendingHistoryRef = useRef<string | null>(null);
+  const commitLayoutHistory = useCallback(() => {
+    const before = pendingHistoryRef.current;
+    pendingHistoryRef.current = null;
+    if (before === null) return;
+    const after = JSON.stringify(historyLayoutRef.current);
+    if (before === after) return; // e.g. click without dragging
+    const stack = undoHistoryRef.current;
+    if (stack[stack.length - 1] !== before) stack.push(before);
+    if (stack.length > 60) stack.shift();
+    redoHistoryRef.current = [];
+  }, []);
+  const beforeLayoutChange = useCallback(() => {
+    commitLayoutHistory();
+    pendingHistoryRef.current = JSON.stringify(historyLayoutRef.current);
+  }, [commitLayoutHistory]);
+  const onCanvasLayoutChange = useCallback<React.Dispatch<React.SetStateAction<LayoutView>>>(
+    update => {
+      commitLayoutHistory();
+      setLayout(update);
+    }, [commitLayoutHistory]
+  );
+  const restoreHistory = useCallback((direction: "undo" | "redo") => {
+    commitLayoutHistory();
+    const source = direction === "undo" ? undoHistoryRef.current : redoHistoryRef.current;
+    const destination = direction === "undo" ? redoHistoryRef.current : undoHistoryRef.current;
+    const current = JSON.stringify(historyLayoutRef.current);
+    let previous: string | undefined;
+    do { previous = source.pop(); } while (previous === current);
+    if (previous === undefined) return;
+    destination.push(current);
+    if (destination.length > 60) destination.shift();
+    const restored = LayoutView.fromJSON(JSON.parse(previous));
+    historyLayoutRef.current = restored;
+    setLayout(restored);
+    setSelectedElement(null);
+    setSelectionRevision(value => value + 1);
+    setTurnoutSelectionMode(false);
+    invalidate();
+  }, [commitLayoutHistory, invalidate]);
+  const undoLayout = useCallback(() => restoreHistory("undo"), [restoreHistory]);
+  const redoLayout = useCallback(() => restoreHistory("redo"), [restoreHistory]);
 
   const handleSelectedElementChange =
     useCallback(
@@ -1487,6 +1531,11 @@ export default function LiteLayoutPage({
       );
 
       nextLayout.checkRoutes();
+      // A freshly loaded layout starts a new editing session.
+      pendingHistoryRef.current = null;
+      undoHistoryRef.current = [];
+      redoHistoryRef.current = [];
+      historyLayoutRef.current = nextLayout;
       setLayout(nextLayout);
       setAutomationScripts(
         storedAutomations.length > 0
@@ -1557,16 +1606,6 @@ export default function LiteLayoutPage({
       temperatureCriticalRef.current = false;
     }
   }, [dccExStatus?.chipTemperatureC]);
-
-  useEffect(() => {
-    void fetch("/fsinfo", { cache: "no-store" })
-      .then(response => {
-        if (!response.ok) throw new Error(i18next.t("ui.flashInformationIsUnavailable"));
-        return response.json() as Promise<FlashInfo>;
-      })
-      .then(setFlashInfo)
-      .catch(() => setFlashInfo(null));
-  }, []);
 
   useEffect(() => wsClient.on("error", data => {
     if (data.message === "track_power_off") {
@@ -1673,18 +1712,39 @@ export default function LiteLayoutPage({
 
   useEffect(() => wsClient.on("turnoutChanged", data => {
     for (const element of layout.getAllElements()) {
-      if (isTurnoutElement(element) && element.outputMode === "accessory" && element.turnoutAddress === data.address) {
+      if (isTurnoutElement(element) && element.outputMode === (data.outputMode ?? "accessory") && element.turnoutAddress === data.address) {
         element.turnoutClosed = data.closed;
       } else if (
         (element instanceof TrackTurnoutDoubleElement ||
           element instanceof TrackTurnoutThreeWayElement) &&
-        element.outputMode === "accessory"
+        element.outputMode === (data.outputMode ?? "accessory")
       ) {
         if (element.turnout1Address === data.address) element.turnout1Closed = data.closed;
         if (element.turnout2Address === data.address) element.turnout2Closed = data.closed;
       }
     }
     layout.checkRoutes();
+    invalidate();
+  }), [layout, invalidate]);
+
+  // Previous-session turnout positions are canvas hints, not physical feedback.
+  useEffect(() => wsClient.on("turnoutDisplayRestored", data => {
+    for (const element of layout.getAllElements()) {
+      if (isTurnoutElement(element) &&
+          element.outputMode === data.outputMode &&
+          element.turnoutAddress === data.address) {
+        element.turnoutClosed = data.closed;
+      } else if (
+        (element instanceof TrackTurnoutDoubleElement ||
+          element instanceof TrackTurnoutThreeWayElement) &&
+        element.outputMode === data.outputMode
+      ) {
+        if (element.turnout1Address === data.address)
+          element.turnout1Closed = data.closed;
+        if (element.turnout2Address === data.address)
+          element.turnout2Closed = data.closed;
+      }
+    }
     invalidate();
   }), [layout, invalidate]);
 
@@ -1724,6 +1784,18 @@ export default function LiteLayoutPage({
       }
     }
 
+    invalidate();
+  }), [layout, invalidate]);
+
+  useEffect(() => wsClient.on("vpinChanged", data => {
+    for (const element of layout.getAllElements()) {
+      if (
+        element instanceof TrackSignalElement &&
+        element.signalOutput.protocol === "vpin"
+      ) {
+        element.setValue(data.vpin, data.active, "vpin");
+      }
+    }
     invalidate();
   }), [layout, invalidate]);
 
@@ -1968,14 +2040,10 @@ export default function LiteLayoutPage({
     setTool,
     setEditMode,
     blockSelectionActive,
+    editMode,
+    undoLayout,
+    redoLayout,
   });
-
-  const removeSelected = () => {
-    if (!selectedElement) return;
-    layout.removeElement(selectedElement);
-    setSelectedElement(null);
-    invalidate();
-  };
 
   const beginResize = (side: "left" | "right", event: React.PointerEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -2051,7 +2119,7 @@ export default function LiteLayoutPage({
                 <ActionIcon variant={tool.mode === "draw" ? "filled" : "light"} onClick={() => setPickerOpened(true)} title={i18next.t("ui.addLayoutElement")}>
                   <IconPlus size={18} />
                 </ActionIcon>
-                <ActionIcon variant="light" color="red" disabled={!selectedElement} onClick={removeSelected} title={i18next.t("ui.deleteSelected")}>
+                <ActionIcon variant={tool.mode==="delete"?"filled":"light"} color="red" onClick={()=>{setTool({mode:"delete",elementType:"general"});setSelectedElement(null);}} title="Delete mode: click elements to delete, ESC to exit">
                   <IconTrash size={18} />
                 </ActionIcon>
               </>
@@ -2131,7 +2199,7 @@ export default function LiteLayoutPage({
               </span>
             </Button>
             <Button size="xs" variant="light" color="teal" leftSection={<IconShieldCheck size={16} />} onClick={() => setIntegrityCheckOpened(true)} title={i18next.t("ui.checkAllProjectReferences")}> {i18next.t("ui.check")} </Button>
-            <Button variant="light" leftSection={<IconBug size={16} />} onClick={() => setDebugOpened(true)}>
+            <Button component="a" href="#debug" target="_blank" rel="noopener noreferrer" variant="light" leftSection={<IconBug size={16} />}>
               Debug
             </Button>
             <Button
@@ -2179,7 +2247,8 @@ export default function LiteLayoutPage({
             tool={tool}
             onToolChange={setTool}
             layout={layout}
-            onLayoutChange={setLayout}
+            onLayoutChange={onCanvasLayoutChange}
+            onBeforeLayoutChange={beforeLayoutChange}
             selectedElement={selectedElement}
             onSelectedElementChange={handleSelectedElementChange}
             invalidateCounter={invalidateCounter}
@@ -2227,7 +2296,9 @@ export default function LiteLayoutPage({
                   <LitePropertyPanel
                     selectedElement={selectedElement}
                     layout={layout}
-                    setLayout={setLayout}
+                    setLayout={onCanvasLayoutChange}
+                    onBeforeLayoutChange={beforeLayoutChange}
+                    onLayoutEdited={commitLayoutHistory}
                     turnoutSelectionMode={turnoutSelectionMode}
                     setTurnoutSelectionMode={setTurnoutSelectionMode}
                     setBusy={setBusy}
@@ -2244,7 +2315,7 @@ export default function LiteLayoutPage({
                     const nextTab: RuntimeTab =
                       value === "timetable" ||
                       value === "tasks" ||
-                      value === "info" ||
+                      value === "settings" ||
                       value === "log"
                         ? value
                         : "automation";
@@ -2259,16 +2330,13 @@ export default function LiteLayoutPage({
                       <Tabs.Tab value="tasks" aria-label="TaskMan"><IconClipboardList size={20} aria-hidden="true" /></Tabs.Tab>
                     </Tooltip>
                     <Tooltip label={i18next.t("ui.automation2")} withArrow>
-                      <Tabs.Tab value="automation" aria-label={i18next.t("ui.automation2")}><IconRobot size={20} aria-hidden="true" /></Tabs.Tab>
+                      <Tabs.Tab value="automation" aria-label={i18next.t("ui.automation2")}><IconRoute size={20} aria-hidden="true" /></Tabs.Tab>
                     </Tooltip>
                     <Tooltip label={i18next.t("ui.timetable")} withArrow>
                       <Tabs.Tab value="timetable" aria-label={i18next.t("ui.timetable")}><IconCalendarTime size={20} aria-hidden="true" /></Tabs.Tab>
                     </Tooltip>
-                    <Tooltip label={i18next.t("ui.info")} withArrow>
-                      <Tabs.Tab value="info" aria-label={i18next.t("ui.info")}><IconInfoCircle size={20} aria-hidden="true" /></Tabs.Tab>
-                    </Tooltip>
-                    <Tooltip label={i18next.t("ui.log")} withArrow>
-                      <Tabs.Tab value="log" aria-label={i18next.t("ui.log")}><IconListDetails size={20} aria-hidden="true" /></Tabs.Tab>
+                    <Tooltip label={i18next.t("ui.settings")} withArrow>
+                      <Tabs.Tab value="settings" aria-label={i18next.t("ui.settings")}><IconSettings size={20} aria-hidden="true" /></Tabs.Tab>
                     </Tooltip>
                   </Tabs.List>
 
@@ -2321,14 +2389,13 @@ export default function LiteLayoutPage({
                           stationRoutes={layout.stationRoutes}
                           layout={layout}
                           stationNames={layout.stations}
+                          onPersistRouteTopology={persistRouteTopology}
                           onOpenStationRoutes={routeId => {
                             setStationRouteEditId(routeId);
-                            setRoutesMovementPageId(null);
-                            setRoutesOpened(true);
                           }}
                           onSelectMovementRoute={pageId => {
                             setRoutesMovementPageId(pageId);
-                            setRoutesOpened(true);
+                            setSelectMovementRouteOpened(true);
                           }}
                         />
                       </div>
@@ -2344,23 +2411,22 @@ export default function LiteLayoutPage({
                     />
                   </Tabs.Panel>
 
-                  <Tabs.Panel value="info" className="lite-info-tab-panel">
+                  <Tabs.Panel value="settings" className="lite-info-tab-panel">
                     <ScrollArea h="100%" type="auto" scrollbarSize={9} className="lite-info-scroll">
                       <Stack gap="sm">
                         <SensorSettingsCard />
                         <SystemInfoPanel
                           status={dccExStatus}
                           wsStatus={wsStatus}
-                          flashInfo={flashInfo}
+                          flashInfo={null}
                           version={version}
+                          showHubInfo={false}
                         />
                       </Stack>
                     </ScrollArea>
                   </Tabs.Panel>
 
-                  <Tabs.Panel value="log" className="lite-info-tab-panel">
-                    <LayoutRuntimeLogPanel />
-                  </Tabs.Panel>
+
                 </Tabs>
               )}
             </Card>
@@ -2689,25 +2755,37 @@ export default function LiteLayoutPage({
         locos={locos}
       />
 
-      <DebugDialog
-        opened={debugOpened}
-        onClose={() => setDebugOpened(false)}
-      />
-
       <RoutesDialog
         opened={routesOpened}
-        onClose={() => {
-          setRoutesOpened(false);
-          setRoutesMovementPageId(null);
-          setStationRouteEditId(null);
-        }}
+        onClose={() => setRoutesOpened(false)}
+        mode="network"
         layout={layout}
         movements={movementDocument}
-        editingStationRouteId={stationRouteEditId}
-        editingMovementId={routesMovementPageId}
+        editingMovementId={null}
         onMovementsChange={setMovementDocument}
         onPersistRouteTopology={persistRouteTopology}
         onGenerated={invalidate}
+      />
+
+      <SelectMovementRouteDialog
+        opened={selectMovementRouteOpened}
+        onClose={() => {
+          setSelectMovementRouteOpened(false);
+          setRoutesMovementPageId(null);
+        }}
+        layout={layout}
+        movements={movementDocument}
+        editingMovementId={routesMovementPageId}
+        onMovementsChange={setMovementDocument}
+        onPersistRouteTopology={persistRouteTopology}
+      />
+
+      <StationRouteEditorDialog
+        layout={layout}
+        editingRouteId={stationRouteEditId}
+        onClose={() => setStationRouteEditId(null)}
+        onSave={persistRouteTopology}
+        onChanged={invalidate}
       />
 
       <AutomationFlowDialog

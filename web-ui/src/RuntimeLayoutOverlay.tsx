@@ -17,6 +17,7 @@ import { TrackSignalElement } from "./models/editor/elements/TrackSignalElement"
 import { BlockElement } from "./models/editor/elements/BlockElement";
 import { ButtonElement } from "./models/editor/elements/ButtonElement";
 import TrackTurnoutDoubleElement from "./models/editor/elements/TrackTurnoutDoubleElement";
+import { TrackTurnoutThreeWayElement } from "./models/editor/elements/TrackTurnoutThreeWayElement";
 import { getCanvasImage } from "@/models/editor/rendering/ImageCache";
 import type { EditorTool } from "@/models/editor/types/EditorTypes";
 import { wsApi } from "@/services/wsApi";
@@ -78,9 +79,9 @@ export default function RuntimeLayoutOverlay({ locos, open }: RuntimeLayoutOverl
 
   useEffect(() => wsClient.on("turnoutChanged", data => {
     for (const element of layout.getAllElements()) {
-      if (isTurnoutElement(element) && element.outputMode === "accessory" && element.turnoutAddress === data.address) {
+      if (isTurnoutElement(element) && element.outputMode === (data.outputMode ?? "accessory") && element.turnoutAddress === data.address) {
         element.turnoutClosed = data.closed;
-      } else if (element instanceof TrackTurnoutDoubleElement && element.outputMode === "accessory") {
+      } else if ((element instanceof TrackTurnoutDoubleElement || element instanceof TrackTurnoutThreeWayElement) && element.outputMode === (data.outputMode ?? "accessory")) {
         if (element.turnout1Address === data.address) element.turnout1Closed = data.closed;
         if (element.turnout2Address === data.address) element.turnout2Closed = data.closed;
       }
@@ -151,22 +152,14 @@ export default function RuntimeLayoutOverlay({ locos, open }: RuntimeLayoutOverl
 
     invalidate();
   }), [layout, invalidate]);
-  // useEffect(() => wsClient.on("vpinChanged", data => {
-  //   for (const element of layout.getAllElements()) {
-  //     if (isTurnoutElement(element) && element.outputMode === "vpin" && element.turnoutAddress === data.vpin) {
-  //       element.turnoutClosed = data.active;
-  //     } else if (element instanceof TrackTurnoutDoubleElement && element.outputMode === "vpin") {
-  //       if (element.turnout1Address === data.vpin) element.turnout1Closed = data.active;
-  //       if (element.turnout2Address === data.vpin) element.turnout2Closed = data.active;
-  //     } else if (element instanceof TrackSignalElement && element.outputMode === "vpin" && element.address <= data.vpin && element.lastAddress >= data.vpin) {
-  //       element.setValue(data.vpin, data.active);
-  //     } else if (element instanceof ButtonElement && element.outputMode === "vpin" && element.address === data.vpin) {
-  //       element.on = data.active === element.activeValue;
-  //     }
-  //   }
-  //   layout.checkRoutes();
-  //   invalidate();
-  // }), [layout, invalidate]);
+  useEffect(() => wsClient.on("vpinChanged", data => {
+    for (const element of layout.getAllElements()) {
+      if (element instanceof TrackSignalElement && element.signalOutput.protocol === "vpin") {
+        element.setValue(data.vpin, data.active, "vpin");
+      }
+    }
+    invalidate();
+  }), [layout, invalidate]);
 
   useEffect(() => wsClient.on("signalAspectChanged", data => {
     for (const element of layout.getAllElements()) {

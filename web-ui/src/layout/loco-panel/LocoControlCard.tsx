@@ -1,7 +1,10 @@
 import { Badge, Button, Card, Group, Stack, Text } from "@mantine/core";
+import { IconX } from "@tabler/icons-react";
 import type { TrainDriverStatePayload } from "@domain/wsTypes";
 import { wsClient } from "../../services/wsClient";
 import { getMovementTaskStates, subscribeMovementTaskStates } from "../../services/movementEngine";
+import { getSequentialMovementStates, subscribeSequentialMovementStates } from "../../services/sequentialMovementStates";
+import { resolveLocoTaskStatus, formatLocoTaskStatus, movementBlockLabel } from "../../services/locoTaskStatus";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type {
@@ -69,7 +72,9 @@ export default function LocoControlCard({
   const [targetDialogOpened, setTargetDialogOpened] = useState(false);
   const [drivers, setDrivers] = useState<TrainDriverStatePayload[]>([]);
   const [movementTasks, setMovementTasks] = useState(getMovementTaskStates);
+  const [sequences, setSequences] = useState(getSequentialMovementStates);
   useEffect(() => subscribeMovementTaskStates(() => setMovementTasks(getMovementTaskStates())), []);
+  useEffect(() => subscribeSequentialMovementStates(() => setSequences(getSequentialMovementStates())), []);
   useEffect(() => {
     const messages = wsClient.subscribeMessages(message => {
       if (message.type === "trainDriverStateChanged") {
@@ -94,8 +99,9 @@ export default function LocoControlCard({
   }, []);
   const driver = drivers.find(item => item.locoAddress === loco.address &&
     ["created", "running", "waiting", "paused", "stopping"].includes(item.status));
-  const movement = movementTasks.find(item => item.state.locoAddress === loco.address &&
-    ["running", "stopping"].includes(item.state.status));
+  const taskStatus = resolveLocoTaskStatus(loco.address, movementTasks, sequences, drivers,
+    id => movementBlockLabel(movementTasks, loco.address, id));
+  const movement = taskStatus?.movement;
   const driverAction = (action: "stop" | "resume" | "abort") => {
     if (!driver) return;
     wsClient.send({ type: "trainDriverCommand", data: {
@@ -469,16 +475,16 @@ export default function LocoControlCard({
           onStop={onStop}
         />
 
-        {(driver || movement) && (
+        {taskStatus && (
           <Stack gap={2} w="100%">
             <Group justify="space-between" wrap="nowrap">
-              <Text size="xs" fw={600} truncate>{driver?.name || movement?.state.movementName || "Movement"}</Text>
-              <Badge size="xs" color={driver?.status === "paused" ? "yellow" : "blue"}>
-                {driver?.status || movement?.state.status}
+              <Text size="xs" fw={600} truncate>{taskStatus.sequence?.name || driver?.name || movement?.state.movementName || "Movement"}</Text>
+              <Badge size="xs" color={taskStatus.sequence?.status === "waiting" || driver?.status === "paused" ? "yellow" : "blue"}>
+                {taskStatus.sequence?.status || driver?.status || movement?.state.status}
               </Badge>
             </Group>
-            <Text size="xs" c="dimmed" lineClamp={1}>
-              {driver?.info || movement?.state.info || "Movement in progress"}
+            <Text size="xs" c="dimmed" lineClamp={2}>
+              {formatLocoTaskStatus(taskStatus)}
             </Text>
           </Stack>
         )}
@@ -487,12 +493,12 @@ export default function LocoControlCard({
             driver.status === "paused" ? (
               <>
                 <Button h={40} style={{ flex: 1 }} color="green" variant="light" disabled={controlsDisabled} onClick={() => driverAction("resume")}>Resume</Button>
-                <Button h={40} style={{ flex: 1 }} color="red" variant="light" onClick={() => driverAction("abort")}>Abort</Button>
+                <Button h={40} style={{ flex: 1 }} color="red" variant="light" leftSection={<IconX size={17} />} onClick={() => driverAction("abort")}>Abort</Button>
               </>
             ) : (
               <>
                 <Button h={40} style={{ flex: 1 }} color="yellow" variant="light" disabled={controlsDisabled || driver.status === "stopping"} onClick={() => driverAction("stop")}>Stop</Button>
-                <Button h={40} style={{ flex: 1 }} color="red" variant="light" onClick={() => driverAction("abort")}>Abort</Button>
+                <Button h={40} style={{ flex: 1 }} color="red" variant="light" leftSection={<IconX size={17} />} onClick={() => driverAction("abort")}>Abort</Button>
               </>
             )
           )}

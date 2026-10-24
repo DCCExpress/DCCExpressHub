@@ -87,7 +87,9 @@ function commandPreview(
     .slice(0, config.outputCount)
     .map(
       (direction, index) =>
-        `<a ${config.address + index} ${direction === "G" ? 1 : 0}>`
+        config.protocol === "vpin"
+          ? `<z ${direction === "G" ? config.address + index : -(config.address + index)}>`
+          : `<a ${config.address + index} ${direction === "G" ? 1 : 0}>`
     )
     .join("  ");
 }
@@ -232,6 +234,7 @@ export default function SignalOutputDialog({
     setDraft(current => ({
       ...current,
       protocol: raw as SignalOutputProtocol,
+      address: Math.min(current.address, raw === "vpin" ? 32768 - current.outputCount : raw === "dccext" ? 2048 : 2049 - current.outputCount),
     }));
   };
 
@@ -239,7 +242,8 @@ export default function SignalOutputDialog({
     const numeric = typeof raw === "number" ? raw : Number(raw);
     setDraft(current => ({
       ...current,
-      address: clamp(Number.isFinite(numeric) ? numeric : 1, 1, 2048),
+      address: clamp(Number.isFinite(numeric) ? numeric : 1, 1,
+        current.protocol === "vpin" ? 32768 - current.outputCount : current.protocol === "dccext" ? 2048 : 2049 - current.outputCount),
     }));
   };
 
@@ -276,6 +280,7 @@ export default function SignalOutputDialog({
     setDraft(current => ({
       ...current,
       outputCount,
+      address: Math.min(current.address, current.protocol === "vpin" ? 32768 - outputCount : 2049 - outputCount),
       states: current.states.map(state => ({
         ...state,
         dccOutputs: resizeDccOutputs(state.dccOutputs, outputCount),
@@ -348,9 +353,9 @@ export default function SignalOutputDialog({
 
               <Badge
                 variant="light"
-                color={draft.protocol === "dccext" ? "violet" : "blue"}
+                color={draft.protocol === "dccext" ? "violet" : draft.protocol === "vpin" ? "teal" : "blue"}
               >
-                {draft.protocol === "dccext" ? "DCC Extended" : "DCC"}
+                {draft.protocol === "dccext" ? "DCC Extended" : draft.protocol === "vpin" ? "DCC-EX OUTPUT" : "DCC"}
               </Badge>
             </Group>
 
@@ -362,15 +367,16 @@ export default function SignalOutputDialog({
               data={[
                 { value: "dcc", label: "DCC" },
                 { value: "dccext", label: "DCC Extended" },
+                { value: "vpin", label: "DCC-EX OUTPUT (Vpin)" },
               ]}
             />
 
             <Group grow align="flex-start">
               <NumberInput
-                label={draft.protocol === "dccext" ? i18next.t("ui.dccAddress") : i18next.t("ui.startDccAddress")}
+                label={draft.protocol === "vpin" ? "Start Vpin" : draft.protocol === "dccext" ? i18next.t("ui.dccAddress") : i18next.t("ui.startDccAddress")}
                 value={draft.address}
                 min={1}
-                max={2048}
+                max={draft.protocol === "vpin" ? 32768 - draft.outputCount : draft.protocol === "dccext" ? 2048 : 2049 - draft.outputCount}
                 allowDecimal={false}
                 allowNegative={false}
                 onChange={changeAddress}
@@ -401,10 +407,10 @@ export default function SignalOutputDialog({
                 onChange={changeLampCount}
               />
 
-              {draft.protocol === "dcc" && (
+              {draft.protocol !== "dccext" && (
                 <NumberInput
-                  label={i18next.t("ui.dccOutputAddresses")}
-                  description={i18next.t("ui.consecutiveAccessoryAddresses")}
+                  label={draft.protocol === "vpin" ? "DCC-EX Vpin outputs" : i18next.t("ui.dccOutputAddresses")}
+                  description={draft.protocol === "vpin" ? "Consecutive Vpins (HIGH / LOW)" : i18next.t("ui.consecutiveAccessoryAddresses")}
                   value={draft.outputCount}
                   min={1}
                   max={16}
@@ -443,13 +449,13 @@ export default function SignalOutputDialog({
               1050,
               430 +
                 draft.lampCount * 75 +
-                (draft.protocol === "dcc" ? draft.outputCount * 90 : 120)
+                (draft.protocol !== "dccext" ? draft.outputCount * 90 : 120)
             )}
             miw={Math.max(
               1050,
               430 +
                 draft.lampCount * 75 +
-                (draft.protocol === "dcc" ? draft.outputCount * 90 : 120)
+                (draft.protocol !== "dccext" ? draft.outputCount * 90 : 120)
             )}
           >
             <Table.Thead>
@@ -557,7 +563,9 @@ export default function SignalOutputDialog({
                         <Table.Td key={`${state.id}-out-${outputIndex}`} miw={85}>
                           <Select
                             value={direction}
-                            data={DCC_DIRECTION_OPTIONS}
+                            data={draft.protocol === "vpin"
+                              ? [{ value: "R", label: "LOW" }, { value: "G", label: "HIGH" }]
+                              : DCC_DIRECTION_OPTIONS}
                             allowDeselect={false}
                             onChange={raw =>
                               updateState(state.id, current => {

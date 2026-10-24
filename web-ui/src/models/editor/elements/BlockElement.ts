@@ -203,6 +203,8 @@ export class BlockElement extends TrackElement {
   locoAddress: number = 0;
   override length: number = 1;
   sensorAddress: number = 0;
+  /** Same address reports occupancy and RailCom locomotive identities. */
+  railCom: boolean = false;
   blockType: BlockType = BLOCK_TYPES.NORMAL;
   stationId: string | null = null;
   eventConfig:
@@ -705,6 +707,7 @@ export class BlockElement extends TrackElement {
     copy.locoAddress = this.locoAddress;
     copy.length = this.length;
     copy.sensorAddress = this.sensorAddress;
+    copy.railCom = this.railCom;
     copy.blockType = this.blockType;
     copy.stationId = this.stationId;
     copy.eventConfig =
@@ -725,6 +728,7 @@ export class BlockElement extends TrackElement {
     element.address = data.address;
     element.length = data.length ?? 100;
     element.sensorAddress = data.sensorAddress ?? 0;
+    element.railCom = data.railCom === true;
     /**
      * Futáskor majd runtime kezeli,
      * ezért induláskor nem töltjük vissza.
@@ -749,6 +753,7 @@ export class BlockElement extends TrackElement {
       // Occupancy belongs to /runtime-state.json, never to the saved layout.
       locoAddress: 0,
       sensorAddress: this.sensorAddress,
+      railCom: this.railCom,
       blockType:
         this.blockType as BlockType,
       stationId: this.stationId,
@@ -780,11 +785,17 @@ export class BlockElement extends TrackElement {
         min: 1,
       },
       {
-        label: i18next.t("ui.occupancySensorAddress"),
+        label: i18next.t("ui.sensorAddress"),
         key: "sensorAddress",
         type: "number",
         readonly: false,
         min: 0,
+      },
+      {
+        label: "RailCom",
+        key: "railCom",
+        type: "checkbox",
+        readonly: false,
       },
     ];
   }

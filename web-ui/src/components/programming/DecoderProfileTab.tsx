@@ -15,15 +15,26 @@ type Result = { value?: number; error?: string };
 type ExportRow = { cv: number; value: number; name: string; description: string };
 const MAX_CV = 1024;
 const CURVE_CVS = Array.from({ length: 28 }, (_, i) => 67 + i);
+// Keep the default scan bounded: expanding the CV help database must not silently
+// add dozens of additional slow service-track reads on the YD7010.
+const COMMON_SCAN_CVS = [...new Set([1,2,3,4,5,6,7,8,15,16,17,18,19,21,22,28,29,31,32,65,66,95,105,106,...CURVE_CVS])].sort((a,b) => a-b);
 const numberFormat = (value: number) => ({
   decimal: String(value),
   hex: "0x" + value.toString(16).toUpperCase().padStart(2, "0"),
   binary: value.toString(2).padStart(8, "0"),
 });
+function cvInfo(cv: number, cvs: Record<string, CvInfo>): CvInfo | undefined {
+  const exact = cvs[String(cv)];
+  if (exact) return exact;
+  for (const [key, entry] of Object.entries(cvs)) {
+    const match = /^(\d+)-(\d+)$/.exec(key);
+    if (match && cv >= Number(match[1]) && cv <= Number(match[2])) return entry;
+  }
+  return undefined;
+}
 function meaning(cv: number, info?: CvInfo): string {
-  if (info?.name) return info.name;
   if (cv >= 67 && cv <= 94) return `Extended speed table point ${cv - 66}`;
-  return "Unknown / manufacturer-specific";
+  return info?.name ?? "No verified generic definition — check decoder model";
 }
 
 function CvCurve({ values }: { values: Record<number, Result> }) {
@@ -99,17 +110,13 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
         return response.json() as Promise<Help>;
       }).then(setHelp).catch(() => setError("CV descriptions could not be loaded."));
   }, []);
-  const knownCvs = useMemo(() =>
-    [...new Set([...Object.keys(help.cvs).map(Number), ...CURVE_CVS])]
-      .filter(cv => Number.isInteger(cv) && cv >= 1 && cv <= MAX_CV)
-      .sort((a,b) => a-b), [help]);
   const readAddress = async (): Promise<number | null> => {
     // Never display a previous address while a fresh read is pending.
     setAddressRead(null);
     setLocoAddress("");
     setAddressError("");
     try {
-      // DCC-EX implements a dedicated <R> service-track address read.
+      // The backend provides an address read for supported programming stations.
       // This is authoritative; CV1 may contain an unused short address.
       const response = await wsApi.programmingRequest(
         `cv-profile-address-${Date.now()}`, "readAddress", {}, 30000
@@ -117,7 +124,7 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
       const address = response.value;
       if (!response.ok || typeof address !== "number" ||
           !Number.isInteger(address) || address < 1 || address > 10239)
-        throw new Error(response.message ?? "No valid DCC-EX address reply");
+        throw new Error(response.message ?? "No valid decoder address reply");
       setLocoAddress(address);
       setAddressRead(address);
       return address;
@@ -193,9 +200,9 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
           consecutiveNoDecoder += 1;
         else
           consecutiveNoDecoder = 0;
-        if (consecutiveNoDecoder >= 2) {
+        if (consecutiveNoDecoder >= 5) {
           setError(
-            "Profile read stopped: the command station reported NO DECODER twice in a row. " +
+            "Profile read stopped: the command station reported NO DECODER on five consecutive CVs (including retries). " +
             "Check the PROG TRACK contact and try reading a single CV before starting a full scan."
           );
           break;
@@ -204,7 +211,7 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
       // JMRI-style per-CV recovery: after completing the first sweep,
       // revisit only intermittent decoder-ACK failures. A successful retry
       // replaces NOK; a failed retry remains NOK with the original cause.
-      if (!cancel.current && consecutiveNoDecoder < 2 && failedAckCvs.length) {
+      if (!cancel.current && consecutiveNoDecoder < 5 && failedAckCvs.length) {
         await new Promise<void>(resolve => setTimeout(resolve, 1500));
         for (const cv of failedAckCvs) {
           if (cancel.current) break;
@@ -266,7 +273,7 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
   const saveToHub = async () => {
     const address = Number(locoAddress);
     if (addressRead === null || address !== addressRead) {
-      setError("Read the actual decoder address with DCC-EX before saving. Manual/unverified addresses are not allowed."); return;
+      setError("Read the actual decoder address before saving. Manual/unverified addresses are not allowed."); return;
     }
     if (!Number.isInteger(address) || address < 1 || address > 10239) {
       setError("Enter a valid locomotive address."); return;
@@ -286,14 +293,14 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
   };
   const exportProfile = () => {
     if (addressRead === null || Number(locoAddress) !== addressRead) {
-      setError("Read the DCC-EX decoder address before exporting."); return;
+      setError("Read the decoder address before exporting."); return;
     }
     if (!successful.length) { setError("Nothing has been read successfully."); return; }
     const safeName = fileName.trim().replace(/[\\/:*?"<>|]/g, "_");
     if (!safeName) { setError("Enter an export filename."); return; }
     const data: ExportRow[] = successful.map(({cv,result}) => ({
-      cv, value: result.value!, name: meaning(cv, help.cvs[String(cv)]),
-      description: help.cvs[String(cv)]?.description ?? "",
+      cv, value: result.value!, name: meaning(cv, cvInfo(cv, help.cvs)),
+      description: cvInfo(cv, help.cvs)?.description ?? "",
     }));
     const json = JSON.stringify({
       schemaVersion: 1, type: "dcc-decoder-cv-profile", exportedAt: new Date().toISOString(),
@@ -317,13 +324,13 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
     <Alert color="orange">
       Service-mode read only: use an isolated PROG track with one decoder.
       A complete CV1–1024 scan can take a long time, and unsupported CVs may fail.
-      Reading does not modify decoder settings.
+      Reading does not modify decoder settings. Names in this table follow the approved NMRA multifunction-decoder specification; manufacturer-specific meanings require a matching decoder definition (as in JMRI DecoderPro).
     </Alert>
     <Card withBorder>
       <Stack gap="sm">
         <Title order={4}>Decoder Profile · CV scan</Title>
         <Group>
-          <Button disabled={busy || disconnected} onClick={() => void read(knownCvs)}>Read known CVs</Button>
+          <Button disabled={busy || disconnected} onClick={() => void read(COMMON_SCAN_CVS)}>Read common CVs</Button>
           <Button disabled={busy || disconnected} variant="light"
             onClick={() => void read(Array.from({ length: 256 }, (_,i) => i+1))}>CV1–256</Button>
           <Button disabled={busy || disconnected} variant="light"
@@ -381,19 +388,19 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
         <Text size="sm">Decoder manufacturer CV8: {identifier.manufacturerId ?? "not read"} · version CV7: {identifier.decoderVersion ?? "not read"} · user IDs CV105/106: {identifier.userId1 ?? "?"}/{identifier.userId2 ?? "?"}</Text>
         <Group>
           <Button variant="light" disabled={busy || disconnected}
-            onClick={() => void readAddress()}>Read DCC-EX address (&lt;R&gt;)</Button>
+            onClick={() => void readAddress()}>Read decoder address</Button>
           <Badge color={addressRead === null ? "gray" : "green"}>
-            {addressRead === null ? "Address not verified" : `DCC-EX address: ${addressRead}`}
+            {addressRead === null ? "Address not verified" : `Decoder address: ${addressRead}`}
           </Badge>
         </Group>
         {addressError && <Alert color="red">{addressError}</Alert>}
         <Text size="sm">CV-derived address (diagnostic): {decodedAddress ?? "incomplete"}.
           {addressRead !== null && decodedAddress !== null && addressRead !== decodedAddress
-            ? " WARNING: CV-derived address disagrees with the direct DCC-EX address read." : ""}
+            ? " WARNING: CV-derived address disagrees with the command station address read." : ""}
         </Text>
         <Text size="xs" c="dimmed">No universal unique decoder serial number is defined by these CVs. Address and manufacturer/version are clues, not proof that the same physical decoder is present. Read CV1/17/18/29/7/8/105/106 to include available identification.</Text>
         <Group align="end">
-          <NumberInput label="Locomotive DCC address (from DCC-EX)" min={1} max={10239} value={locoAddress} readOnly w={190}/>
+          <NumberInput label="Locomotive DCC address (verified)" min={1} max={10239} value={locoAddress} readOnly w={190}/>
           <Button onClick={() => void saveToHub()} disabled={!successful.length || addressRead === null || Number(locoAddress) !== addressRead}>Save to Hub profiles</Button>
         </Group>
         {savedMessage && <Text size="sm" c="green">{savedMessage}</Text>}
@@ -417,7 +424,7 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
           </Table.Tr></Table.Thead>
           <Table.Tbody>
             {rows.map(({cv,result}) => {
-              const info = help.cvs[String(cv)];
+              const info = cvInfo(cv, help.cvs);
               const value = result.value;
               const format = value !== undefined ? numberFormat(value) : null;
               return <Table.Tr key={cv}>

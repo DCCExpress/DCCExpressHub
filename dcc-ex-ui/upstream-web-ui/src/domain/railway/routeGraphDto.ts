@@ -1,0 +1,48 @@
+import type { LayoutElementId } from "../layout/layoutDto.js";
+import type {
+  SectionBlock,
+  SectionDetector,
+  SectionSignal,
+  TurnoutStateRequirement,
+  RouteTurnoutPassage,
+} from "./graph.js";
+import type { TravelDirection } from "./topology.js";
+
+export type RouteGraphTrackRuntimeDto = {
+  id: LayoutElementId;
+  section: number;
+  travelDirection: TravelDirection;
+  /** Visual-only node label such as S6.1; section remains the physical S6. */
+  partSegment?: string;
+};
+
+export type RouteGraphNodeDto = {
+  name: string;
+  trackName: string;
+  x: number;
+  y: number;
+  isVirtual: boolean;
+  busy: boolean;
+  detectors: SectionDetector[];
+  signals: SectionSignal[];
+  blocks: SectionBlock[];
+  elementIds: LayoutElementId[];
+};
+
+export type RouteGraphEdgeDto = {
+  from: string;
+  to: string;
+  turnoutStates: TurnoutStateRequirement[];
+  turnoutPath: RouteTurnoutPassage[];
+  locoDirection: TravelDirection;
+};
+
+export type RouteGraphDto = {
+  ready: true;
+  nodes: RouteGraphNodeDto[];
+  edges: RouteGraphEdgeDto[];
+  trackRuntime: RouteGraphTrackRuntimeDto[];
+};
+
+export type RouteGraphNotReadyDto = { ready: false };
+export type RouteGraphResponseDto = RouteGraphDto | RouteGraphNotReadyDto;

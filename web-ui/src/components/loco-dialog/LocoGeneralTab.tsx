@@ -6,6 +6,7 @@ import {
   FileButton,
   NumberInput,
   ScrollArea,
+  SimpleGrid,
   Stack,
   Switch,
   Text,
@@ -36,7 +37,8 @@ export default function LocoGeneralTab({
 
   return (
     <ScrollArea h="100%">
-      <Stack gap="md" maw={520}>
+      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xl">
+        <Stack gap="md">
         {loco.image && (
           <img
             src={loco.image}
@@ -80,14 +82,31 @@ export default function LocoGeneralTab({
           onChange={value => onPatch({ address: Number(value) || 0 })}
         />
 
-        <NumberInput
-          label={t("locodialog.loco_max_speed")}
-          value={loco.maxSpeed}
-          min={1}
-          max={1000}
-          onChange={value => onPatch({ maxSpeed: Number(value) || 0 })}
+        <Checkbox
+          label={t("locodialog.loco_direction_invert")}
+          checked={loco.invert}
+          onChange={event => onPatch({ invert: event.currentTarget.checked })}
         />
-
+        </Stack>
+        <Stack gap="md">
+          <Text fw={600}>Speed profile</Text>
+          <Text c="dimmed" size="xs">DCC speed steps.</Text>
+          <NumberInput
+            label="Minimum speed"
+            description="Lowest stable running speed · DCC step"
+            value={loco.minimumSpeed ?? 8}
+            min={1}
+            max={126}
+            onChange={value => onPatch({ minimumSpeed: Math.max(1, Math.min(126, Number(value) || 1)) })}
+          />
+          <NumberInput
+            label="Medium speed"
+            description="Reduced running speed · DCC step"
+            value={loco.mediumSpeed ?? 24}
+            min={1}
+            max={126}
+            onChange={value => onPatch({ mediumSpeed: Math.max(1, Math.min(126, Number(value) || 1)) })}
+          />
         <NumberInput
           label={t("locodialog.loco_cruising_speed")}
           description={t("locodialog.loco_cruising_speed_description")}
@@ -97,12 +116,15 @@ export default function LocoGeneralTab({
           onChange={value => onPatch({ cruisingSpeed: Math.max(1, Math.min(Number(value) || 1, 126, loco.maxSpeed)) })}
         />
 
-        <Checkbox
-          label={t("locodialog.loco_direction_invert")}
-          checked={loco.invert}
-          onChange={event => onPatch({ invert: event.currentTarget.checked })}
+        <NumberInput
+          label={t("locodialog.loco_max_speed")}
+          value={loco.maxSpeed}
+          min={1}
+          max={1000}
+          onChange={value => onPatch({ maxSpeed: Number(value) || 0 })}
         />
-      </Stack>
+        </Stack>
+      </SimpleGrid>
     </ScrollArea>
   );
 }

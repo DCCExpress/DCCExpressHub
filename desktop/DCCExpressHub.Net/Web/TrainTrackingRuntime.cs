@@ -80,6 +80,10 @@ public sealed class TrainTrackingRuntime
         public string? ToBlockName { get; set; }
         public int[] BlockPath { get; set; } = [];
         public RoutePart[] PartPath { get; set; } = [];
+        public string[] Nodes { get; set; } = [];
+        // Occupancy sensors on the traversed turnout chain of each graph edge.
+        // Edge index i connects Nodes[i] to Nodes[i + 1].
+        public int[][] EdgeSensorPaths { get; set; } = [];
         public TurnoutRequirement[] Turnouts { get; set; } = [];
         public string LocoDirection { get; set; } = "unknown";
     }
@@ -88,7 +92,8 @@ public sealed class TrainTrackingRuntime
         TrackingState Tracking,
         RouteEntry Route,
         int[] SensorPath,
-        int SensorIndex);
+        int SensorIndex,
+        bool ReturningToSource);
 
     readonly object _gate = new();
     readonly AppPaths _env;
@@ -102,6 +107,10 @@ public sealed class TrainTrackingRuntime
     readonly Dictionary<int, int> _blockSensorToId = [];
     readonly Dictionary<int, int> _blockIdToSensor = [];
     readonly Dictionary<int, string> _blockNames = [];
+    // Ordinary rail occupancy addresses are independent from turnout addresses.
+    readonly Dictionary<int, int> _railSensorsByElementId = [];
+    readonly Dictionary<string, int[]> _nodeSensors =
+        new(StringComparer.Ordinal);
     readonly Dictionary<int, bool> _sensorStates = [];
     readonly Dictionary<int, TrackingState> _tracking = [];
     readonly Dictionary<int, RouteEntry> _committedRoutes = [];
@@ -422,6 +431,17 @@ public sealed class TrainTrackingRuntime
             }
         }
 
+        var nodes = route.TryGetProperty(
+                "nodes",
+                out var rawNodes) &&
+            rawNodes.ValueKind == JsonValueKind.Array
+                ? rawNodes.EnumerateArray()
+                    .Where(item => item.ValueKind == JsonValueKind.String)
+                    .Select(item => item.GetString() ?? "")
+                    .Where(name => name.Length > 0)
+                    .ToArray()
+                : [];
+
         var turnouts =
             new Dictionary<int, bool>();
 
@@ -429,16 +449,45 @@ public sealed class TrainTrackingRuntime
             route,
             turnouts);
 
+        var edgeSensorPaths = new List<int[]>();
         if (route.TryGetProperty(
                 "edgePath",
                 out var edgePath) &&
             edgePath.ValueKind ==
                 JsonValueKind.Array)
-            foreach (var edge in
-                     edgePath.EnumerateArray())
-                AddTurnoutRequirements(
-                    edge,
-                    turnouts);
+        {
+            foreach (var edge in edgePath.EnumerateArray())
+            {
+                AddTurnoutRequirements(edge, turnouts);
+
+                var sensors = new List<int>();
+                if (edge.ValueKind == JsonValueKind.Object &&
+                    edge.TryGetProperty("turnoutPath", out var turnoutPath) &&
+                    turnoutPath.ValueKind == JsonValueKind.Array)
+                {
+                    // turnoutPath is already in physical traversal order.
+                    // Resolve each turnout's RAIL occupancy "address", never
+                    // its accessory turnoutAddress / turnout1Address.
+                    foreach (var passage in turnoutPath.EnumerateArray())
+                    {
+                        if (passage.ValueKind != JsonValueKind.Object)
+                            continue;
+
+                        var elementId = PositiveInt(passage, "elementId");
+                        if (!elementId.HasValue ||
+                            !_railSensorsByElementId.TryGetValue(
+                                elementId.Value, out var occupancySensor))
+                            continue;
+
+                        // Consecutive connected turnouts with the same
+                        // detector form one virtual occupancy region.
+                        if (sensors.Count == 0 || sensors[^1] != occupancySensor)
+                            sensors.Add(occupancySensor);
+                    }
+                }
+                edgeSensorPaths.Add(sensors.ToArray());
+            }
+        }
 
         return new RouteEntry
         {
@@ -460,6 +509,8 @@ public sealed class TrainTrackingRuntime
                 blocks.ToArray(),
             PartPath =
                 parts.ToArray(),
+            Nodes = nodes,
+            EdgeSensorPaths = edgeSensorPaths.ToArray(),
             Turnouts =
                 turnouts
                     .Select(pair =>
@@ -481,6 +532,7 @@ public sealed class TrainTrackingRuntime
         _blockSensorToId.Clear();
         _blockIdToSensor.Clear();
         _blockNames.Clear();
+        _railSensorsByElementId.Clear();
 
         if (!root.TryGetProperty(
                 "layers",
@@ -504,13 +556,28 @@ public sealed class TrainTrackingRuntime
             foreach (var element in
                      elements.EnumerateArray())
             {
-                if (element.ValueKind !=
-                        JsonValueKind.Object ||
-                    !string.Equals(
-                        StringValue(
-                            element,
-                            "type"),
-                        "trackblock",
+                if (element.ValueKind != JsonValueKind.Object)
+                    continue;
+
+                var type = StringValue(element, "type");
+                // Mirror the Routes Preview rail-element occupancy lookup.
+                // A turnout's accessory address must never become a sensor.
+                if (type is "trackstraight" or "trackbridge" or
+                    "trackdirection" or "trackend" or "trackcorner" or
+                    "trackcurve" or "trackcrossing" or "tracklevelcrossing" or
+                    "trackturnoutleft" or "trackturnoutright" or
+                    "trackturnouttwoway" or "trackturnouttreeway" or
+                    "trackturnoutdouble")
+                {
+                    var elementId = PositiveInt(element, "id");
+                    var railSensor = PositiveInt(element, "address");
+                    if (elementId.HasValue &&
+                        railSensor is >= 1 and <= 65535)
+                        _railSensorsByElementId[elementId.Value] =
+                            railSensor.Value;
+                }
+
+                if (!string.Equals(type, "trackblock",
                         StringComparison.Ordinal))
                     continue;
 
@@ -553,6 +620,49 @@ public sealed class TrainTrackingRuntime
                         sensor.Value;
                 }
             }
+        }
+    }
+
+    // routeTable entries have ordered "nodes" but currently no "partPath".
+    // Resolve their intermediate sensors using the same saved graph nodes and
+    // ordinary rail-element occupancy addresses used by Routes Preview.
+    void BuildNodeSensors(JsonElement topology)
+    {
+        _nodeSensors.Clear();
+        if (!topology.TryGetProperty("graph", out var graph) ||
+            graph.ValueKind != JsonValueKind.Object ||
+            !graph.TryGetProperty("nodes", out var nodes) ||
+            nodes.ValueKind != JsonValueKind.Array)
+            return;
+
+        foreach (var node in nodes.EnumerateArray())
+        {
+            if (node.ValueKind != JsonValueKind.Object)
+                continue;
+
+            var name = StringValue(node, "name");
+            if (name.Length == 0)
+                continue;
+
+            var addresses = new HashSet<int>();
+            if (node.TryGetProperty("detectors", out var detectors) &&
+                detectors.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var detector in detectors.EnumerateArray())
+                {
+                    if (detector.ValueKind != JsonValueKind.Object)
+                        continue;
+                    var address = PositiveInt(detector, "address");
+                    if (address is >= 1 and <= 65535)
+                        addresses.Add(address.Value);
+                }
+            }
+
+            foreach (var id in IntArray(node, "elementIds"))
+                if (_railSensorsByElementId.TryGetValue(id, out var address))
+                    addresses.Add(address);
+
+            _nodeSensors[name] = addresses.OrderBy(value => value).ToArray();
         }
     }
 
@@ -655,6 +765,7 @@ public sealed class TrainTrackingRuntime
         lock (_gate)
         {
             _routes.Clear();
+            _nodeSensors.Clear();
 
             var path =
                 LayoutPath();
@@ -696,6 +807,8 @@ public sealed class TrainTrackingRuntime
                 {
                     topology =
                         rawTopology.Clone();
+
+                    BuildNodeSensors(rawTopology);
 
                     if (rawTopology.TryGetProperty(
                             "routeTable",
@@ -1061,19 +1174,34 @@ public sealed class TrainTrackingRuntime
             values.Add(
                 fromSensor);
 
-        foreach (var part in
-                 route.PartPath)
+        if (route.PartPath.Length > 0)
         {
-            if (part.FromSensor.HasValue)
-                values.Add(
-                    part.FromSensor.Value);
+            // Preserve the ordering of layouts that already carry partPath.
+            foreach (var part in route.PartPath)
+            {
+                if (part.FromSensor.HasValue)
+                    values.Add(part.FromSensor.Value);
+                values.AddRange(part.Detectors);
+                if (part.ToSensor.HasValue)
+                    values.Add(part.ToSensor.Value);
+            }
+        }
+        else
+        {
+            // Interleave graph node sensors with the traversed edge's
+            // turnout-occupancy regions. Nodes alone omit sensors on
+            // directly connected turnouts (e.g. #30/#31 -> #1021).
+            // The saved edgePath/turnoutPath already contains the exact
+            // traversed turnout sequence for each route direction.
+            for (var i = 0; i < route.Nodes.Length; i++)
+            {
+                if (_nodeSensors.TryGetValue(
+                        route.Nodes[i], out var detectors))
+                    values.AddRange(detectors);
 
-            values.AddRange(
-                part.Detectors);
-
-            if (part.ToSensor.HasValue)
-                values.Add(
-                    part.ToSensor.Value);
+                if (i < route.EdgeSensorPaths.Length)
+                    values.AddRange(route.EdgeSensorPaths[i]);
+            }
         }
 
         if (_blockIdToSensor.TryGetValue(
@@ -1095,6 +1223,14 @@ public sealed class TrainTrackingRuntime
     {
         var active =
             sensors.ToHashSet();
+
+        if (route.PartPath.Length == 0)
+            return route.Nodes
+                .Where(name =>
+                    _nodeSensors.TryGetValue(name, out var nodeSensors) &&
+                    nodeSensors.Any(active.Contains))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
 
         return route.PartPath
             .Where(part =>
@@ -1143,11 +1279,17 @@ public sealed class TrainTrackingRuntime
     Candidate? CandidateFromRoute(
         TrackingState tracking,
         RouteEntry route,
-        int sensor)
+        int sensor,
+        bool returningToSource = false)
     {
         var path =
             RouteSensorPath(
                 route);
+
+        // Reversing between blocks traverses the committed path backwards.
+        // Changing direction alone must never change the assigned block.
+        if (returningToSource)
+            path = path.Reverse().ToArray();
 
         var targetIndex =
             Array.IndexOf(
@@ -1183,7 +1325,8 @@ public sealed class TrainTrackingRuntime
             tracking,
             route,
             path,
-            targetIndex);
+            targetIndex,
+            returningToSource);
     }
 
     Candidate[] CandidatesForSensor(
@@ -1202,21 +1345,31 @@ public sealed class TrainTrackingRuntime
         if (_committedRoutes.TryGetValue(
                 tracking.LocoAddress,
                 out var committed) &&
-            committed.FromBlockId ==
-                tracking.CurrentBlockId &&
-            string.Equals(
+            committed.FromBlockId == tracking.CurrentBlockId)
+        {
+            var originalDirection = string.Equals(
                 committed.LocoDirection,
                 direction,
-                StringComparison.OrdinalIgnoreCase))
-        {
-            var candidate =
-                CandidateFromRoute(
+                StringComparison.OrdinalIgnoreCase);
+            var returningToSource =
+                !originalDirection &&
+                (committed.LocoDirection is "forward" or "reverse") &&
+                (direction is "forward" or "reverse");
+
+            // Retain normal forward tracking. Returning requires the current
+            // turnout positions to remain consistent with the path traversed.
+            if (originalDirection ||
+                (returningToSource && RouteMatchesTurnouts(committed)))
+            {
+                var candidate = CandidateFromRoute(
                     tracking,
                     committed,
-                    sensor);
+                    sensor,
+                    returningToSource);
 
-            if (candidate is not null)
-                return [candidate];
+                if (candidate is not null)
+                    return [candidate];
+            }
         }
 
         return DirectRoutesFromBlock(
@@ -1231,6 +1384,116 @@ public sealed class TrainTrackingRuntime
                 candidate is not null)
             .Cast<Candidate>()
             .ToArray();
+    }
+
+    // Diagnostics only: explain a rejected intermediate sensor without
+    // changing the candidate selection or any train-control decisions.
+    string ExplainRejectedSensor(int sensor)
+    {
+        if (_tracking.Count == 0)
+            return "No tracked locomotives.";
+
+        return string.Join("; ", _tracking.Values.Select(tracking =>
+        {
+            var loco = tracking.LocoAddress;
+            if (!tracking.CurrentBlockId.HasValue)
+                return "Loco #" + loco + ": current block unknown";
+
+            var source = tracking.CurrentBlockId.Value;
+            var direction = LocoDirection(loco);
+            var speed = _hubState.Locos.TryGetValue(loco, out var feedback)
+                ? feedback.Speed : 0;
+            var prefix = "Loco #" + loco + " at " + BlockName(source) +
+                " (" + direction + ", speed " + speed +
+                ", last sensor " + (tracking.LastSensor?.ToString() ?? "none") + "): ";
+
+            if (speed <= 0)
+                return prefix + "speed is zero; not considered moving";
+
+            if (_committedRoutes.TryGetValue(loco, out var committed) &&
+                committed.FromBlockId == source &&
+                !string.Equals(committed.LocoDirection, direction,
+                    StringComparison.OrdinalIgnoreCase) &&
+                (committed.LocoDirection is "forward" or "reverse") &&
+                (direction is "forward" or "reverse"))
+            {
+                var backPath = RouteSensorPath(committed).Reverse().ToArray();
+                if (!RouteMatchesTurnouts(committed))
+                    return prefix + "returning on " + BlockName(source) +
+                        " <- " + BlockName(committed.ToBlockId) +
+                        ", but turnout state no longer matches committed route";
+                if (!backPath.Contains(sensor))
+                    return prefix + "sensor #" + sensor +
+                        " not on committed return path [" +
+                        string.Join(" -> ", backPath) + "]";
+                if (CandidateFromRoute(tracking, committed, sensor, true) is null)
+                    return prefix + "return path sensor ordering rejected [" +
+                        string.Join(" -> ", backPath) + "]";
+                return prefix + "return-path candidate exists (check competing locomotives)";
+            }
+
+            var outgoing = _routes.Where(route =>
+                route.FromBlockId == source &&
+                route.BlockPath.Length == 2 &&
+                route.BlockPath[0] == source &&
+                route.BlockPath[1] == route.ToBlockId).ToArray();
+
+            if (outgoing.Length == 0)
+                return prefix + "no direct outgoing route in saved graph";
+
+            var directed = outgoing.Where(route =>
+                string.Equals(route.LocoDirection, direction,
+                    StringComparison.OrdinalIgnoreCase)).ToArray();
+
+            if (directed.Length == 0)
+                return prefix + "no route in " + direction +
+                    " direction; available: " +
+                    string.Join(", ", outgoing.Select(route =>
+                        route.ToBlockName ?? BlockName(route.ToBlockId)));
+
+            var containing = directed.Where(route =>
+                RouteSensorPath(route).Contains(sensor)).ToArray();
+
+            if (containing.Length == 0)
+                return prefix + "sensor #" + sensor +
+                    " is absent from " + directed.Length +
+                    " outgoing route sensor path(s): " +
+                    string.Join(" | ", directed.Select(route =>
+                        (route.ToBlockName ?? BlockName(route.ToBlockId)) +
+                        " [" + string.Join(" -> ", RouteSensorPath(route)) + "]"));
+
+            var details = containing.Select(route =>
+            {
+                var routeName = BlockName(source) + " -> " +
+                    (route.ToBlockName ?? BlockName(route.ToBlockId));
+                var badTurnouts = route.Turnouts.Where(turnout =>
+                    turnout.Address is < 1 or > 65535 ||
+                    !_layout.TryGetTurnoutClosed((ushort)turnout.Address, out var actual) ||
+                    actual != turnout.Closed)
+                    .Select(turnout =>
+                    {
+                        bool actual = false;
+                        var known = turnout.Address is >= 1 and <= 65535 &&
+                            _layout.TryGetTurnoutClosed((ushort)turnout.Address,
+                                out actual);
+                        return "turnout #" + turnout.Address +
+                            " expected " + (turnout.Closed ? "Closed" : "Thrown") +
+                            ", actual " + (known
+                                ? (actual ? "Closed" : "Thrown") : "UNKNOWN");
+                    }).ToArray();
+
+                if (badTurnouts.Length > 0)
+                    return routeName + ": " + string.Join(", ", badTurnouts);
+
+                if (CandidateFromRoute(tracking, route, sensor) is null)
+                    return routeName + ": sensor ordering rejected (last #" +
+                        (tracking.LastSensor?.ToString() ?? "none") + ")";
+
+                return routeName + ": candidate exists (check competing locomotives)";
+            });
+
+            return prefix + string.Join(" | ", details);
+        }));
     }
 
     void HandleSensorOn(
@@ -1313,7 +1576,8 @@ public sealed class TrainTrackingRuntime
                     "warn",
                     "Sensor #" +
                     sensor +
-                    " -> ON: no moving tracked locomotive matches graph + direction + turnout state.");
+                    " -> ON: no moving tracked locomotive matches graph + direction + turnout state. " +
+                    ExplainRejectedSensor(sensor));
 
                 return;
             }
@@ -1348,11 +1612,14 @@ public sealed class TrainTrackingRuntime
             state.UpdatedAt =
                 NowMs();
 
+            var expectedArrivalBlockId = candidate.ReturningToSource
+                ? candidate.Route.FromBlockId
+                : candidate.Route.ToBlockId;
+
             if (_blockSensorToId.TryGetValue(
                     sensor,
                     out var destinationBlockId) &&
-                destinationBlockId ==
-                    candidate.Route.ToBlockId)
+                destinationBlockId == expectedArrivalBlockId)
             {
                 state.CurrentBlockId =
                     destinationBlockId;
@@ -1365,8 +1632,8 @@ public sealed class TrainTrackingRuntime
                 _committedRoutes.Remove(
                     state.LocoAddress);
 
-                if (!_movement.IsLocoManaged(
-                        state.LocoAddress))
+                if (!candidate.ReturningToSource &&
+                    !_movement.IsLocoManaged(state.LocoAddress))
                 {
                     // Do not overwrite a reservation held by another locomotive.
                     var reservedForOtherLoco = _layout.BlocksForPersistence()
@@ -1389,7 +1656,7 @@ public sealed class TrainTrackingRuntime
                     "match",
                     "Tracked loco #" +
                     state.LocoAddress +
-                    " into " +
+                    (candidate.ReturningToSource ? " returned to " : " into ") +
                     state.CurrentBlockName +
                     " via sensor #" +
                     sensor +
@@ -1401,7 +1668,7 @@ public sealed class TrainTrackingRuntime
                     "match",
                     "Tracked loco #" +
                     state.LocoAddress +
-                    " at sensor #" +
+                    (candidate.ReturningToSource ? " returning via sensor #" : " at sensor #") +
                     sensor +
                     ".");
             }
@@ -1563,28 +1830,36 @@ public sealed class TrainTrackingRuntime
             if (_committedRoutes.TryGetValue(
                     state.LocoAddress,
                     out var committed) &&
-                committed.FromBlockId ==
-                    state.CurrentBlockId &&
-                string.Equals(
-                    committed.LocoDirection,
-                    direction,
-                    StringComparison.OrdinalIgnoreCase))
-                route =
-                    committed;
-            else
+                committed.FromBlockId == state.CurrentBlockId)
             {
-                var routes =
-                    DirectRoutesFromBlock(
-                        state.CurrentBlockId.Value,
-                        direction);
+                if (string.Equals(
+                        committed.LocoDirection,
+                        direction,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    route = committed;
+                }
+                else if ((committed.LocoDirection is "forward" or "reverse") &&
+                         (direction is "forward" or "reverse") &&
+                         RouteMatchesTurnouts(committed))
+                {
+                    // On a mid-route reversal, the next block sensor belongs
+                    // to the original departure block, not to a new graph leg.
+                    state.PredictedNextBlockId = committed.FromBlockId;
+                    state.PredictedNextBlockName = BlockName(committed.FromBlockId);
+                    continue;
+                }
+            }
 
-                if (routes.Select(item =>
-                        item.ToBlockId)
-                        .Distinct()
-                        .Count() ==
-                    1)
-                    route =
-                        routes.FirstOrDefault();
+            if (route is null)
+            {
+                var routes = DirectRoutesFromBlock(
+                    state.CurrentBlockId.Value,
+                    direction);
+
+                if (routes.Select(item => item.ToBlockId)
+                    .Distinct().Count() == 1)
+                    route = routes.FirstOrDefault();
             }
 
             if (route is null)

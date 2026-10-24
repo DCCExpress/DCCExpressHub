@@ -338,6 +338,11 @@ export type MovementCommandAction =
   | "snapshot"
   | "start"
   | "startTransient"
+  | "sequenceSnapshot"
+  | "sequenceStart"
+  | "sequenceFinish"
+  | "sequenceStop"
+  | "sequenceAbort"
   | "stop"
   | "abort"
   | "stopAll"
@@ -347,6 +352,10 @@ export type MovementCommandPayload = {
   requestId: string;
   action: MovementCommandAction;
   pageId?: string;
+  sequenceId?: string;
+  startMode?: "normal" | "current" | "approach";
+  locoAddress?: number;
+  startStepIndex?: number;
   page?: MovementPage;
   emergencyStop?: boolean;
 };
@@ -433,7 +442,7 @@ export type FlowCommandPayload = {
 
 export type TrainDriverCommandPayload = {
   requestId: string;
-  action: "snapshot" | "start" | "startAuto" | "stop" | "resume" | "abort";
+  action: "snapshot" | "start" | "startAuto" | "startStation" | "stop" | "resume" | "abort";
   taskId?: string;
   page?: import("./movement").MovementPage;
   candidates?: import("./movement").MovementPage[];
@@ -465,6 +474,7 @@ export type ClientWsPayloadMap = {
   releaseLocoReservation: ReleaseLocoReservationCommandPayload;
 
   setTurnout: SetTurnoutCommandPayload;
+  setDccExTurnout: SetTurnoutCommandPayload;
   setSensor: SetSensorCommandPayload;
   setBasicAccessory: SetBasicAccessoryCommandPayload;
   setVpin: SetVpinCommandPayload;
@@ -475,6 +485,8 @@ export type ClientWsPayloadMap = {
   setBlocksReset: EmptyClientWsCommandPayload;
   getBlocks: EmptyClientWsCommandPayload;
   getLayoutRuntimeSnapshot: EmptyClientWsCommandPayload;
+  getRailComDebug: { interrogate?: boolean };
+  setRailComSenseMode: { mode: "off" | "block" | "loco" };
 
   routeLock: EmptyClientWsCommandPayload;
   routeUnlock: EmptyClientWsCommandPayload;

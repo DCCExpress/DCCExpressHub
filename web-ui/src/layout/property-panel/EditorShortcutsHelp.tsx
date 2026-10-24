@@ -13,6 +13,8 @@ export default function EditorShortcutsHelp() {
     { keys: "R", label: t("ui.editorShortcutRotate") },
     { keys: "Esc", label: t("ui.editorShortcutSelect") },
     { keys: "Ctrl+S", label: t("ui.editorShortcutSave") },
+    { keys: "Ctrl+Z", label: t("ui.editorShortcutUndo") },
+    { keys: "Ctrl+Y / Ctrl+Shift+Z", label: t("ui.editorShortcutRedo") },
     { keys: t("ui.editorShortcutPanKeys"), label: t("ui.editorShortcutPan") },
     { keys: t("ui.editorShortcutZoomKeys"), label: t("ui.editorShortcutZoom") },
     { keys: "F", label: t("ui.editorShortcutFit") },

@@ -18,6 +18,8 @@ public sealed class WsRuntimeCoordinator : BackgroundService
 
     public void RefreshLocomotives() => _locomotiveConfigurationChanged = true;
     readonly Queue<int> _locoSync=new();
+    readonly Queue<ushort> _dccExTurnoutSync = new();
+    DateTimeOffset _nextDccExTurnoutRefresh = DateTimeOffset.MinValue;
     readonly Queue<(int Address,int Function)> _startupFunctions=new();
     bool _startupFunctionsApplied;
     // Power ON may boot feedback modules on any command center. Delay the
@@ -49,6 +51,9 @@ public sealed class WsRuntimeCoordinator : BackgroundService
         cc.SensorFeedbackChanged+=OnSensorFeedbackChanged;
         cc.PowerFeedbackChanged+=OnPowerFeedbackChanged;
         cc.AccessoryFeedbackChanged+=OnAccessoryFeedbackChanged;
+        // DCC-EX <H> broadcasts and <jT> detail replies are NOT DCC
+        // accessory messages. Process them in a separate state namespace.
+        cc.RawInfo += OnDccExRawInfo;
         // Every sensor source uses the same authoritative LayoutRuntime path.
         externalDevices.SensorFeedbackChanged += OnSensorFeedbackChanged;
         externalDevices.SensorRangeUnavailable +=
@@ -61,31 +66,31 @@ public sealed class WsRuntimeCoordinator : BackgroundService
         _connectionChanged=true;
         if (!connected)
         {
+            // A disconnected command center has no confirmed power state.
+            // Serialize invalidation with sensor reports, and do not replay
+            // external feedback until a new Power ON has been confirmed.
             lock (_powerResyncGate)
             {
                 _powerOn = null;
                 _powerResyncDue = null;
+                _runtime.InvalidateSensorStates();
+                if (_cc.Type.StartsWith("dcc-ex", StringComparison.OrdinalIgnoreCase))
+                    _runtime.InvalidateDccExTurnoutStates();
             }
-        }
-
-        if (!connected)
-        {
-            // Drop stale known states, never translate a disconnect to FREE.
-            // The reconnect snapshot must be the new source of truth.
-            _runtime.InvalidateSensorStates();
-            _externalDevices.ReplayLiveSensorStates();
             _log.LogWarning(
-                "Command center disconnected: previous sensor states are UNKNOWN pending fresh feedback");
+                "Command center disconnected: previous sensor states are UNKNOWN pending fresh power and sensor feedback");
         }
     }
 
     void OnPowerFeedbackChanged(PowerFeedback feedback)
     {
-        if (!string.Equals(feedback.Target, "Main", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(feedback.Target, "Main", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(feedback.Target, "All", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(feedback.Target, "Joined", StringComparison.OrdinalIgnoreCase))
             return;
 
-        // Do not lose an already arriving sensor report to a delayed reset:
-        // mark everything UNKNOWN immediately, before requesting a fresh scan.
+        // Serialize the power transition with incoming sensor feedback. An OFF
+        // report arriving just after power loss must not turn UNKNOWN into FREE.
         lock (_powerResyncGate)
         {
             if (_powerOn == feedback.On)
@@ -94,9 +99,14 @@ public sealed class WsRuntimeCoordinator : BackgroundService
             _powerResyncDue = feedback.On
                 ? DateTimeOffset.UtcNow.AddMilliseconds(1500)
                 : null;
+            _runtime.InvalidateSensorStates();
         }
-        _runtime.InvalidateSensorStates();
-        _externalDevices.ReplayLiveSensorStates();
+
+        // Live external adapter feedback is valid again once track power is ON.
+        // Do not replay stale OFF values after power is switched OFF.
+        if (feedback.On)
+            _externalDevices.ReplayLiveSensorStates();
+
         _log.LogInformation("{CommandCenter} track power {Power}: sensor states UNKNOWN; {Action}",
             _cc.Name,
             feedback.On ? "ON" : "OFF",
@@ -108,11 +118,17 @@ public sealed class WsRuntimeCoordinator : BackgroundService
         if(address is <=0 or >65535)
             return;
 
-        // This is the single authoritative sensor input path on Windows.
-        // Q/q, simulated input or any future sensor adapter ends here.
-        _runtime.SetSensor(
-            (ushort)address,
-            on);
+        // A track-power OFF invalidation must not be undone by delayed R-BUS,
+        // LocoNet, S88 or adapter OFF reports. Serialize with the transition
+        // so an in-flight feedback cannot repopulate the cache after clearing.
+        lock (_powerResyncGate)
+        {
+            // Startup/reconnect is UNKNOWN until power feedback confirms ON.
+            // Never assume an unknown power state is safe to interpret as FREE.
+            if (_powerOn != true)
+                return;
+            _runtime.SetSensor((ushort)address, on);
+        }
 
         _log.LogInformation(
             "Sensor {Address} = {State}",
@@ -136,11 +152,23 @@ public sealed class WsRuntimeCoordinator : BackgroundService
             active ? 1 : 0);
     }
 
+    void OnDccExRawInfo(string frame)
+    {
+        if (!_cc.Type.StartsWith("dcc-ex", StringComparison.OrdinalIgnoreCase) ||
+            !DccExTurnoutFeedbackParser.TryParse(frame, out var id, out var thrown))
+            return;
+
+        if (_runtime.SetDccExTurnoutState(id, thrown, fromFeedback: true))
+            _log.LogDebug("DCC-EX turnout #{Id} feedback {Position}",
+                id, thrown ? "Thrown" : "Closed");
+    }
+
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
         var nextCurrent=DateTimeOffset.MinValue;
         var nextStatus=DateTimeOffset.MinValue;
         var nextLoco=DateTimeOffset.MinValue;
+        var nextDccExTurnout=DateTimeOffset.MinValue;
         var nextStartupFunction=DateTimeOffset.MinValue;
 
         if(_connected)
@@ -158,6 +186,7 @@ public sealed class WsRuntimeCoordinator : BackgroundService
                 {
                     _locoSync.Clear();
                     _startupFunctions.Clear();
+                    _dccExTurnoutSync.Clear();
                     _startupFunctionsApplied=false;
                     nextCurrent=DateTimeOffset.MinValue;
                 }
@@ -172,6 +201,16 @@ public sealed class WsRuntimeCoordinator : BackgroundService
             }
 
             var now=DateTimeOffset.UtcNow;
+            // Periodic refresh also discovers newly saved turnout bindings.
+            // Throttle queries individually rather than dumping a <JT> burst.
+            if (_cc.Connected &&
+                _cc.Type.StartsWith("dcc-ex", StringComparison.OrdinalIgnoreCase) &&
+                now >= _nextDccExTurnoutRefresh && _dccExTurnoutSync.Count == 0)
+            {
+                foreach (var id in _runtime.DccExTurnoutIds())
+                    _dccExTurnoutSync.Enqueue(id);
+                _nextDccExTurnoutRefresh = now.AddSeconds(60);
+            }
             bool requestPowerOnSensors = false;
             if (_cc.Connected)
             {
@@ -193,6 +232,14 @@ public sealed class WsRuntimeCoordinator : BackgroundService
                     requested ? "sent" : "not sent");
             }
 
+
+            if (_cc.Connected && _dccExTurnoutSync.Count > 0 && now >= nextDccExTurnout)
+            {
+                var id = _dccExTurnoutSync.Peek();
+                if (await _cc.SendRawAsync($"<JT {id}>", false, ct))
+                    _dccExTurnoutSync.Dequeue();
+                nextDccExTurnout = now.AddMilliseconds(100);
+            }
 
             if(_cc.Connected && _locoSync.Count>0 && now>=nextLoco)
             {
@@ -273,6 +320,16 @@ public sealed class WsRuntimeCoordinator : BackgroundService
 
     async Task ConnectedAsync(CancellationToken ct)
     {
+        _dccExTurnoutSync.Clear();
+        if (_cc.Type.StartsWith("dcc-ex", StringComparison.OrdinalIgnoreCase))
+        {
+            // Do not treat a stale state from an earlier controller session
+            // as authoritative. <JT id> repopulates it after reconnect.
+            _runtime.InvalidateDccExTurnoutStates();
+            foreach (var id in _runtime.DccExTurnoutIds())
+                _dccExTurnoutSync.Enqueue(id);
+            _nextDccExTurnoutRefresh = DateTimeOffset.UtcNow.AddSeconds(60);
+        }
         await _cc.RequestTrackConfigurationAsync(ct);
         await _cc.RequestTripTelemetryAsync(ct);
 
@@ -281,9 +338,10 @@ public sealed class WsRuntimeCoordinator : BackgroundService
         // the TCP connection was still offline.
         await _signalAutomation.EvaluateAsync();
 
-        // Then replace unknown sensor states from DCC-EX. Every returned Q/q
-        // enters LayoutRuntime.SetSensor(), which triggers another evaluation.
-        await _cc.RequestSensorSnapshotAsync(ct);
+        // Do not interrogate sensors before confirmed Power ON: feedback from
+        // an unpowered detector must not become FREE, and the driver's
+        // change-only cache must not consume the first valid post-ON snapshot.
+        // OnPowerFeedbackChanged schedules the interrogation after Power ON.
 
         LoadConfiguredLocos();
 
@@ -293,7 +351,7 @@ public sealed class WsRuntimeCoordinator : BackgroundService
         LoadStartupFunctions();
 
         _log.LogInformation(
-            "Command center bootstrap: automation evaluated, sensor snapshot requested, {Count} loco state request(s) and {StartupCount} startup function(s) queued",
+            "Command center bootstrap: automation evaluated, sensor interrogation waits for confirmed Power ON, {Count} loco state request(s) and {StartupCount} startup function(s) queued",
             _locoSync.Count,
             _startupFunctions.Count);
     }

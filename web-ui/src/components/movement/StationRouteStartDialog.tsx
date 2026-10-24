@@ -1,4 +1,5 @@
-import { Alert, Button, Group, Modal, NumberInput, Select, Stack, Text } from "@mantine/core";
+import { Alert, Button, Group, NumberInput, Select, Stack, Text } from "@mantine/core";
+import AppModal from "@/components/common/AppModal";
 import { useEffect, useMemo, useState } from "react";
 import type { Loco } from "@/domain/domainTypes";
 import LocoImage from "@/components/loco/LocoImage";
@@ -10,6 +11,7 @@ import { applyMovementRouteCandidate, loadMovementRouteCandidates, type Movement
 import { getTrainTrackingState, subscribeTrainTrackingState } from "@/services/trainTrackingRuntime";
 import { wsApi } from "@/services/wsApi";
 import { wsClient } from "@/services/wsClient";
+import { useMovementTranslation } from "@/components/movement/movementI18n";
 
 type Props = {
   opened: boolean;
@@ -20,8 +22,10 @@ type Props = {
 };
 
 export default function StationRouteStartDialog({ opened, onClose, layout, locomotives, route }: Props) {
+  const mt = useMovementTranslation();
   const [tracking, setTracking] = useState(getTrainTrackingState);
-  const [sensorStates, setSensorStates] = useState<Map<number,boolean>>(new Map());
+  const [sensorStates, setSensorStates] = useState<Map<number,boolean>>(
+    () => new Map(wsClient.getSensorStatesSnapshot()));
   const [reserved, setReserved] = useState<{loaded:boolean;blocks:Set<number>}>({loaded:false,blocks:new Set()});
   useEffect(() => {
     const offSensor = wsClient.on("sensorChanged", data => setSensorStates(old => new Map(old).set(data.address,data.on)));
@@ -47,10 +51,11 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
     const requestDispatcher = () => wsClient.send({type:"dispatcherCommand",data:{action:"snapshot",requestId:`station-route-${Date.now()}`}});
     const offStatus = wsClient.subscribeStatus(status => {
       setReserved({loaded:false,blocks:new Set()});
-      setSensorStates(new Map());
+      // The WebSocket client replays its authoritative sensor cache when
+      // listeners are registered. Never clear that cache on a connected status.
+      setSensorStates(new Map(wsClient.getSensorStatesSnapshot()));
       if(status==="connected") requestDispatcher();
     });
-    if (wsClient.isConnected()) requestDispatcher();
     return () => {offSensor();offSnapshot();offDispatcher();offStatus();};
   }, []);
   const [candidates, setCandidates] = useState<MovementRouteCandidate[]>([]);
@@ -69,6 +74,8 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
     setDestination("auto");
     setReverse(false);
     setError(null);
+    // This modal may open long after the initial live sensor snapshot.
+    setSensorStates(new Map(wsClient.getSensorStatesSnapshot()));
     setLoading(true);
     let cancelled = false;
     void loadMovementRouteCandidates(createEmptyMovementDocument())
@@ -113,12 +120,21 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
   const available = selectedLoco ? eligible.filter(candidate =>
     candidate.fromBlockId === selectedLoco.currentBlockId &&
     (destination === "auto" || !destination || candidate.toBlockId === Number(destination))) : [];
-  const confirmedFree = (id:number) => {
+  // Keep the safety gate, but expose the exact reason for a rejected target.
+  const destinationIssue = (id:number): string | null => {
     const block = blocks.find(b=>b.id===id);
-    return !!block && block.sensorAddress>0 && sensorStates.get(block.sensorAddress)===false &&
-      reserved.loaded && !reserved.blocks.has(id) && tracking.ready && tracking.active && tracking.enabled &&
-      !tracking.locos.some(l=>l.currentBlockId===id);
+    if (!block) return "Block is missing from the active layout";
+    if (!(block.sensorAddress > 0)) return "No occupancy sensor configured";
+    const occupied = sensorStates.get(block.sensorAddress);
+    if (occupied === undefined) return `Sensor #${block.sensorAddress} UNKNOWN (no confirmed feedback)`;
+    if (occupied) return `Sensor #${block.sensorAddress} ON (occupied)`;
+    if (!reserved.loaded) return "Waiting for Dispatcher reservation snapshot";
+    if (reserved.blocks.has(id)) return "Block reserved by Dispatcher";
+    if (!tracking.enabled || !tracking.active || !tracking.ready) return "Train Tracking not ready";
+    if (tracking.locos.some(l=>l.currentBlockId===id)) return "Locomotive assigned to this block";
+    return null;
   };
+  const confirmedFree = (id:number) => destinationIssue(id) === null;
   const destinations = [...new Set(available.filter(c => c.fromBlockId === selectedLoco?.currentBlockId).map(c => c.toBlockId))]
     .map(id => {
       const tracked = tracking.locos.filter(l => l.currentBlockId === id);
@@ -129,10 +145,16 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
       });
       return {
         value: String(id),
-        label: tracked.length ? `${blockName} · ${identities.join(", ")}` : `${blockName} · ${confirmedFree(id) ? "Confirmed free" : "Not confirmed free / reserved"}`,
+        label: tracked.length ? `${blockName} · ${identities.join(", ")}` : `${blockName} · ${destinationIssue(id) ?? "Confirmed free"}`,
       };
     });
   const selectedCandidate = selectedLoco ? available.find(candidate => confirmedFree(candidate.toBlockId)) : undefined;
+  const unavailableDestinations = [...new Set(available.map(candidate => candidate.toBlockId))]
+    .filter(id => !confirmedFree(id))
+    .map(id => {
+      const name = blocks.find(block => block.id === id)?.name || `Block #${id}`;
+      return `${name}: ${destinationIssue(id)}`;
+    });
   const canStart = !loading && !starting && !!route?.enabled && !!selectedLoco && !!selectedCandidate &&
     Number.isInteger(Number(speed)) && Number(speed) >= 1 && Number(speed) <= 126;
   const start = async () => {
@@ -146,18 +168,36 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
       if (!fresh.enabled || !fresh.active || !fresh.ready || tracked?.confidence !== "certain" ||
           tracked.currentBlockId !== selectedCandidate.fromBlockId)
         throw new Error("Locomotive location changed. Select the source again.");
-      const page = applyMovementRouteCandidate(createMovementPage(), selectedCandidate);
-      if (!page.routeRef) throw new Error("The selected path has no valid travel direction.");
-      // Unique per launch: independent TaskMan entries, even for the same station route.
-      page.id = `quick-route-loco-${selectedLoco.locoAddress}-station-${route.id}-${Date.now()}`;
-      page.name = `Station Route · ${route.name} · #${selectedLoco.locoAddress}`;
-      page.speed = Number(speed);
-      page.expectedLocoAddress = selectedLoco.locoAddress;
+      // Automatic station routing is a task with several VALID destinations,
+      // not a permanently selected final block. Keep all route alternatives
+      // server-side so the stopped train can divert when C1 becomes occupied.
+      // Explicitly selected destinations remain fixed.
+      const automatic = destination === "auto" || !destination;
+      const options = automatic
+        ? [selectedCandidate, ...available.filter(candidate =>
+            candidate.key !== selectedCandidate.key &&
+            candidate.locoDirection === selectedCandidate.locoDirection)].slice(0, 128)
+        : [selectedCandidate];
+      const movementId = `quick-route-loco-${selectedLoco.locoAddress}-station-${route.id}-${Date.now()}`;
+      const candidates = options.map(candidate => {
+        const page = applyMovementRouteCandidate(createMovementPage(), candidate);
+        page.id = movementId;
+        page.name = `Station Route · ${route.name} · #${selectedLoco.locoAddress}`;
+        page.speed = Number(speed);
+        page.expectedLocoAddress = selectedLoco.locoAddress;
+        return page;
+      });
+      if (candidates.some(page => !page.routeRef))
+        throw new Error("The selected station paths have no valid travel direction.");
+      const firstPage = candidates[0];
+      if (!firstPage) throw new Error("No valid station route candidate available.");
       const driverTaskId = `train-driver-${selectedLoco.locoAddress}-${Date.now()}`;
       const requestId = `train-driver-start-${Date.now()}`;
       const result = await wsApi.request(
         "trainDriverCommand",
-        { requestId, action: "start", taskId: driverTaskId, page },
+        automatic
+          ? { requestId, action: "startStation", taskId: driverTaskId, candidates }
+          : { requestId, action: "start", taskId: driverTaskId, page: firstPage },
         "trainDriverResponse",
         response => response.requestId === requestId,
         10000
@@ -167,9 +207,9 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
     } catch(e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setStarting(false); }
   };
-  return <Modal opened={opened} onClose={() => { if (!starting) onClose(); }} centered size="lg" title={route ? `Start Station Route · ${route.name}` : "Start Station Route"}>
+  return <AppModal opened={opened} onClose={() => { if (!starting) onClose(); }} centered draggable size="lg" title={route ? `Start Station Route · ${route.name}` : "Start Station Route"}>
     <Stack gap="sm">
-      <Text size="sm" c="dimmed">One locomotive → one temporary Movement Task. Dispatcher and SwitchMan enforce track safety.</Text>
+      <Text size="sm" c="dimmed">Automatic destination: Train Driver may choose another valid arrival track when the chosen route becomes occupied. Explicit destination: remains fixed. Dispatcher and SwitchMan always enforce track safety.</Text>
       {route?.allowReverse && <Select label="Station Route direction" allowDeselect={false}
         data={[
           {value:"forward",label:`${stationName(route.fromStationId)} → ${stationName(route.toStationId)} (From → To)`},
@@ -199,7 +239,7 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
         }}
         value={source} onChange={v => {setSource(v);setDestination("auto");}}/>
       <Select label="Destination block" placeholder="Automatic" searchable
-        data={[{value:"auto",label:"Automatic — dispatcher-checked destination"},...destinations]}
+        data={[{value:"auto",label:"Automatic — may select another free arrival track"},...destinations]}
         renderOption={({option}) => {
           if (option.value === "auto") return <Text size="sm">{option.label}</Text>;
           const tracked = tracking.locos.filter(l => String(l.currentBlockId) === option.value);
@@ -223,21 +263,21 @@ export default function StationRouteStartDialog({ opened, onClose, layout, locom
                       {l.confidence !== "certain" ? " · Position uncertain" : ""}
                     </Text>;
                   })
-                : <Text size="xs" c="dimmed">{confirmedFree(Number(option.value)) ? "Confirmed free" : "Not confirmed free / reserved"}</Text>}
+                : <Text size="xs" c="dimmed">{destinationIssue(Number(option.value)) ?? "Confirmed free"}</Text>}
             </Stack>
           </Group>;
         }}
         value={destination} onChange={setDestination}/>
-      <NumberInput label="Speed" min={1} max={126} allowDecimal={false} value={speed} onChange={setSpeed}/>
+      <NumberInput label={mt("movementCruiseSpeed")} min={1} max={126} allowDecimal={false} value={speed} onChange={setSpeed}/>
       {loading && <Text size="sm" c="dimmed">Loading route topology…</Text>}
       {selectedLoco && selectedCandidate && <Text size="sm">Planned: {selectedCandidate.blockPath.map(b => b.name).join(" → ")}</Text>}
       {!loading && source && !selectedCandidate && <Alert color="orange">
         {available.length === 0
           ? `No executable route found from the selected source to ${destination === "auto" ? "the destination station" : "the selected destination block"}. Route table: ${fromSource.length} outgoing route(s), ${fromSourceToStation.length} reaching destination station, ${directionUnknownToStation} with unknown direction, ${usableToStation.length} direction-known. Reachable targets: ${destinationsInTable.slice(0,12).join(", ") || "none"}. ${route?.via.length ? "Via checkpoints may exclude some alternatives. " : ""}Check graph direction and topology; a FREE sensor does not establish physical reachability.`
-          : `${available.length} route candidate(s) exist (${[...new Set(available.map(item => item.toBlockName))].join(", ")}), but no destination is confirmed free. ${!reserved.loaded ? "Dispatcher snapshot missing. " : ""}Check target sensor OFF/FREE, current locomotive assignments and reservations.`}
+          : `${available.length} route candidate(s) exist, but none of the target blocks is confirmed free. ${unavailableDestinations.join("; ") || "Waiting for confirmed sensor and Dispatcher state."}`}
       </Alert>}
       {error && <Alert color="red">{error}</Alert>}
       <Group justify="flex-end"><Button variant="default" onClick={onClose} disabled={starting}>Cancel</Button><Button onClick={() => void start()} loading={starting} disabled={!canStart}>Start Task</Button></Group>
     </Stack>
-  </Modal>;
+  </AppModal>;
 }

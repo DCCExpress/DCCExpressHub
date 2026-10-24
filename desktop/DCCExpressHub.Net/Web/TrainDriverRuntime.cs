@@ -38,7 +38,46 @@ public sealed class TrainDriverRuntime
 
     public (bool Ok, string? Error, DriverState? State) Start(
         string taskId,
-        MovementPageModel page)
+        MovementPageModel page) =>
+        StartCore(taskId, page, null);
+
+    // Station-to-station AUTO: preserve all allowed destination tracks for
+    // the entire task. Unlike Drive-to-Block, the destinations may differ.
+    // MovementRuntime can only switch at a stopped, physically reached block.
+    public (bool Ok, string? Error, DriverState? State) StartStation(
+        string taskId,
+        MovementPageModel[] candidates)
+    {
+        if (candidates is null || candidates.Length is < 1 or > 128)
+            return (false, "invalid_station_route_candidates", null);
+
+        var first = candidates[0];
+        if (first?.RouteRef is null || first.ExpectedLocoAddress is not > 0 ||
+            candidates.Any(candidate =>
+                candidate?.RouteRef is null ||
+                candidate.Id != first.Id ||
+                candidate.ExpectedLocoAddress != first.ExpectedLocoAddress ||
+                candidate.RouteRef.FromBlockId != first.RouteRef.FromBlockId ||
+                candidate.Speed != first.Speed))
+            return (false, "station_route_candidates_mismatch", null);
+
+        var ranked = candidates
+            .Select((page, index) =>
+                (Page: page, Index: index, Check: _movement.EvaluateAutoRoute(page)))
+            .Where(item => item.Check.Available)
+            .OrderBy(item => item.Index == 0 ? 0 : 1)
+            .ThenBy(item => item.Check.Cost)
+            .ToArray();
+        // Preserve the browser-selected initial target whenever still safe;
+        // when no candidate is immediately clear, let Dispatcher wait safely.
+        var selected = ranked.Length > 0 ? ranked[0].Page : first;
+        return StartCore(taskId, selected, candidates);
+    }
+
+    (bool Ok, string? Error, DriverState? State) StartCore(
+        string taskId,
+        MovementPageModel page,
+        MovementPageModel[]? stationAlternatives)
     {
         if (string.IsNullOrWhiteSpace(taskId) || page is null ||
             string.IsNullOrWhiteSpace(page.Id) || !page.ExpectedLocoAddress.HasValue ||
@@ -71,7 +110,9 @@ public sealed class TrainDriverRuntime
         (bool Ok, string? Error) result;
         try
         {
-            result = _movement.StartTransient(page, calibrationBypass: false);
+            result = _movement.StartTransient(page,
+                calibrationBypass: false,
+                stationAlternatives: stationAlternatives);
         }
         catch (Exception ex)
         {

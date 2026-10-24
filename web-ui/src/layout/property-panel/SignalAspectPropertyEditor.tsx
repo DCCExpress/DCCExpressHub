@@ -63,6 +63,7 @@ type SignalAspectPropertyEditorProps = {
   prop: IEditableProperty;
   selectedElement: BaseElement;
   onUpdateSelectedElement: SelectedElementUpdateHandler;
+  onBeforeLayoutChange?: () => void;
 };
 
 function createStatePreview(
@@ -111,6 +112,7 @@ function createStatePreview(
 export default function SignalAspectPropertyEditor({
   selectedElement,
   onUpdateSelectedElement,
+  onBeforeLayoutChange,
 }: SignalAspectPropertyEditorProps) {
   useTranslation();
   const signal =
@@ -162,6 +164,7 @@ export default function SignalAspectPropertyEditor({
   const apply = (
     value: SignalOutputConfiguration
   ) => {
+    onBeforeLayoutChange?.();
     signal.setSignalOutput(value);
 
     onUpdateSelectedElement(signal);
@@ -172,6 +175,7 @@ export default function SignalAspectPropertyEditor({
     config: SignalOutputConfiguration,
     state: SignalOutputState
   ) => {
+    onBeforeLayoutChange?.();
     signal.setSignalOutput(config);
     signal.sendState(state);
 
@@ -284,7 +288,9 @@ export default function SignalAspectPropertyEditor({
           {" aspects · "}
           {signal.signalOutput.protocol === "dccext"
             ? "DCC Extended"
-            : "DCC"}
+            : signal.signalOutput.protocol === "vpin"
+              ? "DCC-EX OUTPUT (Vpin)"
+              : "DCC"}
         </Text>
 
         <Text size="xs" fw={700}> {i18next.t("ui.aspects")} </Text>

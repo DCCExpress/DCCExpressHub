@@ -570,6 +570,7 @@ export function useRuntimeDebugState(
 
   const [connected, setConnected] =
     useState(wsClient.isConnected());
+  const [layoutMetadataStatus, setLayoutMetadataStatus] = useState("Not loaded");
 
   const turnoutConfigRef =
     useRef<Map<number, TurnoutConfig>>(new Map());
@@ -583,6 +584,13 @@ export function useRuntimeDebugState(
       const response = await fetch("/api/layout", { cache: "no-store" });
       if (response.ok) {
         const layoutValue = await response.json();
+        const layoutRecord = objectValue(layoutValue);
+        const rawLayers = Array.isArray(layoutRecord?.layers) ? layoutRecord.layers : [];
+        const count = rawLayers.reduce<number>((sum, rawLayer) => {
+          const layer = objectValue(rawLayer);
+          return sum + (Array.isArray(layer?.elements) ? layer.elements.length : 0);
+        }, 0);
+        setLayoutMetadataStatus(count > 0 ? `Loaded ${count} layout elements` : "Layout contains no elements");
 
         turnoutConfigRef.current =
           buildTurnoutConfig(layoutValue);
@@ -602,9 +610,11 @@ export function useRuntimeDebugState(
         setExtendedAccessoryLayoutOwners(
           buildExtendedAccessoryLayoutOwners(layoutValue)
         );
+      } else {
+        setLayoutMetadataStatus(`Layout request failed: HTTP ${response.status}`);
       }
     } catch {
-      // Runtime snapshot is still useful even if layout metadata fetch fails.
+      setLayoutMetadataStatus("Layout metadata unavailable");
     }
 
     // Snapshot replaces the topology-backed views.
@@ -918,13 +928,20 @@ export function useRuntimeDebugState(
         });
       });
 
-    // Sensor state is rebuilt from the backend-neutral authoritative snapshot.
-    setSensors(new Map());
+    // wsClient.on("sensorChanged" / "sensorSnapshot") immediately replays its
+    // cached authoritative values. Do not erase them after subscribing: doing
+    // so makes every sensor appear FREE/UNKNOWN until another live update.
     setTurnouts(new Map());
 
-    void refresh();
+    // The standalone #debug page may mount before its WebSocket is ready.
+    // Load owners and the runtime snapshot only once connected, and retry on reconnect.
+    const unsubscribeRefreshStatus = wsClient.subscribeStatus(status => {
+      if (status === "connected") void refresh();
+    });
+    if (wsClient.isConnected()) void refresh();
 
     return () => {
+      unsubscribeRefreshStatus();
       unsubscribeMessages();
       unsubscribeSensorChanged();
       unsubscribeSensorSnapshot();
@@ -937,6 +954,7 @@ export function useRuntimeDebugState(
   return useMemo(
     () => ({
       sensors,
+      layoutMetadataStatus,
       turnouts,
       basicAccessories,
       basicAccessoryLayoutOwners,
@@ -949,6 +967,7 @@ export function useRuntimeDebugState(
     }),
     [
       sensors,
+      layoutMetadataStatus,
       turnouts,
       basicAccessories,
       basicAccessoryLayoutOwners,

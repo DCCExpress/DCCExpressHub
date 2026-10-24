@@ -1,0 +1,729 @@
+{
+  "title": "DCC-EX Native / Serial Command Quick Reference",
+  "intro": "Compact reference for official EX-CommandStation native/serial commands. Commands are case-sensitive at the opcode and must be enclosed in < and >.",
+  "sourceLabel": "Official DCC-EX Serial Commands Full List",
+  "sourceUrl": "https://dcc-ex.com/mkdocs-test/reference/serial-commands/serial-command-list/",
+  "sourceNote": "The official list is generated from the CommandStation-EX command parser. Check the source for firmware-version-specific details and newly added commands.",
+  "conventions": [
+    "All commands must start with < and end with >.",
+    "The first opcode character is case-sensitive; keyword parameters are not case-sensitive.",
+    "Numeric parameters are decimal unless the official reference says otherwise.",
+    "Not every command returns a direct response; many state changes are broadcast to all connected clients."
+  ],
+  "categories": [
+    {
+      "title": "System, status & power",
+      "commands": [
+        {
+          "syntax": "<s>",
+          "description": "Request EX-CommandStation version/status and defined turnout states."
+        },
+        {
+          "syntax": "<#>",
+          "description": "Request the maximum number of simultaneously supported locomotives."
+        },
+        {
+          "syntax": "<J I>",
+          "description": "Report track currents."
+        },
+        {
+          "syntax": "<J C>",
+          "description": "Get the DCC-EX fast-clock time."
+        },
+        {
+          "syntax": "<J C mmmm nn>",
+          "description": "Set fast-clock time/speed using the official DCC-EX fast-clock command."
+        },
+        {
+          "syntax": "<J G>",
+          "description": "Report gauge/current limits."
+        },
+        {
+          "syntax": "<0>",
+          "description": "Power OFF all tracks."
+        },
+        {
+          "syntax": "<1>",
+          "description": "Power ON all tracks."
+        },
+        {
+          "syntax": "<0 MAIN> / <1 MAIN>",
+          "description": "Power MAIN track OFF / ON."
+        },
+        {
+          "syntax": "<0 PROG> / <1 PROG>",
+          "description": "Power PROG track OFF / ON."
+        },
+        {
+          "syntax": "<0 track> / <1 track>",
+          "description": "Power the specified TrackManager output OFF / ON."
+        },
+        {
+          "syntax": "<1 JOIN>",
+          "description": "Join PROG to MAIN and power the joined output."
+        },
+        {
+          "syntax": "<!>",
+          "description": "Emergency-stop all locomotives."
+        },
+        {
+          "syntax": "<! P>",
+          "description": "Pause the layout using DCC-EX ESTOP pause."
+        },
+        {
+          "syntax": "<! Q>",
+          "description": "Query paused status."
+        },
+        {
+          "syntax": "<! R>",
+          "description": "Resume from ESTOP pause."
+        },
+        {
+          "syntax": "<C RESET> / <D RESET>",
+          "description": "Reset and restart the EX-CommandStation.",
+          "danger": true
+        }
+      ]
+    },
+    {
+      "title": "Locomotives, functions & consists",
+      "commands": [
+        {
+          "syntax": "<t loco>",
+          "description": "Request the current speed, direction and function state for a locomotive."
+        },
+        {
+          "syntax": "<t loco tSpeed direction>",
+          "description": "Set locomotive speed and direction. tSpeed is 0..127, with -1 used for emergency stop."
+        },
+        {
+          "syntax": "<F loco function onoff>",
+          "description": "Set a locomotive decoder function ON or OFF."
+        },
+        {
+          "syntax": "<F loco DCCFREQ freqValue>",
+          "description": "Set DC-mode PWM frequency for a locomotive on a DC TrackManager output."
+        },
+        {
+          "syntax": "<- loco>",
+          "description": "Remove one locomotive from the state/reminder table."
+        },
+        {
+          "syntax": "<->",
+          "description": "Clear the locomotive state/reminder table."
+        },
+        {
+          "syntax": "<^>",
+          "description": "List active consists."
+        },
+        {
+          "syntax": "<^ leadLoco follower [follower2..7]>",
+          "description": "Create a consist with up to eight locomotive addresses; negative followers indicate reverse orientation."
+        },
+        {
+          "syntax": "<^ loco>",
+          "description": "Remove any consist containing this locomotive."
+        },
+        {
+          "syntax": "<m loco momentum>",
+          "description": "Set locomotive momentum with one combined value."
+        },
+        {
+          "syntax": "<m loco accelerating braking>",
+          "description": "Set separate acceleration and braking momentum."
+        },
+        {
+          "syntax": "<m LINEAR>",
+          "description": "Use linear momentum behaviour."
+        },
+        {
+          "syntax": "<m POWER>",
+          "description": "Use power-curve momentum behaviour."
+        },
+        {
+          "syntax": "<f loco ...>",
+          "description": "Legacy function-group command; use <F loco function onoff> instead.",
+          "deprecated": true
+        }
+      ]
+    },
+    {
+      "title": "Turnouts, accessories & signals",
+      "commands": [
+        {
+          "syntax": "<T>",
+          "description": "List defined turnouts/points."
+        },
+        {
+          "syntax": "<T id>",
+          "description": "Delete a defined turnout/point."
+        },
+        {
+          "syntax": "<T id value>",
+          "description": "Set turnout state by ID."
+        },
+        {
+          "syntax": "<T id C> / <T id T>",
+          "description": "Close / throw a turnout by ID."
+        },
+        {
+          "syntax": "<T id X>",
+          "description": "Request detailed turnout information."
+        },
+        {
+          "syntax": "<T id DCC linearAddr>",
+          "description": "Define a DCC turnout using a linear accessory address."
+        },
+        {
+          "syntax": "<T id DCC addr subAddr>",
+          "description": "Define a DCC turnout using address and sub-address."
+        },
+        {
+          "syntax": "<T id VPIN vpin>",
+          "description": "Define a turnout controlled by a virtual pin."
+        },
+        {
+          "syntax": "<T id SERVO vpin closedValue thrownValue [profile]>",
+          "description": "Define a servo turnout."
+        },
+        {
+          "syntax": "<a address activate>",
+          "description": "Send a basic DCC accessory command to a linear address."
+        },
+        {
+          "syntax": "<a address subAddr activate [onoff]>",
+          "description": "Send a basic DCC accessory command using address/sub-address."
+        },
+        {
+          "syntax": "<A address aspect>",
+          "description": "Send a DCC extended accessory/signal aspect command."
+        },
+        {
+          "syntax": "<J T>",
+          "description": "List turnout IDs for throttle/controller clients."
+        },
+        {
+          "syntax": "<J T id>",
+          "description": "Request turnout state and description."
+        },
+        {
+          "syntax": "<J S>",
+          "description": "List signal IDs."
+        },
+        {
+          "syntax": "<J S signal_id>",
+          "description": "Request information for one signal."
+        }
+      ]
+    },
+    {
+      "title": "Sensors, outputs & virtual pins",
+      "commands": [
+        {
+          "syntax": "<Q>",
+          "description": "Request/list sensor states."
+        },
+        {
+          "syntax": "<S>",
+          "description": "List configured sensor definitions."
+        },
+        {
+          "syntax": "<S id vpin pullup>",
+          "description": "Create a sensor definition."
+        },
+        {
+          "syntax": "<S id>",
+          "description": "Delete a sensor definition."
+        },
+        {
+          "syntax": "<Z>",
+          "description": "List output definitions."
+        },
+        {
+          "syntax": "<Z id>",
+          "description": "Delete an output definition."
+        },
+        {
+          "syntax": "<Z id pin iFlag>",
+          "description": "Create an output definition."
+        },
+        {
+          "syntax": "<Z id active>",
+          "description": "Set a defined output ON/OFF."
+        },
+        {
+          "syntax": "<z signedVpin>",
+          "description": "Set a digital virtual-pin output; sign controls state."
+        },
+        {
+          "syntax": "<z vpin analogue [profile] [duration]>",
+          "description": "Set an analogue/servo-style virtual-pin output."
+        },
+        {
+          "syntax": "<o vpin>",
+          "description": "Set one NeoPixel ON when vpin is positive or OFF when negative."
+        },
+        {
+          "syntax": "<o vpin count>",
+          "description": "Set multiple NeoPixels ON/OFF using the sign of vpin."
+        },
+        {
+          "syntax": "<o vpin r g b [count]>",
+          "description": "Set one or more NeoPixel/RGB LED outputs."
+        },
+        {
+          "syntax": "<D ANIN vpin>",
+          "description": "Display an analogue input value."
+        },
+        {
+          "syntax": "<D ANOUT vpin position [profile]>",
+          "description": "Test an analogue/servo output."
+        },
+        {
+          "syntax": "<N>",
+          "description": "List SensorCAM base-vpin definitions."
+        },
+        {
+          "syntax": "<N cmd value>",
+          "description": "Execute a SensorCAM command with parameters."
+        },
+        {
+          "syntax": "<N Q>",
+          "description": "Request the full SensorCAM sensor-state set."
+        }
+      ]
+    },
+    {
+      "title": "CV programming & decoder configuration",
+      "commands": [
+        {
+          "syntax": "<R>",
+          "description": "Read the driveable locomotive ID from the PROG track; may return short, long or consist ID."
+        },
+        {
+          "syntax": "<R LOCOID>",
+          "description": "Read the locomotive ID from the PROG track while ignoring consist address."
+        },
+        {
+          "syntax": "<R CONSIST>",
+          "description": "Read the consist ID from the PROG track."
+        },
+        {
+          "syntax": "<R cv>",
+          "description": "Read a CV on the programming track."
+        },
+        {
+          "syntax": "<r loco cv>",
+          "description": "Read a CV using Programming on Main where supported."
+        },
+        {
+          "syntax": "<W loco>",
+          "description": "Write/set locomotive address on the programming track."
+        },
+        {
+          "syntax": "<W CONSIST loco [REVERSE]>",
+          "description": "Write decoder consist configuration."
+        },
+        {
+          "syntax": "<W cv cValue>",
+          "description": "Write a CV value on the programming track."
+        },
+        {
+          "syntax": "<V cv cValue>",
+          "description": "Fast-read/verify a CV against an expected value."
+        },
+        {
+          "syntax": "<V cv bitPosition bitValue>",
+          "description": "Fast-read/verify a CV bit against an expected value."
+        },
+        {
+          "syntax": "<B cv bitPosition bitValue>",
+          "description": "Write a CV bit on the programming track."
+        },
+        {
+          "syntax": "<b loco cv bitPosition bitValue>",
+          "description": "Write a CV bit using Programming on Main."
+        },
+        {
+          "syntax": "<w loco cv value>",
+          "description": "Write a CV value using Programming on Main."
+        },
+        {
+          "syntax": "<w A linearaddress cv value>",
+          "description": "Write a CV to a basic accessory decoder."
+        },
+        {
+          "syntax": "<w E linearaddress cv value>",
+          "description": "Write a CV to an extended accessory decoder."
+        },
+        {
+          "syntax": "<D ACK ON> / <D ACK OFF>",
+          "description": "Enable / disable programming-track ACK diagnostics."
+        },
+        {
+          "syntax": "<D ACK LIMIT|MIN|MAX|RETRY value>",
+          "description": "Tune programming-track ACK detection parameters."
+        },
+        {
+          "syntax": "<C PROGBOOST>",
+          "description": "Configure PROG-track boost."
+        }
+      ]
+    },
+    {
+      "title": "TrackManager",
+      "commands": [
+        {
+          "syntax": "<=>",
+          "description": "List TrackManager output modes/states."
+        },
+        {
+          "syntax": "<= track MAIN>",
+          "description": "Configure a track as MAIN."
+        },
+        {
+          "syntax": "<= track MAIN_INV>",
+          "description": "Configure MAIN with inverted polarity."
+        },
+        {
+          "syntax": "<= track MAIN_AUTO>",
+          "description": "Configure MAIN with automatic reversing."
+        },
+        {
+          "syntax": "<= track PROG>",
+          "description": "Configure a track as PROG."
+        },
+        {
+          "syntax": "<= track DC loco>",
+          "description": "Configure a track for DC operation assigned to a locomotive."
+        },
+        {
+          "syntax": "<= track DC_INV loco>",
+          "description": "Configure DC operation with inverted polarity."
+        },
+        {
+          "syntax": "<= track AUTO>",
+          "description": "Configure an auto-reversing output."
+        },
+        {
+          "syntax": "<= track EXT>",
+          "description": "Configure a track for external synchronization."
+        },
+        {
+          "syntax": "<= track RAILCOM>",
+          "description": "Enable RailCom cutout on the track."
+        },
+        {
+          "syntax": "<= track NONE> / <= track OFF>",
+          "description": "Disable the selected track output / power."
+        }
+      ]
+    },
+    {
+      "title": "EXRAIL runtime, roster & block events",
+      "commands": [
+        {
+          "syntax": "</>",
+          "description": "Stream EXRAIL task/status information."
+        },
+        {
+          "syntax": "<J A>",
+          "description": "List EXRAIL automations/routes."
+        },
+        {
+          "syntax": "<J A id>",
+          "description": "Request details for one EXRAIL automation/route."
+        },
+        {
+          "syntax": "</ START route>",
+          "description": "Start a route or sequence."
+        },
+        {
+          "syntax": "</ START loco route>",
+          "description": "Start an automation/sequence with a locomotive."
+        },
+        {
+          "syntax": "</ PAUSE> / </ RESUME>",
+          "description": "Pause / resume EXRAIL tasks."
+        },
+        {
+          "syntax": "</ KILL ALL>",
+          "description": "Kill all EXRAIL tasks."
+        },
+        {
+          "syntax": "</ KILL taskid>",
+          "description": "Kill one EXRAIL task."
+        },
+        {
+          "syntax": "</ RESERVE section> / </ FREE section> / </ FREEALL>",
+          "description": "Reserve or release EXRAIL sections."
+        },
+        {
+          "syntax": "</ RED|AMBER|GREEN signal>",
+          "description": "Set an EXRAIL signal colour."
+        },
+        {
+          "syntax": "</ LATCH latch> / </ UNLATCH latch>",
+          "description": "Set / clear an EXRAIL latch."
+        },
+        {
+          "syntax": "<J R>",
+          "description": "List roster IDs."
+        },
+        {
+          "syntax": "<J R id>",
+          "description": "Request one roster entry, description and function labels."
+        },
+        {
+          "syntax": "<J M ...>",
+          "description": "Manage EXRAIL stash values."
+        },
+        {
+          "syntax": "<K blockId loco>",
+          "description": "Report a locomotive entering a block."
+        },
+        {
+          "syntax": "<k blockId loco>",
+          "description": "Report a locomotive leaving a block."
+        }
+      ]
+    },
+    {
+      "title": "Turntables, sound & virtual display",
+      "commands": [
+        {
+          "syntax": "<I>",
+          "description": "List turntables."
+        },
+        {
+          "syntax": "<I id>",
+          "description": "Request turntable type/current position."
+        },
+        {
+          "syntax": "<I id position [activity]>",
+          "description": "Move a turntable to a defined position."
+        },
+        {
+          "syntax": "<I id ADD position value angle>",
+          "description": "Add a turntable position."
+        },
+        {
+          "syntax": "<I id DCC home>",
+          "description": "Create a DCC turntable definition."
+        },
+        {
+          "syntax": "<I id EXTT vpin home>",
+          "description": "Create an EX-Turntable definition."
+        },
+        {
+          "syntax": "<J O>",
+          "description": "List turntable IDs."
+        },
+        {
+          "syntax": "<J O id>",
+          "description": "Request turntable state."
+        },
+        {
+          "syntax": "<J P id>",
+          "description": "List positions for a turntable."
+        },
+        {
+          "syntax": "<J L display row>",
+          "description": "Direct current display output to an LCD/OLED row."
+        },
+        {
+          "syntax": "<y vpin PLAY trackNumber [volume]>",
+          "description": "Play a DFPlayer track."
+        },
+        {
+          "syntax": "<y vpin REPEAT trackNumber [volume]>",
+          "description": "Repeat a DFPlayer track."
+        },
+        {
+          "syntax": "<y vpin STOP|PAUSE|RESUME|RESET>",
+          "description": "Control DFPlayer playback."
+        },
+        {
+          "syntax": "<y vpin VOL volume>",
+          "description": "Set DFPlayer volume."
+        },
+        {
+          "syntax": "<y vpin EQ eq>",
+          "description": "Set DFPlayer equalizer preset."
+        },
+        {
+          "syntax": "<y vpin FOLDER folder>",
+          "description": "Select DFPlayer folder."
+        },
+        {
+          "syntax": "<@>",
+          "description": "Request virtual display messages for this client."
+        },
+        {
+          "syntax": "<@ display row text>",
+          "description": "Write text to a virtual LCD/display row."
+        }
+      ]
+    },
+    {
+      "title": "Configuration & diagnostics",
+      "commands": [
+        {
+          "syntax": "<D RAM>",
+          "description": "Display free RAM diagnostics."
+        },
+        {
+          "syntax": "<D CABS>",
+          "description": "Display locomotive state/reminder table diagnostics."
+        },
+        {
+          "syntax": "<D HAL SHOW>",
+          "description": "Show HAL device table."
+        },
+        {
+          "syntax": "<D HAL RESET>",
+          "description": "Reset all HAL devices.",
+          "danger": true
+        },
+        {
+          "syntax": "<D EEPROM numEntries>",
+          "description": "Dump EEPROM contents for diagnostics."
+        },
+        {
+          "syntax": "<D SERVO vpin position [profile]>",
+          "description": "Test a servo output."
+        },
+        {
+          "syntax": "<D TT vpin steps [activity]>",
+          "description": "Test a turntable output."
+        },
+        {
+          "syntax": "<D LCN ON> / <D LCN OFF>",
+          "description": "Enable / disable LCN diagnostics."
+        },
+        {
+          "syntax": "<D NODE ON> / <D NODE OFF>",
+          "description": "Enable / disable Node diagnostics."
+        },
+        {
+          "syntax": "<D CMD ON> / <D CMD OFF>",
+          "description": "Enable / disable command input diagnostics."
+        },
+        {
+          "syntax": "<D EXRAIL ON> / <D EXRAIL OFF>",
+          "description": "Enable / disable EXRAIL diagnostics."
+        },
+        {
+          "syntax": "<D WIFI SHOW>",
+          "description": "Show WiFi status."
+        },
+        {
+          "syntax": "<D WIFI ON> / <D WIFI OFF>",
+          "description": "Enable / disable WiFi diagnostics."
+        },
+        {
+          "syntax": "<D ETHERNET SHOW>",
+          "description": "Show Ethernet status."
+        },
+        {
+          "syntax": "<D ETHERNET ON> / <D ETHERNET OFF>",
+          "description": "Enable / disable Ethernet diagnostics."
+        },
+        {
+          "syntax": "<D WEBSOCKET ON> / <D WEBSOCKET OFF>",
+          "description": "Enable / disable WebSocket diagnostics."
+        },
+        {
+          "syntax": "<D WIT ON> / <D WIT OFF>",
+          "description": "Enable / disable WiThrottle diagnostics."
+        },
+        {
+          "syntax": "<D RAILCOM ON> / <D RAILCOM OFF>",
+          "description": "Enable / disable RailCom diagnostics."
+        },
+        {
+          "syntax": "<D NVS> / <D NVS value>",
+          "description": "Show non-zero NVS values / one NVS value."
+        },
+        {
+          "syntax": "<C SPEED128> / <C SPEED28>",
+          "description": "Select 128-step or legacy 28-step DCC speed commands."
+        },
+        {
+          "syntax": "<C RAILCOM ON> / <C RAILCOM OFF>",
+          "description": "Enable / disable RailCom cutout."
+        },
+        {
+          "syntax": "<C HOSTNAME \"hostname\">",
+          "description": "Set WiFi/Ethernet hostname."
+        },
+        {
+          "syntax": "<C WIFI ON|OFF>",
+          "description": "Enable / disable WiFi."
+        },
+        {
+          "syntax": "<C WIFI \"ssid\" \"password\">",
+          "description": "Configure WiFi credentials."
+        },
+        {
+          "syntax": "<C WIFI AP|HIDDENAP \"ssid\" \"password\" [channel]>",
+          "description": "Configure WiFi access-point mode."
+        },
+        {
+          "syntax": "<C WIFI TEMP \"ssid\" \"password\">",
+          "description": "Temporarily configure WiFi credentials."
+        },
+        {
+          "syntax": "<C WIFI DEFAULT>",
+          "description": "Restore default WiFi credentials."
+        },
+        {
+          "syntax": "<C ETHERNET ON> / <C ETHERNET OFF>",
+          "description": "Enable / disable Ethernet."
+        },
+        {
+          "syntax": "<C NODE ON>",
+          "description": "Enable Node mode without throttle support."
+        },
+        {
+          "syntax": "<C NVS nvsnumber nvsvalue>",
+          "description": "Set a non-volatile storage value."
+        },
+        {
+          "syntax": "<C SNIFFER ON> / <C SNIFFER OFF>",
+          "description": "Enable / disable sniffer output."
+        },
+        {
+          "syntax": "<E>",
+          "description": "Store EEPROM configuration."
+        },
+        {
+          "syntax": "<e>",
+          "description": "Clear EEPROM configuration.",
+          "danger": true
+        }
+      ]
+    },
+    {
+      "title": "Advanced raw packet commands",
+      "commands": [
+        {
+          "syntax": "<M ignore d0 d1 [d2 d3 d4 d5]>",
+          "description": "Send up to five raw DCC bytes on MAIN. Data bytes are hexadecimal; the legacy ignore parameter should be 0."
+        },
+        {
+          "syntax": "<P ignore d0 d1 [d2 d3 d4 d5]>",
+          "description": "Send up to five raw DCC bytes on PROG. Data bytes are hexadecimal; the legacy ignore parameter should be 0."
+        },
+        {
+          "syntax": "<L>",
+          "description": "LCC/CBUS adapter introduction message."
+        },
+        {
+          "syntax": "<L eventId>",
+          "description": "Pass an incoming LCC event ID to EX-CommandStation."
+        }
+      ]
+    }
+  ]
+}

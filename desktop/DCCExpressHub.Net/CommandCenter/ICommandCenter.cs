@@ -38,6 +38,7 @@ namespace DCCExpressHub.Net.CommandCenter
         Task<bool> SetAccessoryAsync(int address, bool active, CancellationToken ct = default);
         Task<bool> SetSignalAspectAsync(int address, int aspect, CancellationToken ct = default);
         Task<bool> SetVPinAsync(int vpin, bool active, CancellationToken ct = default);
+        Task<bool> SetDccExTurnoutAsync(int id, bool thrown, CancellationToken ct = default) => Task.FromResult(false);
         Task<bool> RequestTrackConfigurationAsync(CancellationToken ct = default);
         Task<bool> RequestCurrentTelemetryAsync(CancellationToken ct = default);
         Task<bool> RequestTripTelemetryAsync(CancellationToken ct = default);

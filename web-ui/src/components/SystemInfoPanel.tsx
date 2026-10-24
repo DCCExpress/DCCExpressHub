@@ -99,6 +99,8 @@ type SystemInfoPanelProps = {
   wsStatus: WsConnectionStatus;
   flashInfo: SystemFlashInfo | null;
   version: string;
+  /** Keep the command-center card visible without mounting the Hub Info card. */
+  showHubInfo?: boolean;
 };
 
 type TemperatureLevel = {
@@ -350,6 +352,7 @@ export default function SystemInfoPanel({
   wsStatus,
   flashInfo,
   version,
+  showHubInfo = true,
 }: SystemInfoPanelProps) {
   useTranslation();
   const commandCenter =
@@ -979,6 +982,7 @@ export default function SystemInfoPanel({
           </Card>
         )}
 
+        {showHubInfo && (
         <Card withBorder p="sm" bg="var(--mantine-color-body)">
           <Stack gap="xs">
             <Group justify="space-between">
@@ -1332,6 +1336,7 @@ export default function SystemInfoPanel({
             />
           </Stack>
         </Card>
+        )}
     </Stack>
   );
 }

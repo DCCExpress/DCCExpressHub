@@ -25,7 +25,7 @@ import {
   IconCode,
   IconPlayerPause,
   IconPlayerPlay,
-  IconTrashX,
+  IconX,
 } from "@tabler/icons-react";
 
 import type {
@@ -376,7 +376,7 @@ export default function ScriptPropertyEditor({
               variant="light"
               color="red"
               leftSection={
-                <IconTrashX
+                <IconX
                   size={14}
                 />
               }

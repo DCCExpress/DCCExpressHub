@@ -149,6 +149,8 @@ export const CLIENT_WS_MESSAGE_TYPES = [
   "setBlocksReset",
   "getBlocks",
   "getLayoutRuntimeSnapshot",
+  "getRailComDebug",
+  "setRailComSenseMode",
   "routeLock",
   "routeUnlock",
   "reserveRoute",
@@ -394,6 +396,17 @@ export type TrainDriverResponsePayload = {
   states?: TrainDriverStatePayload[];
 };
 
+export type SequentialMovementStatePayload = {
+  sequenceId: string;
+  name: string;
+  status: "running" | "waiting" | "finishing" | "completed" | "stopped" | "aborted" | "error";
+  stepIndex: number;
+  stepCount: number;
+  locoAddress: number | null;
+  info: string | null;
+  error: string | null;
+};
+
 export type MovementResponsePayload = WsCommandResponseMeta & {
   extra?: {
     state?: MovementRuntimeStatePayload;
@@ -531,6 +544,29 @@ export type ServerWsPayloadMap = {
   "ws:welcome": { message: string };
   heartbeatAck: Record<string, never>;
   rawInfo: { raw: string };
+  railComStateChanged: {
+    entries: Array<{
+      sensorAddress: number;
+      locomotiveAddress: number;
+      lastSeenAt: number;
+      source: string;
+      orientationBit: boolean | null;
+      orientationSource: "none" | "block" | "loco" | "long";
+    }>;
+    /** Detectors observed since the last RailCom state reset, including empty ones. */
+    knownSensors: number[];
+  };
+  railComStateSnapshot: ServerWsPayloadMap["railComStateChanged"] & {
+    senseMode: "off" | "block" | "loco";
+    interrogationRequested: boolean;
+    interrogationSent: boolean;
+  };
+  railComSenseModeChanged: { mode: "off" | "block" | "loco" };
+  railComSenseModeResponse: {
+    ok: boolean;
+    mode: "off" | "block" | "loco";
+    message: string;
+  };
   ack: string;
   error: { message: string };
   commandRejected: CommandRejectedPayload;
@@ -541,6 +577,12 @@ export type ServerWsPayloadMap = {
   powerInfo: WsPowerInfoPayload;
 
   turnoutChanged: TurnoutChangedPayload;
+  // Previous-session canvas position only, never physical turnout feedback.
+  turnoutDisplayRestored: {
+    address: number;
+    closed: boolean;
+    outputMode: "accessory" | "extended" | "vpin";
+  };
   sensorChanged: SensorChangedPayload;
   sensorSnapshot: SensorSnapshotPayload;
   sensorSettings: { sensorOffDelayMs: number; turnoutCommandIntervalMs: number; turnoutSettlingTimeMs: number; saved?: boolean };
@@ -627,6 +669,7 @@ export type ServerWsPayloadMap = {
     enabled: boolean;
   };
   movementStateChanged: MovementRuntimeStatePayload;
+  sequentialMovementStateChanged: SequentialMovementStatePayload;
   movementSnapshot: { states: MovementRuntimeStatePayload[] };
   movementResponse: MovementResponsePayload;
   trainDriverStateChanged: TrainDriverStatePayload;

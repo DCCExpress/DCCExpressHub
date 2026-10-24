@@ -2,6 +2,7 @@ import i18next from "i18next";
 import { ELEMENT_TYPES } from "../../../domain/layout/elementTypes";
 import { drawTextWithRoundedBackground } from "../../../graphics";
 import { generateId } from "../../../helpers";
+import { getRailComLocomotives } from "../../../services/railComSensorRuntime";
 import { TrackElement } from "../core/TrackElement";
 import { DrawOptions, ITrackSensorElement } from "../types/EditorTypes";
 import { IEditableProperty } from "./PropertyDescriptor";
@@ -11,6 +12,8 @@ export enum SensorTypes {
 }
 export class TrackSensorElement extends TrackElement {
   on: boolean = false;
+  /** Use the existing sensor address for RailCom identification as well. */
+  railCom: boolean = false;
   kind: SensorTypes = SensorTypes.rect;
   colorOn: string = "lime";
   colorOff: string = "green";
@@ -44,8 +47,42 @@ export class TrackSensorElement extends TrackElement {
         ctx,
         this.posLeft,
         this.posBottom - 10,
-        "#" + this.address.toString(),
+        this.address.toString(),
       );
+    }
+    if (this.railCom && this.address > 0) {
+      const addresses = getRailComLocomotives(this.address);
+      if (addresses.length > 0) {
+        ctx.save();
+        ctx.font = "bold 10px sans-serif";
+        // Center the badge over the sensor circle. A single badge can list
+        // multiple detected locomotives without offsetting it from the dot.
+        // Only positive addresses enter the RailCom runtime cache.
+        // Canvas normalizes CSS named colors (e.g. "lime") to hex here.
+        ctx.fillStyle = this.colorOn;
+        const color = ctx.fillStyle;
+        const hex = typeof color === "string" ? color.replace("#", "") : "";
+        const rgb = hex.length === 3
+          ? [...hex].map(digit => parseInt(digit + digit, 16))
+          : hex.length === 6
+            ? [0, 2, 4].map(offset => parseInt(hex.slice(offset, offset + 2), 16))
+            : [];
+        const [red = 255, green = 255, blue = 255] = rgb;
+        const brightness = rgb.length === 3
+          ? (red * 299 + green * 587 + blue * 114) / 1000
+          : 255;
+        drawTextWithRoundedBackground(
+          ctx,
+          this.centerX,
+          this.centerY,
+          addresses.join(", "),
+          brightness >= 150 ? "#171717" : "#ffffff",
+          this.colorOn,
+          4,
+          3,
+        );
+        ctx.restore();
+      }
     }
     this.endDraw(ctx);
     this.drawSelection(ctx);
@@ -60,6 +97,7 @@ export class TrackSensorElement extends TrackElement {
       colorOn: this.colorOn,
       colorOff: this.colorOff,
       radius: this.radius,
+      railCom: this.railCom,
     };
   }
   static fromJSON(data: ITrackSensorElement): TrackSensorElement {
@@ -77,6 +115,7 @@ export class TrackSensorElement extends TrackElement {
     element.colorOn = data.colorOn;
     element.colorOff = data.colorOff;
     element.radius = data.radius ?? 6;
+    element.railCom = data.railCom === true;
     return element;
   }
   override clone(): TrackSensorElement {
@@ -93,6 +132,7 @@ export class TrackSensorElement extends TrackElement {
     copy.textOn = this.textOn;
     copy.textOff = this.textOff;
     copy.radius = this.radius;
+    copy.railCom = this.railCom;
     return copy;
   }
   override getEditableProperties(): IEditableProperty[] {
@@ -102,6 +142,12 @@ export class TrackSensorElement extends TrackElement {
         label: i18next.t("ui.sensorAddress"),
         key: "address",
         type: "number",
+        readonly: false,
+      },
+      {
+        label: "RailCom",
+        key: "railCom",
+        type: "checkbox",
         readonly: false,
       },
       {

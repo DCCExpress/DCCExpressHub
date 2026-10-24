@@ -8,6 +8,9 @@ import FunctionIconAsset from "../../components/loco/FunctionIconAsset";
 import { wsApi } from "../../services/wsApi";
 import { wsClient } from "../../services/wsClient";
 import { getMovementTaskStates, subscribeMovementTaskStates } from "../../services/movementEngine";
+import { getSequentialMovementStates, subscribeSequentialMovementStates } from "../../services/sequentialMovementStates";
+import { resolveLocoTaskStatus, formatLocoTaskStatus, movementBlockLabel } from "../../services/locoTaskStatus";
+import type { TrainDriverStatePayload } from "@domain/wsTypes";
 import LocoEmergencyButton from "./LocoEmergencyButton";
 
 type LiveState = { speed: number; direction: Direction; functionsMask: number };
@@ -15,12 +18,14 @@ type Props = { locos: Loco[]; selectedLocoId: string; onSelect: (loco: Loco) => 
 
 export default function LocoCardsView({ locos, selectedLocoId, onSelect, disabled, emergencyStop, onEmergencyToggle }: Props) {
   const [live, setLive] = useState<Record<number, LiveState>>({});
-  const [moving, setMoving] = useState(() => getMovementTaskStates());
-  const [drivers, setDrivers] = useState<Array<{ locoAddress: number; status: string }>>([]);
+  const [moving, setMoving] = useState(getMovementTaskStates);
+  const [sequences, setSequences] = useState(getSequentialMovementStates);
+  const [drivers, setDrivers] = useState<TrainDriverStatePayload[]>([]);
   useEffect(() => {
     const update = () => setMoving(getMovementTaskStates());
     return subscribeMovementTaskStates(update);
   }, []);
+  useEffect(() => subscribeSequentialMovementStates(() => setSequences(getSequentialMovementStates())), []);
   useEffect(() => {
     const unsub = wsClient.on("locoState", data => {
       if (!data.loco) return;
@@ -49,9 +54,8 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
     }
     return () => { unsub(); driverUnsub(); connection(); };
   }, [locos]);
-  const blocked = (address: number) =>
-    moving.some(item => item.state.locoAddress === address && ["running", "stopping"].includes(item.state.status)) ||
-    drivers.some(item => item.locoAddress === address && ["created", "running", "waiting", "paused", "stopping"].includes(item.status));
+  // Task ownership and display share the same live selection criteria.
+  // Manual throttle override behavior itself remains unchanged.
   const command = (loco: Loco, speed: number, direction: Direction) => {
     if (disabled) return;
     const value = Math.max(0, Math.min(126, loco.maxSpeed > 0 ? loco.maxSpeed : 126, Math.round(speed)));
@@ -83,21 +87,25 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
         const state = live[loco.address] ?? { speed: 0, direction: "forward" as Direction, functionsMask: 0 };
         // Train Driver / Movement ownership is advisory here: manual override remains available.
         const locked = disabled;
-        const movement = moving.find(item => item.state.locoAddress === loco.address &&
-          ["running", "stopping", "error"].includes(item.state.status))?.state;
-        const driver = drivers.find(item => item.locoAddress === loco.address &&
-          ["created", "running", "waiting", "paused", "stopping"].includes(item.status));
-        const movementMessage = movement
-          ? (movement.error || movement.info ||
-            (movement.status === "stopping" ? "Stopping" :
-              movement.targetBlockName ? `Moving to ${movement.targetBlockName}` : movement.status))
-          : driver ? (driver.status === "waiting" ? "Train Driver waiting" :
-              driver.status === "paused" ? "Train Driver paused" : `Train Driver: ${driver.status}`) : null;
+        // A parent Sequential Movement owns the loco throughout dwell times,
+        // including the gap after its child Movement has completed.
+        const taskStatus = resolveLocoTaskStatus(loco.address, moving, sequences, drivers,
+          id => movementBlockLabel(moving, loco.address, id));
+        const movementMessage = emergencyStop ? "Emergency stop active"
+          : taskStatus ? formatLocoTaskStatus(taskStatus) : null;
         const cardFunctions = (loco.functions ?? []).filter(fn => fn.showOnLocoCard ?? fn.number < 5)
           .sort((a, b) => a.number - b.number).slice(0, 5);
+        // Capture selection before child controls handle or stop the event.
+        // Pointer-down also handles slider dragging and momentary functions.
         return <Card key={loco.id} withBorder radius="sm" padding="xs"
-          style={{ borderColor: selectedLocoId === loco.id ? "var(--mantine-color-lime-6)" : undefined }}>
-          <Group gap="xs" wrap="nowrap" onClick={() => onSelect(loco)} style={{ cursor: "pointer" }}>
+          onPointerDownCapture={event => {
+            if (event.button === 0 && selectedLocoId !== loco.id) onSelect(loco);
+          }}
+          onClickCapture={event => {
+            if (event.detail === 0 && selectedLocoId !== loco.id) onSelect(loco);
+          }}
+          style={{ borderColor: selectedLocoId === loco.id ? "var(--mantine-color-lime-6)" : undefined, cursor: "default" }}>
+          <Group gap="xs" wrap="nowrap">
             <LocoImage locoId={loco.id} image={loco.image} name={loco.name} width={94} height={48} />
             <Stack gap={0} style={{ minWidth: 0, flex: 1 }}>
               <Text size="sm" fw={600} truncate>{loco.name || `#${loco.address}`}</Text>
@@ -109,7 +117,7 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
                   return <Tooltip key={number} label={fn?.name ? `F${number} · ${fn.name}` : `Function F${number}`}>
                     <ActionIcon size={30} radius="sm" variant={(state.functionsMask & (1 << number)) !== 0 ? "filled" : "light"}
                       color={(state.functionsMask & (1 << number)) !== 0 ? "blue" : "gray"}
-                      disabled={locked} aria-label={`Function F${number}`}
+                      disabled={locked} style={{ cursor: locked ? "default" : "pointer" }} aria-label={`Function F${number}`}
                       onPointerDown={event => {
                         event.stopPropagation();
                         if (fn.momentary) { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); toggleFunction(loco, number, true); }
@@ -127,17 +135,18 @@ export default function LocoCardsView({ locos, selectedLocoId, onSelect, disable
           </Group>
           <Group wrap="nowrap" gap={5} mt={5} onClick={event => event.stopPropagation()}>
             <Tooltip label="Reverse"><ActionIcon size="sm" variant={state.direction === "reverse" ? "filled" : "light"}
-              disabled={locked} onClick={() => command(loco, state.speed, "reverse")} aria-label="Reverse"><IconArrowBigLeft size={14}/></ActionIcon></Tooltip>
-            <Tooltip label="Stop"><ActionIcon size="sm" color="red" variant="light" disabled={locked}
+              disabled={locked} style={{ cursor: locked ? "default" : "pointer" }} onClick={() => command(loco, state.speed, "reverse")} aria-label="Reverse"><IconArrowBigLeft size={14}/></ActionIcon></Tooltip>
+            <Tooltip label="Stop"><ActionIcon size="sm" color="red" variant="light" disabled={locked} style={{ cursor: locked ? "default" : "pointer" }}
               onClick={() => command(loco, 0, state.direction)} aria-label="Stop"><IconPlayerStopFilled size={14}/></ActionIcon></Tooltip>
             <Tooltip label="Forward"><ActionIcon size="sm" variant={state.direction === "forward" ? "filled" : "light"}
-              disabled={locked} onClick={() => command(loco, state.speed, "forward")} aria-label="Forward"><IconArrowBigRight size={14}/></ActionIcon></Tooltip>
-            <Slider style={{ flex: 1, minWidth: 35 }} size="xs" min={0} max={Math.max(1, Math.min(126, loco.maxSpeed || 126))}
+              disabled={locked} style={{ cursor: locked ? "default" : "pointer" }} onClick={() => command(loco, state.speed, "forward")} aria-label="Forward"><IconArrowBigRight size={14}/></ActionIcon></Tooltip>
+            <Slider style={{ flex: 1, minWidth: 35, cursor: locked ? "default" : "pointer" }}
+              styles={{ thumb: { cursor: locked ? "default" : "pointer" }, track: { cursor: locked ? "default" : "pointer" } }} size="xs" min={0} max={Math.max(1, Math.min(126, loco.maxSpeed || 126))}
               value={Math.min(state.speed, Math.max(1, Math.min(126, loco.maxSpeed || 126)))} disabled={locked}
               onChange={value => setLive(old => ({ ...old, [loco.address]: { ...old[loco.address], speed: value, direction: state.direction, functionsMask: old[loco.address]?.functionsMask ?? state.functionsMask } }))}
               onChangeEnd={value => command(loco, value, state.direction)} aria-label={`Speed ${loco.name}`} />
           </Group>
-          <Text size="xs" c={movement?.error ? "red" : movementMessage ? "yellow" : "dimmed"} truncate="end" title={movementMessage ?? "Manual"} style={{ height: 18, lineHeight: "18px", width: "100%", minWidth: 0 }}>{movementMessage ?? "Manual"}</Text>
+          <Text size="xs" c={emergencyStop ? "red" : movementMessage ? "yellow" : "dimmed"} truncate="end" title={movementMessage ?? "Manual"} style={{ height: 18, lineHeight: "18px", width: "100%", minWidth: 0 }}>{movementMessage ?? "Manual"}</Text>
         </Card>;
       })}
     </Stack>

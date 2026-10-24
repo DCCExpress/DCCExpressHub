@@ -1034,6 +1034,14 @@ namespace DCCExpressHub.Net.CommandCenter
                     ct)
                 : Task.FromResult(false);
 
+        public Task<bool> SetDccExTurnoutAsync(
+            int id,
+            bool thrown,
+            CancellationToken ct = default) =>
+            id > 0 && id <= 32767
+                ? SendRawAsync($"<T {id} {(thrown ? 1 : 0)}>", true, ct)
+                : Task.FromResult(false);
+
         public Task<bool> SetAccessoryAsync(
             int address,
             bool active,

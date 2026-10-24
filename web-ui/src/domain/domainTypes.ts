@@ -159,6 +159,10 @@ export type Loco = {
   /** Whether this locomotive is currently on the layout. Legacy entries default to active. */
   active?: boolean;
   maxSpeed: number;
+  /** Stored low-speed preset (DCC step); not yet used by automation. */
+  minimumSpeed?: number;
+  /** Stored medium-speed preset (DCC step); not yet used by automation. */
+  mediumSpeed?: number;
   /** Default DCC speed step for Drive to Block. */
   cruisingSpeed?: number;
   invert: boolean;

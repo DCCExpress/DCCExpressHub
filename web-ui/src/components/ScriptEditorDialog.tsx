@@ -28,7 +28,6 @@ import {
   IconPlayerPause,
   IconPlayerPlay,
   IconPlayerStop,
-  IconTrashX,
   IconWand,
   IconX,
 } from "@tabler/icons-react";
@@ -687,7 +686,7 @@ export default function ScriptEditorDialog({
                     onClick={onAbort}
                     aria-label={i18next.t("ui.abortScript")}
                   >
-                    <IconTrashX size={17} />
+                    <IconX size={17} />
                   </ActionIcon>
                 </Tooltip>
               )}
@@ -798,7 +797,7 @@ export default function ScriptEditorDialog({
                 <Button
                   color="red"
                   variant="light"
-                  leftSection={<IconTrashX size={15} />}
+                  leftSection={<IconX size={15} />}
                   onClick={onAbort}
                 > {i18next.t("ui.abort")} </Button>
               )}

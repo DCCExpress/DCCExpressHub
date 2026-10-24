@@ -1,0 +1,7 @@
+.browser-loco-panel-fit { flex:1; min-height:0; min-width:0; overflow:auto; padding-top:14px; }
+.browser-loco-panel-layout { display:flex; flex-direction:column; width:100%; gap:8px; min-height:100%; }
+.browser-loco-panel-controls,.browser-loco-panel-functions { min-width:0; min-height:0; }
+.browser-loco-panel-functions { flex:1; min-height:240px; }
+.browser-loco-panel-functions .mantine-Card-root { min-height:240px; }
+.browser-loco-panel-layout .mantine-Button-root { flex-shrink:0; }
+.loco-mechanical-counters { max-width:100%; }

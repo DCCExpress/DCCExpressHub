@@ -509,6 +509,10 @@ class WebSocketApi {
     return this.send("setTurnout", { address, closed });
   }
 
+  setDccExTurnout(address: number, closed: boolean): boolean {
+    return this.send("setDccExTurnout", { address, closed });
+  }
+
   setSensor(address: number, on: boolean): boolean {
     return this.send("setSensor", { address, on });
   }

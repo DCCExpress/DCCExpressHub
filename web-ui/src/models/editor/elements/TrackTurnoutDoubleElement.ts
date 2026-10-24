@@ -235,7 +235,7 @@ export default class TrackTurnoutDoubleElement extends TrackMultiMotorTurnoutEle
         type: "number",
         readonly: false,
         min: 1,
-        max: 2048,
+        max: this.outputMode === "vpin" || this.outputMode === "dccex-turnout" ? 32767 : 2048,
         validate: () => true,
       },
       {
@@ -244,7 +244,7 @@ export default class TrackTurnoutDoubleElement extends TrackMultiMotorTurnoutEle
         type: "number",
         readonly: false,
         min: 1,
-        max: 2048,
+        max: this.outputMode === "vpin" || this.outputMode === "dccex-turnout" ? 32767 : 2048,
         validate: () => true,
       },
       {
@@ -443,7 +443,7 @@ export default class TrackTurnoutDoubleElement extends TrackMultiMotorTurnoutEle
     element.bg = data.bg;
     element.fg = data.fg;
     element.turnout1Address = data.turnout1Address;
-    element.outputMode = data.outputMode === "vpin" ? "vpin" : "accessory";
+    element.outputMode = normalizeTurnoutOutputMode(data.outputMode);
     element.turnout2Address = data.turnout2Address;
     element.turnout1ClosedValue = data.turnout1ClosedValue ?? element.turnout1ClosedValue;
     element.turnout2ClosedValue = data.turnout2ClosedValue ?? element.turnout2ClosedValue;

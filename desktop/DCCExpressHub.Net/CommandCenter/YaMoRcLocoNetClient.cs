@@ -30,10 +30,12 @@ public sealed class YaMoRcLocoNetClient
     private readonly bool _lbServerEnabled;
     private readonly bool _binaryFeedbackEnabled;
     private readonly int _sensorOffset;
+    private readonly RailComSenseSettings _railComSense;
 
     private readonly object _stateGate = new();
     private readonly Dictionary<int, bool> _loggedSensorStates = new();
     private readonly SemaphoreSlim _interrogateGate = new(1, 1);
+    private StreamWriter? _activeLbWriter;
 
     private bool _lbServerConnected;
     private DateTime _lbServerConnectedSinceUtc = DateTime.MinValue;
@@ -50,9 +52,11 @@ public sealed class YaMoRcLocoNetClient
 
     public YaMoRcLocoNetClient(
         IConfiguration configuration,
-        ILogger log)
+        ILogger log,
+        RailComSenseSettings railComSense)
     {
         _log = log;
+        _railComSense = railComSense;
 
         _host =
             (configuration["LocoNet:Host"] ??
@@ -102,6 +106,7 @@ public sealed class YaMoRcLocoNetClient
                     0),
                 0,
                 MaxSensorOffset);
+
     }
 
     public int SensorOffset => _sensorOffset;
@@ -391,59 +396,30 @@ public sealed class YaMoRcLocoNetClient
     public async Task<bool> RequestSensorSnapshotAsync(
         CancellationToken ct = default)
     {
-        if (!_lbServerEnabled)
+        StreamWriter? writer;
+        lock (_stateGate)
+            writer = _activeLbWriter;
+
+        if (!_lbServerEnabled || writer is null)
+        {
+            _log.LogWarning("YaMoRC LocoNet snapshot requested without an active LBServer session");
             return false;
+        }
 
         try
         {
-            using var client =
-                new TcpClient
-                {
-                    NoDelay = true
-                };
-
-            using var connectCts =
-                CancellationTokenSource
-                    .CreateLinkedTokenSource(
-                        ct);
-
-            connectCts.CancelAfter(
-                TimeSpan.FromMilliseconds(
-                    ConnectTimeoutMs));
-
-            await client.ConnectAsync(
-                _host,
-                _lbServerPort,
-                connectCts.Token);
-
-            using var stream =
-                client.GetStream();
-
-            using var writer =
-                new StreamWriter(
-                    stream)
-                {
-                    AutoFlush = true,
-                    NewLine = "\r\n"
-                };
-
-            return await SendInterrogateAsync(
-                writer,
-                ct);
+            // Use the live reader/writer session so sensor reports are received
+            // on the same subscribed LBServer client. Do not suppress a
+            // power-on resync just because startup interrogation ran recently.
+            return await SendInterrogateAsync(writer, ct, force: true);
         }
-        catch (OperationCanceledException)
-            when (ct.IsCancellationRequested)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             throw;
         }
         catch (Exception ex)
         {
-            _log.LogWarning(
-                ex,
-                "YaMoRC LocoNet sensor interrogation failed: {Host}:{Port}",
-                _host,
-                _lbServerPort);
-
+            _log.LogWarning(ex, "YaMoRC LocoNet snapshot request failed");
             return false;
         }
     }
@@ -507,17 +483,39 @@ public sealed class YaMoRcLocoNetClient
                         NewLine = "\r\n"
                     };
 
+                // Keep interrogation on the live feedback connection.
+                // The initial burst is not guaranteed to return every module's
+                // complete state; retry without marking missing inputs FREE.
+                using var sessionCts =
+                    CancellationTokenSource.CreateLinkedTokenSource(ct);
+                lock (_stateGate)
+                    _activeLbWriter = writer;
+
                 var readTask =
                     ReadLbServerAsync(
                         reader,
-                        ct);
+                        sessionCts.Token);
 
-                _ =
-                    await SendInterrogateAsync(
-                        writer,
-                        ct);
+                var retryTask = Task.Run(async () =>
+                {
+                    foreach (var delay in new[] { 0, 20_000, 40_000 })
+                    {
+                        if (delay > 0)
+                            await Task.Delay(delay, sessionCts.Token);
+                        await SendInterrogateAsync(writer, sessionCts.Token);
+                    }
+                }, sessionCts.Token);
 
-                await readTask;
+                try
+                {
+                    await readTask;
+                }
+                finally
+                {
+                    await sessionCts.CancelAsync();
+                    try { await retryTask; }
+                    catch (OperationCanceledException) when (sessionCts.IsCancellationRequested) { }
+                }
             }
             catch (OperationCanceledException)
                 when (ct.IsCancellationRequested)
@@ -543,6 +541,7 @@ public sealed class YaMoRcLocoNetClient
             {
                 lock (_stateGate)
                 {
+                    _activeLbWriter = null;
                     _lbServerConnected = false;
                     _lbServerConnectedSinceUtc =
                         DateTime.MinValue;
@@ -702,7 +701,8 @@ public sealed class YaMoRcLocoNetClient
 
     private async Task<bool> SendInterrogateAsync(
         StreamWriter writer,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool force = false)
     {
         await _interrogateGate.WaitAsync(
             ct);
@@ -713,6 +713,7 @@ public sealed class YaMoRcLocoNetClient
                 DateTime.UtcNow;
 
             if (
+                !force &&
                 _lastInterrogateUtc !=
                     DateTime.MinValue &&
                 now - _lastInterrogateUtc <
@@ -1092,6 +1093,16 @@ public sealed class YaMoRcLocoNetClient
         {
             ProcessInputReport(
                 packet);
+        }
+
+        // RailCom identification is not an occupancy change.
+        // Keep a distinct event, carried to the WebSocket diagnostics bridge.
+        if (RailComFrameDecoder.TryDecode(packet, out var detection, _railComSense.Mode))
+        {
+            var hubSensor = detection.SensorAddress + _sensorOffset;
+            if (hubSensor is >= 1 and <= 65535)
+                RawInfo?.Invoke(
+                    $"RAILCOM_EVENT {hubSensor} {detection.LocomotiveAddress} {(detection.Present ? "Detected" : "Lost")} {detection.OrientationSource} {(detection.OrientationBit.HasValue ? (detection.OrientationBit.Value ? "1" : "0") : "?")}");
         }
     }
 

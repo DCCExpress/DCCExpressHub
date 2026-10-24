@@ -729,6 +729,9 @@ function renderSingleBasicEditor(
   propValue: boolean,
   onChange: PropertyChangeHandler
 ) {
+  const vpinLabels = selectedElement.outputMode === "vpin"
+    ? { label0: "−", label1: "+" }
+    : {};
   return (
     <Stack gap="xs">
       <Text size="sm" fw={500}>
@@ -757,6 +760,7 @@ function renderSingleBasicEditor(
         </Box>
 
         <BitToggleElement
+          {...vpinLabels}
           value={propValue}
           onChange={value => {
             onChange(prop, value);
@@ -793,6 +797,7 @@ function renderSingleBasicEditor(
         </Box>
 
         <BitToggleElement
+          {...vpinLabels}
           value={!propValue}
           onChange={value => {
             onChange(prop, !value);
@@ -972,6 +977,7 @@ function renderThreeWayBasicEditor(
   selectedElement: TrackTurnoutThreeWayElement,
   onChange: PropertyChangeHandler
 ) {
+  const vpinLabels = selectedElement.outputMode === "vpin" ? { label0: "−", label1: "+" } : {};
   return (
     <Stack gap="xs">
       <Text size="sm" fw={500}>
@@ -1020,6 +1026,7 @@ function renderThreeWayBasicEditor(
 
               <Group gap="xs" wrap="nowrap">
                 <BitToggleElement
+          {...vpinLabels}
                   value={values.first}
                   onChange={value => {
                     onChange(
@@ -1038,6 +1045,7 @@ function renderThreeWayBasicEditor(
                 />
 
                 <BitToggleElement
+          {...vpinLabels}
                   value={values.second}
                   onChange={value => {
                     onChange(
@@ -1212,6 +1220,7 @@ function renderDoubleBasicEditor(
   selectedElement: TrackTurnoutDoubleElement,
   onChange: PropertyChangeHandler
 ) {
+  const vpinLabels = selectedElement.outputMode === "vpin" ? { label0: "−", label1: "+" } : {};
   return (
     <Stack gap="xs">
       <Text size="sm" fw={500}>
@@ -1260,6 +1269,7 @@ function renderDoubleBasicEditor(
 
               <Group gap="xs" wrap="nowrap">
                 <BitToggleElement
+          {...vpinLabels}
                   value={values.first}
                   onChange={value => {
                     onChange(
@@ -1278,6 +1288,7 @@ function renderDoubleBasicEditor(
                 />
 
                 <BitToggleElement
+          {...vpinLabels}
                   value={values.second}
                   onChange={value => {
                     onChange(

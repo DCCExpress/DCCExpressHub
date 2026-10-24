@@ -321,9 +321,8 @@ public sealed class CommandCenterApi
                 new CommandCenterSettings
                 {
                     Transport =
-                        current.IsZ21
-                            ? "z21"
-                            : "tcp",
+                        // Native LocoNet TCP is not a DCC-EX TCP connection.
+                        current.Transport,
                     TcpHost = host,
                     TcpPort = port,
                     SerialPort =
@@ -379,9 +378,9 @@ public sealed class CommandCenterApi
                 });
         }
 
-        // USB LocoNet Serial uses the Desktop-selected COM port. Unlike DCC-EX,
-        // the port cannot be hot-switched: persist the setting, then restart.
-        if (current.Transport != "loconet-serial" &&
+        // Native LocoNet TCP and Serial use launcher-selected endpoints.
+        // Persist changes but do not attempt DCC-EX/Z21 hot-switching.
+        if (current.Transport is not ("loconet-serial" or "loconet") &&
             !_physical.SetEndpoint(
                 endpoint,
                 endpointValue)
@@ -408,7 +407,7 @@ public sealed class CommandCenterApi
             {
                 ok = true,
                 transport = saved.Transport,
-                restartRequired = saved.Transport == "loconet-serial",
+                restartRequired = saved.Transport is "loconet-serial" or "loconet",
                 host =
                     saved.IsSerial
                         ? ""

@@ -23,19 +23,21 @@ type Props = {
   turnouts: TurnoutDebugState;
   layoutOwners: DebugLayoutOwners;
   connected: boolean;
+  turnoutLocks: Map<number, string>;
 };
 
 type ExtendedRowProps = {
   address: number;
   state: DebugStateValue<TurnoutDebugValue>;
   connected: boolean;
+  lockOwner?: string | undefined;
 };
 
 function formatTime(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString();
 }
 
-function ExtendedTurnoutControl({ address, state, connected }: ExtendedRowProps) {
+function ExtendedTurnoutControl({ address, state, connected, lockOwner }: ExtendedRowProps) {
   const [value, setValue] = useState<number | string>(state.value.aspect ?? 0);
 
   useEffect(() => {
@@ -57,7 +59,7 @@ function ExtendedTurnoutControl({ address, state, connected }: ExtendedRowProps)
         allowDecimal={false}
         allowNegative={false}
         clampBehavior="strict"
-        disabled={!connected}
+        disabled={!connected || Boolean(lockOwner)}
         onChange={setValue}
         w={100}
         aria-label={`Extended turnout ${address} aspect`}
@@ -66,7 +68,7 @@ function ExtendedTurnoutControl({ address, state, connected }: ExtendedRowProps)
       <Button
         size="xs"
         variant="light"
-        disabled={!connected || !valid}
+        disabled={!connected || Boolean(lockOwner) || !valid}
         onClick={() => {
           if (!valid) return;
           wsApi.setSignalAspect(address, parsedValue);
@@ -82,6 +84,7 @@ export default function TurnoutDebugTab({
   turnouts,
   layoutOwners,
   connected,
+  turnoutLocks,
 }: Props) {
   const rows = [...turnouts.entries()].sort(([left], [right]) => left - right);
 
@@ -99,6 +102,7 @@ export default function TurnoutDebugTab({
             <Table.Th>Name</Table.Th>
             <Table.Th>Mode</Table.Th>
             <Table.Th>State</Table.Th>
+            <Table.Th w={100}>Lock</Table.Th>
             <Table.Th>Control</Table.Th>
             <Table.Th>Last update</Table.Th>
           </Table.Tr>
@@ -107,6 +111,7 @@ export default function TurnoutDebugTab({
         <Table.Tbody>
           {rows.map(([address, state]) => {
             const value = state.value;
+            const lockOwner = turnoutLocks.get(address);
 
             return (
               <Table.Tr key={address}>
@@ -163,18 +168,20 @@ export default function TurnoutDebugTab({
                   )}
                 </Table.Td>
 
+                <Table.Td w={100}><Badge color="red" variant="light" title={lockOwner ?? ""} style={{ visibility: lockOwner ? "visible" : "hidden" }}>LOCKED</Badge></Table.Td>
                 <Table.Td>
                   {value.outputMode === "extended" ? (
                     <ExtendedTurnoutControl
                       address={address}
                       state={state}
                       connected={connected}
+                      lockOwner={lockOwner}
                     />
                   ) : (
                     <Group gap="xs">
                       <Switch
                         checked={value.physicalValue}
-                        disabled={!connected}
+                        disabled={!connected || Boolean(lockOwner)}
                         onChange={event => {
                           const next = event.currentTarget.checked;
                           if (value.outputMode === "vpin") {

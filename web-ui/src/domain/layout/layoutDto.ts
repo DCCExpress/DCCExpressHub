@@ -112,6 +112,7 @@ export type SerializedLayoutElementDto = {
 
   locoAddress?: number;
   sensorAddress?: number;
+  railCom?: boolean;
   blockType?: BlockType | string;
   stationId?: string | null;
   eventConfig?: BlockEventConfigDto;
@@ -235,7 +236,7 @@ export type ButtonBehaviorDto =
   | "push"
   | "momentary";
 
-export type TurnoutOutputModeDto = OutputCommandModeDto | "extended";
+export type TurnoutOutputModeDto = OutputCommandModeDto | "extended" | "dccex-turnout";
 
 export interface TrackTurnoutElementDto extends TrackElementDto {
   outputMode?: TurnoutOutputModeDto;
@@ -272,7 +273,7 @@ export interface TrackTurnoutDoubleElementDto extends TrackElementDto {
 
 export interface TrackTurnoutThreeWayElementDto extends TrackElementDto {
   type: "trackturnouttreeway";
-  outputMode?: OutputCommandModeDto;
+  outputMode?: OutputCommandModeDto | "dccex-turnout";
   turnout1Address: number;
   turnout2Address: number;
   turnout1ClosedValue: boolean;
@@ -281,6 +282,8 @@ export interface TrackTurnoutThreeWayElementDto extends TrackElementDto {
 
 export interface TrackSensorElementDto extends TrackElementDto {
   type: "tracksensor";
+  /** RailCom identification shares the sensor address, not a separate address. */
+  railCom?: boolean;
   kind: SensorKindDto;
   colorOn: string;
   colorOff: string;
@@ -372,6 +375,8 @@ export interface BlockElementDto extends TrackElementDto {
   length: number;
   locoAddress: number;
   sensorAddress: number;
+  /** If enabled, RailCom identification uses exactly sensorAddress. */
+  railCom?: boolean;
   blockType: BlockType;
   stationId?: string | null;
   eventConfig?: BlockEventConfigDto;

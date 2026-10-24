@@ -279,7 +279,7 @@ public sealed class DispatcherRuntime
 
         foreach (var item in turnouts ?? Array.Empty<DispatcherTurnoutRequirement>())
         {
-            if (item.Address is < 1 or > 2048)
+            if (item.Address is < 1 or > 32767)
                 throw new ArgumentException("invalid_turnout_address");
 
             if (result.TryGetValue(item.Address, out var old) &&
@@ -589,7 +589,8 @@ public sealed class DispatcherRuntime
                 RuntimeAccessoryKind.Turnout,
                 requirement.Address);
 
-        if (turnout is null)
+        if (turnout is null ||
+            (requirement.Address > 2048 && !turnout.TurnoutDccExId))
             return false;
 
         if (!_switchMan.IsOwnedBy(requirement.Address, ownerId))
@@ -601,8 +602,8 @@ public sealed class DispatcherRuntime
         // turnouts for every protected route acquisition; SetTurnoutAsync performs the
         // command-station feedback confirmation.
         //
-        // Extended/VPin outputs keep the old cache short-circuit because they do not
-        // use the magnetic-accessory turnout pulse/feedback path.
+        // Extended/VPin outputs keep their previous cache short-circuit.
+        // Native <T> is ALWAYS reasserted for a protected route acquisition.
         if ((turnout.TurnoutExtended ||
              turnout.TurnoutVPin) &&
             _runtime.TryGetTurnoutClosed(
@@ -634,6 +635,11 @@ public sealed class DispatcherRuntime
                 _runtime.SetSignal(
                     requirement.Address,
                     aspect);
+        }
+        else if (turnout.TurnoutDccExId)
+        {
+            ok = await _commandCenter.SetDccExTurnoutAsync(requirement.Address, physicalValue, ct);
+            if (ok) _runtime.SetDccExTurnoutState(requirement.Address, physicalValue);
         }
         else if (turnout.TurnoutVPin)
         {

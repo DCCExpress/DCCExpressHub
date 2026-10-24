@@ -94,7 +94,7 @@ export default function SystemDiagnosticsTab({ opened }: { opened: boolean }) {
             </Stack>
           </Card>
           <Card withBorder padding={0} style={{ overflow: "hidden" }}>
-            <Group gap="xs" px="md" py={10} bg="var(--mantine-color-teal-light)" style={{ borderBottom: "2px solid var(--mantine-color-teal-6)" }}><IconPlugConnected size={17} color="var(--mantine-color-teal-7)" /><Text fw={700} c="var(--mantine-color-teal-light-color)">{info?.type === "loconet" ? "LocoNet " + (info?.transport?.toLowerCase() === "tcp" ? "TCP" : "Serial") : info?.name ?? "Command center"}</Text></Group>
+            <Group gap="xs" px="md" py={10} bg="var(--mantine-color-teal-light)" style={{ borderBottom: "2px solid var(--mantine-color-teal-6)" }}><IconPlugConnected size={17} color="var(--mantine-color-teal-7)" /><Text fw={700} c="var(--mantine-color-teal-light-color)">{info?.type === "loconet" ? "LocoNet" : info?.name ?? "Command center"}</Text></Group>
             <Stack p="md" gap="xs">
             <Badge color={info?.connected ? "green" : "red"}>{info?.connected ? "CONNECTED" : "DISCONNECTED"}</Badge>
             <Stack gap={5} mt="xs">

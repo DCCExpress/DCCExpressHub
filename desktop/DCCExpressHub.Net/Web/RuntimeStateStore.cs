@@ -31,10 +31,37 @@ public sealed class RuntimeStateStore
             using var doc = JsonDocument.Parse(await File.ReadAllTextAsync(_path));
             var root = doc.RootElement;
 
-            // Accessory outputs are commands, not physical feedback. A saved ON
-            // must never be replayed as a known live state after restart: a
-            // platform lamp may be physically OFF even if its last command was ON.
-            // Ignore old basicAccessories/extendedAccessories entries as well.
+            // Save accessory outputs for continuity, but NEVER restore them
+            // as authoritative physical feedback. Only turnout canvas hints
+            // are recovered from the previous session.
+            var basic = new Dictionary<ushort, bool>();
+            if (root.TryGetProperty("basicAccessories", out var savedBasic) &&
+                savedBasic.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var pair in savedBasic.EnumerateObject())
+                {
+                    if (!ushort.TryParse(pair.Name, out var address) || address == 0)
+                        continue;
+                    if (pair.Value.ValueKind is JsonValueKind.True or JsonValueKind.False)
+                        basic[address] = pair.Value.ValueKind == JsonValueKind.True;
+                }
+            }
+
+            var extended = new Dictionary<ushort, byte>();
+            if (root.TryGetProperty("extendedAccessories", out var savedExtended) &&
+                savedExtended.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var pair in savedExtended.EnumerateObject())
+                {
+                    if (!ushort.TryParse(pair.Name, out var address) || address == 0 ||
+                        pair.Value.ValueKind != JsonValueKind.Number ||
+                        !pair.Value.TryGetInt32(out var aspect) || aspect is < 0 or > 255)
+                        continue;
+                    extended[address] = (byte)aspect;
+                }
+            }
+
+            _runtime.RestoreTurnoutDisplayStates(basic, extended);
 
             if (root.TryGetProperty("vpins", out var vpins) && vpins.ValueKind == JsonValueKind.Object)
             {
@@ -107,7 +134,7 @@ public sealed class RuntimeStateStore
                 }
             }
 
-            _log.LogInformation("Physical runtime state restored");
+            _log.LogInformation("Runtime state restored; accessory outputs used for turnout canvas hints only");
             return true;
         }
         catch (Exception ex)
@@ -134,6 +161,11 @@ public sealed class RuntimeStateStore
     {
         try
         {
+            var accessorySnapshot = _runtime.AccessorySaveSnapshot();
+            var basicAccessories = accessorySnapshot.Basic
+                .ToDictionary(x => x.Key.ToString(), x => x.Value);
+            var extendedAccessories = accessorySnapshot.Extended
+                .ToDictionary(x => x.Key.ToString(), x => x.Value);
             var vpins = _runtime.VPinStatesForPersistence()
                 .ToDictionary(x => x.Key.ToString(), x => x.Value);
 
@@ -156,6 +188,8 @@ public sealed class RuntimeStateStore
             {
                 version = 3,
                 savedAtMs = Environment.TickCount64,
+                basicAccessories,
+                extendedAccessories,
                 vpins,
                 blocks
             }, Json);

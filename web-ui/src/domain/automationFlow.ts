@@ -639,7 +639,7 @@ function normalizeNodeData(
       Math.max(
         0,
         Math.min(
-          2048,
+          32767,
           Math.round(
             finiteNumber(
               candidate.turnoutAddress,
@@ -1312,7 +1312,7 @@ function generateStatement(
 
       if (
         legacyAddress >= 1 &&
-        legacyAddress <= 2048
+        legacyAddress <= 32767
       ) {
         return `dcc.setTurnout(${legacyAddress}, ${data.turnoutClosed !== false ? "true" : "false"});`;
       }

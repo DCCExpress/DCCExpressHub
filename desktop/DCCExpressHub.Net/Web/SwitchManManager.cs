@@ -30,7 +30,7 @@ public sealed class SwitchManManager
 
     static ushort[] Normalize(IEnumerable<ushort> addresses) =>
         addresses
-            .Where(x => x is >= 1 and <= 2048)
+            .Where(x => x is >= 1 and <= 32767)
             .Distinct()
             .OrderBy(x => x)
             .ToArray();

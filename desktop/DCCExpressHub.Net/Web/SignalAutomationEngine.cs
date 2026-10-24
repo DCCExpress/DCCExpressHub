@@ -25,6 +25,7 @@ public sealed class SignalAutomationEngine
         public ushort Id;
         public ushort Address;
         public bool Extended = true;
+        public bool VPin;
         public byte Outputs = 1;
         public int DefaultValue;
         public List<Rule> Rules = [];
@@ -254,14 +255,15 @@ public sealed class SignalAutomationEngine
 
         bool extended =
             mode == "extended";
+        bool vpin = mode == "vpin";
 
-        if (!extended &&
+        if (!extended && !vpin &&
             mode != "basic")
         {
             return false;
         }
 
-        if (extended != target.SignalExtended)
+        if (extended != target.SignalExtended || vpin != target.SignalVPin)
         {
             Console.WriteLine(
                 $"SignalAutomation: target protocol mismatch id={target.Id} address={target.Address} rule={mode}");
@@ -310,6 +312,7 @@ public sealed class SignalAutomationEngine
             // or a stale persisted alias as the physical output address.
             Address = target.Address,
             Extended = extended,
+            VPin = vpin,
             Outputs = outputs,
             DefaultValue = def
         };
@@ -595,7 +598,8 @@ public sealed class SignalAutomationEngine
         bool runtimeAlreadyMatches =
             _runtime.TryGetSignalValue(
                 s.Address,
-                out var runtimeValue) &&
+                out var runtimeValue,
+                s.Id) &&
             runtimeValue == value;
 
         // Do not suppress a command merely because we sent the same value once.
@@ -639,19 +643,22 @@ public sealed class SignalAutomationEngine
                 var address =
                     (ushort)(s.Address + i);
 
-                if (!await _cc.SetAccessoryAsync(
-                        address,
-                        active))
+                bool sent = s.VPin
+                    ? await _cc.SetVPinAsync(address, active)
+                    : await _cc.SetAccessoryAsync(address, active);
+
+                if (!sent)
                 {
                     Console.WriteLine(
-                        $"SignalAutomation: FAILED <a {address} {(active ? 1 : 0)}>");
+                        $"SignalAutomation: FAILED {(s.VPin ? $"<z {(active ? address : -address)}>" : $"<a {address} {(active ? 1 : 0)}>")}");
 
                     return;
                 }
 
-                _runtime.SetAccessory(
-                    address,
-                    active);
+                if (s.VPin)
+                    _runtime.SetVPin(address, active);
+                else
+                    _runtime.SetAccessory(address, active);
             }
         }
 

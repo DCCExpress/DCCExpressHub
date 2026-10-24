@@ -129,6 +129,29 @@ test("all rails share occupancy and route color precedence", () => {
   }
 });
 
+test("highlighted routes stay yellow on UNKNOWN sensors without hiding occupied and reserved states", () => {
+  // A sensor address without a known feedback snapshot is UNKNOWN.
+  // Displaying a selected path must not turn that sensor FREE.
+  for (const name of ["TrackStraightElement", "TrackTurnoutLeftElement", "TrackTurnoutRightElement", "TrackTurnoutTwoWayElement", "TrackCrossingElement"]) {
+    const Class = classes.get(name);
+    const element = new Class(0, 0);
+    element.address = 62001;
+    assert.equal(element.getStateColor(false), "#6b7280", `${name}: UNKNOWN when no route`);
+    assert.equal(element.getStateColor(true), "yellow", `${name}: route remains visible despite UNKNOWN`);
+    element.isRoute = true;
+    assert.equal(element.stateColor, "yellow", `${name}: active route uses yellow`);
+    element.isBusy = true;
+    assert.equal(element.stateColor, "orange", `${name}: reserved remains higher priority`);
+    element.isBusy = false;
+    element.occupied = true;
+    assert.equal(element.stateColor, "#ff3333", `${name}: occupied route stays red`);
+    assert.equal(element.getStateColor(false), "red", `${name}: occupied non-route stays red`);
+    element.occupied = false;
+    element.isRoute = false;
+    assert.equal(element.stateColor, "#6b7280", `${name}: clear route restores UNKNOWN gray`);
+  }
+});
+
 test("layout and topology use the same railway classes and exclude buttons from tracks", () => {
   const layout = new LayoutView();
   layout.clearAll();

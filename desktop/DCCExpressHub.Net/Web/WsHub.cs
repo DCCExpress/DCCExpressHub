@@ -9,6 +9,7 @@ namespace DCCExpressHub.Net.Web;
 public sealed class WsHub
 {
     private readonly ICommandCenter CommandCenter;
+    private readonly RailComSenseSettings RailComSense;
     private readonly HubState HubState;
     private readonly CommandCenterConfigStore CommandCenterConfigStore;
     readonly LayoutRuntime LayoutRuntime;
@@ -17,6 +18,7 @@ public sealed class WsHub
     readonly SwitchManManager SwitchMan;
     readonly DispatcherRuntime Dispatcher;
     readonly MovementRuntime Movement;
+    readonly SequentialMovementRuntime SequentialMovement;
     readonly TrainDriverRuntime TrainDriver;
     readonly TrainTrackingRuntime TrainTracking;
     readonly ScriptRuntime Scripts;
@@ -62,13 +64,53 @@ public sealed class WsHub
         public required Guid ConnectionId { get; init; }
     }
     private long _programmingToken;
+    // Latest RailCom transponder presence per (block, DCC address). This is
+    // diagnostic state, not occupancy authority for Dispatcher/SwitchMan.
+    private readonly object _railComStateGate = new();
+    private readonly Dictionary<(int Block, int Loco), RailComPresence> _railComPresent = new();
+    // A Lost report removes the locomotive, not the physical RailCom detector.
+    // Keep detectors observed in this powered session so empty blocks remain
+    // visible in both live monitors, including after a browser refresh.
+    private readonly HashSet<int> _railComObservedSensors = new();
+    private sealed record RailComPresence(
+        int SensorAddress, int LocomotiveAddress, long LastSeenAt, string Source,
+        bool? OrientationBit, string OrientationSource);
+    private sealed record RailComLiveState(
+        RailComPresence[] Entries, int[] KnownSensors);
+
+    private RailComLiveState GetRailComState()
+    {
+        lock (_railComStateGate)
+            return new RailComLiveState(
+                _railComPresent.Values
+                    .OrderBy(x => x.SensorAddress)
+                    .ThenBy(x => x.LocomotiveAddress)
+                    .ToArray(),
+                _railComObservedSensors.Order().ToArray());
+    }
+
+    private void ClearRailComPresence()
+    {
+        lock (_railComStateGate)
+        {
+            if (_railComPresent.Count == 0 && _railComObservedSensors.Count == 0) return;
+            _railComPresent.Clear();
+            _railComObservedSensors.Clear();
+        }
+        QueueStateBroadcast("railComStateChanged", new
+        {
+            entries = Array.Empty<RailComPresence>(),
+            knownSensors = Array.Empty<int>()
+        }, resyncOnDrop: false);
+    }
     private const int ProgrammingTimeoutMs = 24000;
     private static readonly TimeSpan WebSocketSendTimeout = TimeSpan.FromSeconds(2);
     public int ClientCount => Clients.Count;
 
-    public WsHub(ICommandCenter cc, HubState state, LayoutRuntime runtime, RuntimeStateStore stateStore, CommandCenterConfigStore ccConfig, LocoCounterRuntime locoCounters, FastClockRuntime fastClock, SwitchManManager switchMan, DispatcherRuntime dispatcher, MovementRuntime movement, TrainDriverRuntime trainDriver, TrainTrackingRuntime trainTracking, ScriptRuntime scripts, FlowRuntime flows, TimetableRuntime timetable, ILogger<WsHub> log, IHostApplicationLifetime lifetime)
+    public WsHub(ICommandCenter cc, HubState state, LayoutRuntime runtime, RuntimeStateStore stateStore, CommandCenterConfigStore ccConfig, LocoCounterRuntime locoCounters, FastClockRuntime fastClock, SwitchManManager switchMan, DispatcherRuntime dispatcher, MovementRuntime movement, SequentialMovementRuntime sequentialMovement, TrainDriverRuntime trainDriver, TrainTrackingRuntime trainTracking, ScriptRuntime scripts, FlowRuntime flows, TimetableRuntime timetable, ILogger<WsHub> log, IHostApplicationLifetime lifetime, RailComSenseSettings railComSense)
     {
         CommandCenter = cc;
+        RailComSense = railComSense;
         HubState = state;
         LayoutRuntime = runtime;
         RuntimeStateStore = stateStore;
@@ -77,6 +119,7 @@ public sealed class WsHub
         SwitchMan = switchMan;
         Dispatcher = dispatcher;
         Movement = movement;
+        SequentialMovement = sequentialMovement;
         TrainDriver = trainDriver;
         TrainTracking = trainTracking;
         Scripts = scripts;
@@ -110,6 +153,7 @@ public sealed class WsHub
                         routes =
                             Dispatcher.RouteSnapshot()
                     });
+        SequentialMovement.Changed += state => QueueStateBroadcast("sequentialMovementStateChanged", state);
         TrainDriver.Changed += state => QueueStateBroadcast("trainDriverStateChanged", state);
         Movement.Changed +=
             state =>
@@ -190,6 +234,45 @@ public sealed class WsHub
 
         cc.RawInfo += raw =>
         {
+            if (raw.StartsWith("RAILCOM_EVENT ", StringComparison.Ordinal))
+            {
+                var tokens = raw.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (tokens.Length == 6 &&
+                    int.TryParse(tokens[1], out var sensorAddress) &&
+                    int.TryParse(tokens[2], out var locomotiveAddress) &&
+                    sensorAddress is >= 1 and <= 65535 &&
+                    locomotiveAddress is >= 1 and <= 10239 &&
+                    (tokens[3] == "Detected" || tokens[3] == "Lost") &&
+                    (tokens[4] is "block" or "loco" or "long" or "none") &&
+                    (tokens[5] is "0" or "1" or "?") &&
+                    // A mode change invalidates all older D0 interpretations.
+                    (tokens[4] == "long" ||
+                     tokens[4] == RailComSense.ModeName ||
+                     (tokens[4] == "none" && RailComSense.ModeName == "off")))
+                {
+                    // Repeated Detected events refresh the same row; Lost only
+                    // removes that locomotive from that RailCom block.
+                    lock (_railComStateGate)
+                    {
+                        _railComObservedSensors.Add(sensorAddress);
+                        var key = (sensorAddress, locomotiveAddress);
+                        if (tokens[3] == "Detected")
+                            _railComPresent[key] = new RailComPresence(
+                                sensorAddress, locomotiveAddress,
+                                DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), "LocoNet",
+                                tokens[5] == "?" ? null : tokens[5] == "1", tokens[4]);
+                        else
+                            _railComPresent.Remove(key);
+                    }
+                    var railComState = GetRailComState();
+                    QueueStateBroadcast("railComStateChanged", new
+                    {
+                        entries = railComState.Entries,
+                        knownSensors = railComState.KnownSensors
+                    }, resyncOnDrop: false);
+                }
+                return;
+            }
             HandleProgrammingRawResponse(raw);
             if (CommandCenter.EmergencyPauseStateKnown && HubState.EmergencyStop != CommandCenter.EmergencyPaused)
             {
@@ -211,6 +294,8 @@ public sealed class WsHub
         cc.TripTelemetryChanged += x => { for (int i = 0; i < x.Length; i++) HubState.Tracks.GetOrAdd(i, _ => new()).TripMa = Math.Max(0, x[i]); };
         cc.PowerFeedbackChanged += x =>
         {
+            if (!x.On && (x.Target is "Main" or "All" or "Joined"))
+                ClearRailComPresence();
             var wasMainOn = HubState.TrackPower;
             ApplyPower(x);
 
@@ -247,6 +332,7 @@ public sealed class WsHub
         {
             if (!connected)
             {
+                ClearRailComPresence();
                 LocoCounters.SetTrackPower(false);
 
                 Movement.StopAll(false);
@@ -808,6 +894,44 @@ public sealed class WsHub
                     await SendCommandCenterInfo(ws);
                     await SendPower(ws);
                     return;
+                case "setRailComSenseMode":
+                    var requestedSenseMode = S(data, "mode");
+                    var previousSenseMode = RailComSense.ModeName;
+                    var senseSaved = RailComSense.TrySetMode(requestedSenseMode);
+                    if (senseSaved && previousSenseMode != RailComSense.ModeName)
+                    {
+                        // Previous packet interpretations may use different
+                        // addresses. Discard the old RailCom presence cache.
+                        ClearRailComPresence();
+                        QueueStateBroadcast("railComSenseModeChanged",
+                            new { mode = RailComSense.ModeName }, resyncOnDrop: false);
+                    }
+                    await Send(ws, "railComSenseModeResponse", new
+                    {
+                        ok = senseSaved,
+                        mode = RailComSense.ModeName,
+                        message = senseSaved ? "RailCom sense mode saved" : "Invalid mode or settings could not be saved"
+                    });
+                    return;
+                case "getRailComDebug":
+                    // A normal snapshot only reads the current Hub state.
+                    // Explicit Refresh also sends the standard LocoNet sensor
+                    // interrogation; modules are NOT guaranteed to replay
+                    // RailCom locomotive IDs as a response.
+                    var interrogate = B(data, "interrogate");
+                    var interrogationSent = interrogate &&
+                        CommandCenter.Connected &&
+                        await CommandCenter.RequestSensorSnapshotAsync(ct);
+                    var railComStateSnapshot = GetRailComState();
+                    await Send(ws, "railComStateSnapshot", new
+                    {
+                        entries = railComStateSnapshot.Entries,
+                        knownSensors = railComStateSnapshot.KnownSensors,
+                        senseMode = RailComSense.ModeName,
+                        interrogationRequested = interrogate,
+                        interrogationSent
+                    });
+                    return;
                 case "fastClockCommand":
                     await HandleFastClockCommand(ws, data);
                     return;
@@ -984,6 +1108,36 @@ public sealed class WsHub
                         }
                         break;
                     }
+                case "setDccExTurnout":
+                    {
+                        int id = I(data, "address");
+                        if (id <= 0 || id > 32767) { ok = false; break; }
+                        ushort address = (ushort)id;
+                        // A turnout under edit may not exist in the saved layout yet.
+                        // This explicit manual command must be testable without saving.
+                        // Still acquire the same SwitchMan lock and respect cooldown.
+                        var lease = await AcquireManualTurnoutOperation(ws, address, ct, 32767);
+                        if (!lease.Ok) return;
+                        try
+                        {
+                            bool thrown = B(data, "closed");
+                            ok = await CommandCenter.SetDccExTurnoutAsync(address, thrown, ct);
+                            // Only update the runtime cache when its saved binding really
+                            // is a DCC-EX turnout. Unsaved editor state is not runtime state.
+                            if (ok)
+                            {
+                                if (LayoutRuntime.DccExTurnoutIds().Contains(address))
+                                    LayoutRuntime.SetDccExTurnoutState(address, thrown);
+                            }
+                        }
+                        finally
+                        {
+                            await Task.Delay(LayoutRuntime.TurnoutSettlingTimeMs, CancellationToken.None);
+                            if (lease.OwnerId is not null)
+                                SwitchMan.ReleaseOwned(new[] { address }, lease.OwnerId);
+                        }
+                        break;
+                    }
                 case "setSignalAspect":
                     {
                         var a = (ushort)I(data, "address");
@@ -1145,9 +1299,10 @@ public sealed class WsHub
     private async Task<(bool Ok, string? OwnerId)> AcquireManualTurnoutOperation(
         IHubWebSocketClient ws,
         ushort address,
-        CancellationToken ct)
+        CancellationToken ct,
+        ushort maxAddress = 2048)
     {
-        if (address is < 1 or > 2048)
+        if (address < 1 || address > maxAddress)
         {
             await Send(ws, "error", new { message = "turnout_address_out_of_range", address });
             return (false, null);
@@ -1229,7 +1384,7 @@ public sealed class WsHub
                 return Array.Empty<ushort>();
 
             return raw.EnumerateArray()
-                .Select(x => x.TryGetInt32(out var n) && n is >= 1 and <= 2048 ? (ushort)n : (ushort)0)
+                .Select(x => x.TryGetInt32(out var n) && n is >= 1 and <= 32767 ? (ushort)n : (ushort)0)
                 .Where(x => x != 0)
                 .Distinct()
                 .OrderBy(x => x)
@@ -1246,7 +1401,11 @@ public sealed class WsHub
                 {
                     var addresses = ReadAddresses();
                     if (addresses.Length == 0 ||
-                        addresses.Any(address => LayoutRuntime.FindAccessory(RuntimeAccessoryKind.Turnout, address) is null))
+                        addresses.Any(address =>
+                        {
+                            var turnout = LayoutRuntime.FindAccessory(RuntimeAccessoryKind.Turnout, address);
+                            return turnout is null || (address > 2048 && !turnout.TurnoutDccExId);
+                        }))
                     {
                         await Reply(false, "invalid_turnout_addresses");
                         return;
@@ -1312,7 +1471,7 @@ public sealed class WsHub
             case "set":
                 {
                     var rawAddress = I(data, "address");
-                    if (rawAddress is < 1 or > 2048)
+                    if (rawAddress is < 1 or > 32767)
                     {
                         await Reply(false, "invalid_turnout_address");
                         return;
@@ -1321,7 +1480,7 @@ public sealed class WsHub
                     var address = (ushort)rawAddress;
                     var turnout = LayoutRuntime.FindAccessory(RuntimeAccessoryKind.Turnout, address);
 
-                    if (turnout is null)
+                    if (turnout is null || (address > 2048 && !turnout.TurnoutDccExId))
                     {
                         await Reply(false, "turnout_not_found");
                         return;
@@ -1360,6 +1519,11 @@ public sealed class WsHub
                         ok = await CommandCenter.SetSignalAspectAsync(address, aspect, ct);
                         if (ok)
                             LayoutRuntime.SetSignal(address, aspect);
+                    }
+                    else if (turnout.TurnoutDccExId)
+                    {
+                        ok = await CommandCenter.SetDccExTurnoutAsync(address, physicalValue, ct);
+                        if (ok) LayoutRuntime.SetDccExTurnoutState(address, physicalValue);
                     }
                     else if (turnout.TurnoutVPin)
                     {
@@ -2048,6 +2212,32 @@ public sealed class WsHub
                     });
                     return;
                 }
+            case "startStation":
+                {
+                    var taskId = S(data, "taskId");
+                    if (!data.TryGetProperty("candidates", out var json) ||
+                        json.ValueKind != JsonValueKind.Array)
+                    {
+                        error = "invalid_station_route_candidates";
+                        break;
+                    }
+                    MovementPageModel[]? candidates;
+                    try
+                    {
+                        candidates = JsonSerializer.Deserialize<MovementPageModel[]>(
+                            json.GetRawText(), Json);
+                    }
+                    catch (JsonException)
+                    {
+                        candidates = null;
+                    }
+                    var result = TrainDriver.StartStation(taskId, candidates ?? []);
+                    await Send(ws, "trainDriverResponse", new {
+                        requestId, action, ok = result.Ok,
+                        error = result.Error, state = result.State
+                    });
+                    return;
+                }
             case "stop":
                 ok = TrainDriver.Stop(S(data, "taskId"));
                 break;
@@ -2102,6 +2292,37 @@ public sealed class WsHub
                         states = Movement.Snapshot()
                     });
                 return;
+
+            case "sequenceSnapshot":
+                await Reply(true, extra: new { states = SequentialMovement.Snapshot() });
+                return;
+
+            case "sequenceStart":
+                {
+                    var result = SequentialMovement.Start(
+                        S(data, "sequenceId"),
+                        S(data, "startMode"),
+                        I(data, "locoAddress"),
+                        IOr(data, "startStepIndex", -1));
+                    await Reply(result.Ok, result.Error, new { state = result.State });
+                    return;
+                }
+
+            case "sequenceFinish":
+                {
+                    var ok = SequentialMovement.Finish(S(data, "sequenceId"));
+                    await Reply(ok, ok ? null : "sequence_not_running");
+                    return;
+                }
+
+            case "sequenceStop":
+            case "sequenceAbort":
+                {
+                    var ok = SequentialMovement.Stop(
+                        S(data, "sequenceId"), action == "sequenceAbort");
+                    await Reply(ok, ok ? null : "sequence_not_running");
+                    return;
+                }
 
             case "start":
                 {
@@ -2216,7 +2437,7 @@ public sealed class WsHub
             case "stopAll":
                 {
                     var count =
-                        Movement.StopAll(false);
+                        Movement.StopAll(false) + SequentialMovement.StopAll(false);
 
                     await Reply(
                         true,
@@ -2232,7 +2453,7 @@ public sealed class WsHub
             case "abortAll":
                 {
                     var count =
-                        Movement.StopAll(true);
+                        Movement.StopAll(true) + SequentialMovement.StopAll(true);
 
                     await Reply(
                         true,
@@ -2395,7 +2616,7 @@ public sealed class WsHub
                 if (item.ValueKind != JsonValueKind.Object ||
                     !item.TryGetProperty("address", out var addressElement) ||
                     !addressElement.TryGetInt32(out var address) ||
-                    address is < 1 or > 2048)
+                    address is < 1 or > 32767)
                     continue;
 
                 var closed =
