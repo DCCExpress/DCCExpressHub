@@ -235,7 +235,7 @@ export default class TrackTurnoutDoubleElement extends TrackMultiMotorTurnoutEle
         type: "number",
         readonly: false,
         min: 1,
-        max: this.outputMode === "vpin" ? 32767 : 2048,
+        max: this.outputMode === "vpin" || this.outputMode === "dccex-turnout" ? 32767 : 2048,
         validate: () => true,
       },
       {
@@ -244,7 +244,7 @@ export default class TrackTurnoutDoubleElement extends TrackMultiMotorTurnoutEle
         type: "number",
         readonly: false,
         min: 1,
-        max: this.outputMode === "vpin" ? 32767 : 2048,
+        max: this.outputMode === "vpin" || this.outputMode === "dccex-turnout" ? 32767 : 2048,
         validate: () => true,
       },
       {
