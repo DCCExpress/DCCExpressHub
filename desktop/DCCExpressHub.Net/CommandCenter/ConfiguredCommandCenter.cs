@@ -198,6 +198,7 @@ public sealed class ConfiguredCommandCenter : ICommandCenter
     public Task<bool> SetAccessoryAsync(int address,bool active,CancellationToken ct=default)=>_inner.SetAccessoryAsync(address,active,ct);
     public Task<bool> SetSignalAspectAsync(int address,int aspect,CancellationToken ct=default)=>_inner.SetSignalAspectAsync(address,aspect,ct);
     public Task<bool> SetVPinAsync(int vpin,bool active,CancellationToken ct=default)=>_inner.SetVPinAsync(vpin,active,ct);
+    public Task<bool> SetDccExTurnoutAsync(int id,bool thrown,CancellationToken ct=default)=>_inner.SetDccExTurnoutAsync(id,thrown,ct);
     public Task<bool> RequestTrackConfigurationAsync(CancellationToken ct=default)=>_inner.RequestTrackConfigurationAsync(ct);
     public Task<bool> RequestCurrentTelemetryAsync(CancellationToken ct=default)=>_inner.RequestCurrentTelemetryAsync(ct);
     public Task<bool> RequestTripTelemetryAsync(CancellationToken ct=default)=>_inner.RequestTripTelemetryAsync(ct);
