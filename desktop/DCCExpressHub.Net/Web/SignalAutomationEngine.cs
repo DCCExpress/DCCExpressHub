@@ -598,7 +598,8 @@ public sealed class SignalAutomationEngine
         bool runtimeAlreadyMatches =
             _runtime.TryGetSignalValue(
                 s.Address,
-                out var runtimeValue) &&
+                out var runtimeValue,
+                s.Id) &&
             runtimeValue == value;
 
         // Do not suppress a command merely because we sent the same value once.
