@@ -24,7 +24,7 @@ function cvInfo(cv: number, cvs: Record<string, CvInfo>): CvInfo | undefined {
   const exact = cvs[String(cv)];
   if (exact) return exact;
   for (const [key, entry] of Object.entries(cvs)) {
-    const match = /^(\\d+)-(\\d+)$/.exec(key);
+    const match = /^(\d+)-(\d+)$/.exec(key);
     if (match && cv >= Number(match[1]) && cv <= Number(match[2])) return entry;
   }
   return undefined;
