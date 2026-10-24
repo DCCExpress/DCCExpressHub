@@ -146,7 +146,7 @@ export abstract class TrackTurnoutElement extends TrackElement {
         type: "number",
         readonly: false,
         min: 1,
-        max: 2048,
+        max: this.outputMode === "vpin" ? 32767 : 2048,
         validate: () => true,
       },
       {
