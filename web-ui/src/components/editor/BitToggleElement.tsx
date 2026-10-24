@@ -7,6 +7,8 @@ type BitToggleElementProps = {
   color1?: string;
 
   size?: number;
+  label0?: string;
+  label1?: string;
 };
 
 export default function BitToggleElement({
@@ -16,6 +18,8 @@ export default function BitToggleElement({
   color0 = "#555",
   color1 = "#2ecc71",
   size = 32,
+  label0 = "0",
+  label1 = "1",
 }: BitToggleElementProps) {
 
   const handleClick = (val: true | false) => {
@@ -47,7 +51,7 @@ export default function BitToggleElement({
           transition: "0.15s",
         }}
       >
-        0
+        {label0}
       </div>
 
       <div
@@ -67,7 +71,7 @@ export default function BitToggleElement({
           transition: "0.15s",
         }}
       >
-        1
+        {label1}
       </div>
     </div>
   );
