@@ -139,8 +139,8 @@ export abstract class TrackElement extends BaseElement {
      * occupied         -> red
      * transit          -> transit red
      * busy/reserved    -> orange
-     * unknown sensor   -> graphite gray (unless occupied / transit / reserved)
-     * route            -> yellow
+     * route            -> yellow (also when the sensor is UNKNOWN)
+     * unknown sensor   -> graphite gray (when no route is highlighted)
      * selected         -> yellow
      * free             -> light gray
      *
@@ -162,12 +162,15 @@ export abstract class TrackElement extends BaseElement {
       return TrackColors.busy;
     }
 
-    if (this.hasOccupancySensor && this.isSensorAddressUnknown(this.address)) {
-      return TrackColors.unknown;
-    }
-
+    // A route highlight describes the configured physical path, not sensor
+    // availability. Keep it visible even when occupancy feedback is UNKNOWN.
+    // Train safety still sees and handles the underlying UNKNOWN sensor state.
     if (isRoute) {
       return TrackColors.route;
+    }
+
+    if (this.hasOccupancySensor && this.isSensorAddressUnknown(this.address)) {
+      return TrackColors.unknown;
     }
 
     if (this.state === TrackStates.selected) {
