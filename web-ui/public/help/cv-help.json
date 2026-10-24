@@ -417,7 +417,7 @@
     "28": {
       "name": "Bi-directional communication (RailCom) configuration",
       "description": "The approved NMRA S-9.2.2 baseline controls decoder-initiated transmissions when CV29 bit 3 is set. JMRI/decoder manufacturers can define different meanings for CV28 bits, including Channel 1/2 and RailComPlus; these must be selected by decoder model.",
-      "warning": "Decoder-specific! JMRI Lenz/PIKO map bit 0 and bit 1 to RailCom channels, and PIKO maps bit 7 to RailComPlus on some models. Those are NOT universal NMRA bit assignments. Preserve unknown/reserved bits.",
+      "warning": "Decoder-specific! JMRI Lenz/PIKO profiles map bits 0/1 to RailCom channels; PIKO SmartDecoder XP5.1 uses bit 3 for an address-broadcast option, and some PIKO profiles use bit 7 for RailComPlus. These meanings are not universal NMRA assignments. Preserve reserved/unknown bits and check the precise decoder model.",
       "bits": [
         {
           "bit": 0,
