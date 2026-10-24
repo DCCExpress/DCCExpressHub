@@ -1,6 +1,7 @@
 export type TurnoutOutputMode =
   | "accessory"
-  | "extended";
+  | "extended"
+  | "vpin";
 
 type TurnoutAspectValues = {
   turnoutClosedAspect?: number;
@@ -22,7 +23,9 @@ export function normalizeTurnoutOutputMode(
 ): TurnoutOutputMode {
   return value === "extended"
     ? "extended"
-    : "accessory";
+    : value === "vpin"
+      ? "vpin"
+      : "accessory";
 }
 
 export function normalizeTurnoutAspect(
