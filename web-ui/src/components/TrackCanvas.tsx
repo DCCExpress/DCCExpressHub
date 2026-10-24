@@ -476,7 +476,7 @@ export default function TrackCanvas({
     const applyTurnoutRuntime = (
       address: number,
       physicalValue: boolean,
-      outputMode: "accessory" | "extended" | "vpin" = "accessory",
+      outputMode: "accessory" | "extended" | "vpin" | "dccex-turnout" = "accessory",
       displayOnly = false
     ) => {
       for (const element of layout.getAllElements()) {
