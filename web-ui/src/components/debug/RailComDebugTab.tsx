@@ -129,15 +129,6 @@ export default function RailComDebugTab({ opened }: Props) {
     return [...entries, ...empty].sort((a, b) =>
       a.sensorAddress - b.sensorAddress || a.locomotiveAddress - b.locomotiveAddress);
   }, [entries, knownSensors]);
-  const nativeLocoNet = info?.type === "loconet";
-  const ln = info?.locoNetDiagnostics;
-  const knownYamorc = info?.type === "z21" && info?.profile === "yamorc7010";
-  const transportConnected = nativeLocoNet
-    ? Boolean(info?.connected)
-    : Boolean(knownYamorc && ln?.lbServerConnected);
-  const transportName = nativeLocoNet
-    ? "LocoNet " + (info?.transport ?? "")
-    : knownYamorc ? "YD7010 LBServer" : "No LocoNet feedback";
   const canRefresh = wsStatus === "connected" && Boolean(info?.connected) && !refreshing;
 
   const setDirectionMode = (mode: string | null) => {
@@ -164,12 +155,6 @@ export default function RailComDebugTab({ opened }: Props) {
       <Group justify="space-between" wrap="wrap">
         <Title order={5}>RailCom current presence</Title>
         <Group gap="xs">
-          <Badge color={wsStatus === "connected" ? "green" : "red"} variant="light">
-            WebSocket: {wsStatus}
-          </Badge>
-          <Badge color={transportConnected ? "green" : "gray"} variant="light">
-            {transportName}: {transportConnected ? "Connected" : "Disconnected"}
-          </Badge>
           <Button size="xs" variant="light" loading={refreshing} disabled={!canRefresh}
             onClick={requestRefresh}>
             Refresh
