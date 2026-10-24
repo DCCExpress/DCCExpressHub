@@ -206,7 +206,7 @@ export class TrackTurnoutThreeWayElement extends TrackMultiMotorTurnoutElement {
         type: "number",
         readonly: false,
         min: 1,
-        max: this.outputMode === "vpin" ? 32767 : 2048,
+        max: this.outputMode === "vpin" || this.outputMode === "dccex-turnout" ? 32767 : 2048,
         validate: () => true,
       },
       {
@@ -215,7 +215,7 @@ export class TrackTurnoutThreeWayElement extends TrackMultiMotorTurnoutElement {
         type: "number",
         readonly: false,
         min: 1,
-        max: this.outputMode === "vpin" ? 32767 : 2048,
+        max: this.outputMode === "vpin" || this.outputMode === "dccex-turnout" ? 32767 : 2048,
         validate: () => true,
       },
       {
@@ -351,7 +351,7 @@ export class TrackTurnoutThreeWayElement extends TrackMultiMotorTurnoutElement {
     element.length = data.length;
     element.bg = data.bg;
     element.fg = data.fg;
-    element.outputMode = data.outputMode === "vpin" ? "vpin" : "accessory";
+    element.outputMode = data.outputMode === "vpin" ? "vpin" : data.outputMode === "dccex-turnout" ? "dccex-turnout" : "accessory";
     element.turnout1Address = data.turnout1Address ?? 0;
     element.turnout2Address = data.turnout2Address ?? 0;
     element.turnout1ClosedValue = data.turnout1ClosedValue ?? true;
