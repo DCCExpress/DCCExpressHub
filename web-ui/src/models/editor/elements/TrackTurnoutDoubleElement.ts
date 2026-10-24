@@ -443,7 +443,7 @@ export default class TrackTurnoutDoubleElement extends TrackMultiMotorTurnoutEle
     element.bg = data.bg;
     element.fg = data.fg;
     element.turnout1Address = data.turnout1Address;
-    element.outputMode = data.outputMode === "vpin" ? "vpin" : "accessory";
+    element.outputMode = normalizeTurnoutOutputMode(data.outputMode);
     element.turnout2Address = data.turnout2Address;
     element.turnout1ClosedValue = data.turnout1ClosedValue ?? element.turnout1ClosedValue;
     element.turnout2ClosedValue = data.turnout2ClosedValue ?? element.turnout2ClosedValue;
