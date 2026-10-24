@@ -1736,12 +1736,12 @@ export default function LiteLayoutPage({
 
   useEffect(() => wsClient.on("turnoutChanged", data => {
     for (const element of layout.getAllElements()) {
-      if (isTurnoutElement(element) && element.outputMode === "accessory" && element.turnoutAddress === data.address) {
+      if (isTurnoutElement(element) && element.outputMode === (data.outputMode ?? "accessory") && element.turnoutAddress === data.address) {
         element.turnoutClosed = data.closed;
       } else if (
         (element instanceof TrackTurnoutDoubleElement ||
           element instanceof TrackTurnoutThreeWayElement) &&
-        element.outputMode === "accessory"
+        element.outputMode === (data.outputMode ?? "accessory")
       ) {
         if (element.turnout1Address === data.address) element.turnout1Closed = data.closed;
         if (element.turnout2Address === data.address) element.turnout2Closed = data.closed;
@@ -1808,6 +1808,18 @@ export default function LiteLayoutPage({
       }
     }
 
+    invalidate();
+  }), [layout, invalidate]);
+
+  useEffect(() => wsClient.on("vpinChanged", data => {
+    for (const element of layout.getAllElements()) {
+      if (
+        element instanceof TrackSignalElement &&
+        element.signalOutput.protocol === "vpin"
+      ) {
+        element.setValue(data.vpin, data.active, "vpin");
+      }
+    }
     invalidate();
   }), [layout, invalidate]);
 
