@@ -148,26 +148,26 @@ export default function RailComLiveSensorPanel() {
               <Table.Td>{entry.locomotiveAddress > 0 ? `#${entry.locomotiveAddress}` : "0"}</Table.Td>
               <Table.Td>
                 <Tooltip multiline maw={260} label={senseTooltip(entry)}>
-                  <Text size="xs" c={entry.orientationBit === null ? "dimmed" : "blue"}>
+                  <span style={{ display: "inline-block" }}><Text size="xs" c={entry.orientationBit === null ? "dimmed" : "blue"}>
                     {entry.locomotiveAddress > 0 ? senseLabel(entry) : "—"}
-                  </Text>
+                  </Text></span>
                 </Tooltip>
               </Table.Td>
               <Table.Td>
                 <Tooltip label={`Hub DCC direction for #${entry.locomotiveAddress}`}>
-                  <Text size="xs" c="dimmed">
+                  <span style={{ display: "inline-block" }}><Text size="xs" c="dimmed">
                     {entry.locomotiveAddress === 0 ? "—"
                       : locoDirections[entry.locomotiveAddress] === "forward" ? "F"
                         : locoDirections[entry.locomotiveAddress] === "reverse" ? "R" : "?"}
-                  </Text>
+                  </Text></span>
                 </Tooltip>
               </Table.Td>
               <Table.Td>
                 <Tooltip multiline maw={280} label="Predicted departure from RailCom orientation + current DCC direction. Not a confirmed block exit; calibrate each detector reference before use in automation.">
-                  <Text size="xs" fw={700}
+                  <span style={{ display: "inline-block" }}><Text size="xs" fw={700}
                     c={expectedExit(entry, locoDirections[entry.locomotiveAddress]) === "?" ? "dimmed" : "teal"}>
                     {entry.locomotiveAddress === 0 ? "—" : expectedExit(entry, locoDirections[entry.locomotiveAddress])}
-                  </Text>
+                  </Text></span>
                 </Tooltip>
               </Table.Td>
             </Table.Tr>
