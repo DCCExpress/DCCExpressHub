@@ -61,6 +61,17 @@ type Props = {
   onChange?: (value: number) => void;
 };
 
+/** Prefer an exact CV definition; ranges cover NMRA-reserved and vendor-specific areas. */
+function findCvDefinition(cvs: Record<string, CvDefinition>, cv: number): CvDefinition | undefined {
+  const exact = cvs[String(cv)];
+  if (exact) return exact;
+  for (const [key, entry] of Object.entries(cvs)) {
+    const match = /^(\\d+)-(\\d+)$/.exec(key);
+    if (match && cv >= Number(match[1]) && cv <= Number(match[2])) return entry;
+  }
+  return undefined;
+}
+
 let cachedDocument: CvHelpDocument | null = null;
 let pendingDocument: Promise<CvHelpDocument> | null = null;
 
@@ -73,7 +84,7 @@ async function loadCvHelp(): Promise<CvHelpDocument> {
     pendingDocument = fetch(
       "/help/cv-help.json",
       {
-        cache: "force-cache",
+        cache: "no-store",
       },
     )
       .then(async response => {
@@ -167,7 +178,7 @@ export function CvHelpPanel({
     );
   }
 
-  const definition = document.cvs[String(cv)];
+  const definition = findCvDefinition(document.cvs, cv);
   const normalizedValue =
     Number.isFinite(value)
       ? Math.max(0, Math.min(255, Math.trunc(value)))
