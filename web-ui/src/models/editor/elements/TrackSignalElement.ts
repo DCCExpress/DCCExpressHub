@@ -56,10 +56,10 @@ export class TrackSignalElement extends TrackElement {
   }
   /**
    * Legacy property used elsewhere in Lite.
-   * Dynamic signals now use external Basic DCC or DCC Extended.
+   * Dynamic signals use Basic DCC, DCC Extended, or DCC-EX OUTPUT.
    */
   get outputMode(): OutputCommandModeDto {
-    return "accessory";
+    return this.signalOutput.protocol === "vpin" ? "vpin" : "accessory";
   }
   set outputMode(_value: OutputCommandModeDto) {
     // Kept only for loading older layout JSON.
@@ -154,7 +154,7 @@ export class TrackSignalElement extends TrackElement {
     );
   }
   private syncDccFeedbackFromCurrentState(): void {
-    if (this.signalOutput.protocol !== "dcc") {
+    if (this.signalOutput.protocol !== "dcc" && this.signalOutput.protocol !== "vpin") {
       this.dccFeedbackOutputs = null;
       return;
     }
@@ -264,10 +264,10 @@ export class TrackSignalElement extends TrackElement {
    * Basic accessory feedback -> match the complete R/G pattern
    * against the configured logical states.
    */
-  setValue(address: number, active: boolean): void {
+  setValue(address: number, active: boolean, protocol: "dcc" | "vpin" = "dcc"): void {
     if (
       this.signalOutput.address <= 0 ||
-      this.signalOutput.protocol !== "dcc"
+      this.signalOutput.protocol !== protocol
     ) {
       return;
     }
@@ -326,7 +326,12 @@ export class TrackSignalElement extends TrackElement {
       return;
     }
     state.dccOutputs.slice(0, this.signalOutput.outputCount).forEach((direction, index) => {
-      wsApi.setBasicAccessory(this.signalOutput.address + index, direction === "G");
+      const address = this.signalOutput.address + index;
+      if (this.signalOutput.protocol === "vpin") {
+        wsApi.setVpin(address, direction === "G");
+      } else {
+        wsApi.setBasicAccessory(address, direction === "G");
+      }
     });
     this.setCurrentStateById(state.id);
   }
