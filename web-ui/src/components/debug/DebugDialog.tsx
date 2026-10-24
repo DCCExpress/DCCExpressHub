@@ -3,6 +3,7 @@ import {
   Box,
   Button,
   Group,
+  ScrollArea,
   Tabs,
   Text,
 } from "@mantine/core";
@@ -26,6 +27,7 @@ import AppModal from "@/components/common/AppModal";
 import BasicAccessoryDebugTab from "./BasicAccessoryDebugTab";
 import SystemDiagnosticsTab from "./SystemDiagnosticsTab";
 import ProtocolMonitorTab from "./ProtocolMonitorTab";
+import RailComLiveSensorPanel from "@/components/RailComLiveSensorPanel";
 import ExtendedAccessoryDebugTab from "./ExtendedAccessoryDebugTab";
 import SensorDebugTab from "./SensorDebugTab";
 import RailComDebugTab from "./RailComDebugTab";
@@ -83,6 +85,7 @@ export default function DebugDialog({ opened, onClose, standalone = false }: Pro
         <Tabs.List mb="md" style={{ flexShrink: 0 }}>
           <Tabs.Tab value="system" leftSection={<IconActivity size={16} />}>System</Tabs.Tab>
           <Tabs.Tab value="protocol" leftSection={<IconListDetails size={16} />}>Protocol Monitor</Tabs.Tab>
+          <Tabs.Tab value="railcom-live" leftSection={<IconBroadcast size={16} />}>RailCom live sensors</Tabs.Tab>
           <Tabs.Tab value="sensors" leftSection={<IconRoute size={16} />}>
             Sensors ({runtime.sensors.size})
           </Tabs.Tab>
@@ -110,6 +113,12 @@ export default function DebugDialog({ opened, onClose, standalone = false }: Pro
 
         <Tabs.Panel value="protocol" style={panelStyle}>
           <ProtocolMonitorTab opened={opened} />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="railcom-live" style={panelStyle}>
+          <ScrollArea h="100%" type="auto" offsetScrollbars>
+            <RailComLiveSensorPanel />
+          </ScrollArea>
         </Tabs.Panel>
 
         <Tabs.Panel value="sensors" style={panelStyle}>
