@@ -2350,8 +2350,6 @@ export default function LiteLayoutPage({
                     <Tooltip label={i18next.t("ui.info")} withArrow>
                       <Tabs.Tab value="info" aria-label={i18next.t("ui.info")}><IconInfoCircle size={20} aria-hidden="true" /></Tabs.Tab>
                     </Tooltip>
-                    <Tooltip label={i18next.t("ui.log")} withArrow>
-                    </Tooltip>
                   </Tabs.List>
 
                   <Tabs.Panel value="tasks" className="lite-info-tab-panel">
