@@ -15,6 +15,9 @@ type Result = { value?: number; error?: string };
 type ExportRow = { cv: number; value: number; name: string; description: string };
 const MAX_CV = 1024;
 const CURVE_CVS = Array.from({ length: 28 }, (_, i) => 67 + i);
+// Keep the default scan bounded: expanding the CV help database must not silently
+// add dozens of additional slow service-track reads on the YD7010.
+const COMMON_SCAN_CVS = [...new Set([1,2,3,4,5,6,7,8,15,16,17,18,19,21,22,28,29,31,32,65,66,95,105,106,...CURVE_CVS])].sort((a,b) => a-b);
 const numberFormat = (value: number) => ({
   decimal: String(value),
   hex: "0x" + value.toString(16).toUpperCase().padStart(2, "0"),
@@ -107,10 +110,6 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
         return response.json() as Promise<Help>;
       }).then(setHelp).catch(() => setError("CV descriptions could not be loaded."));
   }, []);
-  const knownCvs = useMemo(() =>
-    [...new Set([...Object.keys(help.cvs).map(Number), ...CURVE_CVS])]
-      .filter(cv => Number.isInteger(cv) && cv >= 1 && cv <= MAX_CV)
-      .sort((a,b) => a-b), [help]);
   const readAddress = async (): Promise<number | null> => {
     // Never display a previous address while a fresh read is pending.
     setAddressRead(null);
@@ -331,7 +330,7 @@ export default function DecoderProfileTab({ disconnected }: { disconnected: bool
       <Stack gap="sm">
         <Title order={4}>Decoder Profile · CV scan</Title>
         <Group>
-          <Button disabled={busy || disconnected} onClick={() => void read(knownCvs)}>Read known CVs</Button>
+          <Button disabled={busy || disconnected} onClick={() => void read(COMMON_SCAN_CVS)}>Read common CVs</Button>
           <Button disabled={busy || disconnected} variant="light"
             onClick={() => void read(Array.from({ length: 256 }, (_,i) => i+1))}>CV1–256</Button>
           <Button disabled={busy || disconnected} variant="light"
