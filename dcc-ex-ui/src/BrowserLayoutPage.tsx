@@ -170,7 +170,7 @@ export function BrowserLayoutPage(props:Props){
      <Group gap="xs" wrap="nowrap" style={{flexShrink:0}}>
       <ActionIcon variant="subtle" color="gray" onClick={props.onBack} aria-label="Back" title="Home"><IconArrowLeft size={20}/></ActionIcon>
       <Title order={3} lh={1}>Layout Panel</Title>
-      <Badge size="sm" variant="light" color="violet">v0.1.0-alpha.7</Badge>
+      <Badge size="sm" variant="light" color="violet">v0.1.0-alpha.8</Badge>
      </Group>
      <Group gap={6} wrap="nowrap" style={{flexShrink:0}}>
       <ActionIcon variant={editMode?'filled':'light'} color="violet" title="Edit mode" onClick={()=>{setEditMode(v=>!v);setTool('cursor');setDrawingElement(null);setSelectedElement(null);}}><IconEdit size={18}/></ActionIcon>
