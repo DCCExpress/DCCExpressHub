@@ -66,6 +66,12 @@ export class ButtonElement extends ClickableBaseElement implements IButtonElemen
     const sent = this.outputMode === "vpin"
       ? wsApi.setVpin(this.address, physicalValue)
       : wsApi.setBasicAccessory(this.address, physicalValue);
+    if (sent && this.outputMode === "vpin") {
+      // DCC-EX VPIN outputs do not necessarily provide a physical feedback
+      // event. Update the visual button state when the command is queued;
+      // any subsequent Hub vpinChanged event remains authoritative.
+      this.on = logicalOn;
+    }
     return sent;
   }
   override draw(ctx: CanvasRenderingContext2D, options?: DrawOptions): void {
