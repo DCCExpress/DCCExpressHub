@@ -1,4 +1,4 @@
-# DCCExpressHub Browser Edition (alpha7)
+# DCCExpressHub Browser Edition (alpha8)
 
 Standalone React + Vite + Mantine proof of concept. No DCCExpressHub .NET backend and no ESP32-hosted Hub runtime.
 
