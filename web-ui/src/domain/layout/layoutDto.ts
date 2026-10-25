@@ -229,7 +229,8 @@ export type OutputCommandModeDto =
 
 export type ButtonOutputModeDto =
   | "accessory"
-  | "extended";
+  | "extended"
+  | "vpin";
 
 export type ButtonBehaviorDto =
   | "toggle"
