@@ -1794,6 +1794,12 @@ export default function LiteLayoutPage({
         element.signalOutput.protocol === "vpin"
       ) {
         element.setValue(data.vpin, data.active, "vpin");
+      } else if (
+        element instanceof ButtonElement &&
+        element.outputMode === "vpin" &&
+        element.address === data.vpin
+      ) {
+        element.on = data.active === element.activeValue;
       }
     }
     invalidate();
