@@ -300,7 +300,7 @@ export function App() {
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between">
           <Group gap="sm" style={{cursor:'pointer'}} onClick={()=>setPage('home')}>
-            <IconTrain size={26}/><Title order={3}>DCCExpressHub</Title><Badge variant="outline">alpha7 · Browser</Badge>
+            <IconTrain size={26}/><Title order={3}>DCCExpressHub</Title><Badge variant="outline">alpha8 · Browser</Badge>
           </Group>
           <Group gap="sm">
             <Badge color={ready?'green':'gray'}>{ready?'DCC-EX connected':status}</Badge>
