@@ -156,6 +156,12 @@ export default function RuntimeLayoutOverlay({ locos, open }: RuntimeLayoutOverl
     for (const element of layout.getAllElements()) {
       if (element instanceof TrackSignalElement && element.signalOutput.protocol === "vpin") {
         element.setValue(data.vpin, data.active, "vpin");
+      } else if (
+        element instanceof ButtonElement &&
+        element.outputMode === "vpin" &&
+        element.address === data.vpin
+      ) {
+        element.on = data.active === element.activeValue;
       }
     }
     invalidate();
