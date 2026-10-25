@@ -712,8 +712,22 @@ public sealed class LayoutRuntime
                     SignalOutputCount = 1
                 });
             }
+            else if (mode == "vpin")
+            {
+                if (address > 32767)
+                    return;
+                vpinTopology.Add((ushort)address);
+                bindings.Add(new RuntimeAccessory
+                {
+                    Id = id,
+                    Kind = RuntimeAccessoryKind.VPin,
+                    Address = (ushort)address
+                });
+            }
             else
             {
+                if (address > 2048)
+                    return;
                 basicTopology.Add((ushort)address);
                 bindings.Add(new RuntimeAccessory
                 {
