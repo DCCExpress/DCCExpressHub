@@ -30,9 +30,9 @@ test("Button VPIN ON/OFF uses <z> transport and survives serialization", () => {
   wsApi.setBasicAccessory = (...args) => { sent.push(["basic", ...args]); return true; };
   try {
     assert.equal(button.sendConfiguredState(true), true);
-    assert.equal(button.on, true, "VPIN button lights up when the command is queued");
+    assert.equal(button.on, false, "VPIN button awaits feedback rather than switching optimistically");
     assert.equal(button.sendConfiguredState(false), true);
-    assert.equal(button.on, false, "VPIN button turns off on the OFF command");
+    assert.equal(button.on, false, "Commands alone do not modify the button state");
     assert.deepEqual(sent, [["vpin", 3001, false], ["vpin", 3001, true]]);
     assert.equal(button.toJSON().outputMode, "vpin");
     const loaded = ButtonElement.fromJSON(button.toJSON());
