@@ -239,6 +239,9 @@ function renderButtonBasicEditor(
   selectedElement: ButtonElement,
   onChange: PropertyChangeHandler
 ) {
+  const vpinLabels = selectedElement.outputMode === "vpin"
+    ? { label0: "−", label1: "+" }
+    : {};
   const onValueProperty: IEditableProperty = {
     label: i18next.t("ui.onValue"),
     key: "activeValue",
@@ -266,6 +269,7 @@ function renderButtonBasicEditor(
 
         <Group gap="xs" wrap="nowrap">
           <BitToggleElement
+            {...vpinLabels}
             value={selectedElement.activeValue}
             onChange={value => {
               onChange(onValueProperty, value);
@@ -291,6 +295,7 @@ function renderButtonBasicEditor(
 
         <Group gap="xs" wrap="nowrap">
           <BitToggleElement
+            {...vpinLabels}
             value={selectedElement.offValue}
             onChange={value => {
               onChange(offValueProperty, value);
