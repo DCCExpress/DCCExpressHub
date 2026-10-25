@@ -10,6 +10,7 @@ import { IEditableProperty } from "./PropertyDescriptor";
 const BUTTON_OUTPUT_MODE_OPTIONS = [
   { value: "accessory", label: "Basic accessory · <a address 0|1>" },
   { value: "extended", label: "Extended accessory · <A address aspect>" },
+  { value: "vpin", label: "DCC-EX VPIN · <z ±vpin>" },
 ] satisfies Array<{
   value: ButtonOutputModeDto;
   label: string;
@@ -51,7 +52,8 @@ export class ButtonElement extends ClickableBaseElement implements IButtonElemen
    * for its Test buttons as normal runtime Button operation.
    */
   sendConfiguredState(logicalOn: boolean): boolean {
-    if (!Number.isInteger(this.address) || this.address < 1 || this.address > 2048) {
+    const maxAddress = this.outputMode === "vpin" ? 32767 : 2048;
+    if (!Number.isInteger(this.address) || this.address < 1 || this.address > maxAddress) {
       return false;
     }
     if (this.outputMode === "extended") {
@@ -61,7 +63,9 @@ export class ButtonElement extends ClickableBaseElement implements IButtonElemen
       return wsApi.setSignalAspect(this.address, aspect);
     }
     const physicalValue = logicalOn ? this.activeValue : this.offValue;
-    const sent = wsApi.setBasicAccessory(this.address, physicalValue);
+    const sent = this.outputMode === "vpin"
+      ? wsApi.setVpin(this.address, physicalValue)
+      : wsApi.setBasicAccessory(this.address, physicalValue);
     return sent;
   }
   override draw(ctx: CanvasRenderingContext2D, options?: DrawOptions): void {
@@ -115,7 +119,7 @@ export class ButtonElement extends ClickableBaseElement implements IButtonElemen
     return {
       ...super.toJSON(),
       type: ELEMENT_TYPES.BUTTON,
-      outputMode: this.outputMode === "extended" ? "extended" : "accessory",
+      outputMode: this.outputMode,
       behavior: this.behavior,
       pulseDurationMs: this.pulseDurationMs,
       address: this.address,
@@ -137,7 +141,9 @@ export class ButtonElement extends ClickableBaseElement implements IButtonElemen
     e.bg = data.bg;
     e.fg = data.fg;
     e.address = data.address;
-    e.outputMode = data.outputMode === "extended" ? "extended" : "accessory";
+    e.outputMode = data.outputMode === "extended" || data.outputMode === "vpin"
+      ? data.outputMode
+      : "accessory";
     e.behavior =
       data.behavior === "push" || data.behavior === "momentary" ? data.behavior : "toggle";
     e.pulseDurationMs = Math.max(50, Math.min(10000, data.pulseDurationMs ?? 250));
@@ -207,11 +213,11 @@ export class ButtonElement extends ClickableBaseElement implements IButtonElemen
         max: 10000,
       },
       {
-        label: i18next.t("ui.accessoryAddress"),
+        label: i18next.t("ui.accessoryAddress") + "/id",
         key: "address",
         type: "number",
         min: 1,
-        max: 2048,
+        max: this.outputMode === "vpin" ? 32767 : 2048,
       },
       /*
        * TurnoutBitPropertyEditor recognizes ButtonElement and renders
