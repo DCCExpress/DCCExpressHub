@@ -1,4 +1,9 @@
 {
+  "flowLocoEventTypes": "Watch changes",
+  "flowLocoEventAllHint": "Empty selection triggers on any change.",
+  "flowLocoSpeedChanged": "Speed",
+  "flowLocoDirectionChanged": "Direction",
+  "flowLocoFunctionsChanged": "Functions",
   "power": "POWER",
   "on": "ON",
   "off": "OFF",
