@@ -200,6 +200,9 @@ public sealed class WsHub
             () =>
                 QueuePowerBroadcast();
 
+        Scripts.NotificationRequested += (title, message, level) =>
+            QueueStateBroadcast("hubNotification", new { title, message, level }, resyncOnDrop: false);
+
         Flows.Changed +=
             state =>
                 QueueStateBroadcast(
