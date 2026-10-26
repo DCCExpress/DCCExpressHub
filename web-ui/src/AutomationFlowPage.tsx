@@ -21,6 +21,7 @@ export default function AutomationFlowPage({
 }: AutomationFlowPageProps) {
   return (
     <AutomationFlowDialog
+      standalone
       opened
       initialPageId={
         document.activePageId
