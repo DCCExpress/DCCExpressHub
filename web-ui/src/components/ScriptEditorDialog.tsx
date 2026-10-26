@@ -795,43 +795,16 @@ export default function ScriptEditorDialog({
             />
           </div>
 
-          <Group
-            justify="space-between"
-            align="center"
-            wrap="nowrap"
-          >
-            <Text size="xs" c="dimmed"> {i18next.t("ui.pauseIsCooperativeAroundAwaitCheckpointsAbortTerminatesTheActive")} </Text>
-
-            <Group gap="xs">
-              <Button
-                variant="default"
-                leftSection={<IconX size={15} />}
-                onClick={onClose}
-              > {i18next.t("ui.close")} </Button>
-
-              {scriptStatus === "running" && (
-                <Button
-                  color="yellow"
-                  variant="light"
-                  leftSection={<IconPlayerStop size={15} />}
-                  onClick={onPause}
-                > {i18next.t("ui.stop")} </Button>
-              )}
-
-              {scriptStatus !== "idle" && (
-                <Button
-                  color="red"
-                  variant="light"
-                  leftSection={<IconX size={15} />}
-                  onClick={onAbort}
-                > {i18next.t("ui.abort")} </Button>
-              )}
-
-              <Button
-                leftSection={<IconDeviceFloppy size={15} />}
-                onClick={() => onSave(draft)}
-              > {i18next.t("ui.save2")} </Button>
-            </Group>
+          <Group justify="flex-end" gap="xs">
+            <Button
+              variant="default"
+              leftSection={<IconX size={15} />}
+              onClick={onClose}
+            > {i18next.t("ui.close")} </Button>
+            <Button
+              leftSection={<IconDeviceFloppy size={15} />}
+              onClick={() => onSave(draft)}
+            > {i18next.t("ui.save2")} </Button>
           </Group>
         </Stack>
       </AppModal>
