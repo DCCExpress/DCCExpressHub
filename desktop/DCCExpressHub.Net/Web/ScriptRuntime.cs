@@ -90,7 +90,9 @@ public sealed class ScriptRuntime
         string Id,
         string Name,
         string Source,
-        bool StartWithAll);
+        bool StartWithAll,
+        bool Enabled,
+        bool AutoStart);
 
     sealed record SignalStateDef(
         string Label,
@@ -485,6 +487,11 @@ public sealed class ScriptRuntime
                 startElement.ValueKind !=
                     JsonValueKind.False;
 
+            var enabled = !item.TryGetProperty("enabled", out var enabledElement) ||
+                enabledElement.ValueKind != JsonValueKind.False;
+            var autoStart = item.TryGetProperty("autoStart", out var autoStartElement) &&
+                autoStartElement.ValueKind == JsonValueKind.True;
+
             if (id.Length == 0)
                 continue;
 
@@ -495,7 +502,9 @@ public sealed class ScriptRuntime
                         ? name
                         : id,
                     source,
-                    startWithAll));
+                    startWithAll,
+                    enabled,
+                    autoStart));
         }
 
         return result.ToArray();
@@ -849,6 +858,20 @@ public sealed class ScriptRuntime
         return count;
     }
 
+    public int StartAutoSaved()
+    {
+        if (Finishing)
+            return 0;
+        var count = 0;
+        foreach (var script in LoadSavedScripts().Where(s => s.Enabled && s.AutoStart))
+        {
+            var result = StartSource("automation:" + script.Id, script.Name,
+                "automation", script.Source, script.Id);
+            if (result.Ok) count++;
+        }
+        return count;
+    }
+
     public int StartAllSaved()
     {
         if (Finishing)
@@ -860,7 +883,7 @@ public sealed class ScriptRuntime
         foreach (var script in
                  LoadSavedScripts()
                      .Where(script =>
-                         script.StartWithAll))
+                         script.StartWithAll && script.Enabled))
         {
             var executionId =
                 "automation:" +
