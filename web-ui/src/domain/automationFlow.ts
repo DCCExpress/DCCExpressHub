@@ -1649,9 +1649,14 @@ function generateStatement(
       );
     }
 
-    case "notify":
-      return `notify(${jsString(data.notificationTitle || "Flow notification")}, ${jsString(data.message || "")}, ${jsString(data.notificationLevel || "success")});`;
-
+    case "notify": {
+      const title = jsString(data.notificationTitle || "Flow notification");
+      const message = jsString(data.message || "");
+      const level = jsString(data.notificationLevel || "success");
+      const value = "payload && typeof payload === \"object\" && !Array.isArray(payload) && \"payload\" in payload ? payload.payload : payload";
+      const topic = "payload && typeof payload === \"object\" && !Array.isArray(payload) && payload.topic != null ? String(payload.topic) : \"\"";
+      return "notify((" + topic + ") || " + title + ", " + message + " || (typeof (" + value + ") === \"string\" ? (" + value + ") : JSON.stringify(" + value + ")), " + level + ");";
+    }
     case "log":
       return `log(${jsString(data.message || "")}, "payload:", JSON.stringify(payload, null, 2));`;
 
