@@ -1318,7 +1318,7 @@ export default function App() {
 
   return (
     <Box
-      className={`mobile-shell${page === "debug" ? " debug-shell" : ""}${page === "layout" ? " layout-shell" : ""
+      className={`mobile-shell${page === "debug" ? " debug-shell" : ""}${page === "flows" ? " flows-shell" : ""}${page === "layout" ? " layout-shell" : ""
         }${page === "drive" ? " drive-shell" : ""
         }${page === "device-config" ? " device-config-shell" : ""
         }`}
