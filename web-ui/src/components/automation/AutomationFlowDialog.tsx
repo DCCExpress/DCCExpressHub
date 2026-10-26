@@ -794,6 +794,52 @@ export default function AutomationFlowDialog({
       );
     };
 
+  const changeActivePageEnabled = (enabled: boolean): void => {
+    if (!activePage) return;
+    const pageId = activePage.id;
+
+    // Update this editor immediately, then persist only the Enabled flag.
+    // This avoids overwriting unsaved graph edits from either window.
+    updateActivePage({ enabled });
+    if (!enabled) {
+      abortAutomationFlowPageExecutions(
+        pageId,
+        "Visual flow page disabled."
+      );
+    }
+
+    void (async () => {
+      try {
+        const latest = await loadAutomationFlow();
+        await saveAutomationFlow({
+          ...latest,
+          pages: latest.pages.map(page =>
+            page.id === pageId ? { ...page, enabled } : page
+          ),
+        });
+      } catch (error) {
+        showNotification({
+          color: "red",
+          title: t("ui.flowSaveFailed", "Flow save failed"),
+          message: error instanceof Error ? error.message : String(error),
+        });
+        // Restore the persisted state if saving failed.
+        try {
+          const latest = await loadAutomationFlow();
+          const saved = latest.pages.find(page => page.id === pageId);
+          if (saved) {
+            setDocument(current => ({
+              ...current,
+              pages: current.pages.map(page =>
+                page.id === pageId ? { ...page, enabled: saved.enabled } : page
+              ),
+            }));
+          }
+        } catch { /* Keep existing editor content on load failure. */ }
+      }
+    })();
+  };
+
   const deleteActivePage =
     (): void => {
       if (
@@ -1494,13 +1540,8 @@ export default function AutomationFlowDialog({
                       "Enabled"
                     )
                   }
-                  onChange={
-                    event =>
-                      updateActivePage({
-                        enabled:
-                          event.currentTarget
-                            .checked,
-                      })
+                  onChange={event =>
+                    changeActivePageEnabled(event.currentTarget.checked)
                   }
                 />
 
