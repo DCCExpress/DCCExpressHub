@@ -361,6 +361,16 @@ const SCRIPT_HELP_ITEMS: ScriptHelpItem[] = [
     insert: "dcc.setLocoFunction(18, 2, true);",
   },
   {
+    syntax: "dcc.isPowerOn()",
+    get description() { return i18next.language.startsWith("hu") ? "A MAIN pálya jelenlegi tápállapota: true = ON, false = OFF." : "Returns the current MAIN track power state: true = ON, false = OFF."; },
+    insert: 'if (dcc.isPowerOn()) {\n  log("Track power is ON");\n}',
+  },
+  {
+    syntax: "dcc.onPowerChanged(callback)",
+    get description() { return i18next.language.startsWith("hu") ? "MAIN Power ON/OFF átmenetek figyelése. A callback (on) paramétert kap; a script leállításakor automatikusan leiratkozik." : "Subscribe to MAIN track Power ON/OFF transitions. The callback receives (on); automatically unsubscribes when the script stops."; },
+    insert: 'dcc.onPowerChanged(async (on) => {\n  log(`POWER: ${on ? "ON" : "OFF"}`);\n});',
+  },
+  {
     syntax: "dcc.setPower(on)",
     get description() { return i18next.t("ui.setsMainTrackPowerOnOrOff"); },
     insert: "dcc.setPower(true);",
@@ -849,8 +859,8 @@ export default function ScriptEditorDialog({
           <Alert color="gray" variant="light" title={i18next.language.startsWith("hu") ? "Script indítási módok és Power" : "Script startup and track power"}>
             <Text size="sm">
               {i18next.language.startsWith("hu")
-                ? "MANUAL: csak kézzel vagy API-ból indul. AUTOSTART: a Hub indulásakor automatikusan elindul, ha engedélyezett. A Power ON önmagában jelenleg nem indítja újra a scripteket, és külön Power Start mód még nincs. Power OFF esetén a backend jelenleg minden futó scriptet megszakít; a következő Power ON nem indítja őket újra. Ha mindkét indítási esemény később támogatott lesz, ugyanazt a már futó scriptet nem szabad még egyszer elindítani."
-                : "MANUAL: starts only manually or through the API. AUTOSTART: runs on Hub startup when enabled. Track Power ON does not currently restart scripts; a separate Power Start mode is not implemented yet. Power OFF currently aborts all running scripts, and a subsequent Power ON does not restart them. If both triggers are supported later, an already running script should never be launched twice."}
+                ? "MANUAL: csak kézzel vagy API-ból indul. AUTOSTART: a Hub indulásakor automatikusan elindul, ha engedélyezett. A Power ON önmagában jelenleg nem indítja újra a scripteket, és külön Power Start mód még nincs. Power OFF nem állítja le a scripteket; az onPowerChanged figyelő megkapja az ON/OFF átmeneteket. Power ON nem indít külön scriptpéldányt. Ha mindkét indítási esemény később támogatott lesz, ugyanazt a már futó scriptet nem szabad még egyszer elindítani."
+                : "MANUAL: starts only manually or through the API. AUTOSTART: runs on Hub startup when enabled. Track Power ON does not currently restart scripts; a separate Power Start mode is not implemented yet. Power OFF does not abort scripts; onPowerChanged callbacks receive ON/OFF transitions. Power ON does not launch another script instance. If both triggers are supported later, an already running script should never be launched twice."}
             </Text>
           </Alert>
 
