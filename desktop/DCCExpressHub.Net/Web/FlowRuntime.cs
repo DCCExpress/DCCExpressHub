@@ -1499,6 +1499,14 @@ public sealed class FlowRuntime : BackgroundService
                     ) +
                     ");";
 
+            case "setVpin":
+                return
+                    "await dcc.sendRaw(\"<z " +
+                    Math.Clamp(I(data, "accessoryAddress", 1), 1, 32767) +
+                    " " +
+                    (B(data, "accessoryActive", true) ? "1" : "0") +
+                    ">\");";
+
             case "setExtendedAccessory":
                 return
                     "await dcc.setSignalAspect(" +
