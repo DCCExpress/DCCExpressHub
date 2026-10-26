@@ -1089,7 +1089,13 @@ public sealed class FlowRuntime : BackgroundService
                 data,
                 "address");
 
-        var closed = B(data, "closed");
+        // LayoutRuntime publishes both the physical output bit (closed)
+        // and the configured turnout position (logicalClosed).
+        // Flow Closed/Thrown must use the logical position when known.
+        var closed = data.TryGetProperty("logicalClosed", out var logical) &&
+            logical.ValueKind is JsonValueKind.True or JsonValueKind.False
+                ? logical.GetBoolean()
+                : B(data, "closed");
         RunMatchingInputs(
             "turnoutInput",
             node =>
@@ -1124,10 +1130,7 @@ public sealed class FlowRuntime : BackgroundService
                     eventType =
                         "turnoutChanged",
                     address,
-                    closed =
-                        B(
-                            data,
-                            "closed")
+                    closed
                 }));
     }
 
