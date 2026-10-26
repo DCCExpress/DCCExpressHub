@@ -16,6 +16,7 @@ export type AutomationFlowNodeKind =
   | "setTurnout"
   | "setAccessory"
   | "setExtendedAccessory"
+  | "setVpin"
   | "setLoco"
   | "locoFunction"
   | "function"
@@ -167,6 +168,7 @@ const NODE_KINDS =
     "setTurnout",
     "setAccessory",
     "setExtendedAccessory",
+    "setVpin",
     "setLoco",
     "locoFunction",
     "function",
@@ -210,6 +212,7 @@ export function isAutomationFlowOutputNodeKind(
     kind === "setTurnout" ||
     kind === "setAccessory" ||
     kind === "setExtendedAccessory" ||
+    kind === "setVpin" ||
     kind === "movementHold" ||
     kind === "movementRelease"
   );
@@ -1322,6 +1325,9 @@ function generateStatement(
 
     case "setAccessory":
       return `dcc.setAccessory(${Math.max(1, Math.min(2048, Math.round(data.accessoryAddress ?? 1)))}, ${data.accessoryActive !== false ? "true" : "false"});`;
+
+    case "setVpin":
+      return `await dcc.sendRaw("<z ${Math.max(1, Math.min(32767, Math.round(data.accessoryAddress ?? 1)))} ${data.accessoryActive !== false ? 1 : 0}>");`;
 
     case "setExtendedAccessory":
       return `dcc.setSignalAspect(${Math.max(1, Math.min(2048, Math.round(data.accessoryAddress ?? 1)))}, ${Math.max(0, Math.min(255, Math.round(data.accessoryAspect ?? 0)))});`;
