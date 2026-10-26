@@ -840,7 +840,7 @@ function LitePropertyPanel({
           )}
         </Group>
 
-        {properties.map(property => (
+        {properties.filter(property => !(selectedElement instanceof TrackSensorElement && property.key === "railCom")).map(property => (
           <Card key={property.key} withBorder p="xs">
             {property.type === "turnoutSelection" ? (
               <RouteTurnoutSelectionPropertyEditor
@@ -892,6 +892,13 @@ function LitePropertyPanel({
             ) : (
               <BasicPropertyEditor
                 prop={property}
+                selectedElement={selectedElement}
+                onChange={onChange}
+              />
+            )}
+            {selectedElement instanceof TrackSensorElement && property.key === "address" && (
+              <BasicPropertyEditor
+                prop={properties.find(item => item.key === "railCom")!}
                 selectedElement={selectedElement}
                 onChange={onChange}
               />
