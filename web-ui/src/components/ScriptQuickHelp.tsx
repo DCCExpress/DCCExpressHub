@@ -415,8 +415,8 @@ export default function ScriptQuickHelp({ opened, onClose, onInsert, flowMode = 
                   {flowMode ? (
                     <Alert color="cyan" variant="light">
                       {i18next.language.startsWith("hu")
-                        ? "Az engedélyezett Flow aktív és figyeli az eseményeket. A Function node kódja akkor fut le, amikor a Flow végrehajtása eléri a node-ot; nincs külön MANUAL vagy AUTOSTART indítási módja. A payload a bemenet, a return payload továbbengedi, a return null megállítja az ágat."
-                        : "An enabled Flow stays active and listens for events. A Function node runs when flow execution reaches that node; it has no separate MANUAL or AUTOSTART script mode. The input is payload; return payload continues and return null stops the branch."}
+                        ? "Az engedélyezett Flow aktív és figyeli az eseményeket. A Function node kódja akkor fut le, amikor a Flow végrehajtása eléri a node-ot. A payload a bemenet, a return payload továbbengedi, a return null megállítja az ágat."
+                        : "An enabled Flow stays active and listens for events. A Function node runs when flow execution reaches that node. The input is payload; return payload continues and return null stops the branch."}
                     </Alert>
                   ) : (
                     <>
