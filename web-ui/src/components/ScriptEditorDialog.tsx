@@ -171,6 +171,11 @@ const SCRIPT_HELP_ITEMS: ScriptHelpItem[] = [
     insert: "const state = dcc.getSensor(1); // true=ON, false=OFF, null=UNKNOWN, undefined=NOT FOUND",
   },
   {
+    syntax: "dcc.onSensorChanged(address, callback)",
+    get description() { return i18next.t("ui.scriptOnSensorChangedHelp"); },
+    insert: "dcc.onSensorChanged(1, async (on, address) => {\n  await dcc.setVpin(111, on);\n  log(`Sensor ${address}: ${on ? 'ON' : 'OFF'}`);\n});",
+  },
+  {
     syntax: "dcc.setSensor(address, on)",
     get description() { return i18next.t("ui.setsASensorStateThroughTheHubRuntimeApiPhysical"); },
     insert: "dcc.setSensor(100, true);",
