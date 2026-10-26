@@ -2224,7 +2224,7 @@ export function generateAutomationFlowPageScript(
       if (current.data.kind === "function") {
         const body = String(current.data.functionCode ?? "return payload;");
         statements.push(
-          "payload = await (async () => {\\n" + body + "\\n})();\\n" +
+          "payload = await (async () => {\n" + body + "\n})();\n" +
           "if (payload !== null && payload !== undefined) {"
         );
         functionGuards += 1;
