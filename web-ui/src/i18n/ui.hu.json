@@ -1,4 +1,9 @@
 {
+  "flowLocoEventTypes": "Figyelt változások",
+  "flowLocoEventAllHint": "Üres kijelölés esetén minden változás eseményt indít.",
+  "flowLocoSpeedChanged": "Sebesség",
+  "flowLocoDirectionChanged": "Menetirány",
+  "flowLocoFunctionsChanged": "Funkciók",
   "power": "Pályafeszültség",
   "on": "BE",
   "off": "KI",
