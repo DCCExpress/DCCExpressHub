@@ -316,6 +316,7 @@ public sealed class WsHub
                  * stale sensor/authority state when power returns.
                  */
                 Movement.StopAll(false);
+                Scripts.AbortManualOnPowerOff();
                 Timetable.StopScheduler();
 
                 _ = RuntimeStateStore.SaveAsync();
