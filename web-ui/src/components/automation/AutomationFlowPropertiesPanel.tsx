@@ -1956,6 +1956,34 @@ export default function AutomationFlowPropertiesPanel({
         </>
       )}
 
+      {data.kind === "notify" && (
+        <Stack gap="xs">
+          <TextInput
+            label={t("ui.flowNotifyTitle", "Notification title")}
+            value={data.notificationTitle ?? ""}
+            onChange={event => onChange({ notificationTitle: event.currentTarget.value })}
+          />
+          <Textarea
+            label={t("ui.flowNotifyMessage", "Message")}
+            minRows={2}
+            value={data.message ?? ""}
+            onChange={event => onChange({ message: event.currentTarget.value })}
+          />
+          <Select
+            label={t("ui.flowNotifyLevel", "Level")}
+            value={data.notificationLevel ?? "success"}
+            data={[
+              { value: "success", label: "Success" },
+              { value: "warning", label: "Warning" },
+              { value: "error", label: "Error" },
+            ]}
+            onChange={value => onChange({
+              notificationLevel: value === "warning" || value === "error" ? value : "success",
+            })}
+          />
+        </Stack>
+      )}
+
       {data.kind === "function" && (
         <Textarea
           label="JavaScript function body"
