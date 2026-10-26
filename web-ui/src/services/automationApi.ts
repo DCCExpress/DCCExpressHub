@@ -14,6 +14,8 @@ export type AutomationScriptDefinition = {
   id: string;
   name: string;
   script: string;
+  enabled?: boolean;
+  autoStart?: boolean;
 
   /**
    * When true, Start All may start this script.
@@ -130,6 +132,8 @@ export function normalizeAutomationScripts(
       id,
       name,
       script,
+      enabled: candidate.enabled !== false,
+      autoStart: candidate.autoStart === true,
 
       // Backward compatibility: scripts created before this field existed
       // participate in Start All by default.
