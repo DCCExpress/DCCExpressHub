@@ -463,6 +463,7 @@ export function createDefaultAutomationNodeData(
     case "turnoutInput":
       return {
         ...base,
+        turnoutTriggerState: "any",
         turnoutAddress: 0,
         turnoutElementId: 0,
         turnoutLabel: "",
