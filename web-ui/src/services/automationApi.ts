@@ -575,6 +575,8 @@ export async function loadAutomationFlow(): Promise<AutomationFlowDocument> {
   ).visualFlow;
 }
 
+export const FLOW_DOCUMENT_SAVED_CHANNEL = "dcc-express-hub.flow.document-saved";
+
 export async function saveAutomationFlow(
   visualFlow: AutomationFlowDocument
 ): Promise<void> {
@@ -587,6 +589,12 @@ export async function saveAutomationFlow(
         current.movement
       )
   );
+  // Notify the other browser windows only after persistence has succeeded.
+  if (typeof BroadcastChannel !== "undefined") {
+    const channel = new BroadcastChannel(FLOW_DOCUMENT_SAVED_CHANNEL);
+    channel.postMessage({ type: "saved" });
+    channel.close();
+  }
 }
 
 export async function loadAutomationMovement(): Promise<MovementDocument> {
