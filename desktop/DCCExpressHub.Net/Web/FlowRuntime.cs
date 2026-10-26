@@ -1089,10 +1089,14 @@ public sealed class FlowRuntime : BackgroundService
                 data,
                 "address");
 
+        var closed = B(data, "closed");
         RunMatchingInputs(
             "turnoutInput",
             node =>
             {
+                var stateFilter = S(node.Data, "turnoutTriggerState");
+                if (stateFilter == "closed" && !closed) return false;
+                if (stateFilter == "thrown" && closed) return false;
                 if (I(
                         node.Data,
                         "turnoutAddress") ==
