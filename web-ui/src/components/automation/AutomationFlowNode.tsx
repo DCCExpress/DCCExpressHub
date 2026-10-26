@@ -284,7 +284,7 @@ function summary(
 
     case "turnoutInput":
       return (
-        `${data.turnoutLabel || "Select turnout"} · any change`
+        `${data.turnoutLabel || "Select turnout"} · ${data.turnoutTriggerState === "closed" ? "Closed" : data.turnoutTriggerState === "thrown" ? "Thrown" : "Any change"}`
       );
 
     case "basicAccessoryInput":
