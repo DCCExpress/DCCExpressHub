@@ -134,6 +134,7 @@ public sealed class ScriptRuntime
     public event Action<ScriptRuntimeState>? Changed;
     public event Action<ScriptRuntimeLog>? LogChanged;
     public event Action<ScriptAudioRequest>? AudioRequested;
+    public event Action<string, string, string>? NotificationRequested;
     public event Action<LocoFeedback>? LocoChanged;
     public event Action? PowerStateChanged;
 
@@ -3993,6 +3994,7 @@ const dcc = Object.freeze({
   clearBlock: block => __dccClearBlock(String(block)),
   resetBlocks: () => __dccResetBlocks(),
   playAudio: source => __dccPlayAudio(String(source)),
+  notify: (title, message, level = "success") => __dccNotify(String(title), String(message), String(level)),
   sendRaw: command => __dccSendRaw(String(command)),
   power(on) { return this.setPower(on); },
   programmingPower(on) { return this.setProgrammingPower(on); },
@@ -4016,6 +4018,7 @@ const movement = Object.freeze({
 
 const delay = ms => __delay(Number(ms));
 const playAudio = source => dcc.playAudio(source);
+const notify = (title, message, level = "success") => dcc.notify(title, message, level);
 const log = (...values) => __log(JSON.stringify(values));
 const setInfo = value => __setInfo(value == null ? "" : String(value));
 const isRunning = () => !__isFinishing();
@@ -4309,6 +4312,24 @@ async function smartDispatcher(blocks, callback, options = {}) {
                             execution,
                             raw);
                     }
+                }));
+
+        engine.SetValue(
+            "__dccNotify",
+            new Action<string, string, string>(
+                (title, message, level) =>
+                {
+                    execution.Cancellation.Token.ThrowIfCancellationRequested();
+                    var normalized = level.ToLowerInvariant() switch
+                    {
+                        "warning" => "warning",
+                        "error" => "error",
+                        _ => "success"
+                    };
+                    NotificationRequested?.Invoke(
+                        title.Length > 160 ? title[..160] : title,
+                        message.Length > 2000 ? message[..2000] : message,
+                        normalized);
                 }));
 
         engine.SetValue(
