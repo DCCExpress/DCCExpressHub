@@ -125,8 +125,8 @@ public sealed class WsRuntimeCoordinator : BackgroundService
         {
             // Startup/reconnect is UNKNOWN until power feedback confirms ON.
             // Never assume an unknown power state is safe to interpret as FREE.
-            if (_powerOn != true)
-                return;
+            // if (_powerOn != true)
+            //     return;
             _runtime.SetSensor((ushort)address, on);
         }
 
