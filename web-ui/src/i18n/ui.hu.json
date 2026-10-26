@@ -196,6 +196,7 @@
   "liveCommandAndIOLog": "Élő parancs- és I/O-napló",
   "scriptNameLabel": "Script neve",
   "scriptAutostartLabel": "Automatikus indítás",
+  "scriptHelpSearch": "Parancsok keresése…",
   "scriptOnSensorChangedHelp": "Szenzorállapot-változáskor futó eseménykezelő. callback(on, address): on = true (ON) vagy false (OFF). Csak változáskor hívódik meg, UNKNOWN esetén nem. Visszatérési értéke egy leiratkozó függvény.",
   "scriptGetSensorStatesHelp": "A regisztrált szenzor állapotát adja vissza: true = ON (foglalt), false = OFF (szabad), null = UNKNOWN (ismeretlen), undefined = NOT FOUND (nincs regisztrálva).",
   "scriptHelpSetVpin": "DCC-EX VPIN-kimenet vezérlése: true = ON, false = OFF.",
