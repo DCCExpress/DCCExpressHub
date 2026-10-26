@@ -107,6 +107,7 @@ import {
 type AutomationFlowDialogProps = {
   opened: boolean;
   onClose: () => void;
+  standalone?: boolean;
   initialPageId?: string | null;
   onSaved?: (
     document:
@@ -210,6 +211,7 @@ function pageViewport(
 export default function AutomationFlowDialog({
   opened,
   onClose,
+  standalone = false,
   initialPageId,
   onSaved,
 }: AutomationFlowDialogProps) {
@@ -1294,37 +1296,7 @@ export default function AutomationFlowDialog({
       });
     };
 
-  return (
-    <Modal
-      opened={
-        opened
-      }
-      onClose={
-        onClose
-      }
-      title={
-        t(
-          "ui.visualAutomationEditor",
-          "Visual Automation Editor"
-        )
-      }
-      fullScreen
-      classNames={{
-        header:
-          "app-fullscreen-modal-header",
-      }}
-      closeOnEscape={
-        false
-      }
-      closeOnClickOutside={
-        false
-      }
-      styles={{
-        body: {
-          padding: 10,
-        },
-      }}
-    >
+  const editorContent = (
       <div className="automation-flow-dialog-body">
         <Stack
           gap="xs"
@@ -1815,6 +1787,48 @@ export default function AutomationFlowDialog({
           </div>
         </Stack>
       </div>
+  );
+
+  if (standalone) {
+    return (
+      <div style={{ height: "100dvh", padding: 10, display: "flex", flexDirection: "column" }}>
+        {editorContent}
+      </div>
+    );
+  }
+
+  return (
+    <Modal
+      opened={
+        opened
+      }
+      onClose={
+        onClose
+      }
+      title={
+        t(
+          "ui.visualAutomationEditor",
+          "Visual Automation Editor"
+        )
+      }
+      fullScreen
+      classNames={{
+        header:
+          "app-fullscreen-modal-header",
+      }}
+      closeOnEscape={
+        false
+      }
+      closeOnClickOutside={
+        false
+      }
+      styles={{
+        body: {
+          padding: 10,
+        },
+      }}
+    >
+      {editorContent}
     </Modal>
   );
 }
