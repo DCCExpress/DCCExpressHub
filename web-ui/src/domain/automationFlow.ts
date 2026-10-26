@@ -2195,6 +2195,8 @@ export function generateAutomationFlowPageScript(
     const statements:
       string[] = [];
 
+    let functionGuards = 0;
+
     const visited =
       new Set<string>();
 
@@ -2219,7 +2221,14 @@ export function generateAutomationFlowPageScript(
         current.id
       );
 
-      if (
+      if (current.data.kind === "function") {
+        const body = String(current.data.functionCode ?? "return payload;");
+        statements.push(
+          "payload = await (async () => {\\n" + body + "\\n})();\\n" +
+          "if (payload !== null && payload !== undefined) {"
+        );
+        functionGuards += 1;
+      } else if (
         current.data.kind ===
           "setSpeed" ||
         current.data.kind ===
@@ -2270,6 +2279,8 @@ export function generateAutomationFlowPageScript(
           nextEdges[0]!.target
         );
     }
+
+    for (let i = 0; i < functionGuards; i++) statements.push("}");
 
     const code =
       statements.length >
