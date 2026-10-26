@@ -194,7 +194,7 @@ const SCRIPT_HELP_ITEMS: ScriptHelpItem[] = [
         ? "Váltóállapot-változás figyelése cím alapján. A callback (closed, address) paramétereket kap; a visszatérési érték egy leiratkozó függvény."
         : "Subscribe to turnout state changes by address. The callback receives (closed, address); returns an unsubscribe function.";
     },
-    insert: "const unsubscribe = dcc.onTurnoutChanged(7, async (closed, address) => {\n  log(`Turnout ${address}: ${closed ? 'CLOSED' : 'THROWN'}`);\n});",
+    insert: "dcc.onTurnoutChanged(7, async (closed, address) => {\n  log(`Turnout ${address}: ${closed ? 'CLOSED' : 'THROWN'}`);\n});",
   },
   {
     syntax: "dcc.getTurnout(address)",
