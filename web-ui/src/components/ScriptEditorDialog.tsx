@@ -29,6 +29,7 @@ import {
   IconBook2,
   IconBraces,
   IconDeviceFloppy,
+  IconHelpCircle,
   IconPlayerPause,
   IconPlayerPlay,
   IconPlayerStop,
@@ -859,7 +860,7 @@ export default function ScriptEditorDialog({
 
           <Accordion variant="contained" radius="sm">
             <Accordion.Item value="script-guidance">
-              <Accordion.Control>
+              <Accordion.Control icon={<IconHelpCircle size={19} />}>
                 {i18next.language.startsWith("hu") ? "Script útmutató és indítási módok" : "Script guidance and startup modes"}
               </Accordion.Control>
               <Accordion.Panel>
