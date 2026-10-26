@@ -1,25 +1,11 @@
 /*
- * Mobile drive layout:
- * Closed: original full-screen controller.
- * Open: a real 40% locomotive / 60% layout split, without overlays.
- * The function card is hidden only while the map is open.
+ * Mobile controller: the throttle always occupies the same 40% area.
+ * Closed: the right 60% displays function buttons.
+ * Open: the layout replaces those buttons without changing throttle geometry.
  */
 .drive-shell.drive-layout-open .mobile-throttle-functions {
-  display: none !important;
-}
-
-.drive-shell.drive-layout-open .mobile-throttle-layout--viewport {
-  display: flex;
-  flex-direction: column;
-  width: 430px;
-  height: auto;
-}
-
-.drive-shell.drive-layout-open .mobile-loco-panel {
-  width: 40%;
-  height: 100%;
-  min-width: 0;
-  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .drive-shell.drive-layout-open .mobile-runtime-layout-overlay {
@@ -41,27 +27,29 @@
   min-height: 0;
 }
 
-.drive-shell.drive-layout-open .mobile-layout-tools {
-  z-index: 450;
-}
-
+.drive-shell.drive-layout-open .mobile-layout-tools,
 .drive-shell.drive-layout-open .mobile-layout-fab {
   z-index: 450;
 }
 
 @media (orientation: portrait) {
-  .drive-shell.drive-layout-open .mobile-loco-panel {
-    width: 100%;
-    height: 40%;
+  /* Preserve the portrait throttle's location across map open/close. */
+  .drive-shell .mobile-throttle-layout--viewport {
+    display: grid;
+    grid-template-rows: 40% 60%;
+    width: 400px;
+    height: 900px;
+    gap: 0;
+  }
+
+  .drive-shell .mobile-throttle-controls,
+  .drive-shell .mobile-throttle-functions {
+    overflow: hidden;
   }
 
   .drive-shell.drive-layout-open .mobile-runtime-layout-overlay {
     inset: 40% 0 0 0;
     width: 100%;
     height: 60dvh;
-  }
-
-  .drive-shell.drive-layout-open .mobile-throttle-layout--viewport {
-    width: 400px;
   }
 }
