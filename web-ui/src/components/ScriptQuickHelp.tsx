@@ -405,13 +405,21 @@ export default function ScriptQuickHelp({ opened, onClose, onInsert, flowMode = 
           <Accordion variant="contained" radius="sm">
             <Accordion.Item value="script-guidance">
               <Accordion.Control icon={<IconHelpCircle size={19} />}>
-                {i18next.language.startsWith("hu") ? "Script útmutató és indítási módok" : "Script guidance and startup modes"}
+                {flowMode ? (i18next.language.startsWith("hu") ? "Flow Function útmutató" : "Flow Function guidance") : (i18next.language.startsWith("hu") ? "Script útmutató és indítási módok" : "Script guidance and startup modes")}
               </Accordion.Control>
               <Accordion.Panel>
                 <Stack gap="xs">
                   <Alert color="blue" variant="light">
                     {i18next.t("ui.canonicalCommandsUseExplicitSetGetWaitNamesSignalAnd")}
                   </Alert>
+                  {flowMode ? (
+                    <Alert color="cyan" variant="light">
+                      {i18next.language.startsWith("hu")
+                        ? "Az engedélyezett Flow aktív és figyeli az eseményeket. A Function node kódja akkor fut le, amikor a Flow végrehajtása eléri a node-ot; nincs külön MANUAL vagy AUTOSTART indítási módja. A payload a bemenet, a return payload továbbengedi, a return null megállítja az ágat."
+                        : "An enabled Flow stays active and listens for events. A Function node runs when flow execution reaches that node; it has no separate MANUAL or AUTOSTART script mode. The input is payload; return payload continues and return null stops the branch."}
+                    </Alert>
+                  ) : (
+                    <>
                   <Text fw={600} size="sm">
                     {i18next.language.startsWith("hu") ? "Script indítási módok és Power" : "Script startup and track power"}
                   </Text>
@@ -434,6 +442,8 @@ export default function ScriptQuickHelp({ opened, onClose, onInsert, flowMode = 
                       <List.Item key={index}>{item}</List.Item>
                     ))}
                   </List>
+                    </>
+                  )}
                 </Stack>
               </Accordion.Panel>
             </Accordion.Item>
