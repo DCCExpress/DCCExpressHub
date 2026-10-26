@@ -1,11 +1,12 @@
 import { useRef, useState } from "react";
-import { Button, Code, Group, Modal, Stack, Text, useMantineColorScheme } from "@mantine/core";
+import { Button, Code, Group, Stack, Text, useMantineColorScheme } from "@mantine/core";
 import { IconBook2, IconBraces } from "@tabler/icons-react";
 import CodeMirror from "@uiw/react-codemirror";
 import { javascript } from "@codemirror/lang-javascript";
 import type { EditorView } from "@codemirror/view";
 import i18next from "i18next";
 import ScriptQuickHelp from "../ScriptQuickHelp";
+import AppModal from "../common/AppModal";
 
 type Props = {
   value: string;
@@ -48,9 +49,13 @@ export default function AutomationFlowFunctionEditor({ value, onChange }: Props)
         <Code block style={{ whiteSpace: "pre-wrap", maxHeight: 110, overflow: "auto" }}>{value || "return payload;"}</Code>
       </Stack>
 
-      <Modal
+      <AppModal
         opened={opened}
         onClose={() => setOpened(false)}
+        closeOnClickOutside={false}
+        closeOnEscape={false}
+        draggable
+        resetPositionOnOpen
         title={<Group gap="xs"><IconBraces size={18} /><Text fw={700}>{hu ? "Flow Function – JavaScript szerkesztő" : "Flow Function – JavaScript editor"}</Text></Group>}
         size="80vw"
         centered
@@ -87,7 +92,7 @@ export default function AutomationFlowFunctionEditor({ value, onChange }: Props)
             <Button onClick={() => setOpened(false)}>{hu ? "Bezárás" : "Close"}</Button>
           </Group>
         </Stack>
-      </Modal>
+      </AppModal>
       <ScriptQuickHelp
         opened={opened && helpOpened}
         onClose={() => setHelpOpened(false)}
