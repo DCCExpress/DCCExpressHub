@@ -22,6 +22,7 @@ import {
   IconClock,
   IconGitBranch,
   IconNote,
+  IconBell,
   IconRoute,
   IconVolume,
 } from "@tabler/icons-react";
@@ -360,6 +361,14 @@ const ITEMS: PaletteItem[] = [
     labelKey: "ui.flowNodePlayAudio",
     fallback: "Play Audio",
     color: "grape",
+  },
+  {
+    kind: "notify",
+    group: "utility",
+    icon: <IconBell size={16} />,
+    labelKey: "ui.flowNodeNotify",
+    fallback: "Notify",
+    color: "cyan",
   },
   {
     kind: "log",
