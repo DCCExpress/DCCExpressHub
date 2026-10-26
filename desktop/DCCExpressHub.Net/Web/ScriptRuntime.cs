@@ -4032,7 +4032,7 @@ const dcc = Object.freeze({
   getVpin: address => {
     const id = Number(address);
     if (!Number.isInteger(id) || id < 1 || id > 32767) throw new RangeError('Invalid VPIN address');
-    return __dccGetVpin(id);
+    return __dccGetVpin(id) ?? undefined;
   },
   onVpinChanged: (address, callback) => {
     const id = Number(address);
@@ -5110,7 +5110,6 @@ async function smartDispatcher(blocks, callback, options = {}) {
                 lock (sensorGate) { sensorSubscriptions.Clear(); turnoutSubscriptions.Clear(); vpinSubscriptions.Clear(); powerSubscribed = false; }
                 TrackPowerChanged -= OnTrackPowerChanged;
                 _layout.Changed -= OnSensorLayoutChanged;
-                TrackPowerChanged -= OnTrackPowerChanged;
                 sensorEvents.Writer.TryComplete();
             });
             try
