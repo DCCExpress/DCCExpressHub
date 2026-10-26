@@ -573,6 +573,9 @@ function ScriptCard({
               gap={6}
               wrap="nowrap"
             >
+              <Badge size="sm" variant="outline" color={definition.autoStart ? "blue" : "gray"}>
+                {definition.autoStart ? "AUTOSTART" : "MANUAL"}
+              </Badge>
               <Badge
                 size="sm"
                 variant="light"
