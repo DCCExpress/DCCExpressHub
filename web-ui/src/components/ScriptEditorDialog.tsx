@@ -899,12 +899,11 @@ export default function ScriptEditorDialog({
 
               <Table.Tbody>
                 {SCRIPT_HELP_ITEMS.map(item => (
-                  <Table.Tr
-                    key={item.syntax}
-                    onClick={() => insertSnippet(item.insert)}
-                    style={{ cursor: "pointer" }}
-                  >
-                    <Table.Td>
+                  <Table.Tr key={item.syntax}>
+                    <Table.Td
+                      onClick={() => insertSnippet(item.insert)}
+                      style={{ cursor: "pointer" }}
+                    >
                       <Code>{item.syntax}</Code>
                     </Table.Td>
                     <Table.Td>
