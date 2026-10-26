@@ -1004,7 +1004,7 @@ public sealed class FlowRuntime : BackgroundService
                 if (I(node.Data, "locoAddress") != loco.Address)
                     return false;
 
-                var filters = Strings(node.Data, "locoEventTypes");
+                var filters = StringArray(node.Data, "locoEventTypes");
                 return filters.Length == 0 ||
                     (speedChanged && filters.Contains("speed")) ||
                     (directionChanged && filters.Contains("direction")) ||
