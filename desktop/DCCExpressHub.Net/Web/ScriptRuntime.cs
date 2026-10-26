@@ -3902,6 +3902,12 @@ public sealed class ScriptRuntime
     {
         return """
 const __sensorChangedHandlers = new Map();
+const __turnoutChangedHandlers = new Map();
+async function __dispatchTurnoutChanged(address, closed) {
+  const callbacks = __turnoutChangedHandlers.get(address);
+  if (!callbacks) return;
+  for (const callback of [...callbacks]) await callback(closed, address);
+}
 async function __dispatchSensorChanged(address, on) {
   const callbacks = __sensorChangedHandlers.get(address);
   if (!callbacks) return;
@@ -3951,6 +3957,25 @@ const dcc = Object.freeze({
       if (handlers.size === 0) {
         __sensorChangedHandlers.delete(id);
         __dccUnsubscribeSensor(id);
+      }
+    };
+  },
+  onTurnoutChanged: (address, callback) => {
+    const id = Number(address);
+    if (!Number.isInteger(id) || id < 1 || id > 65535) throw new RangeError('Invalid turnout address');
+    if (typeof callback !== 'function') throw new TypeError('Turnout callback must be a function');
+    let handlers = __turnoutChangedHandlers.get(id);
+    if (!handlers) {
+      handlers = new Set();
+      __turnoutChangedHandlers.set(id, handlers);
+      __dccSubscribeTurnout(id);
+    }
+    handlers.add(callback);
+    return () => {
+      handlers.delete(callback);
+      if (handlers.size === 0) {
+        __turnoutChangedHandlers.delete(id);
+        __dccUnsubscribeTurnout(id);
       }
     };
   },
@@ -4947,10 +4972,11 @@ async function smartDispatcher(blocks, callback, options = {}) {
 
             // Channel isolates the layout event thread from the Jint engine.
             // Only the owning script execution invokes JavaScript callbacks.
-            var sensorEvents = Channel.CreateUnbounded<(int Address, bool On)>(
+            var sensorEvents = Channel.CreateUnbounded<(string Kind, int Address, bool State)>(
                 new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
             var sensorSubscriptions = new HashSet<int>();
             var sensorGate = new object();
+            var turnoutSubscriptions = new HashSet<int>();
             engine.SetValue("__dccSubscribeSensor", new Action<int>(address =>
             {
                 lock (sensorGate) sensorSubscriptions.Add(address);
@@ -4959,17 +4985,31 @@ async function smartDispatcher(blocks, callback, options = {}) {
             {
                 lock (sensorGate) sensorSubscriptions.Remove(address);
             }));
+            engine.SetValue("__dccSubscribeTurnout", new Action<int>(address =>
+            {
+                lock (sensorGate) turnoutSubscriptions.Add(address);
+            }));
+            engine.SetValue("__dccUnsubscribeTurnout", new Action<int>(address =>
+            {
+                lock (sensorGate) turnoutSubscriptions.Remove(address);
+            }));
             void OnSensorLayoutChanged(string type, object payload)
             {
-                if (type != "sensorChanged" || execution.Cancellation.IsCancellationRequested) return;
+                if ((type != "sensorChanged" && type != "turnoutChanged") || execution.Cancellation.IsCancellationRequested) return;
                 try
                 {
                     var json = JsonSerializer.SerializeToElement(payload);
                     var address = json.GetProperty("address").GetInt32();
                     bool subscribed;
-                    lock (sensorGate) subscribed = sensorSubscriptions.Contains(address);
+                    lock (sensorGate)
+                        subscribed = type == "sensorChanged"
+                            ? sensorSubscriptions.Contains(address)
+                            : turnoutSubscriptions.Contains(address);
                     if (subscribed)
-                        sensorEvents.Writer.TryWrite((address, json.GetProperty("on").GetBoolean()));
+                        sensorEvents.Writer.TryWrite((type, address,
+                            type == "sensorChanged"
+                                ? json.GetProperty("on").GetBoolean()
+                                : json.GetProperty("closed").GetBoolean()));
                 }
                 catch (Exception ex)
                 {
@@ -4981,7 +5021,7 @@ async function smartDispatcher(blocks, callback, options = {}) {
             // currently awaiting an asynchronous command.
             using var abortSubscription = execution.Cancellation.Token.Register(() =>
             {
-                lock (sensorGate) sensorSubscriptions.Clear();
+                lock (sensorGate) { sensorSubscriptions.Clear(); turnoutSubscriptions.Clear(); }
                 _layout.Changed -= OnSensorLayoutChanged;
                 sensorEvents.Writer.TryComplete();
             });
@@ -5007,18 +5047,18 @@ async function smartDispatcher(blocks, callback, options = {}) {
             {
                 lock (sensorGate)
                 {
-                    if (sensorSubscriptions.Count == 0) break;
+                    if (sensorSubscriptions.Count == 0 && turnoutSubscriptions.Count == 0) break;
                 }
                 // A bounded wait also permits unsubscribe during an idle period.
                 using var wait = CancellationTokenSource.CreateLinkedTokenSource(execution.Cancellation.Token);
                 wait.CancelAfter(500);
-                (int Address, bool On) evt;
+                (string Kind, int Address, bool State) evt;
                 try { evt = await sensorEvents.Reader.ReadAsync(wait.Token); }
                 catch (OperationCanceledException) when (!execution.Cancellation.IsCancellationRequested) { continue; }
                 await WaitRunnable(execution);
                 execution.Cancellation.Token.ThrowIfCancellationRequested();
                 await engine.EvaluateAsync(
-                    $"(async () => {{ await __dispatchSensorChanged({evt.Address}, { (evt.On ? "true" : "false") }); }})()",
+                    $"(async () => {{ await {(evt.Kind == "sensorChanged" ? "__dispatchSensorChanged" : "__dispatchTurnoutChanged")}({evt.Address}, {(evt.State ? "true" : "false")}); }})()",
                     cancellationToken: execution.Cancellation.Token);
             }
             }
