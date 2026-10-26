@@ -374,6 +374,16 @@ const SCRIPT_HELP_ITEMS: ScriptHelpItem[] = [
     insert: 'dcc.onPowerChanged(async (on) => {\n  log(`POWER: ${on ? "ON" : "OFF"}`);\n});',
   },
   {
+    syntax: "dcc.getVpin(address)",
+    get description() { return i18next.language.startsWith("hu") ? "VPIN állapot a Hub gyorsítótárából: true = ON, false = OFF, undefined = ismeretlen. Nem közvetlen hardver-visszajelzés." : "Get cached VPIN state: true = ON, false = OFF, undefined = unknown. Not direct hardware feedback."; },
+    insert: 'const on = dcc.getVpin(3000);\nlog(on === undefined ? "UNKNOWN" : on ? "ON" : "OFF");',
+  },
+  {
+    syntax: "dcc.onVpinChanged(address, callback)",
+    get description() { return i18next.language.startsWith("hu") ? "VPIN állapotváltozás figyelése. Callback: (on, address). A script leállításakor automatikusan leiratkozik." : "Subscribe to VPIN state changes. Callback: (on, address). Automatically unsubscribes when the script stops."; },
+    insert: 'dcc.onVpinChanged(3000, async (on, address) => {\n  log(`VPIN ${address}: ${on ? "ON" : "OFF"}`);\n});',
+  },
+  {
     syntax: "dcc.setPower(on)",
     get description() { return i18next.t("ui.setsMainTrackPowerOnOrOff"); },
     insert: "dcc.setPower(true);",
