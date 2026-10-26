@@ -555,6 +555,26 @@ export default function MovementPagesTable({
       setDeletingStationRouteId(null);
     }
   };
+  const toggleStationRoute = async (route: StationRouteDefinition): Promise<void> => {
+    if (!onPersistRouteTopology || deletingStationRouteId) return;
+    const previous = layout.stationRoutes;
+    setDeletingStationRouteId(route.id);
+    layout.stationRoutes = previous.map(item =>
+      item.id === route.id ? { ...item, enabled: !route.enabled } : item
+    );
+    try {
+      await onPersistRouteTopology();
+    } catch (error) {
+      layout.stationRoutes = previous;
+      showNotification({
+        color: "red",
+        title: mt("movementSaveFailed"),
+        message: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setDeletingStationRouteId(null);
+    }
+  };
   const [stationToStart, setStationToStart] = useState<StationRouteDefinition | null>(null);
   const [stationTasks, setStationTasks] = useState(getMovementTaskStates);
   useEffect(() => subscribeMovementTaskStates(() => setStationTasks(getMovementTaskStates())), []);
@@ -1196,7 +1216,17 @@ export default function MovementPagesTable({
                 {route.via.length > 0 && <Text size="xs" c="dimmed">Via: {viaLabel}</Text>}
                 <Group justify="space-between">
                   <Badge variant="outline">{route.allowReverse ? "Both directions" : "One-way"}</Badge>
-                  <Group gap="xs">
+                  <Group gap={4} wrap="nowrap">
+                    <Tooltip withArrow label={mt(route.enabled ? "movementDisableAction" : "movementEnableAction")}>
+                      <ActionIcon size={MOVEMENT_CARD_ACTION_SIZE} color={route.enabled ? "teal" : "gray"}
+                        variant={route.enabled ? "light" : "subtle"}
+                        aria-label={mt(route.enabled ? "movementDisableAction" : "movementEnableAction")}
+                        aria-pressed={route.enabled}
+                        disabled={!onPersistRouteTopology || deletingStationRouteId !== null || runningTasks.length > 0}
+                        onClick={() => void toggleStationRoute(route)}>
+                        {route.enabled ? <IconSquareCheck size={MOVEMENT_CARD_ICON_SIZE}/> : <IconSquare size={MOVEMENT_CARD_ICON_SIZE}/>}
+                      </ActionIcon>
+                    </Tooltip>
                     <Tooltip label="Start Station Route"><ActionIcon size={MOVEMENT_CARD_ACTION_SIZE} color="green" variant="light" disabled={!route.enabled} aria-label="Start Station Route" onClick={() => setStationToStart(route)}><IconPlayerPlay size={MOVEMENT_CARD_ICON_SIZE}/></ActionIcon></Tooltip>
                     <Tooltip label="Stop this route's running tasks"><ActionIcon size={MOVEMENT_CARD_ACTION_SIZE} color="yellow" variant="light" aria-label="Stop Station Route tasks" disabled={!runningTasks.some(t => t.state.status === "running")} onClick={() => runningTasks.forEach(t => stopMovement(t.pageId))}><IconPlayerStop size={MOVEMENT_CARD_ICON_SIZE}/></ActionIcon></Tooltip>
                     <Tooltip label="Abort this route's running tasks"><ActionIcon size={MOVEMENT_CARD_ACTION_SIZE} color="red" variant="light" aria-label="Abort Station Route tasks" disabled={!runningTasks.length} onClick={() => runningTasks.forEach(t => abortMovement(t.pageId))}><IconX size={MOVEMENT_CARD_ICON_SIZE}/></ActionIcon></Tooltip>
