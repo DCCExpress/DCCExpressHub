@@ -32,6 +32,7 @@ export type AutomationFlowNodeKind =
   | "movementRelease"
   | "delay"
   | "playAudio"
+  | "notify"
   | "log";
 
 export type AutomationFlowTurnoutCommand = {
@@ -109,6 +110,8 @@ export type AutomationFlowNodeData = Record<string, unknown> & {
   audioName?: string;
   audioWaitForEnd?: boolean;
   message?: string;
+  notificationTitle?: string;
+  notificationLevel?: "success" | "warning" | "error";
 
   triggerMode?:
     | "manual"
@@ -1635,6 +1638,9 @@ function generateStatement(
           : `playAudio(${jsString(audioName)});`
       );
     }
+
+    case "notify":
+      return `notify(${jsString(data.notificationTitle || "Flow notification")}, ${jsString(data.message || "")}, ${jsString(data.notificationLevel || "success")});`;
 
     case "log":
       return `log(${jsString(data.message || "")}, "payload:", JSON.stringify(payload, null, 2));`;
