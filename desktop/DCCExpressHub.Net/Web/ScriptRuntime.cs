@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using System.Threading.Channels;
 using System.Text.Json.Nodes;
 using DCCExpressHub.Net.CommandCenter;
 using Jint;
@@ -3899,6 +3900,12 @@ public sealed class ScriptRuntime
     string Bootstrap()
     {
         return """
+const __sensorChangedHandlers = new Map();
+async function __dispatchSensorChanged(address, on) {
+  const callbacks = __sensorChangedHandlers.get(address);
+  if (!callbacks) return;
+  for (const callback of [...callbacks]) await callback(on, address);
+}
 const dcc = Object.freeze({
   setPower: on => __dccSetPower(Boolean(on)),
   setProgrammingPower: on => __dccSetProgrammingPower(Boolean(on)),
@@ -3927,6 +3934,25 @@ const dcc = Object.freeze({
   setSensor: (address, on) =>
     __dccSetSensor(Number(address), Boolean(on)),
   getSensor: address => __dccSensorExists(Number(address)) ? __dccGetSensor(Number(address)) : undefined,
+  onSensorChanged: (address, callback) => {
+    const id = Number(address);
+    if (!Number.isInteger(id) || id < 1 || id > 65535) throw new RangeError('Invalid sensor address');
+    if (typeof callback !== 'function') throw new TypeError('Sensor callback must be a function');
+    let handlers = __sensorChangedHandlers.get(id);
+    if (!handlers) {
+      handlers = new Set();
+      __sensorChangedHandlers.set(id, handlers);
+      __dccSubscribeSensor(id);
+    }
+    handlers.add(callback);
+    return () => {
+      handlers.delete(callback);
+      if (handlers.size === 0) {
+        __sensorChangedHandlers.delete(id);
+        __dccUnsubscribeSensor(id);
+      }
+    };
+  },
   waitForSensor: (address, on, timeoutMs = -1) =>
     __dccWaitSensor(Number(address), Boolean(on), Number(timeoutMs ?? -1)),
   setAccessory: (address, active) =>
@@ -4898,6 +4924,33 @@ async function smartDispatcher(blocks, callback, options = {}) {
                 engine,
                 execution);
 
+            // Channel isolates the layout event thread from the Jint engine.
+            // Only the owning script execution invokes JavaScript callbacks.
+            var sensorEvents = Channel.CreateUnbounded<(int Address, bool On)>(
+                new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
+            var sensorSubscriptions = new HashSet<int>();
+            var sensorGate = new object();
+            engine.SetValue("__dccSubscribeSensor", new Action<int>(address =>
+            {
+                lock (sensorGate) sensorSubscriptions.Add(address);
+            }));
+            engine.SetValue("__dccUnsubscribeSensor", new Action<int>(address =>
+            {
+                lock (sensorGate) sensorSubscriptions.Remove(address);
+            }));
+            void OnSensorLayoutChanged(string type, object payload)
+            {
+                if (type != "sensorChanged") return;
+                var json = JsonSerializer.SerializeToElement(payload);
+                var address = json.GetProperty("address").GetInt32();
+                bool subscribed;
+                lock (sensorGate) subscribed = sensorSubscriptions.Contains(address);
+                if (subscribed)
+                    sensorEvents.Writer.TryWrite((address, json.GetProperty("on").GetBoolean()));
+            }
+            _layout.Changed += OnSensorLayoutChanged;
+            try
+            {
             await engine.ExecuteAsync(
                 Bootstrap(),
                 cancellationToken:
@@ -4913,6 +4966,30 @@ async function smartDispatcher(blocks, callback, options = {}) {
                 wrapped,
                 cancellationToken:
                     execution.Cancellation.Token);
+
+            while (!execution.Cancellation.IsCancellationRequested)
+            {
+                lock (sensorGate)
+                {
+                    if (sensorSubscriptions.Count == 0) break;
+                }
+                // A bounded wait also permits unsubscribe during an idle period.
+                using var wait = CancellationTokenSource.CreateLinkedTokenSource(execution.Cancellation.Token);
+                wait.CancelAfter(500);
+                (int Address, bool On) evt;
+                try { evt = await sensorEvents.Reader.ReadAsync(wait.Token); }
+                catch (OperationCanceledException) when (!execution.Cancellation.IsCancellationRequested) { continue; }
+                await WaitRunnable(execution);
+                await engine.EvaluateAsync(
+                    $"(async () => {{ await __dispatchSensorChanged({evt.Address}, { (evt.On ? "true" : "false") }); }})()",
+                    cancellationToken: execution.Cancellation.Token);
+            }
+            }
+            finally
+            {
+                _layout.Changed -= OnSensorLayoutChanged;
+                sensorEvents.Writer.TryComplete();
+            }
 
             Patch(
                 execution,
