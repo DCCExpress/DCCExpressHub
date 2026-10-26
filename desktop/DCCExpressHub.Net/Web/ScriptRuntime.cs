@@ -3927,6 +3927,12 @@ public sealed class ScriptRuntime
         return """
 const __sensorChangedHandlers = new Map();
 const __turnoutChangedHandlers = new Map();
+const __vpinChangedHandlers = new Map();
+async function __dispatchVpinChanged(address, on) {
+  const callbacks = __vpinChangedHandlers.get(address);
+  if (!callbacks) return;
+  for (const callback of [...callbacks]) await callback(on, address);
+}
 const __powerChangedHandlers = new Set();
 async function __dispatchPowerChanged(on) {
   for (const callback of [...__powerChangedHandlers]) await callback(on);
@@ -4023,6 +4029,30 @@ const dcc = Object.freeze({
     __dccSetAccessory(Number(address), Boolean(active)),
   setVpin: (address, active) =>
     __dccSetVpin(Number(address), Boolean(active)),
+  getVpin: address => {
+    const id = Number(address);
+    if (!Number.isInteger(id) || id < 1 || id > 32767) throw new RangeError('Invalid VPIN address');
+    return __dccGetVpin(id);
+  },
+  onVpinChanged: (address, callback) => {
+    const id = Number(address);
+    if (!Number.isInteger(id) || id < 1 || id > 32767) throw new RangeError('Invalid VPIN address');
+    if (typeof callback !== 'function') throw new TypeError('VPIN callback must be a function');
+    let handlers = __vpinChangedHandlers.get(id);
+    if (!handlers) {
+      handlers = new Set();
+      __vpinChangedHandlers.set(id, handlers);
+      __dccSubscribeVpin(id);
+    }
+    handlers.add(callback);
+    return () => {
+      handlers.delete(callback);
+      if (handlers.size === 0) {
+        __vpinChangedHandlers.delete(id);
+        __dccUnsubscribeVpin(id);
+      }
+    };
+  },
   setSignalAspect: (address, aspect) =>
     __dccSetSignalAspect(Number(address), Number(aspect)),
   getSignalState: address => __dccGetSignalState(Number(address)),
@@ -4649,6 +4679,9 @@ async function smartDispatcher(blocks, callback, options = {}) {
                     return true;
                 }));
 
+        engine.SetValue("__dccGetVpin", new Func<int, object?>(address =>
+            _layout.TryGetVPinState((ushort)address, out var on) ? on : null));
+
         engine.SetValue(
             "__dccSetVpin",
             new Func<double, bool, Task<bool>>(
@@ -5017,6 +5050,7 @@ async function smartDispatcher(blocks, callback, options = {}) {
             var sensorSubscriptions = new HashSet<int>();
             var sensorGate = new object();
             var turnoutSubscriptions = new HashSet<int>();
+            var vpinSubscriptions = new HashSet<int>();
             bool powerSubscribed = false;
             engine.SetValue("__dccSubscribePower", new Action(() => { lock (sensorGate) powerSubscribed = true; }));
             engine.SetValue("__dccUnsubscribePower", new Action(() => { lock (sensorGate) powerSubscribed = false; }));
@@ -5043,23 +5077,25 @@ async function smartDispatcher(blocks, callback, options = {}) {
             {
                 lock (sensorGate) turnoutSubscriptions.Remove(address);
             }));
+            engine.SetValue("__dccSubscribeVpin", new Action<int>(address => { lock (sensorGate) vpinSubscriptions.Add(address); }));
+            engine.SetValue("__dccUnsubscribeVpin", new Action<int>(address => { lock (sensorGate) vpinSubscriptions.Remove(address); }));
             void OnSensorLayoutChanged(string type, object payload)
             {
-                if ((type != "sensorChanged" && type != "turnoutChanged") || execution.Cancellation.IsCancellationRequested) return;
+                if ((type != "sensorChanged" && type != "turnoutChanged" && type != "vpinChanged") || execution.Cancellation.IsCancellationRequested) return;
                 try
                 {
                     var json = JsonSerializer.SerializeToElement(payload);
-                    var address = json.GetProperty("address").GetInt32();
+                    var address = json.GetProperty(type == "vpinChanged" ? "vpin" : "address").GetInt32();
                     bool subscribed;
                     lock (sensorGate)
                         subscribed = type == "sensorChanged"
                             ? sensorSubscriptions.Contains(address)
-                            : turnoutSubscriptions.Contains(address);
+                            : type == "turnoutChanged" ? turnoutSubscriptions.Contains(address) : vpinSubscriptions.Contains(address);
                     if (subscribed)
                         sensorEvents.Writer.TryWrite((type, address,
                             type == "sensorChanged"
                                 ? json.GetProperty("on").GetBoolean()
-                                : json.GetProperty("closed").GetBoolean()));
+                                : type == "vpinChanged" ? json.GetProperty("active").GetBoolean() : json.GetProperty("closed").GetBoolean()));
                 }
                 catch (Exception ex)
                 {
@@ -5071,7 +5107,7 @@ async function smartDispatcher(blocks, callback, options = {}) {
             // currently awaiting an asynchronous command.
             using var abortSubscription = execution.Cancellation.Token.Register(() =>
             {
-                lock (sensorGate) { sensorSubscriptions.Clear(); turnoutSubscriptions.Clear(); powerSubscribed = false; }
+                lock (sensorGate) { sensorSubscriptions.Clear(); turnoutSubscriptions.Clear(); vpinSubscriptions.Clear(); powerSubscribed = false; }
                 TrackPowerChanged -= OnTrackPowerChanged;
                 _layout.Changed -= OnSensorLayoutChanged;
                 TrackPowerChanged -= OnTrackPowerChanged;
@@ -5099,7 +5135,7 @@ async function smartDispatcher(blocks, callback, options = {}) {
             {
                 lock (sensorGate)
                 {
-                    if (sensorSubscriptions.Count == 0 && turnoutSubscriptions.Count == 0 && !powerSubscribed) break;
+                    if (sensorSubscriptions.Count == 0 && turnoutSubscriptions.Count == 0 && vpinSubscriptions.Count == 0 && !powerSubscribed) break;
                 }
                 // A bounded wait also permits unsubscribe during an idle period.
                 using var wait = CancellationTokenSource.CreateLinkedTokenSource(execution.Cancellation.Token);
@@ -5110,7 +5146,9 @@ async function smartDispatcher(blocks, callback, options = {}) {
                 await WaitRunnable(execution);
                 execution.Cancellation.Token.ThrowIfCancellationRequested();
                 await engine.EvaluateAsync(
-                    evt.Kind == "powerChanged"
+                    evt.Kind == "vpinChanged"
+                        ? $"(async () => {{ await __dispatchVpinChanged({evt.Address}, {(evt.State ? "true" : "false")}); }})()"
+                        : evt.Kind == "powerChanged"
                         ? $"(async () => {{ await __dispatchPowerChanged({(evt.State ? "true" : "false")}); }})()"
                         : $"(async () => {{ await {(evt.Kind == "sensorChanged" ? "__dispatchSensorChanged" : "__dispatchTurnoutChanged")}({evt.Address}, {(evt.State ? "true" : "false")}); }})()",
                     cancellationToken: execution.Cancellation.Token);
