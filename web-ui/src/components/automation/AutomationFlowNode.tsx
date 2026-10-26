@@ -229,6 +229,11 @@ const NODE_META:
       title:
         "Play Audio",
     },
+    notify: {
+      icon: "🔔",
+      color: "cyan",
+      title: "Notify",
+    },
     log: {
       icon: "📝",
       color: "lime",
@@ -476,6 +481,9 @@ function summary(
         )
       );
     }
+
+    case "notify":
+      return `${data.notificationLevel || "success"} · ${data.notificationTitle || "Flow notification"}`;
 
     case "log":
       return (
