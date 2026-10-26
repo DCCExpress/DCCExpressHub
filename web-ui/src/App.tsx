@@ -1193,6 +1193,11 @@ export default function App() {
     );
 
   const navigate = (nextPage: Page) => {
+    if (nextPage === "flows" && page !== "flows") {
+      const url = `${window.location.pathname}${window.location.search}#flows`;
+      window.open(url, "DCCExpressHubFlows", "popup=yes,width=1440,height=900");
+      return;
+    }
     if (nextPage !== "drive") setDriveLayoutOpen(false);
     window.location.hash = nextPage === "home" ? "" : nextPage;
     setPage(nextPage);
