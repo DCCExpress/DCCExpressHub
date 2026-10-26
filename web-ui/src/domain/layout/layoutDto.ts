@@ -404,7 +404,7 @@ export type LampVariantDto = "classic" | "modern" | "double";
 export interface LampElementDto extends BaseElementDto {
   type: "lamp";
   variant: LampVariantDto;
-  outputMode?: "accessory" | "extended";
+  outputMode?: ButtonOutputModeDto;
   address?: number;
   activeValue?: boolean;
   offValue?: boolean;
