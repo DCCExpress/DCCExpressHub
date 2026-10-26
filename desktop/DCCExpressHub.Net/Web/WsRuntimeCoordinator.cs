@@ -11,6 +11,7 @@ public sealed class WsRuntimeCoordinator : BackgroundService
     readonly SignalAutomationEngine _signalAutomation;
     readonly AppPaths _env;
     readonly ExternalDevicesRuntime _externalDevices;
+    readonly ScriptRuntime _scripts;
     readonly ILogger<WsRuntimeCoordinator> _log;
     volatile bool _connected;
     volatile bool _connectionChanged;
@@ -36,6 +37,7 @@ public sealed class WsRuntimeCoordinator : BackgroundService
         SignalAutomationEngine signalAutomation,
         AppPaths env,
         ExternalDevicesRuntime externalDevices,
+        ScriptRuntime scripts,
         ILogger<WsRuntimeCoordinator> log)
     {
         _cc=cc;
@@ -44,6 +46,7 @@ public sealed class WsRuntimeCoordinator : BackgroundService
         _signalAutomation=signalAutomation;
         _env=env;
         _externalDevices=externalDevices;
+        _scripts=scripts;
         _log=log;
 
         _connected=cc.Connected;
@@ -173,6 +176,18 @@ public sealed class WsRuntimeCoordinator : BackgroundService
 
         if(_connected)
             await ConnectedAsync(ct);
+
+        // Start opted-in, enabled scripts once per Hub startup, independently
+        // of track power. Reconnects must not launch duplicate executions.
+        try
+        {
+            var started = _scripts.StartAutoSaved();
+            _log.LogInformation("Autostart launched {Count} saved script(s)", started);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Script autostart failed");
+        }
 
         while(!ct.IsCancellationRequested)
         {
