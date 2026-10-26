@@ -373,7 +373,7 @@ function summary(
       );
 
     case "setVpin":
-      return `VPIN #${data.accessoryAddress ?? 1} = ${data.accessoryActive !== false ? "+" : "−"}`;
+      return `VPIN #${data.accessoryAddress ?? 1} = ${data.accessoryActive !== false ? "ON" : "OFF"}`;
 
     case "setExtendedAccessory":
       return (
