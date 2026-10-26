@@ -51,6 +51,7 @@ import type {
 
 import AutomationFlowPayloadEditor from "./AutomationFlowPayloadEditor";
 import AutomationFlowTurnoutEditor from "./AutomationFlowTurnoutEditor";
+import AutomationFlowFunctionEditor from "./AutomationFlowFunctionEditor";
 import AutomationFlowBlockEditor from "./AutomationFlowBlockEditor";
 import AutomationFlowLocoInputEditor from "./AutomationFlowLocoInputEditor";
 import { AudioFileInput } from "../../layout/property-panel/AudioFilePropertyEditor";
@@ -1999,17 +2000,12 @@ export default function AutomationFlowPropertiesPanel({
       )}
 
       {data.kind === "function" && (
-        <Textarea
-          label="JavaScript function body"
-          description="Input: payload. Return a value for the next node; return null to stop."
+        <AutomationFlowFunctionEditor
           value={data.functionCode ?? "return payload;"}
-          minRows={12}
-          autosize
-          maxRows={24}
-          styles={{ input: { fontFamily: "monospace" } }}
-          onChange={event => onChange({ functionCode: event.currentTarget.value })}
+          onChange={functionCode => onChange({ functionCode })}
         />
       )}
+
 
       {data.kind === "switch" && (
         <Stack gap="xs">
