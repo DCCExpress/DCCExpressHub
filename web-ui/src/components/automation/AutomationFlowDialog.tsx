@@ -80,6 +80,7 @@ import {
 import {
   loadAutomationFlow,
   saveAutomationFlow,
+  FLOW_DOCUMENT_SAVED_CHANNEL,
 } from "../../services/automationApi";
 
 import {
@@ -633,6 +634,24 @@ export default function AutomationFlowDialog({
     ]
   );
 
+  // Keep page enable switches synchronized without discarding unsaved node edits.
+  useEffect(() => {
+    if (!opened || typeof BroadcastChannel === "undefined") return;
+    const channel = new BroadcastChannel(FLOW_DOCUMENT_SAVED_CHANNEL);
+    channel.onmessage = () => {
+      void loadAutomationFlow().then(latest => {
+        setDocument(current => ({
+          ...current,
+          pages: current.pages.map(page => {
+            const saved = latest.pages.find(item => item.id === page.id);
+            return saved ? { ...page, enabled: saved.enabled } : page;
+          }),
+        }));
+      }).catch(() => {});
+    };
+    return () => channel.close();
+  }, [opened]);
+
   const save =
     async (): Promise<void> => {
       setSaving(
@@ -644,17 +663,27 @@ export default function AutomationFlowDialog({
           normalizeAutomationFlowDocument(
             document
           );
+        // The main layout window owns the Enabled toggles. Never overwrite
+        // them with an older copy from this independently opened editor.
+        const latest = await loadAutomationFlow();
+        const merged = {
+          ...normalized,
+          pages: normalized.pages.map(page => {
+            const saved = latest.pages.find(item => item.id === page.id);
+            return saved ? { ...page, enabled: saved.enabled } : page;
+          }),
+        };
 
         await saveAutomationFlow(
-          normalized
+          merged
         );
 
         setDocument(
-          normalized
+          merged
         );
 
         onSaved?.(
-          normalized
+          merged
         );
 
         showNotification({
