@@ -71,6 +71,7 @@ export type AutomationFlowNodeData = Record<string, unknown> & {
     | "forward"
     | "reverse";
 
+  locoEventTypes?: string[];
   trainEventTypes?: string[];
   trainTypeFilters?: string[];
   trainResourceTypes?: string[];
@@ -574,6 +575,10 @@ function normalizeNodeData(
         "reverse"
         ? "reverse"
         : "forward",
+    locoEventTypes:
+      normalizeRoute(candidate.locoEventTypes).filter(value =>
+        ["speed", "direction", "functions"].includes(value)
+      ),
     trainEventTypes:
       normalizeRoute(candidate.trainEventTypes),
     trainTypeFilters:
