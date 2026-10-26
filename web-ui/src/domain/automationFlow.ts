@@ -89,6 +89,7 @@ export type AutomationFlowNodeData = Record<string, unknown> & {
 
   turnoutAddress?: number;
   turnoutClosed?: boolean;
+  turnoutTriggerState?: "any" | "closed" | "thrown";
   turnoutAddresses?: number[];
   turnoutElementId?: number;
   turnoutLabel?: string;
@@ -663,6 +664,10 @@ function normalizeNodeData(
     turnoutClosed:
       candidate.turnoutClosed !==
       false,
+    turnoutTriggerState:
+      candidate.turnoutTriggerState === "closed" || candidate.turnoutTriggerState === "thrown"
+        ? candidate.turnoutTriggerState
+        : "any",
     turnoutAddresses:
       normalizeAddressList(
         candidate.turnoutAddresses,
