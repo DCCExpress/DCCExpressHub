@@ -975,7 +975,7 @@ public sealed class FlowRuntime : BackgroundService
         {
             if (!_locoSignatures.TryGetValue(
                     loco.Address,
-                    out previous!))
+                    out previous))
             {
                 _locoSignatures[
                     loco.Address] =
