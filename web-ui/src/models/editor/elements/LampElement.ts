@@ -5,6 +5,7 @@ import { ELEMENT_TYPES } from "@domain/layout/elementTypes";
 import type {
   LampElementDto,
   LampVariantDto,
+  ButtonOutputModeDto,
 } from "@domain/layout/layoutDto";
 import { BaseElement } from "../core/BaseElement";
 import type { DrawOptions } from "../types/EditorTypes";
@@ -21,7 +22,7 @@ const lamps = new Set<LampElement>();
 export class LampElement extends BaseElement {
   override type: typeof ELEMENT_TYPES.LAMP = ELEMENT_TYPES.LAMP;
   variant: LampVariantDto = "classic";
-  outputMode: "accessory" | "extended" = "accessory";
+  outputMode: ButtonOutputModeDto = "accessory";
   address = 0;
   activeValue = true;
   offValue = false;
@@ -30,10 +31,15 @@ export class LampElement extends BaseElement {
   on = false;
 
   sendConfiguredState(on: boolean): boolean {
-    if (!Number.isInteger(this.address) || this.address < 1 || this.address > 2048) return false;
-    return this.outputMode === "extended"
-      ? wsApi.setSignalAspect(this.address, on ? this.onAspect : this.offAspect)
-      : wsApi.setBasicAccessory(this.address, on ? this.activeValue : this.offValue);
+    const maxAddress = this.outputMode === "vpin" ? 32767 : 2048;
+    if (!Number.isInteger(this.address) || this.address < 1 || this.address > maxAddress) return false;
+    if (this.outputMode === "extended") {
+      return wsApi.setSignalAspect(this.address, on ? this.onAspect : this.offAspect);
+    }
+    const value = on ? this.activeValue : this.offValue;
+    return this.outputMode === "vpin"
+      ? wsApi.setVpin(this.address, value)
+      : wsApi.setBasicAccessory(this.address, value);
   }
 
 
@@ -130,7 +136,7 @@ export class LampElement extends BaseElement {
     element.bg = data.bg;
     element.fg = data.fg;
     element.variant = data.variant ?? "classic";
-    element.outputMode = data.outputMode === "extended" ? "extended" : "accessory";
+    element.outputMode = data.outputMode === "extended" || data.outputMode === "vpin" ? data.outputMode : "accessory";
     element.address = data.address ?? 0;
     element.activeValue = data.activeValue ?? true;
     element.offValue = data.offValue ?? false;
@@ -162,8 +168,9 @@ export class LampElement extends BaseElement {
       { label: i18next.t("ui.outputType"), key: "outputMode", type: "select", options: [
         { value: "accessory", label: "Basic accessory" },
         { value: "extended", label: "Extended accessory" },
+        { value: "vpin", label: "DCC-EX VPIN · <z ±vpin>" },
       ] },
-      { label: i18next.t("ui.accessoryAddress"), key: "address", type: "number", min: 1, max: 2048 },
+      { label: i18next.t("ui.accessoryAddress"), key: "address", type: "number", min: 1, max: this.outputMode === "vpin" ? 32767 : 2048 },
       { label: i18next.t("ui.outputStates"), key: "activeValue", type: "bittoggle" },
       {
         label: i18next.t("ui.variant"),
@@ -195,6 +202,7 @@ wsClient.on("signalAspectChanged", data => {
 wsClient.on("runtimePhysicalSnapshot", data => {
   for (const lamp of lamps) {
     if (!lamp.address) continue;
+    if (lamp.outputMode === "vpin") continue; // No authoritative VPIN state in this snapshot.
     if (lamp.outputMode === "extended") {
       const state = data.extendedAccessories.find(item => item.address === lamp.address);
       if (state) lamp.on = state.aspect === lamp.onAspect;
