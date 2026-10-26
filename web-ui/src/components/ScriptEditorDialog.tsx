@@ -167,8 +167,8 @@ const SCRIPT_HELP_ITEMS: ScriptHelpItem[] = [
   // Sensors
   {
     syntax: "dcc.getSensor(address)",
-    get description() { return i18next.t("ui.returnsTheLocallyCachedSensorStateTrueOnOccupiedFalse"); },
-    insert: "const occupied = dcc.getSensor(100);",
+    get description() { return i18next.t("ui.scriptGetSensorStatesHelp"); },
+    insert: "const state = dcc.getSensor(1); // true=ON, false=OFF, null=UNKNOWN, undefined=NOT FOUND",
   },
   {
     syntax: "dcc.setSensor(address, on)",
