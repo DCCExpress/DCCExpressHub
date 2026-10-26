@@ -293,14 +293,7 @@ function summary(
       );
 
     case "locoInput":
-      return (
-        data.locoLabel ||
-        (
-          data.locoAddress
-            ? `#${data.locoAddress} · any change`
-            : "Select locomotive"
-        )
-      );
+      return `${data.locoLabel || (data.locoAddress ? `#${data.locoAddress}` : "Select locomotive")} · ${data.locoEventTypes?.length ? data.locoEventTypes.join(", ") : "any change"}`;
 
     case "trainEventInput": {
       const eventCount = data.trainEventTypes?.length ?? 0;
