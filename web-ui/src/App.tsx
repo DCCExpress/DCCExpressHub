@@ -74,6 +74,7 @@ import {
   FLOW_DOCUMENT_SAVED_CHANNEL,
 } from "@/services/automationApi";
 import { openAuxiliaryWindow, closeAuxiliaryWindows } from "@/services/auxiliaryWindows";
+import { notificationLogStore } from "@/services/notificationLogStore";
 import {
   useAutomationFlowRuntime,
 } from "@/components/automation/useAutomationFlowRuntime";
@@ -1087,6 +1088,14 @@ export default function App() {
     },
     []
   );
+
+  useEffect(() => {
+    return wsClient.on("hubNotification", ({ title, message, level }) => {
+      const color = level === "error" ? "red" : level === "warning" ? "yellow" : "teal";
+      notificationLogStore.add({ level, title, message });
+      showNotification({ title, message, color, autoClose: level === "error" ? false : 6000 });
+    });
+  }, []);
 
   const loadAutomationFlowState =
     useCallback(
