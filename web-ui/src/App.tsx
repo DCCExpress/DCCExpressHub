@@ -71,6 +71,7 @@ import {
 } from "@/domain/automationFlow";
 import {
   loadAutomationFlow,
+  FLOW_DOCUMENT_SAVED_CHANNEL,
 } from "@/services/automationApi";
 import {
   useAutomationFlowRuntime,
@@ -1100,6 +1101,15 @@ export default function App() {
       },
       []
     );
+
+  useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") return;
+    const channel = new BroadcastChannel(FLOW_DOCUMENT_SAVED_CHANNEL);
+    channel.onmessage = () => {
+      void loadAutomationFlowState();
+    };
+    return () => channel.close();
+  }, [loadAutomationFlowState]);
 
   const loadLocos = useCallback(async () => {
     setLoadState("loading");
