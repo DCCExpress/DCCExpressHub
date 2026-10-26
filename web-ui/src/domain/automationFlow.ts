@@ -188,6 +188,7 @@ const NODE_KINDS =
     "movementRelease",
     "delay",
     "playAudio",
+    "notify",
     "log",
   ]);
 
@@ -799,6 +800,15 @@ function normalizeNodeData(
       typeof candidate.message === "string"
         ? candidate.message
         : "",
+    notificationTitle:
+      typeof candidate.notificationTitle === "string"
+        ? candidate.notificationTitle
+        : "Flow notification",
+    notificationLevel:
+      candidate.notificationLevel === "warning" ||
+      candidate.notificationLevel === "error"
+        ? candidate.notificationLevel
+        : "success",
     triggerMode:
       candidate.triggerMode ===
         "interval"
