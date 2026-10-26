@@ -188,6 +188,15 @@ const SCRIPT_HELP_ITEMS: ScriptHelpItem[] = [
 
   // Turnouts
   {
+    syntax: "dcc.onTurnoutChanged(address, callback)",
+    get description() {
+      return i18next.language.startsWith("hu")
+        ? "Váltóállapot-változás figyelése cím alapján. A callback (closed, address) paramétereket kap; a visszatérési érték egy leiratkozó függvény."
+        : "Subscribe to turnout state changes by address. The callback receives (closed, address); returns an unsubscribe function.";
+    },
+    insert: "const unsubscribe = dcc.onTurnoutChanged(7, async (closed, address) => {\\n  log(`Turnout ${address}: ${closed ? 'CLOSED' : 'THROWN'}`);\\n});",
+  },
+  {
     syntax: "dcc.getTurnout(address)",
     get description() { return i18next.t("ui.returnsTheLogicalTurnoutStateFromTheLocalCacheTrue"); },
     insert: "const closed = dcc.getTurnout(20);",
