@@ -1798,6 +1798,20 @@ public sealed class FlowRuntime : BackgroundService
                           ");";
                 }
 
+            case "notify":
+                {
+                    var title = Js(S(data, "notificationTitle", "Flow notification"));
+                    var message = Js(S(data, "message"));
+                    var level = Js(S(data, "notificationLevel", "success"));
+                    return string.Join("\n",
+                        "{",
+                        "  const notifyValue = payload && typeof payload === \"object\" && !Array.isArray(payload) && Object.prototype.hasOwnProperty.call(payload, \"payload\") ? payload.payload : payload;",
+                        "  const notifyTopic = payload && typeof payload === \"object\" && !Array.isArray(payload) && payload.topic != null ? String(payload.topic) : \"\";",
+                        "  const notifyText = notifyValue == null ? \"\" : typeof notifyValue === \"string\" ? notifyValue : JSON.stringify(notifyValue);",
+                        "  notify(notifyTopic || " + title + ", " + message + " || notifyText, " + level + ");",
+                        "}");
+                }
+
             case "log":
                 return
                     "log(" +
@@ -1872,7 +1886,7 @@ public sealed class FlowRuntime : BackgroundService
                 var code = S(node.Data, "functionCode", "return payload;");
                 var downstream = CompileBranch(document, next, ancestors);
                 return "payload = await (async () => {\n" + code +
-                    "\n})();\nif (payload !== null) {\n" +
+                    "\n})();\nif (payload !== null && payload !== undefined) {\n" +
                     downstream + "\n}";
             }
 
