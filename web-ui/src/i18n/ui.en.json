@@ -197,7 +197,7 @@
   "scriptNameLabel": "Script name",
   "scriptAutostartLabel": "Autostart",
   "scriptGetSensorStatesHelp": "Returns the registered sensor state: true = ON (occupied), false = OFF (free), null = UNKNOWN, undefined = NOT FOUND (not registered).",
-  "scriptHelpSetVpin": "Controls a DCC-EX VPIN output through the Hub state API. true switches it ON, false switches it OFF, and the Canvas/Flow state is updated.",
+  "scriptHelpSetVpin": "Controls a DCC-EX VPIN output: true = ON, false = OFF.",
   "enabled": "Enabled",
   "disabled": "Disabled",
   "rawDccEx": "Raw DCC-EX",
