@@ -969,12 +969,13 @@ public sealed class FlowRuntime : BackgroundService
         var signature =
             LocoSignature(
                 loco);
+        string previous;
 
         lock (_gate)
         {
             if (!_locoSignatures.TryGetValue(
                     loco.Address,
-                    out var previous))
+                    out previous!))
             {
                 _locoSignatures[
                     loco.Address] =
@@ -986,18 +987,29 @@ public sealed class FlowRuntime : BackgroundService
                 loco.Address] =
                 signature;
 
-            if (previous ==
-                signature)
+            if (previous == signature)
                 return;
         }
+
+        var before = previous.Split('|');
+        var after = signature.Split('|');
+        var speedChanged = before[1] != after[1];
+        var directionChanged = before[2] != after[2];
+        var functionsChanged = before[3] != after[3];
 
         RunMatchingInputs(
             "locoInput",
             node =>
-                I(
-                    node.Data,
-                    "locoAddress") ==
-                loco.Address,
+            {
+                if (I(node.Data, "locoAddress") != loco.Address)
+                    return false;
+
+                var filters = Strings(node.Data, "locoEventTypes");
+                return filters.Length == 0 ||
+                    (speedChanged && filters.Contains("speed")) ||
+                    (directionChanged && filters.Contains("direction")) ||
+                    (functionsChanged && filters.Contains("functions"));
+            },
             ObjectPayload(
                 new
                 {
