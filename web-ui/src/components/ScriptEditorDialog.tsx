@@ -800,16 +800,6 @@ export default function ScriptEditorDialog({
                 onClick={onClose}
               > {i18next.t("ui.close")} </Button>
 
-              {scriptStatus === "idle" && (
-                <Button
-                  color="green"
-                  variant="light"
-                  leftSection={<IconPlayerPlay size={15} />}
-                  loading={starting}
-                  onClick={() => void handleRun()}
-                > {i18next.t("ui.run")} </Button>
-              )}
-
               {scriptStatus === "running" && (
                 <Button
                   color="yellow"
@@ -817,15 +807,6 @@ export default function ScriptEditorDialog({
                   leftSection={<IconPlayerStop size={15} />}
                   onClick={onPause}
                 > {i18next.t("ui.stop")} </Button>
-              )}
-
-              {scriptStatus === "paused" && (
-                <Button
-                  color="green"
-                  variant="light"
-                  leftSection={<IconPlayerPlay size={15} />}
-                  onClick={onResume}
-                > {i18next.t("ui.resume")} </Button>
               )}
 
               {scriptStatus !== "idle" && (
