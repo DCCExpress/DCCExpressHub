@@ -196,6 +196,7 @@
   "liveCommandAndIOLog": "Live-Befehls- und I/O-Protokoll",
   "scriptNameLabel": "Skriptname",
   "scriptAutostartLabel": "Automatisch starten",
+  "scriptGetSensorStatesHelp": "Gibt den Zustand eines registrierten Sensors zurück: true = EIN (belegt), false = AUS (frei), null = UNBEKANNT, undefined = NICHT GEFUNDEN (nicht registriert).",
   "scriptHelpSetVpin": "Steuert einen DCC-EX-VPIN-Ausgang über die Zustandsverwaltung des Hubs. true schaltet EIN, false schaltet AUS; der Zustand in Canvas/Flow wird aktualisiert.",
   "enabled": "Aktiviert",
   "disabled": "Deaktiviert",
