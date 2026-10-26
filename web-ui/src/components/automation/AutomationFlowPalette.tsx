@@ -591,6 +591,14 @@ export function createDefaultAutomationNodeData(
         audioWaitForEnd: false,
       };
 
+    case "notify":
+      return {
+        ...base,
+        notificationTitle: "Flow notification",
+        notificationLevel: "success",
+        message: "",
+      };
+
     case "log":
       return {
         ...base,
