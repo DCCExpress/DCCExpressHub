@@ -137,6 +137,8 @@ public sealed class ScriptRuntime
     public event Action<string, string, string>? NotificationRequested;
     public event Action<LocoFeedback>? LocoChanged;
     public event Action? PowerStateChanged;
+    public event Action<bool>? TrackPowerChanged;
+    public void NotifyTrackPowerChanged(bool on) => TrackPowerChanged?.Invoke(on);
 
     public ScriptRuntime(
         LayoutRuntime layout,
@@ -3903,6 +3905,10 @@ public sealed class ScriptRuntime
         return """
 const __sensorChangedHandlers = new Map();
 const __turnoutChangedHandlers = new Map();
+const __powerChangedHandlers = new Set();
+async function __dispatchPowerChanged(on) {
+  for (const callback of [...__powerChangedHandlers]) await callback(on);
+}
 async function __dispatchTurnoutChanged(address, closed) {
   const callbacks = __turnoutChangedHandlers.get(address);
   if (!callbacks) return;
@@ -3915,6 +3921,16 @@ async function __dispatchSensorChanged(address, on) {
 }
 const dcc = Object.freeze({
   setPower: on => __dccSetPower(Boolean(on)),
+  isPowerOn: () => __dccIsPowerOn(),
+  onPowerChanged: callback => {
+    if (typeof callback !== 'function') throw new TypeError('Power callback must be a function');
+    if (__powerChangedHandlers.size === 0) __dccSubscribePower();
+    __powerChangedHandlers.add(callback);
+    return () => {
+      __powerChangedHandlers.delete(callback);
+      if (__powerChangedHandlers.size === 0) __dccUnsubscribePower();
+    };
+  },
   setProgrammingPower: on => __dccSetProgrammingPower(Boolean(on)),
   emergencyStop: () => __dccEmergencyStop(),
   setLoco: (address, speed, direction = "forward") =>
@@ -4370,6 +4386,8 @@ async function smartDispatcher(blocks, callback, options = {}) {
             new Func<bool>(
                 () =>
                     Finishing));
+
+        engine.SetValue("__dccIsPowerOn", new Func<bool>(() => _hubState.TrackPower));
 
         engine.SetValue(
             "__dccSetPower",
@@ -4977,6 +4995,16 @@ async function smartDispatcher(blocks, callback, options = {}) {
             var sensorSubscriptions = new HashSet<int>();
             var sensorGate = new object();
             var turnoutSubscriptions = new HashSet<int>();
+            bool powerSubscribed = false;
+            engine.SetValue("__dccSubscribePower", new Action(() => { lock (sensorGate) powerSubscribed = true; }));
+            engine.SetValue("__dccUnsubscribePower", new Action(() => { lock (sensorGate) powerSubscribed = false; }));
+            void OnTrackPowerChanged(bool on)
+            {
+                lock (sensorGate)
+                    if (powerSubscribed && !execution.Cancellation.IsCancellationRequested)
+                        sensorEvents.Writer.TryWrite(("powerChanged", 0, on));
+            }
+            TrackPowerChanged += OnTrackPowerChanged;
             engine.SetValue("__dccSubscribeSensor", new Action<int>(address =>
             {
                 lock (sensorGate) sensorSubscriptions.Add(address);
@@ -5021,8 +5049,10 @@ async function smartDispatcher(blocks, callback, options = {}) {
             // currently awaiting an asynchronous command.
             using var abortSubscription = execution.Cancellation.Token.Register(() =>
             {
-                lock (sensorGate) { sensorSubscriptions.Clear(); turnoutSubscriptions.Clear(); }
+                lock (sensorGate) { sensorSubscriptions.Clear(); turnoutSubscriptions.Clear(); powerSubscribed = false; }
+                TrackPowerChanged -= OnTrackPowerChanged;
                 _layout.Changed -= OnSensorLayoutChanged;
+                TrackPowerChanged -= OnTrackPowerChanged;
                 sensorEvents.Writer.TryComplete();
             });
             try
@@ -5047,7 +5077,7 @@ async function smartDispatcher(blocks, callback, options = {}) {
             {
                 lock (sensorGate)
                 {
-                    if (sensorSubscriptions.Count == 0 && turnoutSubscriptions.Count == 0) break;
+                    if (sensorSubscriptions.Count == 0 && turnoutSubscriptions.Count == 0 && !powerSubscribed) break;
                 }
                 // A bounded wait also permits unsubscribe during an idle period.
                 using var wait = CancellationTokenSource.CreateLinkedTokenSource(execution.Cancellation.Token);
@@ -5058,7 +5088,9 @@ async function smartDispatcher(blocks, callback, options = {}) {
                 await WaitRunnable(execution);
                 execution.Cancellation.Token.ThrowIfCancellationRequested();
                 await engine.EvaluateAsync(
-                    $"(async () => {{ await {(evt.Kind == "sensorChanged" ? "__dispatchSensorChanged" : "__dispatchTurnoutChanged")}({evt.Address}, {(evt.State ? "true" : "false")}); }})()",
+                    evt.Kind == "powerChanged"
+                        ? $"(async () => {{ await __dispatchPowerChanged({(evt.State ? "true" : "false")}); }})()"
+                        : $"(async () => {{ await {(evt.Kind == "sensorChanged" ? "__dispatchSensorChanged" : "__dispatchTurnoutChanged")}({evt.Address}, {(evt.State ? "true" : "false")}); }})()",
                     cancellationToken: execution.Cancellation.Token);
             }
             }
