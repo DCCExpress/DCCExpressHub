@@ -298,6 +298,14 @@ const ITEMS: PaletteItem[] = [
     color: "yellow",
   },
   {
+    kind: "setVpin",
+    group: "output",
+    icon: <IconBolt size={16} />,
+    labelKey: "ui.flowNodeSetVpin",
+    fallback: "DCC-EX VPIN output",
+    color: "green",
+  },
+  {
     kind: "setExtendedAccessory",
     group: "output",
     icon: <IconBolt size={16} />,
@@ -506,6 +514,13 @@ export function createDefaultAutomationNodeData(
       };
 
     case "setAccessory":
+      return {
+        ...base,
+        accessoryAddress: 1,
+        accessoryActive: true,
+      };
+
+    case "setVpin":
       return {
         ...base,
         accessoryAddress: 1,
