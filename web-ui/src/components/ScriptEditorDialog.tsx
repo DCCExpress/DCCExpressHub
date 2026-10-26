@@ -17,6 +17,8 @@ import {
   Stack,
   Table,
   Text,
+  TextInput,
+  Switch,
   Tooltip,
   useMantineColorScheme,
 } from "@mantine/core";
@@ -47,6 +49,10 @@ type ScriptEditorDialogProps = {
   opened: boolean;
   title: string;
   value: string;
+  scriptName?: string;
+  scriptEnabled?: boolean;
+  scriptAutoStart?: boolean;
+  onSettingsChange?: (settings: { name: string; enabled: boolean; autoStart: boolean }) => void;
   scriptStatus: ClientScriptStatus;
   onClose: () => void;
   onSave: (value: string) => void;
@@ -418,6 +424,10 @@ export default function ScriptEditorDialog({
   opened,
   title,
   value,
+  scriptName,
+  scriptEnabled = true,
+  scriptAutoStart = false,
+  onSettingsChange,
   scriptStatus,
   onClose,
   onSave,
@@ -613,6 +623,20 @@ export default function ScriptEditorDialog({
           gap="xs"
           style={{ flex: 1, minHeight: 0 }}
         >
+          {onSettingsChange && (
+            <Group gap="md" align="end" wrap="wrap">
+              <TextInput
+                label="Script name"
+                value={scriptName ?? ""}
+                onChange={event => onSettingsChange({ name: event.currentTarget.value, enabled: scriptEnabled, autoStart: scriptAutoStart })}
+                style={{ flex: 1, minWidth: 180 }}
+              />
+              <Switch label="Enabled" checked={scriptEnabled}
+                onChange={event => onSettingsChange({ name: scriptName ?? "", enabled: event.currentTarget.checked, autoStart: scriptAutoStart })} />
+              <Switch label="Autostart" checked={scriptAutoStart} disabled={!scriptEnabled}
+                onChange={event => onSettingsChange({ name: scriptName ?? "", enabled: scriptEnabled, autoStart: event.currentTarget.checked })} />
+            </Group>
+          )}
           <Group justify="space-between" wrap="nowrap">
             <Group gap={5}>
               <Tooltip label={i18next.t("ui.quickCommandHelp")}>
