@@ -196,6 +196,7 @@
   "liveCommandAndIOLog": "Live command and I/O log",
   "scriptNameLabel": "Script name",
   "scriptAutostartLabel": "Autostart",
+  "scriptOnSensorChangedHelp": "Runs a callback when the sensor state changes. callback(on, address): on is true (ON) or false (OFF). Not called for UNKNOWN. Returns a function to unsubscribe.",
   "scriptGetSensorStatesHelp": "Returns the registered sensor state: true = ON (occupied), false = OFF (free), null = UNKNOWN, undefined = NOT FOUND (not registered).",
   "scriptHelpSetVpin": "Controls a DCC-EX VPIN output: true = ON, false = OFF.",
   "enabled": "Enabled",
