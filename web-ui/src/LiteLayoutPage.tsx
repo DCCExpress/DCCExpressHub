@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import i18next from "i18next";
+import { openAuxiliaryWindow } from "@/services/auxiliaryWindows";
 import {
   ActionIcon,
   Alert,
@@ -2199,7 +2200,7 @@ export default function LiteLayoutPage({
               </span>
             </Button>
             <Button size="xs" variant="light" color="teal" leftSection={<IconShieldCheck size={16} />} onClick={() => setIntegrityCheckOpened(true)} title={i18next.t("ui.checkAllProjectReferences")}> {i18next.t("ui.check")} </Button>
-            <Button component="a" href="#debug" target="_blank" rel="noopener noreferrer" variant="light" leftSection={<IconBug size={16} />}>
+            <Button variant="light" leftSection={<IconBug size={16} />} onClick={() => { const url = new URL(window.location.href); url.searchParams.delete("flowPageId"); url.hash = "debug"; openAuxiliaryWindow(url.toString(), "DCCExpressHubDebug"); }}>
               Debug
             </Button>
             <Button
@@ -2385,7 +2386,7 @@ export default function LiteLayoutPage({
                             url.hash = "flows";
                             if (pageId) url.searchParams.set("flowPageId", pageId);
                             else url.searchParams.delete("flowPageId");
-                            window.open(url.toString(), "DCCExpressHubFlows", "popup=yes,width=1440,height=900");
+                            openAuxiliaryWindow(url.toString(), "DCCExpressHubFlows");
                           }}
                           movements={movementDocument}
                           onMovementsChange={setMovementDocument}
