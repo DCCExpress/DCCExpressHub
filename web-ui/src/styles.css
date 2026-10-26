@@ -90,6 +90,19 @@ button,
   width: min(100%, 1440px);
 }
 
+/* Standalone Flow editor fills its browser window, leaving the remaining width to the canvas. */
+.flows-shell {
+  width: 100%;
+  max-width: none;
+  padding: 8px;
+}
+
+.flows-shell > .mantine-Stack-root,
+.flows-shell .mobile-content {
+  width: 100%;
+  min-width: 0;
+}
+
 /* Standalone Runtime Debug uses the browser width instead of the 760px mobile shell. */
 .debug-shell {
   width: 100%;
