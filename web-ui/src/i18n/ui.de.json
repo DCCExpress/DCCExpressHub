@@ -1,4 +1,9 @@
 {
+  "flowLocoEventTypes": "Änderungen überwachen",
+  "flowLocoEventAllHint": "Ohne Auswahl löst jede Änderung ein Ereignis aus.",
+  "flowLocoSpeedChanged": "Geschwindigkeit",
+  "flowLocoDirectionChanged": "Fahrtrichtung",
+  "flowLocoFunctionsChanged": "Funktionen",
   "power": "Gleisspannung",
   "on": "EIN",
   "off": "AUS",
