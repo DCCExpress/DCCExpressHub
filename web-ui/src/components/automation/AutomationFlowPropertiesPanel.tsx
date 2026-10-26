@@ -1960,11 +1960,13 @@ export default function AutomationFlowPropertiesPanel({
         <Stack gap="xs">
           <TextInput
             label={t("ui.flowNotifyTitle", "Notification title")}
+            description="Optional: payload.topic overrides this title."
             value={data.notificationTitle ?? ""}
             onChange={event => onChange({ notificationTitle: event.currentTarget.value })}
           />
           <Textarea
             label={t("ui.flowNotifyMessage", "Message")}
+            description="Leave empty to display the incoming payload (or payload.payload)."
             minRows={2}
             value={data.message ?? ""}
             onChange={event => onChange({ message: event.currentTarget.value })}
