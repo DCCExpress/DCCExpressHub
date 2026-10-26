@@ -3926,7 +3926,7 @@ const dcc = Object.freeze({
     __dccWaitTurnout(Number(address), false, Number(timeoutMs ?? -1)),
   setSensor: (address, on) =>
     __dccSetSensor(Number(address), Boolean(on)),
-  getSensor: address => __dccGetSensor(Number(address)),
+  getSensor: address => __dccSensorExists(Number(address)) ? __dccGetSensor(Number(address)) : undefined,
   waitForSensor: (address, on, timeoutMs = -1) =>
     __dccWaitSensor(Number(address), Boolean(on), Number(timeoutMs ?? -1)),
   setAccessory: (address, active) =>
@@ -4472,6 +4472,14 @@ async function smartDispatcher(blocks, callback, options = {}) {
                             1,
                             65535),
                         on)));
+
+        engine.SetValue(
+            "__dccSensorExists",
+            new Func<double, bool>(
+                address =>
+                    double.IsFinite(address) &&
+                    address >= 1 && address <= 65535 &&
+                    _layout.FindSensor((ushort)Math.Round(address)) is not null));
 
         engine.SetValue(
             "__dccGetSensor",
