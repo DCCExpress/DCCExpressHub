@@ -400,7 +400,6 @@ export default function ScriptQuickHelp({ opened, onClose, onInsert, flowMode = 
           style={{ flex: 1, minHeight: 0 }}
         >
           <Text size="sm" c="dimmed"> {i18next.t("ui.clickARowToInsertItsSyntaxAtTheCurrent")} </Text>
-          {flowMode && <Alert color="cyan" variant="light">{i18next.language.startsWith("hu") ? "Flow Function: a payload a bemenet; return payload továbbengedi az ágat, return null megállítja. A dcc API itt is használható." : "Flow Function: payload is the input; return payload continues the branch, return null stops it. The dcc API is available here too."}</Alert>}
 
           <Accordion variant="contained" radius="sm">
             <Accordion.Item value="script-guidance">
