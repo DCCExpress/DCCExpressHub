@@ -1017,6 +1017,18 @@ export default function AutomationFlowPropertiesPanel({
             inputOnly
           />
 
+          <Select
+            label={t("ui.flowTurnoutTriggerState", "Trigger state")}
+            data={[
+              { value: "any", label: t("ui.flowTurnoutStateAny", "Any change") },
+              { value: "closed", label: t("ui.closed", "Closed") },
+              { value: "thrown", label: t("ui.opened", "Thrown") },
+            ]}
+            value={data.turnoutTriggerState ?? "any"}
+            allowDeselect={false}
+            onChange={value => onChange({ turnoutTriggerState: value === "closed" || value === "thrown" ? value : "any" })}
+          />
+
           <Text
             size="xs"
             c="dimmed"
