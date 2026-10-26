@@ -1372,14 +1372,24 @@ export default function AutomationFlowPropertiesPanel({
 
       {data.kind ===
         "locoInput" && (
-        <AutomationFlowLocoInputEditor
-          data={
-            data
-          }
-          onChange={
-            onChange
-          }
-        />
+        <>
+          <AutomationFlowLocoInputEditor
+            data={data}
+            onChange={onChange}
+          />
+          <TrainEventMultiSelect
+            label={t("ui.flowLocoEventTypes", "Watch changes")}
+            description={t("ui.flowLocoEventAllHint", "Empty selection means any change.")}
+            placeholder={t("ui.flowAll", "All")}
+            data={[
+              { value: "speed", label: t("ui.flowLocoSpeedChanged", "Speed") },
+              { value: "direction", label: t("ui.flowLocoDirectionChanged", "Direction") },
+              { value: "functions", label: t("ui.flowLocoFunctionsChanged", "Functions") },
+            ]}
+            value={data.locoEventTypes ?? []}
+            onChange={value => onChange({ locoEventTypes: value })}
+          />
+        </>
       )}
 
       {(data.kind === "setAccessory" || data.kind === "setVpin") && (
