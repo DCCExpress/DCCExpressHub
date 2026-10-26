@@ -196,6 +196,7 @@
   "liveCommandAndIOLog": "Live-Befehls- und I/O-Protokoll",
   "scriptNameLabel": "Skriptname",
   "scriptAutostartLabel": "Automatisch starten",
+  "scriptHelpSearch": "Befehle suchen…",
   "scriptOnSensorChangedHelp": "Ruft bei einer Sensorzustandsänderung einen Callback auf. callback(on, address): on ist true (EIN) oder false (AUS). Kein Aufruf bei UNBEKANNT. Gibt eine Funktion zum Abmelden zurück.",
   "scriptGetSensorStatesHelp": "Gibt den Zustand eines registrierten Sensors zurück: true = EIN (belegt), false = AUS (frei), null = UNBEKANNT, undefined = NICHT GEFUNDEN (nicht registriert).",
   "scriptHelpSetVpin": "Steuert einen DCC-EX-VPIN-Ausgang: true = EIN, false = AUS.",
