@@ -776,6 +776,28 @@ public sealed class ScriptRuntime
         return count;
     }
 
+    // Power OFF keeps enabled AUTOSTART automation listeners alive.
+    // MANUAL scripts, including transient editor runs, are stopped.
+    public int AbortManualOnPowerOff()
+    {
+        var autoStartIds = LoadSavedScripts()
+            .Where(script => script.Enabled && script.AutoStart)
+            .Select(script => "automation:" + script.Id)
+            .ToHashSet(StringComparer.Ordinal);
+
+        string[] manualIds;
+        lock (_gate)
+            manualIds = _executions.Keys
+                .Where(id => !autoStartIds.Contains(id))
+                .ToArray();
+
+        var count = 0;
+        foreach (var id in manualIds)
+            if (Abort(id, "Track power turned OFF (manual script)."))
+                count++;
+        return count;
+    }
+
     public int PauseAll()
     {
         string[] ids;
