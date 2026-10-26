@@ -686,6 +686,7 @@ export type ServerWsPayloadMap = {
 
   flowStateChanged: FlowRuntimeSnapshotPayload;
   flowLog: FlowRuntimeLogPayload;
+  hubNotification: { title: string; message: string; level: "success" | "warning" | "error" };
   flowResponse: FlowResponsePayload;
 
   timetableStateChanged: TimetableRuntimeStatePayload;
