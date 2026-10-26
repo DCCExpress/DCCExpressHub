@@ -327,6 +327,11 @@ const SCRIPT_HELP_ITEMS: ScriptHelpItem[] = [
     insert: 'dcc.sendRaw("<s>");',
   },
   {
+    syntax: "await dcc.setVpin(address, active)",
+    get description() { return i18next.t("ui.scriptHelpSetVpin"); },
+    insert: "await dcc.setVpin(111, true);",
+  },
+  {
     syntax: "dcc.setAccessory(address, active)",
     get description() { return i18next.t("ui.lowLevelBasicDccAccessorySetter"); },
     insert: "dcc.setAccessory(100, true);",
@@ -626,14 +631,14 @@ export default function ScriptEditorDialog({
           {onSettingsChange && (
             <Group gap="md" align="end" wrap="wrap">
               <TextInput
-                label="Script name"
+                label={i18next.t("ui.scriptNameLabel")}
                 value={scriptName ?? ""}
                 onChange={event => onSettingsChange({ name: event.currentTarget.value, enabled: scriptEnabled, autoStart: scriptAutoStart })}
                 style={{ flex: 1, minWidth: 180 }}
               />
-              <Switch label="Enabled" checked={scriptEnabled}
+              <Switch label={i18next.t("ui.enabled")} checked={scriptEnabled}
                 onChange={event => onSettingsChange({ name: scriptName ?? "", enabled: event.currentTarget.checked, autoStart: scriptAutoStart })} />
-              <Switch label="Autostart" checked={scriptAutoStart} disabled={!scriptEnabled}
+              <Switch label={i18next.t("ui.scriptAutostartLabel")} checked={scriptAutoStart} disabled={!scriptEnabled}
                 onChange={event => onSettingsChange({ name: scriptName ?? "", enabled: scriptEnabled, autoStart: event.currentTarget.checked })} />
             </Group>
           )}
