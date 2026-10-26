@@ -545,8 +545,8 @@ button,
     display: grid;
 
     grid-template-columns:
-      minmax(280px, 42%)
-      minmax(420px, 58%);
+      minmax(0, 40%)
+      minmax(0, 60%);
 
     width: 1000px;
     height: auto;
