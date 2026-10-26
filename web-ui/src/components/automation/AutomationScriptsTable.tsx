@@ -49,6 +49,7 @@ import {
 import {
   abortAllSavedClientScripts,
   abortClientScript,
+  abortClientScriptConfirmed,
   getAutomationFinishing,
   getClientScriptState,
   pauseAllSavedClientScripts,
@@ -749,12 +750,15 @@ function ScriptCard({
                   disabled={
                     idle
                   }
-                  onClick={
-                    () =>
-                      abortClientScript(
-                        id
-                      )
-                  }
+                  onClick={() => {
+                    void abortClientScriptConfirmed(id).catch(error => {
+                      showNotification({
+                        color: "red",
+                        title: "Script abort failed",
+                        message: error instanceof Error ? error.message : String(error),
+                      });
+                    });
+                  }}
                   aria-label={
                     i18next.t(
                       "ui.abort"
