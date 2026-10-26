@@ -197,7 +197,7 @@
   "scriptNameLabel": "Script neve",
   "scriptAutostartLabel": "Automatikus indítás",
   "scriptGetSensorStatesHelp": "A regisztrált szenzor állapotát adja vissza: true = ON (foglalt), false = OFF (szabad), null = UNKNOWN (ismeretlen), undefined = NOT FOUND (nincs regisztrálva).",
-  "scriptHelpSetVpin": "DCC-EX VPIN-kimenet vezérlése a Hub állapotkezelésén keresztül. A true bekapcsolja, a false kikapcsolja a kimenetet; a Canvas/Flow állapotát is frissíti.",
+  "scriptHelpSetVpin": "DCC-EX VPIN-kimenet vezérlése: true = ON, false = OFF.",
   "enabled": "Engedélyezve",
   "disabled": "Letiltva",
   "rawDccEx": "Nyers DCC-EX",
