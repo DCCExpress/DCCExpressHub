@@ -846,6 +846,13 @@ export default function ScriptEditorDialog({
           <Text size="sm" c="dimmed"> {i18next.t("ui.clickARowToInsertItsSyntaxAtTheCurrent")} </Text>
 
           <Alert color="blue" variant="light"> {i18next.t("ui.canonicalCommandsUseExplicitSetGetWaitNamesSignalAnd")} </Alert>
+          <Alert color="gray" variant="light" title={i18next.language.startsWith("hu") ? "Script indítási módok és Power" : "Script startup and track power"}>
+            <Text size="sm">
+              {i18next.language.startsWith("hu")
+                ? "MANUAL: csak kézzel vagy API-ból indul. AUTOSTART: a Hub indulásakor automatikusan elindul, ha engedélyezett. A Power ON önmagában jelenleg nem indítja újra a scripteket, és külön Power Start mód még nincs. Power OFF esetén a backend jelenleg minden futó scriptet megszakít; a következő Power ON nem indítja őket újra. Ha mindkét indítási esemény később támogatott lesz, ugyanazt a már futó scriptet nem szabad még egyszer elindítani."
+                : "MANUAL: starts only manually or through the API. AUTOSTART: runs on Hub startup when enabled. Track Power ON does not currently restart scripts; a separate Power Start mode is not implemented yet. Power OFF currently aborts all running scripts, and a subsequent Power ON does not restart them. If both triggers are supported later, an already running script should never be launched twice."}
+            </Text>
+          </Alert>
 
           <TextInput
             aria-label={i18next.t("ui.scriptHelpSearch")}
