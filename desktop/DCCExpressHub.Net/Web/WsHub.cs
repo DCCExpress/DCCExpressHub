@@ -305,6 +305,9 @@ public sealed class WsHub
             LocoCounters.SetTrackPower(
                 HubState.TrackPower);
 
+            if (wasMainOn != HubState.TrackPower)
+                Scripts.NotifyTrackPowerChanged(HubState.TrackPower);
+
             if (wasMainOn && !HubState.TrackPower)
             {
                 /*
@@ -313,8 +316,6 @@ public sealed class WsHub
                  * stale sensor/authority state when power returns.
                  */
                 Movement.StopAll(false);
-                Scripts.AbortAll(
-                    "Track power turned OFF.");
                 Timetable.StopScheduler();
 
                 _ = RuntimeStateStore.SaveAsync();
