@@ -527,6 +527,34 @@ export default function MovementPagesTable({
       }).catch(() => { /* Live updates are still subscribed. */ });
     return off;
   }, []);
+  const [deletingStationRouteId, setDeletingStationRouteId] = useState<string | null>(null);
+  const deleteStationRoute = async (route: StationRouteDefinition): Promise<void> => {
+    if (!onPersistRouteTopology || deletingStationRouteId) return;
+    const active = stationTasks.some(({ pageId, state }) =>
+      pageId.includes(`-station-${route.id}-`) &&
+      (state.status === "running" || state.status === "stopping")
+    );
+    if (active) {
+      showNotification({ color: "orange", title: mt("movementRunningTitle"), message: mt("movementStopBeforeDelete") });
+      return;
+    }
+    if (!window.confirm(mt("movementDeleteConfirm", { name: route.name }))) return;
+    const previous = layout.stationRoutes;
+    setDeletingStationRouteId(route.id);
+    layout.stationRoutes = previous.filter(item => item.id !== route.id);
+    try {
+      await onPersistRouteTopology();
+    } catch (error) {
+      layout.stationRoutes = previous;
+      showNotification({
+        color: "red",
+        title: mt("movementSaveFailed"),
+        message: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setDeletingStationRouteId(null);
+    }
+  };
   const [stationToStart, setStationToStart] = useState<StationRouteDefinition | null>(null);
   const [stationTasks, setStationTasks] = useState(getMovementTaskStates);
   useEffect(() => subscribeMovementTaskStates(() => setStationTasks(getMovementTaskStates())), []);
@@ -1174,6 +1202,15 @@ export default function MovementPagesTable({
                     <Tooltip label="Abort this route's running tasks"><ActionIcon size={MOVEMENT_CARD_ACTION_SIZE} color="red" variant="light" aria-label="Abort Station Route tasks" disabled={!runningTasks.length} onClick={() => runningTasks.forEach(t => abortMovement(t.pageId))}><IconX size={MOVEMENT_CARD_ICON_SIZE}/></ActionIcon></Tooltip>
                     <Tooltip label="Preview"><ActionIcon size={MOVEMENT_CARD_ACTION_SIZE} variant="light" aria-label="Preview Station Route" onClick={() => showStationPreview(route)}><IconRoute size={MOVEMENT_CARD_ICON_SIZE}/></ActionIcon></Tooltip>
                     <Tooltip label="Edit"><ActionIcon size={MOVEMENT_CARD_ACTION_SIZE} variant="light" aria-label="Edit Station Route" onClick={() => onOpenStationRoutes(route.id)}><IconEdit size={MOVEMENT_CARD_ICON_SIZE}/></ActionIcon></Tooltip>
+                    <Tooltip withArrow label={mt("movementDelete")}>
+                      <ActionIcon size={MOVEMENT_CARD_ACTION_SIZE} color="red" variant="light"
+                        aria-label={mt("movementDelete")}
+                        disabled={!onPersistRouteTopology || runningTasks.length > 0 || deletingStationRouteId !== null}
+                        loading={deletingStationRouteId === route.id}
+                        onClick={() => void deleteStationRoute(route)}>
+                        <IconTrash size={MOVEMENT_CARD_ICON_SIZE}/>
+                      </ActionIcon>
+                    </Tooltip>
                   </Group>
                 </Group>
                 {runningTasks.length > 0 && <Text size="xs" c="green">{runningTasks.length} active Task(s) · {runningTasks.map(t => `#${t.state.locoAddress ?? "?"}`).join(", ")}</Text>}
