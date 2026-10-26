@@ -82,7 +82,6 @@ import TimetablePanel from "@/components/TimetablePanel";
 import RoutesDialog from "@/components/RoutesDialog";
 import SelectMovementRouteDialog from "@/components/routes/SelectMovementRouteDialog";
 import StationRouteEditorDialog from "@/components/routes/StationRouteEditorDialog";
-import AutomationFlowDialog from "@/components/automation/AutomationFlowDialog";
 import { restorePersistedTopologyMetadata } from "@/services/layoutTopologyPersistence";
 import {
   attachClientRouteTopologyToLayoutJson,
@@ -1175,11 +1174,6 @@ export default function LiteLayoutPage({
   const [selectMovementRouteOpened, setSelectMovementRouteOpened] = useState(false);
   const [stationRouteEditId, setStationRouteEditId] = useState<string | null>(null);
   const [routesMovementPageId, setRoutesMovementPageId] =
-    useState<string | null>(
-      null
-    );
-  const [automationFlowOpened, setAutomationFlowOpened] = useState(false);
-  const [automationFlowPageId, setAutomationFlowPageId] =
     useState<string | null>(
       null
     );
@@ -2387,8 +2381,11 @@ export default function LiteLayoutPage({
                           flows={automationFlow}
                           onFlowsChange={onAutomationFlowChange}
                           onOpenFlowEditor={pageId => {
-                            setAutomationFlowPageId(pageId);
-                            setAutomationFlowOpened(true);
+                            const url = new URL(window.location.href);
+                            url.hash = "flows";
+                            if (pageId) url.searchParams.set("flowPageId", pageId);
+                            else url.searchParams.delete("flowPageId");
+                            window.open(url.toString(), "DCCExpressHubFlows", "popup=yes,width=1440,height=900");
                           }}
                           movements={movementDocument}
                           onMovementsChange={setMovementDocument}
@@ -2792,16 +2789,6 @@ export default function LiteLayoutPage({
         onClose={() => setStationRouteEditId(null)}
         onSave={persistRouteTopology}
         onChanged={invalidate}
-      />
-
-      <AutomationFlowDialog
-        opened={automationFlowOpened}
-        initialPageId={automationFlowPageId}
-        onSaved={onAutomationFlowChange}
-        onClose={() => {
-          setAutomationFlowOpened(false);
-          setAutomationFlowPageId(null);
-        }}
       />
 
       <TimetableDialog
