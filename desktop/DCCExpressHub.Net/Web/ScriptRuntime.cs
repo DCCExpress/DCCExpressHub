@@ -3908,6 +3908,8 @@ const dcc = Object.freeze({
     __dccWaitSensor(Number(address), Boolean(on), Number(timeoutMs ?? -1)),
   setAccessory: (address, active) =>
     __dccSetAccessory(Number(address), Boolean(active)),
+  setVpin: (address, active) =>
+    __dccSetVpin(Number(address), Boolean(active)),
   setSignalAspect: (address, aspect) =>
     __dccSetSignalAspect(Number(address), Number(aspect)),
   getSignalState: address => __dccGetSignalState(Number(address)),
@@ -4500,6 +4502,25 @@ async function smartDispatcher(blocks, callback, options = {}) {
                         a,
                         active);
 
+                    return true;
+                }));
+
+        engine.SetValue(
+            "__dccSetVpin",
+            new Func<double, bool, Task<bool>>(
+                async (address, active) =>
+                {
+                    await WaitRunnable(execution);
+                    var number = (int)Math.Round(address);
+                    if (number is < 1 or > 32767)
+                        throw new ArgumentOutOfRangeException(nameof(address));
+                    var pin = (ushort)number;
+                    if (!await _commandCenter.SetVPinAsync(
+                            pin,
+                            active,
+                            execution.Cancellation.Token))
+                        throw new InvalidOperationException("vpin_command_failed");
+                    _layout.SetVPin(pin, active);
                     return true;
                 }));
 
