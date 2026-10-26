@@ -1382,22 +1382,18 @@ export default function AutomationFlowPropertiesPanel({
         />
       )}
 
-      {data.kind ===
-        "setAccessory" && (
+      {(data.kind === "setAccessory" || data.kind === "setVpin") && (
         <>
           <NumberInput
             label={
-              t(
-                "ui.flowAccessoryAddress",
-                "Accessory address"
-              )
+              data.kind === "setVpin" ? "VPIN ID" : t("ui.flowAccessoryAddress", "Accessory address")
             }
             value={
               data.accessoryAddress ??
               1
             }
             min={1}
-            max={2048}
+            max={data.kind === "setVpin" ? 32767 : 2048}
             onChange={
               value =>
                 onChange({
@@ -1412,10 +1408,7 @@ export default function AutomationFlowPropertiesPanel({
 
           <Select
             label={
-              t(
-                "ui.flowAccessoryState",
-                "Accessory state"
-              )
+              data.kind === "setVpin" ? "VPIN state" : t("ui.flowAccessoryState", "Accessory state")
             }
             value={
               data.accessoryActive !==
