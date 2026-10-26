@@ -8,6 +8,7 @@ import {
 
 import {
   ActionIcon,
+  Accordion,
   Alert,
   Badge,
   Button,
@@ -855,14 +856,28 @@ export default function ScriptEditorDialog({
         >
           <Text size="sm" c="dimmed"> {i18next.t("ui.clickARowToInsertItsSyntaxAtTheCurrent")} </Text>
 
-          <Alert color="blue" variant="light"> {i18next.t("ui.canonicalCommandsUseExplicitSetGetWaitNamesSignalAnd")} </Alert>
-          <Alert color="gray" variant="light" title={i18next.language.startsWith("hu") ? "Script indítási módok és Power" : "Script startup and track power"}>
+          <Accordion variant="contained" radius="sm">
+            <Accordion.Item value="script-guidance">
+              <Accordion.Control>
+                {i18next.language.startsWith("hu") ? "Script útmutató és indítási módok" : "Script guidance and startup modes"}
+              </Accordion.Control>
+              <Accordion.Panel>
+                <Stack gap="xs">
+                  <Alert color="blue" variant="light">
+                    {i18next.t("ui.canonicalCommandsUseExplicitSetGetWaitNamesSignalAnd")}
+                  </Alert>
+                  <Text fw={600} size="sm">
+                    {i18next.language.startsWith("hu") ? "Script indítási módok és Power" : "Script startup and track power"}
+                  </Text>
             <Text size="sm">
               {i18next.language.startsWith("hu")
                 ? "MANUAL: csak kézzel vagy API-ból indul. AUTOSTART: a Hub indulásakor automatikusan elindul, ha engedélyezett. A Power ON önmagában jelenleg nem indítja újra a scripteket, és külön Power Start mód még nincs. Power OFF nem állítja le a scripteket; az onPowerChanged figyelő megkapja az ON/OFF átmeneteket. Power ON nem indít külön scriptpéldányt. Ha mindkét indítási esemény később támogatott lesz, ugyanazt a már futó scriptet nem szabad még egyszer elindítani."
                 : "MANUAL: starts only manually or through the API. AUTOSTART: runs on Hub startup when enabled. Track Power ON does not currently restart scripts; a separate Power Start mode is not implemented yet. Power OFF does not abort scripts; onPowerChanged callbacks receive ON/OFF transitions. Power ON does not launch another script instance. If both triggers are supported later, an already running script should never be launched twice."}
             </Text>
-          </Alert>
+                </Stack>
+              </Accordion.Panel>
+            </Accordion.Item>
+          </Accordion>
 
           <TextInput
             aria-label={i18next.t("ui.scriptHelpSearch")}
