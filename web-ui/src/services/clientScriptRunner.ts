@@ -787,6 +787,25 @@ export function abortClientScript(
   );
 }
 
+// Unlike the fire-and-forget command, this verifies that the backend
+// actually found and accepted the abort for this execution ID.
+export async function abortClientScriptConfirmed(
+  elementId: ClientScriptExecutionId
+): Promise<void> {
+  installTracking();
+  const key = executionKey(elementId);
+  const response = await wsApi.scriptRequest(
+    requestId("abort"),
+    "abort",
+    { executionId: key }
+  );
+  if (!response.ok) {
+    throw new Error(response.message || "script_not_running");
+  }
+  const waiter = runWaiters.get(key);
+  if (waiter) waiter.aborted = true;
+}
+
 export async function startAllSavedClientScripts():
   Promise<number> {
   installTracking();
