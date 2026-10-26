@@ -980,6 +980,14 @@ function ScriptCard({
             value={
               definition.script
             }
+            scriptName={definition.name}
+            scriptEnabled={definition.enabled !== false}
+            scriptAutoStart={definition.autoStart === true}
+            onSettingsChange={settings => {
+              const next = { ...definition, name: settings.name, enabled: settings.enabled, autoStart: settings.autoStart };
+              onChange(next);
+              void onSave(next);
+            }}
             scriptStatus={
               state.status
             }
@@ -1385,6 +1393,8 @@ export default function AutomationScriptsTable({
             "",
           startWithAll:
             true,
+          enabled: true,
+          autoStart: false,
         },
       ];
 
