@@ -520,7 +520,7 @@ export default function AutomationFlowNode({
     );
 
   const isWide =
-    isInput;
+    isInput || isOutput;
 
   const hasTarget =
     !isInput;
