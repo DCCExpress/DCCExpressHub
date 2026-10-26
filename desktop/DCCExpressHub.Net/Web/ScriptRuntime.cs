@@ -4940,7 +4940,7 @@ async function smartDispatcher(blocks, callback, options = {}) {
             }));
             void OnSensorLayoutChanged(string type, object payload)
             {
-                if (type != "sensorChanged") return;
+                if (type != "sensorChanged" || execution.Cancellation.IsCancellationRequested) return;
                 try
                 {
                     var json = JsonSerializer.SerializeToElement(payload);
@@ -4956,6 +4956,14 @@ async function smartDispatcher(blocks, callback, options = {}) {
                 }
             }
             _layout.Changed += OnSensorLayoutChanged;
+            // Abort must detach immediately, even if a script callback is
+            // currently awaiting an asynchronous command.
+            using var abortSubscription = execution.Cancellation.Token.Register(() =>
+            {
+                lock (sensorGate) sensorSubscriptions.Clear();
+                _layout.Changed -= OnSensorLayoutChanged;
+                sensorEvents.Writer.TryComplete();
+            });
             try
             {
             await engine.ExecuteAsync(
@@ -4987,6 +4995,7 @@ async function smartDispatcher(blocks, callback, options = {}) {
                 try { evt = await sensorEvents.Reader.ReadAsync(wait.Token); }
                 catch (OperationCanceledException) when (!execution.Cancellation.IsCancellationRequested) { continue; }
                 await WaitRunnable(execution);
+                execution.Cancellation.Token.ThrowIfCancellationRequested();
                 await engine.EvaluateAsync(
                     $"(async () => {{ await __dispatchSensorChanged({evt.Address}, { (evt.On ? "true" : "false") }); }})()",
                     cancellationToken: execution.Cancellation.Token);
