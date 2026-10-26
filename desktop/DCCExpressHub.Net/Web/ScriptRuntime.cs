@@ -4941,12 +4941,19 @@ async function smartDispatcher(blocks, callback, options = {}) {
             void OnSensorLayoutChanged(string type, object payload)
             {
                 if (type != "sensorChanged") return;
-                var json = JsonSerializer.SerializeToElement(payload);
-                var address = json.GetProperty("address").GetInt32();
-                bool subscribed;
-                lock (sensorGate) subscribed = sensorSubscriptions.Contains(address);
-                if (subscribed)
-                    sensorEvents.Writer.TryWrite((address, json.GetProperty("on").GetBoolean()));
+                try
+                {
+                    var json = JsonSerializer.SerializeToElement(payload);
+                    var address = json.GetProperty("address").GetInt32();
+                    bool subscribed;
+                    lock (sensorGate) subscribed = sensorSubscriptions.Contains(address);
+                    if (subscribed)
+                        sensorEvents.Writer.TryWrite((address, json.GetProperty("on").GetBoolean()));
+                }
+                catch (Exception ex)
+                {
+                    _log.LogWarning(ex, "Unable to queue sensor event for script {Script}", execution.Name);
+                }
             }
             _layout.Changed += OnSensorLayoutChanged;
             try
