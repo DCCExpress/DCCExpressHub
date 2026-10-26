@@ -1,28 +1,40 @@
-import { useState } from "react";
-import { Accordion, Button, Code, Group, Modal, Stack, Text } from "@mantine/core";
-import { IconBraces, IconBook2 } from "@tabler/icons-react";
+import { useRef, useState } from "react";
+import { Button, Code, Group, Modal, Stack, Text, useMantineColorScheme } from "@mantine/core";
+import { IconBook2, IconBraces } from "@tabler/icons-react";
 import CodeMirror from "@uiw/react-codemirror";
 import { javascript } from "@codemirror/lang-javascript";
-import { useMantineColorScheme } from "@mantine/core";
+import type { EditorView } from "@codemirror/view";
 import i18next from "i18next";
+import ScriptQuickHelp from "../ScriptQuickHelp";
 
 type Props = {
   value: string;
   onChange: (value: string) => void;
 };
 
-const EXAMPLES = [
-  { title: "Pass payload", code: "return payload;" },
-  { title: "Stop branch", code: "return null;" },
-  { title: "Turnout → VPIN", code: "await dcc.setVpin(3000, payload.closed);\nreturn payload;" },
-  { title: "Read VPIN", code: "const on = dcc.getVpin(3000);\nlog(on === undefined ? 'UNKNOWN' : on ? 'ON' : 'OFF');\nreturn payload;" },
-  { title: "Check power", code: "if (!dcc.isPowerOn()) return null;\nreturn payload;" },
-];
-
 export default function AutomationFlowFunctionEditor({ value, onChange }: Props) {
   const [opened, setOpened] = useState(false);
+  const [helpOpened, setHelpOpened] = useState(false);
+  const editorViewRef = useRef<EditorView | null>(null);
   const { colorScheme } = useMantineColorScheme();
   const hu = i18next.language.startsWith("hu");
+
+  const insertSnippet = (snippet: string) => {
+    const view = editorViewRef.current;
+    if (view) {
+      const selection = view.state.selection.main;
+      view.dispatch({
+        changes: { from: selection.from, to: selection.to, insert: snippet },
+        selection: { anchor: selection.from + snippet.length },
+        scrollIntoView: true,
+      });
+      view.focus();
+    } else {
+      onChange(value ? `${value}\n${snippet}` : snippet);
+    }
+    setHelpOpened(false);
+  };
+
   return (
     <>
       <Stack gap="xs">
@@ -35,46 +47,53 @@ export default function AutomationFlowFunctionEditor({ value, onChange }: Props)
         </Button>
         <Code block style={{ whiteSpace: "pre-wrap", maxHeight: 110, overflow: "auto" }}>{value || "return payload;"}</Code>
       </Stack>
-      <Modal opened={opened} onClose={() => setOpened(false)}
+
+      <Modal
+        opened={opened}
+        onClose={() => setOpened(false)}
         title={<Group gap="xs"><IconBraces size={18} /><Text fw={700}>{hu ? "Flow Function – JavaScript szerkesztő" : "Flow Function – JavaScript editor"}</Text></Group>}
-        size="80vw" centered>
+        size="80vw"
+        centered
+      >
         <Stack gap="sm">
-          <Text size="sm" c="dimmed">
-            {hu ? "A Function node kódja a Flow aktuális payload értékével fut. A módosítás a Flow következő végrehajtásakor érvényesül." : "The Function node runs with the current Flow payload. Changes take effect on the next Flow execution."}
-          </Text>
+          <Group justify="space-between" align="center">
+            <Text size="sm" c="dimmed">
+              {hu ? "Bemenet: payload · return payload = folytatás · return null = ág leállítása" : "Input: payload · return payload = continue · return null = stop branch"}
+            </Text>
+            <Button variant="light" size="xs" leftSection={<IconBook2 size={17} />} onClick={() => setHelpOpened(true)}>
+              {i18next.t("ui.scriptQuickHelp")}
+            </Button>
+          </Group>
           <CodeMirror
             value={value}
             height="48vh"
             theme={colorScheme === "dark" ? "dark" : "light"}
-            extensions={[javascript({ jsx: false })]}
+            extensions={[javascript({ jsx: false, typescript: false })]}
+            onCreateEditor={view => { editorViewRef.current = view; }}
             onChange={onChange}
-            basicSetup={{ lineNumbers: true, foldGutter: true, highlightActiveLine: true }}
+            basicSetup={{
+              lineNumbers: true,
+              foldGutter: true,
+              highlightActiveLine: true,
+              highlightSelectionMatches: true,
+              bracketMatching: true,
+              closeBrackets: true,
+              autocompletion: true,
+              indentOnInput: true,
+            }}
+            style={{ fontSize: 14 }}
           />
-          <Accordion variant="contained">
-            <Accordion.Item value="quick-help">
-              <Accordion.Control icon={<IconBook2 size={18} />}>
-                {hu ? "Function Quick Help" : "Function Quick Help"}
-              </Accordion.Control>
-              <Accordion.Panel>
-                <Stack gap="xs">
-                  <Text size="sm">{hu ? "A dcc API ugyanúgy elérhető, mint a Script Editorban. A példák a kurzor pozíciója helyett a teljes kódot cserélik." : "The same dcc API as in Script Editor is available. Choosing an example replaces the entire function body."}</Text>
-                  {EXAMPLES.map(example => (
-                    <Group key={example.title} justify="space-between" align="center">
-                      <Code>{example.title}</Code>
-                      <Button size="compact-xs" variant="subtle" onClick={() => onChange(example.code)}>
-                        {hu ? "Használat" : "Use"}
-                      </Button>
-                    </Group>
-                  ))}
-                </Stack>
-              </Accordion.Panel>
-            </Accordion.Item>
-          </Accordion>
           <Group justify="flex-end">
             <Button onClick={() => setOpened(false)}>{hu ? "Bezárás" : "Close"}</Button>
           </Group>
         </Stack>
       </Modal>
+      <ScriptQuickHelp
+        opened={opened && helpOpened}
+        onClose={() => setHelpOpened(false)}
+        onInsert={insertSnippet}
+        flowMode
+      />
     </>
   );
 }
