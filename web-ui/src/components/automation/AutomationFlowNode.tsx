@@ -138,6 +138,11 @@ const NODE_META:
       title:
         "Basic Accessory output",
     },
+    setVpin: {
+      icon: "⚡",
+      color: "green",
+      title: "DCC-EX VPIN output",
+    },
     setExtendedAccessory: {
       icon: "⚡",
       color: "orange",
@@ -366,6 +371,9 @@ function summary(
             : "OFF"
         )
       );
+
+    case "setVpin":
+      return `VPIN #${data.accessoryAddress ?? 1} = ${data.accessoryActive !== false ? "+" : "−"}`;
 
     case "setExtendedAccessory":
       return (
