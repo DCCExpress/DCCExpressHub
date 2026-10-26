@@ -4475,15 +4475,16 @@ async function smartDispatcher(blocks, callback, options = {}) {
 
         engine.SetValue(
             "__dccGetSensor",
-            new Func<double, bool>(
+            new Func<double, bool?>(
                 address =>
                     _layout.TryGetSensorState(
                         (ushort)Math.Clamp(
                             (int)Math.Round(address),
                             1,
                             65535),
-                        out var on) &&
-                    on));
+                        out var on)
+                        ? on
+                        : (bool?)null));
 
         engine.SetValue(
             "__dccWaitSensor",
