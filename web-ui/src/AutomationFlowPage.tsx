@@ -24,7 +24,7 @@ export default function AutomationFlowPage({
       standalone
       opened
       initialPageId={
-        document.activePageId
+        new URLSearchParams(window.location.search).get("flowPageId") || document.activePageId
       }
       onSaved={
         onDocumentChange
