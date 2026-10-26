@@ -73,6 +73,7 @@ import {
   loadAutomationFlow,
   FLOW_DOCUMENT_SAVED_CHANNEL,
 } from "@/services/automationApi";
+import { openAuxiliaryWindow, closeAuxiliaryWindows } from "@/services/auxiliaryWindows";
 import {
   useAutomationFlowRuntime,
 } from "@/components/automation/useAutomationFlowRuntime";
@@ -1151,6 +1152,7 @@ export default function App() {
     const onHashChange = () => setPage(pageFromHash());
     window.addEventListener("hashchange", onHashChange);
     window.addEventListener("pagehide", closeSocketForPageExit);
+    window.addEventListener("pagehide", closeAuxiliaryWindows);
 
     const prepareApplication = async () => {
       await Promise.allSettled([
@@ -1183,6 +1185,7 @@ export default function App() {
       if (secondFrame) window.cancelAnimationFrame(secondFrame);
       window.removeEventListener("hashchange", onHashChange);
       window.removeEventListener("pagehide", closeSocketForPageExit);
+      window.removeEventListener("pagehide", closeAuxiliaryWindows);
       unsubscribeStatus();
       wsApi.disconnect();
     };
@@ -1205,7 +1208,7 @@ export default function App() {
   const navigate = (nextPage: Page) => {
     if (nextPage === "flows" && page !== "flows") {
       const url = `${window.location.pathname}${window.location.search}#flows`;
-      window.open(url, "DCCExpressHubFlows", "popup=yes,width=1440,height=900");
+      openAuxiliaryWindow(url, "DCCExpressHubFlows");
       return;
     }
     if (nextPage !== "drive") setDriveLayoutOpen(false);
