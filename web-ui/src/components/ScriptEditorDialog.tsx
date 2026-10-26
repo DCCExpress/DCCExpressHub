@@ -14,6 +14,7 @@ import {
   Button,
   Code,
   Group,
+  List,
   ScrollArea,
   Stack,
   Table,
@@ -869,11 +870,25 @@ export default function ScriptEditorDialog({
                   <Text fw={600} size="sm">
                     {i18next.language.startsWith("hu") ? "Script indítási módok és Power" : "Script startup and track power"}
                   </Text>
-            <Text size="sm">
-              {i18next.language.startsWith("hu")
-                ? "MANUAL: kézzel vagy API-ból indítható; Power OFF megszakítja, és Power ON nem indítja újra. AUTOSTART: az engedélyezett script a Hub indulásakor automatikusan elindul; Power OFF alatt is fut tovább, így az onPowerChanged figyelője megkapja az OFF/ON eseményeket. Power ON nem indít új scriptpéldányt. Külön Power Start mód nincs. A command station kapcsolatának megszakadása ettől függetlenül megszakíthatja a scripteket."
-                : "MANUAL: starts manually or via API; Power OFF aborts it and Power ON does not restart it. AUTOSTART: starts with the Hub when enabled and keeps running during Power OFF, so onPowerChanged handlers receive OFF/ON events. Power ON does not launch a second script instance. There is no separate Power Start mode. A command station disconnect can still abort scripts."}
-            </Text>
+                  <List size="sm" spacing="xs" withPadding>
+                    {(i18next.language.startsWith("hu")
+                      ? [
+                          "MANUAL: kézzel vagy API-ból indul; Power OFF megszakítja, Power ON nem indítja újra.",
+                          "AUTOSTART: az engedélyezett script a Hub indulásakor indul, Power OFF alatt is fut tovább; az onPowerChanged megkapja az OFF/ON átmeneteket.",
+                          "Power ON nem indít második példányt; külön Power Start mód nincs.",
+                          "A command station kapcsolatának megszakadása az AUTOSTART scripteket is leállíthatja.",
+                          "A script forrásának vagy beállításainak módosítása csak a következő indításkor érvényesül. A már futó scriptpéldány változatlan marad; az új kód használatához le kell állítani és újra kell indítani.",
+                        ]
+                      : [
+                          "MANUAL: starts manually or via API; Power OFF aborts it, and Power ON does not restart it.",
+                          "AUTOSTART: an enabled script starts with the Hub and keeps running through Power OFF; onPowerChanged receives OFF/ON transitions.",
+                          "Power ON does not start a second instance; there is no separate Power Start mode.",
+                          "A command station disconnect may also stop AUTOSTART scripts.",
+                          "Changes to script source or settings take effect only on the next start. Already running script instances remain unchanged; stop and restart to apply new code.",
+                        ]).map((item, index) => (
+                      <List.Item key={index}>{item}</List.Item>
+                    ))}
+                  </List>
                 </Stack>
               </Accordion.Panel>
             </Accordion.Item>
