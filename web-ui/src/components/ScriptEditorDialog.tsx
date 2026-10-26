@@ -455,6 +455,7 @@ export default function ScriptEditorDialog({
 
   const [helpOpened, setHelpOpened] =
     useState(false);
+  const [helpFilter, setHelpFilter] = useState("");
   const [draft, setDraft] =
     useState(value);
   const [formatting, setFormatting] =
@@ -883,6 +884,13 @@ export default function ScriptEditorDialog({
 
           <Alert color="blue" variant="light"> {i18next.t("ui.canonicalCommandsUseExplicitSetGetWaitNamesSignalAnd")} </Alert>
 
+          <TextInput
+            aria-label={i18next.t("ui.scriptHelpSearch")}
+            placeholder={i18next.t("ui.scriptHelpSearch")}
+            value={helpFilter}
+            onChange={event => setHelpFilter(event.currentTarget.value)}
+          />
+
           <ScrollArea
             style={{ flex: 1, minHeight: 0 }}
             type="always"
@@ -903,7 +911,10 @@ export default function ScriptEditorDialog({
               </Table.Thead>
 
               <Table.Tbody>
-                {SCRIPT_HELP_ITEMS.map(item => (
+                {SCRIPT_HELP_ITEMS.filter(item => {
+                  const search = helpFilter.trim().toLocaleLowerCase();
+                  return !search || `${item.syntax} ${item.description}`.toLocaleLowerCase().includes(search);
+                }).map(item => (
                   <Table.Tr key={item.syntax}>
                     <Table.Td
                       onClick={() => insertSnippet(item.insert)}
