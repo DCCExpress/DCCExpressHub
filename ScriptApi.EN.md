@@ -635,6 +635,17 @@ Low-level basic DCC accessory setter.
 dcc.setAccessory(100, true);
 ```
 
+## `dcc.setVpin(address, active)`
+
+Sets a DCC-EX VPIN output and synchronizes the Hub runtime state. Use this instead of raw `<z>` commands when the Hub canvas must reflect output state.
+
+```js
+await dcc.setVpin(200, true);  // VPIN 200 ON
+await dcc.setVpin(200, false); // VPIN 200 OFF
+```
+
+The command requires a connected command center that supports VPIN outputs. VPIN IDs are 1–32767.
+
 ## `dcc.sendRaw("<DCC-EX command>")`
 
 Sends a raw DCC-EX command.
