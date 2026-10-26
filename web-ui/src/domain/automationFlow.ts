@@ -1327,7 +1327,7 @@ function generateStatement(
       return `dcc.setAccessory(${Math.max(1, Math.min(2048, Math.round(data.accessoryAddress ?? 1)))}, ${data.accessoryActive !== false ? "true" : "false"});`;
 
     case "setVpin":
-      return `await dcc.sendRaw("<z ${Math.max(1, Math.min(32767, Math.round(data.accessoryAddress ?? 1)))} ${data.accessoryActive !== false ? 1 : 0}>");`;
+      return `await dcc.setVpin(${Math.max(1, Math.min(32767, Math.round(data.accessoryAddress ?? 1)))}, ${data.accessoryActive !== false ? "true" : "false"});`;
 
     case "setExtendedAccessory":
       return `dcc.setSignalAspect(${Math.max(1, Math.min(2048, Math.round(data.accessoryAddress ?? 1)))}, ${Math.max(0, Math.min(255, Math.round(data.accessoryAspect ?? 0)))});`;
