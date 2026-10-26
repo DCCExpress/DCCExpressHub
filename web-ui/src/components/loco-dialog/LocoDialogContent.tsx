@@ -104,7 +104,8 @@ export default function LocoDialogContent({
             <Tabs.List>
               <Tabs.Tab value="general">{t("locodialog.tabs.general")}</Tabs.Tab>
               <Tabs.Tab value="functions">{t("locodialog.tabs.functions")}</Tabs.Tab>
-              <Tabs.Tab value="actions">{t("locodialog.tabs.actions")}</Tabs.Tab>
+              {/* Actions tab is intentionally hidden for alpha8; keep its panel and implementation intact. */}
+              {/* <Tabs.Tab value="actions">{t("locodialog.tabs.actions")}</Tabs.Tab> */}
               <Tabs.Tab value="extended">{t("locodialog.extended_params")}</Tabs.Tab>
               <Tabs.Tab value="counters">Mechanical counters</Tabs.Tab>
               <Tabs.Tab value="calibration">Precision Braking (Experimental)</Tabs.Tab>
