@@ -1,81 +1,67 @@
 /*
- * Mobile drive split-map mode
- *
- * Landscape:
- * - left 42%: locomotive throttle remains visible
- * - right 58%: runtime layout overlays the function-button column
- *
- * Portrait intentionally keeps the existing fullscreen runtime-layout
- * behaviour from styles.css.
+ * Mobile drive layout:
+ * Closed: original full-screen controller.
+ * Open: a real 40% locomotive / 60% layout split, without overlays.
+ * The function card is hidden only while the map is open.
  */
+.drive-shell.drive-layout-open .mobile-throttle-functions {
+  display: none !important;
+}
 
-@media (orientation: landscape) {
-  .drive-shell .mobile-runtime-layout-overlay {
-    /* Match the existing landscape throttle grid:
-       42% controls / 58% functions. */
-    left: 42%;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    inset-inline-start: 42%;
-    inset-inline-end: 0;
+.drive-shell.drive-layout-open .mobile-throttle-layout--viewport {
+  display: flex;
+  flex-direction: column;
+  width: 430px;
+  height: auto;
+}
 
-    width: auto;
-    min-width: 0;
-    height: 100dvh;
-    min-height: 100svh;
+.drive-shell.drive-layout-open .mobile-loco-panel {
+  width: 40%;
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
 
-    /* Keep the existing safe-area padding and visual treatment,
-       but only inside the right-hand panel. */
-    padding:
-      max(6px, env(safe-area-inset-top))
-      max(6px, env(safe-area-inset-right))
-      max(6px, env(safe-area-inset-bottom))
-      4px;
+.drive-shell.drive-layout-open .mobile-runtime-layout-overlay {
+  position: fixed;
+  inset: 0 0 0 40%;
+  width: 60%;
+  height: 100dvh;
+  min-width: 0;
+  min-height: 0;
+  padding: 6px;
+  z-index: 400;
+  background: #070a0f;
+}
 
-    background: #070a0f;
-  }
+.drive-shell.drive-layout-open .mobile-runtime-layout-canvas {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
 
-  .drive-shell .mobile-runtime-layout-canvas {
+.drive-shell.drive-layout-open .mobile-layout-tools {
+  z-index: 450;
+}
+
+.drive-shell.drive-layout-open .mobile-layout-fab {
+  z-index: 450;
+}
+
+@media (orientation: portrait) {
+  .drive-shell.drive-layout-open .mobile-loco-panel {
     width: 100%;
-    height: 100%;
-    min-width: 0;
-    min-height: 0;
+    height: 40%;
   }
 
-  /* Keep Center / Fit / Emergency controls inside the embedded map panel. */
-  .drive-shell .mobile-layout-tools {
-    right: max(
-      86px,
-      calc(env(safe-area-inset-right) + 86px)
-    );
-    bottom: max(
-      21px,
-      env(safe-area-inset-bottom)
-    );
+  .drive-shell.drive-layout-open .mobile-runtime-layout-overlay {
+    inset: 40% 0 0 0;
+    width: 100%;
+    height: 60dvh;
   }
 
-  /* MAP / X stays in the bottom-right corner, exactly as before. */
-  .drive-shell .mobile-layout-fab {
-    right: max(
-      18px,
-      env(safe-area-inset-right)
-    );
-    bottom: max(
-      18px,
-      env(safe-area-inset-bottom)
-    );
-  }
-
-  /* The map is above the function buttons, so those controls cannot
-     steal touches while map mode is open. */
-  .drive-shell .mobile-runtime-layout-overlay {
-    z-index: 400;
-    pointer-events: auto;
-  }
-
-  .drive-shell .mobile-layout-tools,
-  .drive-shell .mobile-layout-fab {
-    z-index: 450;
+  .drive-shell.drive-layout-open .mobile-throttle-layout--viewport {
+    width: 400px;
   }
 }
