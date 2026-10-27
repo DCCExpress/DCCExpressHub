@@ -1,13 +1,14 @@
 import { Alert, Badge, Button, Group, ScrollArea, SegmentedControl, Stack, Text } from "@mantine/core";
 import { useEffect, useMemo, useState } from "react";
 import { loadAutomationBlockCatalog } from "@/services/automationBlockCatalog";
-import type { MovementPage } from "@/domain/movement";
+import type { MovementPage, SequentialMovementDefinition } from "@/domain/movement";
 import type { TimetableEntryDefinition } from "@/services/automationApi";
 
 type Target = { id: string; name: string };
 type Props = {
   entries: TimetableEntryDefinition[];
   movements: MovementPage[];
+  sequences: SequentialMovementDefinition[];
   scripts: Target[];
 };
 type Journey = { id: string; name: string; start: number; duration: number; blocks: number[]; color: string };
@@ -29,7 +30,7 @@ const timeLabel = (minute: number): string => {
  * equally over its routeRef block-to-block legs, not treated as measured
  * intermediate arrival times. No arrival times are fabricated when missing.
  */
-export default function TimetableTimeline({ entries, movements, scripts }: Props) {
+export default function TimetableTimeline({ entries, movements, sequences, scripts }: Props) {
   const [blockNames, setBlockNames] = useState<Record<number, string>>({});
   const [windowMinutes, setWindowMinutes] = useState<30 | 60 | 1440>(60);
   const [windowStart, setWindowStart] = useState(0);
@@ -42,6 +43,7 @@ export default function TimetableTimeline({ entries, movements, scripts }: Props
   }, []);
   const { journeys, markers, blockOrder, missingDuration, unsupported } = useMemo(() => {
     const byMovement = new Map(movements.map(item => [item.id, item]));
+    const bySequence = new Map(sequences.map(item => [item.id, item]));
     const byScript = new Map(scripts.map(item => [item.id, item]));
     const results: Journey[] = [];
     const dots: Marker[] = [];
@@ -61,6 +63,11 @@ export default function TimetableTimeline({ entries, movements, scripts }: Props
         if (action.targetType === "script") {
           const script = byScript.get(action.targetId);
           if (script) dots.push({ id: `${entry.id}:${action.id}`, minute: start, name: script.name, kind: "Script" });
+          continue;
+        }
+        if (action.targetType === "sequential") {
+          const sequence = bySequence.get(action.targetId);
+          if (sequence) dots.push({ id: `${entry.id}:${action.id}`, minute: start, name: sequence.name, kind: "Sequential Movement (duration not specified)" });
           continue;
         }
         if (action.targetType === "fromto") {
@@ -99,7 +106,7 @@ export default function TimetableTimeline({ entries, movements, scripts }: Props
       }
     }
     return { journeys: results, markers: dots, blockOrder: order, missingDuration: missing, unsupported: excluded };
-  }, [entries, movements, scripts]);
+  }, [entries, movements, sequences, scripts]);
 
   const height = TOP + Math.max(blockOrder.length, 1) * ROW + 44;
   const start = Math.min(windowStart, DAY - windowMinutes);
