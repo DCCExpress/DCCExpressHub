@@ -1,3 +1,4 @@
+import HardwareProfilesPage from "./HardwareProfilesPage";
 import { useMemo, useState } from "react";
 import {
   ActionIcon, Badge, Box, Button, Card, Divider, Group, Modal, Paper,
@@ -41,6 +42,7 @@ export default function ConfigurationPage() {
   const [connections, setConnections] = useState<Connection[]>(initialConnections);
   const [devices, setDevices] = useState<Device[]>(initialDevices);
   const [selectedId, setSelectedId] = useState("main");
+  const [section, setSection] = useState<"connections" | "profiles">("connections");
   const [tab, setTab] = useState<string>("Device");
   const [query, setQuery] = useState("");
   const [dialog, setDialog] = useState<"connection" | "device" | null>(null);
@@ -53,7 +55,7 @@ export default function ConfigurationPage() {
     (d.name + " " + d.address).toLowerCase().includes(query.toLowerCase())), [devices, selectedId, tab, query]);
 
   function changeConnection(id: string) {
-    setSelectedId(id); setTab("Device"); setQuery(""); setMessage("");
+    setSelectedId(id); setSection("connections"); setTab("Device"); setQuery(""); setMessage("");
   }
   function patchConnection(patch: Partial<Connection>) {
     setConnections(items => items.map(c => c.id === selectedId ? { ...c, ...patch } : c));
@@ -113,11 +115,17 @@ export default function ConfigurationPage() {
             ))}
           </Stack>
           <Divider my="md"/>
+          <button type="button" className={"connection-item" + (section === "profiles" ? " connection-item-active" : "")}
+            onClick={() => setSection("profiles")}>
+            <Group gap="sm"><ThemeIcon variant="light" color="blue" size="lg"><IconPlugConnected size={20}/></ThemeIcon>
+              <Box><Text fw={600} size="sm">Hardware Profiles</Text><Text size="xs" c="dimmed">Layout mappings</Text></Box></Group>
+          </button>
+          <Divider my="xs"/>
           <Text size="xs" c="dimmed" px="xs">{connections.length} configured connections</Text>
         </Card>
 
         <Card withBorder radius="md" p="md" className="devices-panel">
-          {!connection ? <Text c="dimmed">Select a connection.</Text> : <>
+          {section === "profiles" ? <HardwareProfilesPage connections={connections.map(c => ({ id: c.id, name: c.name, protocol: c.protocol }))} /> : !connection ? <Text c="dimmed">Select a connection.</Text> : <>
             <Group justify="space-between" align="start" mb="md">
               <div>
                 <Title order={3}>{connection.name}</Title>
