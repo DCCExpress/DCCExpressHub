@@ -608,16 +608,14 @@ public sealed class TimetableRuntime : BackgroundService
                 if (!_offsetTriggered.Add(entry.Id)) continue;
             }
 
-            var displayTime = entry.Cron.Trim();
             foreach (var action in entry.Actions)
                 LaunchScheduledAction(storage, entry, action,
-                    0, 0, 0, displayTime);
+                    0, 0, 0);
         }
     }
 
     void LaunchScheduledAction(StorageSnapshot storage, TimetableEntry entry,
-        TimetableAction action, int hour, int minute, int minuteOfDay,
-        string? scheduledLabel = null)
+        TimetableAction action, int hour, int minute, int minuteOfDay)
     {
         if (action.TargetType == "sequential")
         {
@@ -710,6 +708,9 @@ public sealed class TimetableRuntime : BackgroundService
         }
     }
 
+    static string ScheduledTime(TimetableEntry entry, int hour, int minute) =>
+        OffsetMilliseconds(entry.Cron).HasValue ? entry.Cron.Trim() : FormatTime(hour, minute);
+
     static string FormatTime(
         int hour,
         int minute) =>
@@ -775,7 +776,7 @@ public sealed class TimetableRuntime : BackgroundService
         var runId = NewRunId();
         var active = new TimetableActiveRunState(
             runId, entry.Id, action.Id, "sequential", sequence.Id,
-            sequence.Name, null, FormatTime(hour, minute), minuteOfDay, "launching", null);
+            sequence.Name, null, ScheduledTime(entry, hour, minute), minuteOfDay, "launching", null);
         lock (_gate)
         {
             _activeRuns[runId] = active;
@@ -884,9 +885,7 @@ public sealed class TimetableRuntime : BackgroundService
                 movement.Id,
                 movement.Name,
                 null,
-                FormatTime(
-                    hour,
-                    minute),
+                ScheduledTime(entry, hour, minute),
                 minuteOfDay,
                 "launching",
                 null);
@@ -1010,7 +1009,7 @@ public sealed class TimetableRuntime : BackgroundService
         };
         var active = new TimetableActiveRunState(
             runId, entry.Id, action.Id, "fromto", movementId, name,
-            null, FormatTime(hour, minute), minuteOfDay, "launching", null);
+            null, ScheduledTime(entry, hour, minute), minuteOfDay, "launching", null);
         lock (_gate)
         {
             _activeRuns[runId] = active;
@@ -1087,9 +1086,7 @@ public sealed class TimetableRuntime : BackgroundService
                 script.Id,
                 script.Name,
                 executionId,
-                FormatTime(
-                    hour,
-                    minute),
+                ScheduledTime(entry, hour, minute),
                 minuteOfDay,
                 "launching",
                 null);
