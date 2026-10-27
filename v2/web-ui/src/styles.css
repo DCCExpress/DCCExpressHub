@@ -2,13 +2,26 @@
 body { margin: 0; }
 .app-shell { min-height: 100vh; background: var(--mantine-color-body); }
 .hero-card {
-  background: linear-gradient(110deg, rgba(22, 115, 112, 0.15), rgba(27, 43, 61, 0.42));
+  background: linear-gradient(110deg, var(--mantine-color-teal-light), var(--mantine-color-default-hover));
   border: 1px solid var(--mantine-color-default-border);
 }
 .action-card { cursor: pointer; transition: border-color .15s ease, background-color .15s ease, transform .15s ease; }
 .action-card:hover, .action-card:focus-visible {
   border-color: var(--mantine-color-teal-6);
-  background: var(--mantine-color-dark-6);
+  background: var(--mantine-color-default-hover);
   transform: translateY(-2px);
   outline: none;
+}
+.configuration-grid { display:grid; grid-template-columns:250px minmax(0,1fr); gap:16px; }
+.connections-panel { min-height:480px; }
+.devices-panel { min-width:0; }
+.connection-item {
+  width:100%; border:1px solid transparent; background:transparent;
+  border-radius:8px; padding:10px; text-align:left; cursor:pointer; color:inherit;
+}
+.connection-item:hover { background:var(--mantine-color-default-hover); }
+.connection-item-active { border-color:var(--mantine-color-teal-6); background:var(--mantine-color-teal-light); }
+@media (max-width:750px) {
+  .configuration-grid { grid-template-columns:1fr; }
+  .connections-panel { min-height:auto; }
 }
