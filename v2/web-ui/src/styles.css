@@ -2,12 +2,12 @@
 body { margin: 0; }
 .app-shell { min-height: 100vh; background: var(--mantine-color-body); }
 .hero-card {
-  background: linear-gradient(110deg, var(--mantine-color-teal-light), var(--mantine-color-default-hover));
+  background: linear-gradient(110deg, var(--mantine-color-blue-light), var(--mantine-color-default-hover));
   border: 1px solid var(--mantine-color-default-border);
 }
 .action-card { cursor: pointer; transition: border-color .15s ease, background-color .15s ease, transform .15s ease; }
 .action-card:hover, .action-card:focus-visible {
-  border-color: var(--mantine-color-teal-6);
+  border-color: var(--mantine-color-blue-6);
   background: var(--mantine-color-default-hover);
   transform: translateY(-2px);
   outline: none;
@@ -20,7 +20,7 @@ body { margin: 0; }
   border-radius:8px; padding:10px; text-align:left; cursor:pointer; color:inherit;
 }
 .connection-item:hover { background:var(--mantine-color-default-hover); }
-.connection-item-active { border-color:var(--mantine-color-teal-6); background:var(--mantine-color-teal-light); }
+.connection-item-active { border-color:var(--mantine-color-blue-6); background:var(--mantine-color-blue-light); }
 @media (max-width:750px) {
   .configuration-grid { grid-template-columns:1fr; }
   .connections-panel { min-height:auto; }
