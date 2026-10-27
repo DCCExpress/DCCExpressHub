@@ -35,7 +35,7 @@ export default function CollapsibleGroup({
         </Tooltip>
       </Group>
     </Group>
-    <Collapse in={!collapsed}>
+    <Collapse expanded={!collapsed}>
       <Stack gap="xs"><Divider/>{children}</Stack>
     </Collapse>
   </Stack>;
