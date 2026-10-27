@@ -25,3 +25,7 @@ body { margin: 0; }
   .configuration-grid { grid-template-columns:1fr; }
   .connections-panel { min-height:auto; }
 }
+
+.connection-row { display:flex; align-items:center; gap:4px; padding:4px 7px; }
+.connection-select { flex:1; min-width:0; background:none; border:0; color:inherit; cursor:pointer; text-align:left; padding:6px 2px; }
+.connection-select:focus-visible { outline:2px solid var(--mantine-color-blue-6); border-radius:6px; }
