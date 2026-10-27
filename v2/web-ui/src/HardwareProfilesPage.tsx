@@ -1,10 +1,11 @@
+import DeviceConfigWindow, { defaultFeedback, type DeviceAdvancedConfig } from "./DeviceConfigWindow";
 import { useMemo, useState } from "react";
 import { ActionIcon, Alert, Badge, Button, Card, Divider, Group, Modal, NumberInput, Select, Stack, Switch, Table, Tabs, Text, TextInput, Title, Tooltip } from "@mantine/core";
-import { IconAlertTriangle, IconCheck, IconCopy, IconPlayerPlay, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconAlertTriangle, IconCheck, IconCopy, IconPlayerPlay, IconDots, IconPlus, IconTrash } from "@tabler/icons-react";
 
 export type ProfileConnection = { id: string; name: string; protocol: string };
 export type LogicalDevice = { id: string; name: string; category: "Turnouts" | "Sensors" | "Basic accessories" | "Extended accessories" | "Signals" | "Outputs" };
-type Mapping = { connectionId: string; controlType: string; address: string; inverted?: boolean; testValue?: number };
+type Mapping = { connectionId: string; controlType: string; address: string; inverted?: boolean; testValue?: number; advanced?: DeviceAdvancedConfig };
 export type Profile = { id: string; name: string; mappings: Record<string, Mapping> };
 const makeId = () => "item-" + Math.random().toString(36).slice(2, 10);
 const initialLogical: LogicalDevice[] = [
@@ -47,6 +48,7 @@ export default function HardwareProfilesPage({ connections, profiles, setProfile
   const [logicalName, setLogicalName] = useState("");
   const [draftCategory, setDraftCategory] = useState<LogicalDevice["category"]>("Turnouts");
   const [warning, setWarning] = useState("");
+  const [configDeviceId, setConfigDeviceId] = useState<string | null>(null);
   const profile = profiles.find(p => p.id === editingId);
   const connById = (id: string) => connections.find(c => c.id === id);
   const updateMapping = (id: string, value: Mapping | null) =>
@@ -169,9 +171,9 @@ export default function HardwareProfilesPage({ connections, profiles, setProfile
               </Tabs.Tab>
             )}</Tabs.List>
           </Tabs>
-          <Table.ScrollContainer minWidth={930}>
+          <Table.ScrollContainer minWidth={1100}>
             <Table striped highlightOnHover verticalSpacing="md">
-              <Table.Thead><Table.Tr><Table.Th>Logical device</Table.Th><Table.Th>Connection</Table.Th><Table.Th>Control type</Table.Th><Table.Th>Address / ID</Table.Th><Table.Th>{category === "Extended accessories" ? "Value" : "Invert"}</Table.Th><Table.Th>Test</Table.Th><Table.Th>Current state</Table.Th><Table.Th>Mapping</Table.Th></Table.Tr></Table.Thead>
+              <Table.Thead><Table.Tr><Table.Th>Logical device</Table.Th><Table.Th>Connection</Table.Th><Table.Th>Control type</Table.Th><Table.Th>Address / ID</Table.Th><Table.Th>{category === "Extended accessories" ? "Value" : "Invert"}</Table.Th><Table.Th>Test</Table.Th><Table.Th>Configuration</Table.Th><Table.Th>Current state</Table.Th><Table.Th>Mapping</Table.Th></Table.Tr></Table.Thead>
               <Table.Tbody>{deviceRows.map(device => {
                 const m = profile.mappings[device.id];
                 const mapped = !!m?.connectionId && !!m?.address.trim() && !!m?.controlType;
@@ -185,7 +187,7 @@ export default function HardwareProfilesPage({ connections, profiles, setProfile
                     onChange={value => {
                       if (!value) { updateMapping(device.id, null); return; }
                       const choices = availableTypes(value, category);
-                      updateMapping(device.id, { connectionId: value, controlType: choices.includes(m?.controlType ?? "") ? m!.controlType : choices[0] ?? "", address: m?.address ?? "", inverted: m?.inverted, testValue: m?.testValue });
+                      updateMapping(device.id, { connectionId: value, controlType: choices.includes(m?.controlType ?? "") ? m!.controlType : choices[0] ?? "", address: m?.address ?? "", inverted: m?.inverted, testValue: m?.testValue, advanced: m?.advanced });
                     }}/></Table.Td>
                   <Table.Td><Select size="xs" w={170} placeholder="Select type" disabled={!m?.connectionId}
                     data={availableTypes(m?.connectionId ?? "", category)}
@@ -215,6 +217,17 @@ export default function HardwareProfilesPage({ connections, profiles, setProfile
                       </Tooltip>
                     ) : <Text c="dimmed" size="xs">—</Text>}
                   </Table.Td>
+                  <Table.Td>
+                    <Group gap={4} wrap="nowrap">
+                      <TextInput size="xs" readOnly w={125} aria-label={"Configuration for " + device.name}
+                        value={category === "Turnouts" ? (m?.advanced?.feedback.mode ?? defaultFeedback.mode) : "Default"}
+                        styles={{ input: { cursor: "default" } }}/>
+                      <ActionIcon variant="light" aria-label={"Configure " + device.name}
+                        onClick={() => setConfigDeviceId(device.id)}>
+                        <IconDots size={18}/>
+                      </ActionIcon>
+                    </Group>
+                  </Table.Td>
                   <Table.Td><Tooltip label="No live device state available. Hardware Runtime integration is pending."><Badge color="gray" variant="outline">Unknown</Badge></Tooltip></Table.Td>
                   <Table.Td><Badge color={valid ? "blue" : mapped ? "red" : "orange"} variant="light">{valid ? "Mapped" : mapped ? "Invalid" : "Unmapped"}</Badge></Table.Td>
                 </Table.Tr>;
@@ -225,6 +238,16 @@ export default function HardwareProfilesPage({ connections, profiles, setProfile
         </Card>
         <Text size="xs" c="dimmed">Prototype only: Invert is stored per hardware-profile mapping in UI state. Extended accessory Value is a 0–255 byte reserved for the future Test command. Live Current state will show actual hardware feedback once the Runtime device API exists; until then it is Unknown. Test is disabled; no hardware commands are sent. Mappings are not yet persisted to the backend.</Text>
       </>}
+      <DeviceConfigWindow opened={!!configDeviceId && !!profile?.mappings[configDeviceId]}
+        onClose={() => setConfigDeviceId(null)}
+        deviceName={logical.find(d => d.id === configDeviceId)?.name ?? ""}
+        category={logical.find(d => d.id === configDeviceId)?.category ?? ""}
+        config={configDeviceId ? profile?.mappings[configDeviceId]?.advanced : undefined}
+        sensors={logical.filter(d => d.category === "Sensors").map(d => ({ value: d.id, label: d.name + " (" + d.id + ")" }))}
+        onApply={advanced => {
+          const binding = configDeviceId ? profile?.mappings[configDeviceId] : undefined;
+          if (configDeviceId && binding) updateMapping(configDeviceId, { ...binding, advanced });
+        }}/>
       <Modal opened={deletingProfile} onClose={() => setDeletingProfile(false)} title="Delete hardware profile?" centered>
         <Stack gap="md">
           <Text size="sm">Delete <strong>{profile?.name}</strong> and all of its hardware mappings? Logical devices and connections will be preserved.</Text>
