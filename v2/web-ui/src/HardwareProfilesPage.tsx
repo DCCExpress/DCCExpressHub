@@ -9,7 +9,7 @@ export type LogicalDevice = { id: string; name: string; category: "Turnouts" | "
 type Mapping = { connectionId: string; controlType: string; address: string; inverted?: boolean; testValue?: number; advanced?: DeviceAdvancedConfig };
 export type Profile = { id: string; name: string; mappings: Record<string, Mapping> };
 const makeId = () => "item-" + Math.random().toString(36).slice(2, 10);
-const initialLogical: LogicalDevice[] = [
+export const initialLogical: LogicalDevice[] = [
   { id: "turnout-20", name: "Station West", category: "Turnouts" },
   { id: "turnout-21", name: "Station East", category: "Turnouts" },
   { id: "sensor-1001", name: "Block A1", category: "Sensors" },
@@ -37,8 +37,7 @@ const supported: Record<string, Record<string, string[]>> = {
   "Arduino (Serial)": { Turnouts: ["Arduino digital output", "Arduino servo"], Sensors: ["Arduino digital input"], "Basic accessories": ["Arduino digital output"], Signals: ["Arduino digital output"], Outputs: ["Arduino digital output", "Arduino PWM output"] },
 };
 
-export default function HardwareProfilesPage({ connections, profiles, setProfiles }: { connections: ProfileConnection[]; profiles: Profile[]; setProfiles: React.Dispatch<React.SetStateAction<Profile[]>> }) {
-  const [logical, setLogical] = useState<LogicalDevice[]>(initialLogical);
+export default function HardwareProfilesPage({ connections, profiles, setProfiles, logical, setLogical }: { connections: ProfileConnection[]; profiles: Profile[]; setProfiles: React.Dispatch<React.SetStateAction<Profile[]>>; logical: LogicalDevice[]; setLogical: React.Dispatch<React.SetStateAction<LogicalDevice[]>> }) {
   const [activeId, setActiveId] = useState("z21");
   const [editingId, setEditingId] = useState("z21");
   const [category, setCategory] = useState<string>("Turnouts");
@@ -181,7 +180,7 @@ export default function HardwareProfilesPage({ connections, profiles, setProfile
             <Button variant="light" size="xs" leftSection={<IconPlus size={14}/>} onClick={createDevice}>New device</Button>
           </Group>
           <Tabs value={category} onChange={x => setCategory(x || "Turnouts")}>
-            <Tabs.List>{(["Turnouts", "Sensors", "Basic accessories", "Extended accessories", "Signals", "Outputs"] as const).map(t =>
+            <Tabs.List>{(["Turnouts", "Sensors", "Basic accessories", "Extended accessories", "Outputs"] as const).map(t =>
               <Tabs.Tab key={t} value={t}>
                 <Group gap={6} wrap="nowrap">
                   <span>{t}</span>
