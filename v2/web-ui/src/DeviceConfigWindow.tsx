@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Button, Group, NumberInput, Select, Stack, Switch, Text } from "@mantine/core";
+import { Button, Group, NumberInput, Select, Stack, Text } from "@mantine/core";
 import AppWindow from "./AppWindow";
 
 export type FeedbackConfig = {
