@@ -4,10 +4,10 @@ import { ActionIcon, Badge, Box, Button, Card, Divider, Group, Modal, Select, Si
 import { IconPlugConnected, IconPlus, IconRouter, IconTrash } from "@tabler/icons-react";
 import HardwareProfilesPage, { initialProfiles, type Profile } from "./HardwareProfilesPage";
 
-type Protocol = "Z21" | "DCC-EX" | "LocoNet TCP" | "ESP32";
+type Protocol = "Z21" | "DCC-EX" | "LocoNet TCP" | "ESP32" | "C/MRI (RS-485)" | "Arduino (Serial)";
 type Connection = { id: string; name: string; protocol: Protocol; host: string; port: string; enabled: boolean };
-const protocols: Protocol[] = ["Z21", "DCC-EX", "LocoNet TCP", "ESP32"];
-const ports: Record<Protocol, string> = { Z21: "21105", "DCC-EX": "2560", "LocoNet TCP": "1234", ESP32: "8080" };
+const protocols: Protocol[] = ["Z21", "DCC-EX", "LocoNet TCP", "ESP32", "C/MRI (RS-485)", "Arduino (Serial)"];
+const ports: Record<Protocol, string> = { Z21: "21105", "DCC-EX": "2560", "LocoNet TCP": "1234", ESP32: "8080", "C/MRI (RS-485)": "", "Arduino (Serial)": "" };
 const initialConnections: Connection[] = [
   { id: "main", name: "Main Command Station", protocol: "Z21", host: "192.168.1.120", port: "21105", enabled: true },
   { id: "feedback", name: "Feedback Bus", protocol: "LocoNet TCP", host: "192.168.1.130", port: "1234", enabled: true },
@@ -24,6 +24,7 @@ export default function ConfigurationPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [connectionName, setConnectionName] = useState("");
   const connection = connections.find(c => c.id === selectedId);
+  const serialConnection = connection?.protocol === "C/MRI (RS-485)" || connection?.protocol === "Arduino (Serial)";
   const deleting = connections.find(c => c.id === deletingId);
   const referencedConnections = new Set(profiles.flatMap(p => Object.values(p.mappings).map(m => m.connectionId)));
 
@@ -120,16 +121,16 @@ export default function ConfigurationPage() {
                 <Text fw={600}>Device / Connection settings</Text>
                 <TextInput label="Connection name" value={connection.name} onChange={e => patch({ name: e.currentTarget.value })}/>
                 <Select label="Protocol" data={protocols} value={connection.protocol} onChange={v => {
-                  if (v) patch({ protocol: v as Protocol, port: ports[v as Protocol] });
+                  if (v) patch({ protocol: v as Protocol, port: ports[v as Protocol], host: "" });
                 }}/>
                 <SimpleGrid cols={{ base: 1, sm: 2 }}>
-                  <TextInput label="Host / IP address" value={connection.host} onChange={e => patch({ host: e.currentTarget.value })}/>
-                  <TextInput label="Port" value={connection.port} onChange={e => patch({ port: e.currentTarget.value })}/>
+                  <TextInput label={serialConnection ? "Serial port (e.g. COM3 or /dev/ttyUSB0)" : "Host / IP address"} placeholder={serialConnection ? "COM3" : "192.168.1.120"} value={connection.host} onChange={e => patch({ host: e.currentTarget.value })}/>
+                  <TextInput label={serialConnection ? "Baud rate (e.g. 9600)" : "Port"} placeholder={serialConnection ? "9600" : undefined} value={connection.port} onChange={e => patch({ port: e.currentTarget.value })}/>
                 </SimpleGrid>
                 <Switch label="Connection enabled" checked={connection.enabled} onChange={e => patch({ enabled: e.currentTarget.checked })}/>
                 <Text size="sm" c="dimmed">
                   This page configures communication only. Logical devices and their per-profile hardware mappings
-                  are managed in Hardware Profiles. Changing the protocol does not delete logical devices.
+                  are managed in Hardware Profiles. Changing the protocol does not delete logical devices. Arduino (Serial) is a configurable custom adapter placeholder, not a defined universal Arduino protocol.
                   Existing mappings must be validated before operating hardware.
                 </Text>
               </Stack>
