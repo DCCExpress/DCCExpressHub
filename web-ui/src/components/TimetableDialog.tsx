@@ -1184,17 +1184,7 @@ export default function TimetableDialog({
                                               }
                                             />
 
-                                            <Text
-                                              size="xs"
-                                              c="dimmed"
-                                            >
-                                              cron:{" "}
-                                              <Code>
-                                                {
-                                                  resolvedCron
-                                                }
-                                              </Code>
-                                            </Text>
+
                                           </Stack>
                                         )
                                         : (
