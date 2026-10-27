@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
-import { ActionIcon, Alert, Badge, Button, Card, Divider, Group, Modal, Select, Stack, Switch, Table, Tabs, Text, TextInput, Title, Tooltip } from "@mantine/core";
+import { ActionIcon, Alert, Badge, Button, Card, Divider, Group, Modal, NumberInput, Select, Stack, Switch, Table, Tabs, Text, TextInput, Title, Tooltip } from "@mantine/core";
 import { IconAlertTriangle, IconCheck, IconCopy, IconPlayerPlay, IconPlus, IconTrash } from "@tabler/icons-react";
 
 export type ProfileConnection = { id: string; name: string; protocol: string };
 export type LogicalDevice = { id: string; name: string; category: "Turnouts" | "Sensors" | "Basic accessories" | "Extended accessories" | "Signals" | "Outputs" };
-type Mapping = { connectionId: string; controlType: string; address: string; inverted?: boolean };
+type Mapping = { connectionId: string; controlType: string; address: string; inverted?: boolean; testValue?: number };
 export type Profile = { id: string; name: string; mappings: Record<string, Mapping> };
 const makeId = () => "item-" + Math.random().toString(36).slice(2, 10);
 const initialLogical: LogicalDevice[] = [
@@ -169,7 +169,7 @@ export default function HardwareProfilesPage({ connections, profiles, setProfile
           </Tabs>
           <Table.ScrollContainer minWidth={800}>
             <Table striped highlightOnHover verticalSpacing="md">
-              <Table.Thead><Table.Tr><Table.Th>Logical device</Table.Th><Table.Th>Connection</Table.Th><Table.Th>Control type</Table.Th><Table.Th>Address / ID</Table.Th><Table.Th>Invert</Table.Th><Table.Th>Test</Table.Th><Table.Th>Status</Table.Th></Table.Tr></Table.Thead>
+              <Table.Thead><Table.Tr><Table.Th>Logical device</Table.Th><Table.Th>Connection</Table.Th><Table.Th>Control type</Table.Th><Table.Th>Address / ID</Table.Th><Table.Th>{category === "Extended accessories" ? "Value" : "Invert"}</Table.Th><Table.Th>Test</Table.Th><Table.Th>Status</Table.Th></Table.Tr></Table.Thead>
               <Table.Tbody>{deviceRows.map(device => {
                 const m = profile.mappings[device.id];
                 const mapped = !!m?.connectionId && !!m?.address.trim() && !!m?.controlType;
@@ -183,7 +183,7 @@ export default function HardwareProfilesPage({ connections, profiles, setProfile
                     onChange={value => {
                       if (!value) { updateMapping(device.id, null); return; }
                       const choices = availableTypes(value, category);
-                      updateMapping(device.id, { connectionId: value, controlType: choices.includes(m?.controlType ?? "") ? m!.controlType : choices[0] ?? "", address: m?.address ?? "" });
+                      updateMapping(device.id, { connectionId: value, controlType: choices.includes(m?.controlType ?? "") ? m!.controlType : choices[0] ?? "", address: m?.address ?? "", inverted: m?.inverted, testValue: m?.testValue });
                     }}/></Table.Td>
                   <Table.Td><Select size="xs" w={170} placeholder="Select type" disabled={!m?.connectionId}
                     data={availableTypes(m?.connectionId ?? "", category)}
@@ -192,14 +192,20 @@ export default function HardwareProfilesPage({ connections, profiles, setProfile
                   <Table.Td><TextInput size="xs" w={100} placeholder="Address" disabled={!m?.connectionId}
                     value={m?.address ?? ""} onChange={e => m && updateMapping(device.id, { ...m, address: e.currentTarget.value })}/></Table.Td>
                   <Table.Td>
-                    {(["Turnouts", "Sensors", "Basic accessories"] as string[]).includes(category) ? (
+                    {category === "Extended accessories" ? (
+                      <NumberInput size="xs" w={95} min={0} max={255} step={1} allowDecimal={false}
+                        allowNegative={false} clampBehavior="strict" aria-label={"Test value for " + device.name}
+                        value={m?.testValue ?? 0} disabled={!m?.connectionId}
+                        onChange={value => m && typeof value === "number" && Number.isInteger(value) &&
+                          updateMapping(device.id, { ...m, testValue: value })}/>
+                    ) : (["Turnouts", "Sensors", "Basic accessories"] as string[]).includes(category) ? (
                       <Switch size="sm" aria-label={"Invert " + device.name} checked={m?.inverted ?? false}
                         disabled={!m?.connectionId}
                         onChange={event => m && updateMapping(device.id, { ...m, inverted: event.currentTarget.checked })}/>
                     ) : <Text c="dimmed" size="xs">—</Text>}
                   </Table.Td>
                   <Table.Td>
-                    {(["Turnouts", "Sensors", "Basic accessories"] as string[]).includes(category) ? (
+                    {(["Turnouts", "Sensors", "Basic accessories", "Extended accessories"] as string[]).includes(category) ? (
                       <Tooltip label="Hardware test will be available after the V2 Runtime device API is implemented.">
                         <span style={{ display: "inline-block" }}>
                           <Button size="compact-xs" leftSection={<IconPlayerPlay size={13}/>} disabled>Test</Button>
@@ -214,7 +220,7 @@ export default function HardwareProfilesPage({ connections, profiles, setProfile
           </Table.ScrollContainer>
           {!deviceRows.length && <Text ta="center" c="dimmed" py="lg" size="sm">No logical devices in this category.</Text>}
         </Card>
-        <Text size="xs" c="dimmed">Prototype only: Invert is stored per hardware-profile mapping in UI state. Test is disabled until the Runtime device API exists; no hardware commands are sent. Mappings are not yet persisted to the backend.</Text>
+        <Text size="xs" c="dimmed">Prototype only: Invert is stored per hardware-profile mapping in UI state. Extended accessory Value is a 0–255 byte reserved for the future Test command. Test is disabled until the Runtime device API exists; no hardware commands are sent. Mappings are not yet persisted to the backend.</Text>
       </>}
       <Modal opened={deletingProfile} onClose={() => setDeletingProfile(false)} title="Delete hardware profile?" centered>
         <Stack gap="md">
