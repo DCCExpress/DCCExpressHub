@@ -29,6 +29,7 @@ export type AutomationScriptDefinition = {
 export type TimetableTargetType =
   | "script"
   | "movement"
+  | "sequential"
   | "fromto";
 
 export type TimetableActionDefinition = {
@@ -224,7 +225,8 @@ export function normalizeTimetableEntries(
       const targetType:
         TimetableTargetType =
         action.targetType === "fromto" ? "fromto" :
-        action.targetType === "movement" ? "movement" : "script";
+        action.targetType === "movement" ? "movement" :
+        action.targetType === "sequential" ? "sequential" : "script";
 
       const targetId =
         typeof action.targetId ===
