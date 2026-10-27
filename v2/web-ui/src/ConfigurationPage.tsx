@@ -1,8 +1,9 @@
+import SignalsPage from "./SignalsPage";
 import { DeleteConfirmWindow } from "./AppWindow";
 import { useState } from "react";
 import { ActionIcon, Badge, Box, Button, Card, Divider, Group, Modal, Select, SimpleGrid, Stack, Switch, Text, TextInput, ThemeIcon, Title, Tooltip } from "@mantine/core";
-import { IconPlugConnected, IconPlus, IconRouter, IconTrash } from "@tabler/icons-react";
-import HardwareProfilesPage, { initialProfiles, type Profile } from "./HardwareProfilesPage";
+import { IconPlugConnected, IconPlus, IconRouter, IconTrafficLights, IconTrash } from "@tabler/icons-react";
+import HardwareProfilesPage, { initialLogical, initialProfiles, type LogicalDevice, type Profile } from "./HardwareProfilesPage";
 
 type Protocol = "Z21" | "DCC-EX" | "LocoNet TCP" | "ESP32" | "C/MRI (RS-485)" | "Arduino (Serial)";
 type Connection = { id: string; name: string; protocol: Protocol; host: string; port: string; enabled: boolean };
@@ -18,8 +19,9 @@ const uid = () => "conn-" + Math.random().toString(36).slice(2, 10);
 export default function ConfigurationPage() {
   const [connections, setConnections] = useState<Connection[]>(initialConnections);
   const [profiles, setProfiles] = useState<Profile[]>(initialProfiles);
+  const [logical, setLogical] = useState<LogicalDevice[]>(initialLogical);
   const [selectedId, setSelectedId] = useState("main");
-  const [section, setSection] = useState<"connections" | "profiles">("connections");
+  const [section, setSection] = useState<"connections" | "profiles" | "signals">("connections");
   const [adding, setAdding] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [connectionName, setConnectionName] = useState("");
@@ -97,13 +99,22 @@ export default function ConfigurationPage() {
               <Box><Text fw={600} size="sm">Hardware Profiles</Text><Text size="xs" c="dimmed">Logical devices & mappings</Text></Box>
             </Group>
           </button>
+          <button type="button" className={"connection-item" + (section === "signals" ? " connection-item-active" : "")}
+            onClick={() => setSection("signals")}>
+            <Group gap="sm">
+              <ThemeIcon variant="light" color="blue" size="lg"><IconTrafficLights size={20}/></ThemeIcon>
+              <Box><Text fw={600} size="sm">Signals</Text><Text size="xs" c="dimmed">Aspects & output mappings</Text></Box>
+            </Group>
+          </button>
           <Divider my="xs"/>
           <Text size="xs" c="dimmed" px="xs">{connections.length} configured connections</Text>
         </Card>
 
         <Card withBorder radius="md" p="md" className="devices-panel">
-          {section === "profiles" ? (
-            <HardwareProfilesPage connections={connections.map(c => ({ id: c.id, name: c.name, protocol: c.protocol }))} profiles={profiles} setProfiles={setProfiles}/>
+          {section === "signals" ? (
+            <SignalsPage profiles={profiles} outputs={logical}/>
+          ) : section === "profiles" ? (
+            <HardwareProfilesPage connections={connections.map(c => ({ id: c.id, name: c.name, protocol: c.protocol }))} profiles={profiles} setProfiles={setProfiles} logical={logical} setLogical={setLogical}/>
           ) : connection ? (
             <Stack gap="lg">
               <Group justify="space-between" align="start">
