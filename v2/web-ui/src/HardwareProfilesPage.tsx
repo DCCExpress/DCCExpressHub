@@ -1,7 +1,8 @@
+import ConfigPickerInput from "./ConfigPickerInput";
 import DeviceConfigWindow, { defaultFeedback, type DeviceAdvancedConfig } from "./DeviceConfigWindow";
 import { useMemo, useState } from "react";
 import { ActionIcon, Alert, Badge, Button, Card, Divider, Group, Modal, NumberInput, Select, Stack, Switch, Table, Tabs, Text, TextInput, Title, Tooltip } from "@mantine/core";
-import { IconAlertTriangle, IconCheck, IconCopy, IconPlayerPlay, IconDots, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconAlertTriangle, IconCheck, IconCopy, IconPlayerPlay, IconPlus, IconTrash } from "@tabler/icons-react";
 
 export type ProfileConnection = { id: string; name: string; protocol: string };
 export type LogicalDevice = { id: string; name: string; category: "Turnouts" | "Sensors" | "Basic accessories" | "Extended accessories" | "Signals" | "Outputs" };
@@ -218,15 +219,10 @@ export default function HardwareProfilesPage({ connections, profiles, setProfile
                     ) : <Text c="dimmed" size="xs">—</Text>}
                   </Table.Td>
                   <Table.Td>
-                    <Group gap={4} wrap="nowrap">
-                      <TextInput size="xs" readOnly w={125} aria-label={"Configuration for " + device.name}
-                        value={category === "Turnouts" ? (m?.advanced?.feedback.mode ?? defaultFeedback.mode) : "Default"}
-                        styles={{ input: { cursor: "default" } }}/>
-                      <ActionIcon variant="light" aria-label={"Configure " + device.name}
-                        onClick={() => setConfigDeviceId(device.id)}>
-                        <IconDots size={18}/>
-                      </ActionIcon>
-                    </Group>
+                    <ConfigPickerInput size="xs" w={154} aria-label={"Configuration for " + device.name}
+                      buttonLabel={"Configure " + device.name}
+                      value={category === "Turnouts" ? (m?.advanced?.feedback.mode ?? defaultFeedback.mode) : "Default"}
+                      onOpen={() => setConfigDeviceId(device.id)}/>
                   </Table.Td>
                   <Table.Td><Tooltip label="No live device state available. Hardware Runtime integration is pending."><Badge color="gray" variant="outline">Unknown</Badge></Tooltip></Table.Td>
                   <Table.Td><Badge color={valid ? "blue" : mapped ? "red" : "orange"} variant="light">{valid ? "Mapped" : mapped ? "Invalid" : "Unmapped"}</Badge></Table.Td>
