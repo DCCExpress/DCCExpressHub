@@ -1072,8 +1072,6 @@ public sealed class FlowRuntime : BackgroundService
                 {
                     eventType =
                         "sensorChanged",
-                    address,
-                    on,
                     sensorAddress =
                         address,
                     sensorState =
