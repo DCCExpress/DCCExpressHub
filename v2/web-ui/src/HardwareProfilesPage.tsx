@@ -1,8 +1,8 @@
 import HardwareDeviceDialog, { type DeviceFormData } from "./HardwareDeviceDialog";
 import type { DeviceAdvancedConfig } from "./DeviceConfigWindow";
 import { useMemo, useState } from "react";
-import { ActionIcon, Alert, Badge, Button, Card, Divider, Group, Modal, NumberInput, Select, Stack, Switch, Table, Tabs, Text, TextInput, Title, Tooltip } from "@mantine/core";
-import { IconAlertTriangle, IconCheck, IconCopy, IconPlayerPlay, IconPlus, IconTrash } from "@tabler/icons-react";
+import { ActionIcon, Alert, Badge, Button, Card, Divider, Group, Modal, Stack, Table, Tabs, Text, TextInput, Title } from "@mantine/core";
+import { IconAlertTriangle, IconCheck, IconCopy, IconPlus, IconTrash } from "@tabler/icons-react";
 
 export type ProfileConnection = { id: string; name: string; protocol: string };
 export type LogicalDevice = { id: string; name: string; category: "Turnouts" | "Sensors" | "Basic accessories" | "Extended accessories" | "Signals" | "Outputs" };
@@ -45,9 +45,6 @@ export default function HardwareProfilesPage({ connections, profiles, setProfile
   const [addingProfile, setAddingProfile] = useState(false);
   const [deletingProfile, setDeletingProfile] = useState(false);
   const [profileName, setProfileName] = useState("");
-  const [addingLogical, setAddingLogical] = useState(false);
-  const [logicalName, setLogicalName] = useState("");
-  const [draftCategory, setDraftCategory] = useState<LogicalDevice["category"]>("Turnouts");
   const [warning, setWarning] = useState("");
   const [deviceDraft, setDeviceDraft] = useState<DeviceFormData | null>(null);
   const [deviceNew, setDeviceNew] = useState(false);
@@ -253,11 +250,7 @@ export default function HardwareProfilesPage({ connections, profiles, setProfile
         <Stack><TextInput label="Profile name" placeholder="e.g. DCC-EX Setup" value={profileName} onChange={e => setProfileName(e.currentTarget.value)}/>
           <Button disabled={!profileName.trim()} onClick={addProfile}>Create profile</Button></Stack>
       </Modal>
-      <Modal opened={addingLogical} onClose={() => setAddingLogical(false)} title="New logical device" centered>
-        <Stack><TextInput label="Name" placeholder="e.g. Station turnout" value={logicalName} onChange={e => setLogicalName(e.currentTarget.value)}/>
-          <Select label="Type" value={draftCategory} data={["Turnouts", "Sensors", "Basic accessories", "Extended accessories", "Signals", "Outputs"]} onChange={v => v && setDraftCategory(v as LogicalDevice["category"])}/>
-          <Button disabled={!logicalName.trim()} onClick={() => { const id = makeId(); setLogical(items => [...items, { id, name: logicalName.trim(), category: draftCategory }]); setCategory(draftCategory); setLogicalName(""); setAddingLogical(false); }}>Add logical device</Button></Stack>
-      </Modal>
+
     </Stack>
   );
 }
