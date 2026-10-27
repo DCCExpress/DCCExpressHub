@@ -41,6 +41,8 @@ export default function AppWindow({ opened, onClose, title, children, footer, to
           aria-modal="true"
           aria-label={title}
           withBorder
+          withinPortal={false}
+          zIndex={1101}
           shadow="xl"
           radius="md"
           w={actualWidth}
