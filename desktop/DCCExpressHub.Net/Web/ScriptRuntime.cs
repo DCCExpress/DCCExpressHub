@@ -590,6 +590,19 @@ public sealed class ScriptRuntime
                 Idle(
                     executionId));
 
+        // The editor uses startSource rather than startSaved.
+        // Never bypass the saved script's Enabled setting.
+        if (executionId.StartsWith("automation:", StringComparison.Ordinal))
+        {
+            var savedId = executionId["automation:".Length..];
+            var saved = LoadSavedScript(savedId);
+            if (saved is { Enabled: false })
+                return (
+                    false,
+                    "script_disabled",
+                    Idle(executionId));
+        }
+
         Execution execution;
 
         lock (_gate)
