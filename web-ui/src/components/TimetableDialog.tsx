@@ -178,6 +178,7 @@ function parseCronEditor(
         time:
           "08:00",
         intervalMinutes,
+        offset: "+00:00:10",
         cron:
           value,
       };
@@ -1140,6 +1141,20 @@ export default function TimetableDialog({
                                           </Text>
                                         </Stack>
                                       )
+                                      : row.editor.mode === "offset"
+                                        ? (
+                                          <TextInput
+                                            size="xs"
+                                            value={row.editor.offset}
+                                            placeholder="+00:00:10"
+                                            description="Timetable Start + HH:MM:SS"
+                                            error={cronValid ? undefined : "Use +HH:MM:SS"}
+                                            onChange={event => updateRow(row.id, current => ({
+                                              ...current,
+                                              editor: { ...current.editor, offset: event.currentTarget.value },
+                                            }))}
+                                          />
+                                        )
                                       : row.editor.mode ===
                                           "interval"
                                         ? (
