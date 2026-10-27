@@ -342,9 +342,9 @@ public sealed class HubRuntime : IAsyncDisposable
         var host = _host;
         _host = null;
         if (host is null) return;
-        try { await host.StopAsync(ct); }
+        try { await host.StopAsync(ct).ConfigureAwait(false); }
         finally { host.Dispose(); }
     }
 
-    public async ValueTask DisposeAsync() => await StopAsync();
+    public async ValueTask DisposeAsync() => await StopAsync().ConfigureAwait(false);
 }

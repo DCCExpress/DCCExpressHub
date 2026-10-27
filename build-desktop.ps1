@@ -83,6 +83,8 @@ if ($Clean) {
         $Dist,
         (Join-Path $ServerRoot "bin"),
         (Join-Path $ServerRoot "obj"),
+        (Join-Path $DesktopRoot "DCCExpressHub.Runtime\bin"),
+        (Join-Path $DesktopRoot "DCCExpressHub.Runtime\obj"),
         (Join-Path $DesktopProjectRoot "bin"),
         (Join-Path $DesktopProjectRoot "obj")
     )
@@ -214,7 +216,6 @@ if ($Publish) {
     $PublishDir = Join-Path $PublishRoot "win-x64"
     $TempRoot = Join-Path $PublishRoot ".publish-temp"
     $DesktopTemp = Join-Path $TempRoot "desktop"
-    $BackendTemp = Join-Path $TempRoot "backend"
     $ZipPath = Join-Path $PublishRoot "DCCExpressHub-$Version-win-x64.zip"
 
     foreach ($dir in @($PublishDir, $TempRoot)) {
@@ -225,7 +226,6 @@ if ($Publish) {
 
     New-Item -ItemType Directory -Path $PublishDir -Force | Out-Null
     New-Item -ItemType Directory -Path $DesktopTemp -Force | Out-Null
-    New-Item -ItemType Directory -Path $BackendTemp -Force | Out-Null
 
     Step "Publishing Desktop shell as single-file EXE"
 
@@ -268,52 +268,8 @@ if ($Publish) {
             Copy-Item $_.FullName $target -Force
         }
 
-    Step "Publishing backend as single-file EXE"
-
-    & dotnet publish $ServerProject `
-        -c $Configuration `
-        -r win-x64 `
-        --self-contained true `
-        -p:PublishSingleFile=true `
-        -p:IncludeNativeLibrariesForSelfExtract=true `
-        -p:EnableCompressionInSingleFile=true `
-        -p:PublishTrimmed=false `
-        -p:PublishReadyToRun=false `
-        -p:DebugSymbols=false `
-        -p:DebugType=None `
-        -o $BackendTemp
-    CheckExit "Backend single-file publish"
-
-    Require (Join-Path $BackendTemp "DCCExpressHub.Net.exe") "Published backend executable"
-    Require (Join-Path $BackendTemp "wwwroot\index.html") "Published backend WebUI"
-
-    $PublishedBackend = Join-Path $PublishDir "backend"
-    New-Item -ItemType Directory -Path $PublishedBackend -Force | Out-Null
-
-    # Same rule: keep deployable content, drop debug symbols only.
-    Get-ChildItem $BackendTemp -File -Recurse |
-        Where-Object {
-            $_.Extension -ne ".pdb" -and
-            -not (
-                $_.Extension -eq ".xml" -and
-                $_.Name -like "Microsoft.Web.WebView2.*.xml"
-            )
-        } |
-        ForEach-Object {
-            $relative = $_.FullName.Substring($BackendTemp.Length).TrimStart('\','/')
-            $target = Join-Path $PublishedBackend $relative
-            $targetDir = Split-Path $target -Parent
-
-            if (-not (Test-Path $targetDir)) {
-                New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
-            }
-
-            Copy-Item $_.FullName $target -Force
-        }
-
     Require (Join-Path $PublishDir "DCCExpressHub.Desktop.exe") "Packaged Desktop executable"
-    Require (Join-Path $PublishedBackend "DCCExpressHub.Net.exe") "Packaged backend executable"
-    Require (Join-Path $PublishedBackend "wwwroot\index.html") "Packaged WebUI"
+    Require (Join-Path $PublishDir "backend\wwwroot\index.html") "Packaged WebUI"
 
     # Keep the human-readable product version beside the launcher. The desktop
     # shell reads this at runtime, so the startup dialog shows the release
@@ -345,7 +301,6 @@ if ($Publish) {
     Write-Host ""
     Write-Host "Clean release package:" -ForegroundColor Green
     Write-Host "  DCCExpressHub.Desktop.exe"
-    Write-Host "  backend\DCCExpressHub.Net.exe"
     Write-Host "  backend\wwwroot\..."
     Write-Host "  (+ only publish-required external files, if any)"
     Write-Host ""

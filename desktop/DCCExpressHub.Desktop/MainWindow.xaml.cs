@@ -1689,7 +1689,7 @@ namespace DCCExpressHub.Desktop
             }
             catch (Exception ex)
             {
-                StopBackend();
+                await StopBackendAsync();
 
                 Browser.Visibility =
                     Visibility.Collapsed;
@@ -2316,7 +2316,7 @@ namespace DCCExpressHub.Desktop
 
             try
             {
-                await Task.Run(StopBackend);
+                await StopBackendAsync();
 
                 if (!IsHubPortAvailable(
                         out var portError))
@@ -2405,6 +2405,12 @@ namespace DCCExpressHub.Desktop
                 return;
             }
 
+            if (_closeDialogActive || _setupBusy || _restartInProgress)
+            {
+                e.Cancel = true;
+                return;
+            }
+
             // If no backend is running there is nothing that needs a power-off
             // decision. This also makes Cancel on the startup panel a clean exit.
             if (_hub is null ||
@@ -2451,8 +2457,7 @@ namespace DCCExpressHub.Desktop
 
                 await ShowShutdownOverlayAsync();
 
-                await Task.Run(
-                    StopBackend);
+                await StopBackendAsync();
 
                 _closeApproved = true;
                 Close();
@@ -2547,9 +2552,7 @@ namespace DCCExpressHub.Desktop
         {
             _isClosing = true;
 
-            // StopBackend() is normally already completed by the first close pass.
-            // Keep this call idempotent so programmatic shutdown is safe as well.
-            StopBackend();
+            // The asynchronous close pass has already stopped the runtime.
 
             try
             {
@@ -2689,14 +2692,13 @@ namespace DCCExpressHub.Desktop
             ServerLogText.Clear();
         }
 
-        private void StopBackend()
+        private async Task StopBackendAsync()
         {
             _backendExpectedStop = true;
             var runtime = _hub;
             _hub = null;
             if (runtime is null) return;
-            try { runtime.StopAsync().GetAwaiter().GetResult(); }
-            finally { runtime.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
+            await Task.Run(async () => await runtime.DisposeAsync());
         }
 
         private async Task<bool> RequestGracefulBackendShutdownAsync()

@@ -26,22 +26,12 @@
     <Content Include="Assets\DCCExpressHub.ico" />
   </ItemGroup>
 
-  <Target Name="BuildBackend" BeforeTargets="Build" Condition="'$(RuntimeIdentifier)' == ''">
-    <MSBuild Projects="..\DCCExpressHub.Net\DCCExpressHub.Net.csproj" Targets="Build" Properties="Configuration=$(Configuration)" />
-  </Target>
-
-  <Target Name="PrepareBackendRuntime" AfterTargets="Build" Condition="'$(RuntimeIdentifier)' == ''">
-    <!-- Never delete the whole backend directory during an ordinary VS build.
-         A running backend locks DCCExpressHub.Net.dll on Windows. -->
-    <MakeDir Directories="$(OutDir)backend" />
-
-    <ItemGroup>
-      <BackendFiles Include="..\DCCExpressHub.Net\bin\$(Configuration)\net10.0\**\*" />
-      <WebRootFiles Include="..\DCCExpressHub.Net\wwwroot\**\*" />
-    </ItemGroup>
-
-    <Copy SourceFiles="@(BackendFiles)" DestinationFiles="@(BackendFiles->'$(OutDir)backend\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Retries="3" RetryDelayMilliseconds="250" />
-
-    <Copy SourceFiles="@(WebRootFiles)" DestinationFiles="@(WebRootFiles->'$(OutDir)backend\wwwroot\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Retries="3" RetryDelayMilliseconds="250" />
-  </Target>
+  <ItemGroup>
+    <Content Include="../DCCExpressHub.Net/wwwroot/**/*">
+      <Link>backend/wwwroot/%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </Content>
+  </ItemGroup>
 </Project>
