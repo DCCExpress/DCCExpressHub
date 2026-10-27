@@ -17,7 +17,7 @@ function AppContent() {
 
   return (
       <Box className="app-shell">
-        <Container size="lg" py="xl">
+        <Container size={page === "configuration" ? "100%" : "lg"} px={page === "configuration" ? "xl" : undefined} py="xl">
           <Stack gap="md">
             <Card className="hero-card" radius={5} p="lg">
               <Group justify="space-between" align="center" gap="md">
