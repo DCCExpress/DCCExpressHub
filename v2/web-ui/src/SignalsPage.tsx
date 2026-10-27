@@ -1,3 +1,4 @@
+import CollapsibleGroup from "./CollapsibleGroup";
 import { useState } from "react";
 import { ActionIcon, Badge, Button, Card, Divider, Group, NumberInput, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { IconPlayerPlay, IconPlus, IconTrash } from "@tabler/icons-react";
@@ -121,9 +122,8 @@ export default function SignalsPage({ profiles, outputs, signals, setSignals }: 
             <Button size="sm" variant="light" leftSection={<IconPlayerPlay size={14}/>} disabled title="Runtime API not implemented">Test</Button>
             <ActionIcon color="red" variant="subtle" size="lg" aria-label={"Remove "+a.name} onClick={() => removeAspect(a.id)}><IconTrash size={16}/></ActionIcon>
           </Group>
-          {mapping.mode === "outputs" && <>
-            <Group justify="space-between" mt="sm" mb="xs">
-              <Text size="xs" c="dimmed">Output actions</Text>
+          {mapping.mode === "outputs" && <CollapsibleGroup title={"Output actions (" + (mapping.actions[a.id]?.length ?? 0) + ")"} expandTooltip="Show output actions" collapseTooltip="Hide output actions">
+            <Group justify="end" mb="xs">
               <Button size="compact-xs" leftSection={<IconPlus size={12}/>} variant="light"
                 onClick={() => changeActions(a.id, items => [...items,{id:id(),targetId:"",value:1}])}>Add output</Button>
             </Group>
@@ -137,7 +137,7 @@ export default function SignalsPage({ profiles, outputs, signals, setSignals }: 
               <ActionIcon size="sm" color="red" variant="subtle" aria-label="Remove output"
                 onClick={() => changeActions(a.id, items => items.filter(x => x.id !== action.id))}><IconTrash size={15}/></ActionIcon>
             </Group>)}
-          </>}
+          </CollapsibleGroup>}
         </Card>)}
         <Text size="xs" c="dimmed">Aspects and colors belong to the logical signal. Hardware output assignments belong to the selected profile. Multiple output actions can be assigned to each aspect.</Text>
       </Stack>}
