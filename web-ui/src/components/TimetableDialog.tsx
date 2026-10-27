@@ -1069,12 +1069,9 @@ export default function TimetableDialog({
                                           ),
                                       },
                                       { value: "offset", label: "Current + Offset" },
-                                      {
-                                        value:
-                                          "cron",
-                                        label:
-                                          "Cron",
-                                      },
+                                      ...(row.editor.mode === "cron"
+                                        ? [{ value: "cron", label: "Legacy schedule" }]
+                                        : []),
                                     ]}
                                     onChange={
                                       event => {
@@ -1127,18 +1124,7 @@ export default function TimetableDialog({
                                             }
                                           />
 
-                                          <Text
-                                            size="xs"
-                                            c="dimmed"
-                                          >
-                                            cron:{" "}
-                                            <Code>
-                                              {
-                                                resolvedCron ||
-                                                "—"
-                                              }
-                                            </Code>
-                                          </Text>
+
                                         </Stack>
                                       )
                                       : row.editor.mode === "offset"
