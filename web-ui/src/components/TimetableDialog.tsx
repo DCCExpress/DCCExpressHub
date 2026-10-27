@@ -382,6 +382,11 @@ export default function TimetableDialog({
       ]
     );
 
+  const sequenceOptions = useMemo(() => movementDocument.sequences.map(sequence => ({
+    value: sequence.id,
+    label: sequence.name,
+  })), [movementDocument.sequences]);
+
   const movementOptions =
     useMemo(
       () =>
@@ -687,7 +692,9 @@ export default function TimetableDialog({
               action.targetType === "fromto"
                 ? !action.routeRef || !action.speed || action.speed < 1 || action.speed > 126
                 : action.targetType ===
-                "movement"
+                "sequential"
+                ? !movementDocument.sequences.some(sequence => sequence.id === action.targetId)
+                : action.targetType === "movement"
                 ? !movements.some(
                     movement =>
                       movement.id ===
@@ -1275,6 +1282,7 @@ export default function TimetableDialog({
                                                   //                                                       "Movement",
                                                   //                                                   },
                                                   { value: "fromto", label: "From–To" },
+                                                  { value: "sequential", label: "Sequential Movement" },
                                                 ]}
                                                 value={
                                                   action.targetType
@@ -1284,7 +1292,8 @@ export default function TimetableDialog({
                                                     const targetType =
                                                       (
                                                         value === "fromto" ? "fromto" :
-                                                        value === "movement" ? "movement" : "script"
+                                                        value === "movement" ? "movement" :
+                                                        value === "sequential" ? "sequential" : "script"
                                                       ) as
                                                         TimetableTargetType;
 
@@ -1296,7 +1305,9 @@ export default function TimetableDialog({
                                                         targetType,
                                                         targetId:
                                                           targetType === "fromto" ? "" :
-                                                          targetType === "movement"
+                                                          targetType === "sequential"
+                                                            ? movementDocument.sequences[0]?.id ?? ""
+                                                            : targetType === "movement"
                                                             ? movements[0]?.id ?? ""
                                                             : scripts[0]?.id ?? "",
                                                         ...(targetType === "fromto"
@@ -1325,7 +1336,9 @@ export default function TimetableDialog({
                                                   false
                                                 }
                                                 data={
-                                                  action.targetType ===
+                                                  action.targetType === "sequential"
+                                                    ? sequenceOptions
+                                                    : action.targetType ===
                                                     "movement"
                                                     ? movementOptions
                                                     : scriptOptions
@@ -1335,7 +1348,9 @@ export default function TimetableDialog({
                                                   null
                                                 }
                                                 placeholder={
-                                                  action.targetType ===
+                                                  action.targetType === "sequential"
+                                                    ? "Select Sequential Movement"
+                                                    : action.targetType ===
                                                     "movement"
                                                     ? t(
                                                         "ui.timetableSelectMovement"
