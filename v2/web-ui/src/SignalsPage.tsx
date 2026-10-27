@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ActionIcon, Badge, Button, Card, ColorInput, Divider, Group, NumberInput, Select, Stack, Switch, Table, Text, TextInput, Title } from "@mantine/core";
+import { ActionIcon, Badge, Button, Card, ColorInput, Divider, Group, NumberInput, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import AppWindow from "./AppWindow";
 import type { Profile } from "./HardwareProfilesPage";
