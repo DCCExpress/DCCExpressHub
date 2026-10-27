@@ -5,16 +5,15 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>DCCExpressHub.Net</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
-    <PackageReference Include="System.IO.Ports" Version="10.0.0" />
-    <PackageReference Include="Jint" Version="4.16.4" />
-    <PackageReference Include="Watson" Version="7.2.1" />
+    <ProjectReference Include="../DCCExpressHub.Runtime/DCCExpressHub.Runtime.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="Program.cs" />
     <Content Include="wwwroot\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
