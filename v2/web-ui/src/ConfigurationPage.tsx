@@ -1,6 +1,7 @@
+import { DeleteConfirmWindow } from "./AppWindow";
 import { useState } from "react";
 import { ActionIcon, Badge, Box, Button, Card, Divider, Group, Modal, Select, SimpleGrid, Stack, Switch, Text, TextInput, ThemeIcon, Title, Tooltip } from "@mantine/core";
-import { IconPlugConnected, IconPlus, IconRouter } from "@tabler/icons-react";
+import { IconPlugConnected, IconPlus, IconRouter, IconTrash } from "@tabler/icons-react";
 import HardwareProfilesPage from "./HardwareProfilesPage";
 
 type Protocol = "Z21" | "DCC-EX" | "LocoNet TCP" | "ESP32";
@@ -19,12 +20,25 @@ export default function ConfigurationPage() {
   const [selectedId, setSelectedId] = useState("main");
   const [section, setSection] = useState<"connections" | "profiles">("connections");
   const [adding, setAdding] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [connectionName, setConnectionName] = useState("");
   const connection = connections.find(c => c.id === selectedId);
+  const deleting = connections.find(c => c.id === deletingId);
+  // Starter profiles reference these connections. Do not remove them until mappings can be migrated.
+  const referencedConnections = new Set(["main", "feedback", "station"]);
 
   function selectConnection(id: string) { setSelectedId(id); setSection("connections"); }
   function patch(patch: Partial<Connection>) {
     setConnections(items => items.map(c => c.id === selectedId ? { ...c, ...patch } : c));
+  }
+  function deleteConnection() {
+    if (!deletingId || referencedConnections.has(deletingId)) return;
+    setConnections(items => {
+      const remaining = items.filter(c => c.id !== deletingId);
+      if (selectedId === deletingId) setSelectedId(remaining[0]?.id ?? "");
+      return remaining;
+    });
+    setDeletingId(null);
   }
   function addConnection() {
     const id = uid();
@@ -56,16 +70,22 @@ export default function ConfigurationPage() {
           <Divider my="xs"/>
           <Stack gap={6}>
             {connections.map(c => (
-              <button key={c.id} type="button" onClick={() => selectConnection(c.id)}
-                className={"connection-item" + (section === "connections" && selectedId === c.id ? " connection-item-active" : "")}>
-                <Group gap="sm" wrap="nowrap">
-                  <ThemeIcon color={c.enabled ? "blue" : "gray"} variant="light" size="lg" radius="md"><IconRouter size={20}/></ThemeIcon>
-                  <Box style={{ minWidth: 0, flex: 1 }}>
-                    <Text size="sm" fw={600} truncate>{c.name}</Text>
-                    <Text size="xs" c="dimmed">{c.protocol}</Text>
-                  </Box>
-                </Group>
-              </button>
+              <div key={c.id} className={"connection-item connection-row" + (section === "connections" && selectedId === c.id ? " connection-item-active" : "")}>
+                <button type="button" className="connection-select" onClick={() => selectConnection(c.id)}>
+                  <Group gap="sm" wrap="nowrap">
+                    <ThemeIcon color={c.enabled ? "blue" : "gray"} variant="light" size="lg" radius="md"><IconRouter size={20}/></ThemeIcon>
+                    <Box style={{ minWidth: 0, flex: 1 }}>
+                      <Text size="sm" fw={600} truncate>{c.name}</Text>
+                      <Text size="xs" c="dimmed">{c.protocol}</Text>
+                    </Box>
+                  </Group>
+                </button>
+                <Tooltip label={"Delete " + c.name}>
+                  <ActionIcon color="red" variant="subtle" size="sm" aria-label={"Delete " + c.name} onClick={() => setDeletingId(c.id)}>
+                    <IconTrash size={16}/>
+                  </ActionIcon>
+                </Tooltip>
+              </div>
             ))}
           </Stack>
           <Divider my="md"/>
@@ -117,6 +137,11 @@ export default function ConfigurationPage() {
           ) : <Text c="dimmed">Select a connection.</Text>}
         </Card>
       </div>
+      <DeleteConfirmWindow opened={!!deleting} onClose={() => setDeletingId(null)}
+        name={deleting?.name ?? ""} onConfirm={deleteConnection}
+        disabledReason={deleting && referencedConnections.has(deleting.id)
+          ? "This connection is referenced by a hardware profile. Remove or reassign its mappings before deleting it."
+          : undefined}/>
       <Modal opened={adding} onClose={() => setAdding(false)} title="Add connection" centered>
         <Stack>
           <TextInput label="Connection name" placeholder="Main Command Station" value={connectionName} onChange={e => setConnectionName(e.currentTarget.value)}/>
