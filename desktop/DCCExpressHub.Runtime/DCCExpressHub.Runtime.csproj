@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DCCExpressHub.Net</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../DCCExpressHub.Net/**/*.cs" Exclude="../DCCExpressHub.Net/Program.cs;../DCCExpressHub.Net/bin/**;../DCCExpressHub.Net/obj/**" Link="%(RecursiveDir)%(Filename)%(Extension)" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
+    <PackageReference Include="System.IO.Ports" Version="10.0.0" />
+    <PackageReference Include="Jint" Version="4.16.4" />
+    <PackageReference Include="Watson" Version="7.2.1" />
+  </ItemGroup>
+</Project>
