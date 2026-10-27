@@ -38,7 +38,7 @@ public sealed class HubRuntime : IAsyncDisposable
         {
             ctx.Response.ContentType = "application/json";
             await ctx.Response.Send(
-                "{\\\"status\\\":\\\"ok\\\",\\\"application\\\":\\\"DCCExpressHub V2\\\"}", ctx.Token);
+                """{"status":"ok","application":"DCCExpressHub V2"}""", ctx.Token);
             return;
         }
 
