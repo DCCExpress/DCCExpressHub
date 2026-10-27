@@ -539,6 +539,12 @@ public sealed class ScriptRuntime
                     executionId ??
                     scriptId));
 
+        if (!script.Enabled)
+            return (
+                false,
+                "script_disabled",
+                Idle(executionId ?? "automation:" + script.Id));
+
         return StartSource(
             executionId ??
             "automation:" +
