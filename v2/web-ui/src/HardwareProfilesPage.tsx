@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
-import { ActionIcon, Alert, Badge, Button, Card, Divider, Group, Modal, Select, Stack, Table, Tabs, Text, TextInput, Title } from "@mantine/core";
-import { IconAlertTriangle, IconCheck, IconCopy, IconPlus, IconTrash } from "@tabler/icons-react";
+import { ActionIcon, Alert, Badge, Button, Card, Divider, Group, Modal, Select, Stack, Switch, Table, Tabs, Text, TextInput, Title, Tooltip } from "@mantine/core";
+import { IconAlertTriangle, IconCheck, IconCopy, IconPlayerPlay, IconPlus, IconTrash } from "@tabler/icons-react";
 
 export type ProfileConnection = { id: string; name: string; protocol: string };
-export type LogicalDevice = { id: string; name: string; category: "Turnouts" | "Sensors" | "Signals" | "Outputs" };
-type Mapping = { connectionId: string; controlType: string; address: string };
+export type LogicalDevice = { id: string; name: string; category: "Turnouts" | "Sensors" | "Basic accessories" | "Signals" | "Outputs" };
+type Mapping = { connectionId: string; controlType: string; address: string; inverted?: boolean };
 type Profile = { id: string; name: string; mappings: Record<string, Mapping> };
 const makeId = () => "item-" + Math.random().toString(36).slice(2, 10);
 const initialLogical: LogicalDevice[] = [
@@ -27,10 +27,10 @@ const initialProfiles: Profile[] = [
   }},
 ];
 const supported: Record<string, Record<string, string[]>> = {
-  "Z21": { Turnouts: ["DCC Basic Accessory"], Sensors: ["R-BUS sensor"], Signals: ["DCC Extended Accessory"], Outputs: ["DCC Basic Accessory"] },
-  "DCC-EX": { Turnouts: ["DCC-EX Turnout ID", "DCC Basic Accessory"], Sensors: ["DCC-EX Sensor"], Signals: ["DCC-EX VPIN Output"], Outputs: ["DCC-EX VPIN Output"] },
-  "LocoNet TCP": { Turnouts: ["LocoNet switch"], Sensors: ["LocoNet sensor"], Outputs: ["LocoNet accessory"] },
-  "ESP32": { Turnouts: ["Servo turnout", "Digital output turnout"], Sensors: ["Digital input"], Signals: ["Digital output"], Outputs: ["Digital output", "PWM output"] },
+  "Z21": { Turnouts: ["DCC Basic Accessory"], Sensors: ["R-BUS sensor"], "Basic accessories": ["DCC Basic Accessory"], Signals: ["DCC Extended Accessory"], Outputs: ["DCC Basic Accessory"] },
+  "DCC-EX": { Turnouts: ["DCC-EX Turnout ID", "DCC Basic Accessory"], Sensors: ["DCC-EX Sensor"], "Basic accessories": ["DCC Basic Accessory"], Signals: ["DCC-EX VPIN Output"], Outputs: ["DCC-EX VPIN Output"] },
+  "LocoNet TCP": { Turnouts: ["LocoNet switch"], Sensors: ["LocoNet sensor"], "Basic accessories": ["LocoNet accessory"], Outputs: ["LocoNet accessory"] },
+  "ESP32": { Turnouts: ["Servo turnout", "Digital output turnout"], Sensors: ["Digital input"], "Basic accessories": ["Digital output"], Signals: ["Digital output"], Outputs: ["Digital output", "PWM output"] },
 };
 
 export default function HardwareProfilesPage({ connections }: { connections: ProfileConnection[] }) {
@@ -137,11 +137,11 @@ export default function HardwareProfilesPage({ connections }: { connections: Pro
             <Button variant="light" size="xs" leftSection={<IconPlus size={14}/>} onClick={() => setAddingLogical(true)}>Logical device</Button>
           </Group>
           <Tabs value={category} onChange={x => setCategory(x || "Turnouts")}>
-            <Tabs.List>{(["Turnouts", "Sensors", "Signals", "Outputs"] as const).map(t => <Tabs.Tab key={t} value={t}>{t}</Tabs.Tab>)}</Tabs.List>
+            <Tabs.List>{(["Turnouts", "Sensors", "Basic accessories", "Signals", "Outputs"] as const).map(t => <Tabs.Tab key={t} value={t}>{t}</Tabs.Tab>)}</Tabs.List>
           </Tabs>
-          <Table.ScrollContainer minWidth={610}>
+          <Table.ScrollContainer minWidth={800}>
             <Table striped highlightOnHover verticalSpacing="md">
-              <Table.Thead><Table.Tr><Table.Th>Logical device</Table.Th><Table.Th>Connection</Table.Th><Table.Th>Control type</Table.Th><Table.Th>Address / ID</Table.Th><Table.Th>Status</Table.Th></Table.Tr></Table.Thead>
+              <Table.Thead><Table.Tr><Table.Th>Logical device</Table.Th><Table.Th>Connection</Table.Th><Table.Th>Control type</Table.Th><Table.Th>Address / ID</Table.Th><Table.Th>Invert</Table.Th><Table.Th>Test</Table.Th><Table.Th>Status</Table.Th></Table.Tr></Table.Thead>
               <Table.Tbody>{deviceRows.map(device => {
                 const m = profile.mappings[device.id];
                 const mapped = !!m?.connectionId && !!m?.address.trim() && !!m?.controlType;
@@ -163,6 +163,22 @@ export default function HardwareProfilesPage({ connections }: { connections: Pro
                     onChange={value => m && updateMapping(device.id, { ...m, controlType: value ?? "" })}/></Table.Td>
                   <Table.Td><TextInput size="xs" w={100} placeholder="Address" disabled={!m?.connectionId}
                     value={m?.address ?? ""} onChange={e => m && updateMapping(device.id, { ...m, address: e.currentTarget.value })}/></Table.Td>
+                  <Table.Td>
+                    {(["Turnouts", "Sensors", "Basic accessories"] as string[]).includes(category) ? (
+                      <Switch size="sm" aria-label={"Invert " + device.name} checked={m?.inverted ?? false}
+                        disabled={!m?.connectionId}
+                        onChange={event => m && updateMapping(device.id, { ...m, inverted: event.currentTarget.checked })}/>
+                    ) : <Text c="dimmed" size="xs">—</Text>}
+                  </Table.Td>
+                  <Table.Td>
+                    {(["Turnouts", "Sensors", "Basic accessories"] as string[]).includes(category) ? (
+                      <Tooltip label="Hardware test will be available after the V2 Runtime device API is implemented.">
+                        <span style={{ display: "inline-block" }}>
+                          <Button size="compact-xs" leftSection={<IconPlayerPlay size={13}/>} disabled>Test</Button>
+                        </span>
+                      </Tooltip>
+                    ) : <Text c="dimmed" size="xs">—</Text>}
+                  </Table.Td>
                   <Table.Td><Badge color={valid ? "blue" : mapped ? "red" : "orange"} variant="light">{valid ? "Mapped" : mapped ? "Invalid" : "Unmapped"}</Badge></Table.Td>
                 </Table.Tr>;
               })}</Table.Tbody>
@@ -170,7 +186,7 @@ export default function HardwareProfilesPage({ connections }: { connections: Pro
           </Table.ScrollContainer>
           {!deviceRows.length && <Text ta="center" c="dimmed" py="lg" size="sm">No logical devices in this category.</Text>}
         </Card>
-        <Text size="xs" c="dimmed">Prototype only: profile activation changes the UI selection, not live hardware. Mappings are not yet persisted to the backend.</Text>
+        <Text size="xs" c="dimmed">Prototype only: Invert is stored per hardware-profile mapping in UI state. Test is disabled until the Runtime device API exists; no hardware commands are sent. Mappings are not yet persisted to the backend.</Text>
       </>}
       <Modal opened={deletingProfile} onClose={() => setDeletingProfile(false)} title="Delete hardware profile?" centered>
         <Stack gap="md">
@@ -187,7 +203,7 @@ export default function HardwareProfilesPage({ connections }: { connections: Pro
       </Modal>
       <Modal opened={addingLogical} onClose={() => setAddingLogical(false)} title="New logical device" centered>
         <Stack><TextInput label="Name" placeholder="e.g. Station turnout" value={logicalName} onChange={e => setLogicalName(e.currentTarget.value)}/>
-          <Select label="Type" value={draftCategory} data={["Turnouts", "Sensors", "Signals", "Outputs"]} onChange={v => v && setDraftCategory(v as LogicalDevice["category"])}/>
+          <Select label="Type" value={draftCategory} data={["Turnouts", "Sensors", "Basic accessories", "Signals", "Outputs"]} onChange={v => v && setDraftCategory(v as LogicalDevice["category"])}/>
           <Button disabled={!logicalName.trim()} onClick={() => { const id = makeId(); setLogical(items => [...items, { id, name: logicalName.trim(), category: draftCategory }]); setCategory(draftCategory); setLogicalName(""); setAddingLogical(false); }}>Add logical device</Button></Stack>
       </Modal>
     </Stack>
