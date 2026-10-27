@@ -849,14 +849,7 @@ export default function TimetableDialog({
               t(
                 "ui.timetableEditorDescription"
               )
-            }{" "}
-            <Code>
-              {
-                t(
-                  "ui.timetableCronFields"
-                )
-              }
-            </Code>
+            }
           </Text>
         </Alert>
 
