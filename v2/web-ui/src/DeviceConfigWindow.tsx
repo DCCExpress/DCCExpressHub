@@ -40,6 +40,7 @@ export default function DeviceConfigWindow({ opened, onClose, onApply, deviceNam
         <Text c="dimmed" size="sm">{category} · Profile-specific device settings</Text>
         {category === "Turnouts" ? <>
           <Select label="Feedback mode" value={fb.mode} allowDeselect={false}
+            comboboxProps={{ withinPortal: false, zIndex: 1200 }}
             data={[
               { value: "optimistic", label: "Optimistic — assume immediately" },
               { value: "delayed", label: "Delayed — assume after delay" },
@@ -55,9 +56,10 @@ export default function DeviceConfigWindow({ opened, onClose, onApply, deviceNam
             onChange={v => patch({ timeoutMs: numeric(v, 2000) })}/>}
           {["one", "two"].includes(fb.mode) && <Select label={fb.mode === "one" ? "Position sensor (active = Thrown)" : "Thrown position sensor"}
             placeholder="Choose logical sensor" data={sensors} searchable clearable
+            comboboxProps={{ withinPortal: false, zIndex: 1200 }}
             value={fb.thrownSensorId || null} onChange={v => patch({ thrownSensorId: v ?? "" })}/>}
           {fb.mode === "two" && <Select label="Closed position sensor" placeholder="Choose logical sensor"
-            data={sensors} searchable clearable value={fb.closedSensorId || null}
+            data={sensors} searchable clearable comboboxProps={{ withinPortal: false, zIndex: 1200 }} value={fb.closedSensorId || null}
             onChange={v => patch({ closedSensorId: v ?? "" })}/>}
           <Text size="xs" c="dimmed">This is configuration only. A command-station acknowledgement does not prove physical turnout position. The V2 Runtime will implement feedback verification later.</Text>
         </> : <Text size="sm" c="dimmed">Advanced settings for this device category will be added with the Runtime adapter. Basic address, invert and test value remain in the mapping table.</Text>}
