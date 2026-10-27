@@ -3,7 +3,7 @@ import { ActionIcon, Alert, Badge, Button, Card, Divider, Group, Modal, Select, 
 import { IconAlertTriangle, IconCheck, IconCopy, IconPlayerPlay, IconPlus, IconTrash } from "@tabler/icons-react";
 
 export type ProfileConnection = { id: string; name: string; protocol: string };
-export type LogicalDevice = { id: string; name: string; category: "Turnouts" | "Sensors" | "Basic accessories" | "Signals" | "Outputs" };
+export type LogicalDevice = { id: string; name: string; category: "Turnouts" | "Sensors" | "Basic accessories" | "Extended accessories" | "Signals" | "Outputs" };
 type Mapping = { connectionId: string; controlType: string; address: string; inverted?: boolean };
 export type Profile = { id: string; name: string; mappings: Record<string, Mapping> };
 const makeId = () => "item-" + Math.random().toString(36).slice(2, 10);
@@ -27,10 +27,10 @@ export const initialProfiles: Profile[] = [
   }},
 ];
 const supported: Record<string, Record<string, string[]>> = {
-  "Z21": { Turnouts: ["DCC Basic Accessory"], Sensors: ["R-BUS sensor"], "Basic accessories": ["DCC Basic Accessory"], Signals: ["DCC Extended Accessory"], Outputs: ["DCC Basic Accessory"] },
+  "Z21": { Turnouts: ["DCC Basic Accessory"], Sensors: ["R-BUS sensor"], "Basic accessories": ["DCC Basic Accessory"], "Extended accessories": ["DCC Extended Accessory"], Signals: ["DCC Extended Accessory"], Outputs: ["DCC Basic Accessory"] },
   "DCC-EX": { Turnouts: ["DCC-EX Turnout ID", "DCC Basic Accessory"], Sensors: ["DCC-EX Sensor"], "Basic accessories": ["DCC Basic Accessory"], Signals: ["DCC-EX VPIN Output"], Outputs: ["DCC-EX VPIN Output"] },
-  "LocoNet TCP": { Turnouts: ["LocoNet switch"], Sensors: ["LocoNet sensor"], "Basic accessories": ["LocoNet accessory"], Outputs: ["LocoNet accessory"] },
-  "ESP32": { Turnouts: ["Servo turnout", "Digital output turnout"], Sensors: ["Digital input"], "Basic accessories": ["Digital output"], Signals: ["Digital output"], Outputs: ["Digital output", "PWM output"] },
+  "LocoNet TCP": { Turnouts: ["LocoNet switch"], Sensors: ["LocoNet sensor"], "Basic accessories": ["LocoNet accessory"], "Extended accessories": ["LocoNet extended accessory"], Outputs: ["LocoNet accessory"] },
+  "ESP32": { Turnouts: ["Servo turnout", "Digital output turnout"], Sensors: ["Digital input"], "Basic accessories": ["Digital output"], "Extended accessories": ["Digital output"], Signals: ["Digital output"], Outputs: ["Digital output", "PWM output"] },
 };
 
 export default function HardwareProfilesPage({ connections, profiles, setProfiles }: { connections: ProfileConnection[]; profiles: Profile[]; setProfiles: React.Dispatch<React.SetStateAction<Profile[]>> }) {
@@ -149,7 +149,7 @@ export default function HardwareProfilesPage({ connections, profiles, setProfile
             <Button variant="light" size="xs" leftSection={<IconPlus size={14}/>} onClick={() => setAddingLogical(true)}>Logical device</Button>
           </Group>
           <Tabs value={category} onChange={x => setCategory(x || "Turnouts")}>
-            <Tabs.List>{(["Turnouts", "Sensors", "Basic accessories", "Signals", "Outputs"] as const).map(t =>
+            <Tabs.List>{(["Turnouts", "Sensors", "Basic accessories", "Extended accessories", "Signals", "Outputs"] as const).map(t =>
               <Tabs.Tab key={t} value={t}>
                 <Group gap={6} wrap="nowrap">
                   <span>{t}</span>
@@ -231,7 +231,7 @@ export default function HardwareProfilesPage({ connections, profiles, setProfile
       </Modal>
       <Modal opened={addingLogical} onClose={() => setAddingLogical(false)} title="New logical device" centered>
         <Stack><TextInput label="Name" placeholder="e.g. Station turnout" value={logicalName} onChange={e => setLogicalName(e.currentTarget.value)}/>
-          <Select label="Type" value={draftCategory} data={["Turnouts", "Sensors", "Basic accessories", "Signals", "Outputs"]} onChange={v => v && setDraftCategory(v as LogicalDevice["category"])}/>
+          <Select label="Type" value={draftCategory} data={["Turnouts", "Sensors", "Basic accessories", "Extended accessories", "Signals", "Outputs"]} onChange={v => v && setDraftCategory(v as LogicalDevice["category"])}/>
           <Button disabled={!logicalName.trim()} onClick={() => { const id = makeId(); setLogical(items => [...items, { id, name: logicalName.trim(), category: draftCategory }]); setCategory(draftCategory); setLogicalName(""); setAddingLogical(false); }}>Add logical device</Button></Stack>
       </Modal>
     </Stack>
