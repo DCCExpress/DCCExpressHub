@@ -1,4 +1,4 @@
-import SignalsPage from "./SignalsPage";
+import SignalsPage, { initialSignals, type Signal } from "./SignalsPage";
 import { DeleteConfirmWindow } from "./AppWindow";
 import { useState } from "react";
 import { ActionIcon, Badge, Box, Button, Card, Divider, Group, Modal, Select, SimpleGrid, Stack, Switch, Text, TextInput, ThemeIcon, Title, Tooltip } from "@mantine/core";
@@ -20,6 +20,7 @@ export default function ConfigurationPage() {
   const [connections, setConnections] = useState<Connection[]>(initialConnections);
   const [profiles, setProfiles] = useState<Profile[]>(initialProfiles);
   const [logical, setLogical] = useState<LogicalDevice[]>(initialLogical);
+  const [signals, setSignals] = useState<Signal[]>(initialSignals);
   const [selectedId, setSelectedId] = useState("main");
   const [section, setSection] = useState<"connections" | "profiles" | "signals">("connections");
   const [adding, setAdding] = useState(false);
@@ -112,7 +113,7 @@ export default function ConfigurationPage() {
 
         <Card withBorder radius="md" p="md" className="devices-panel">
           {section === "signals" ? (
-            <SignalsPage profiles={profiles} outputs={logical}/>
+            <SignalsPage profiles={profiles} outputs={logical} signals={signals} setSignals={setSignals}/>
           ) : section === "profiles" ? (
             <HardwareProfilesPage connections={connections.map(c => ({ id: c.id, name: c.name, protocol: c.protocol }))} profiles={profiles} setProfiles={setProfiles} logical={logical} setLogical={setLogical}/>
           ) : connection ? (
