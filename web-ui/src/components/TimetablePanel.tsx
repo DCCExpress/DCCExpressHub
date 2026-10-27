@@ -39,9 +39,11 @@ import {
 
 import type {
   MovementPage,
+  MovementDocument,
 } from "@/domain/movement";
 import {
   loadAutomationTimetable,
+  loadAutomationMovement,
   type AutomationScriptDefinition,
   type TimetableEntryDefinition,
 } from "@/services/automationApi";
@@ -76,6 +78,7 @@ type ExpandedTimetableRow = {
   targetType:
     "script" |
     "movement" |
+    "sequential" |
     "fromto";
   isCurrent: boolean;
   activeRun: TimetableActiveRun | null;
@@ -133,6 +136,7 @@ export default function TimetablePanel({
   );
   const [busy, setBusy] = useState(false);
   const [timetable, setTimetable] = useState<TimetableEntryDefinition[]>([]);
+  const [sequences, setSequences] = useState<MovementDocument["sequences"]>([]);
   const [timetableLoading, setTimetableLoading] = useState(true);
   const [timetableError, setTimetableError] = useState<string | null>(null);
   const [schedulerState, setSchedulerState] = useState<TimetableSchedulerState>(
@@ -160,6 +164,10 @@ export default function TimetablePanel({
 
     setTimetableLoading(true);
     setTimetableError(null);
+
+    void loadAutomationMovement().then(doc => {
+      if (!cancelled) setSequences(doc.sequences);
+    }).catch(() => { if (!cancelled) setSequences([]); });
 
     void loadAutomationTimetable()
       .then(entries => {
@@ -250,6 +258,7 @@ export default function TimetablePanel({
             entry.actions.some(
               action => {
                 if (action.targetType === "fromto") return !!action.routeRef && !!action.speed;
+                if (action.targetType === "sequential") return sequences.some(sequence => sequence.id === action.targetId && sequence.enabled);
                 if (
                   action.targetType ===
                   "movement"
@@ -313,6 +322,7 @@ export default function TimetablePanel({
         timetable,
         scripts,
         movements,
+        sequences,
       ]
     );
 
@@ -334,6 +344,8 @@ export default function TimetablePanel({
               ] as const
             )
           );
+
+        const sequencesById = new Map(sequences.map(sequence => [sequence.id, sequence] as const));
 
         const movementsById =
           new Map(
@@ -457,7 +469,9 @@ export default function TimetablePanel({
 
               const target =
                 action.targetType === "fromto" ? (action.routeRef ? {name: action.targetId || "From–To"} : undefined) :
-                action.targetType ===
+                action.targetType === "sequential"
+                  ? sequencesById.get(action.targetId)
+                  : action.targetType ===
                   "movement"
                   ? movementsById.get(
                       action.targetId
@@ -482,6 +496,7 @@ export default function TimetablePanel({
                   target?.name ??
                   (
                     action.targetType === "fromto" ? "Missing From–To route" :
+                    action.targetType === "sequential" ? "Missing Sequential Movement" :
                     action.targetType ===
                       "movement"
                       ? t(
@@ -1022,6 +1037,7 @@ export default function TimetablePanel({
                             >
                               {
                                 row.targetType === "fromto" ? "From–To" :
+                                row.targetType === "sequential" ? "Sequential Movement" :
                                 row.targetType ===
                                   "movement"
                                   ? "Movement"
