@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3537.50" />
+    <ProjectReference Include="../DCCExpressHub.V2.Runtime/DCCExpressHub.V2.Runtime.csproj" />
+    <Content Include="../DCCExpressHub.V2.Host/wwwroot/**" Link="wwwroot/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
