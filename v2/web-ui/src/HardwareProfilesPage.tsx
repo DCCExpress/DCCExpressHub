@@ -31,6 +31,8 @@ const supported: Record<string, Record<string, string[]>> = {
   "DCC-EX": { Turnouts: ["DCC-EX Turnout ID", "DCC Basic Accessory"], Sensors: ["DCC-EX Sensor"], "Basic accessories": ["DCC Basic Accessory"], Signals: ["DCC-EX VPIN Output"], Outputs: ["DCC-EX VPIN Output"] },
   "LocoNet TCP": { Turnouts: ["LocoNet switch"], Sensors: ["LocoNet sensor"], "Basic accessories": ["LocoNet accessory"], "Extended accessories": ["LocoNet extended accessory"], Outputs: ["LocoNet accessory"] },
   "ESP32": { Turnouts: ["Servo turnout", "Digital output turnout"], Sensors: ["Digital input"], "Basic accessories": ["Digital output"], "Extended accessories": ["Digital output"], Signals: ["Digital output"], Outputs: ["Digital output", "PWM output"] },
+  "C/MRI (RS-485)": { Turnouts: ["C/MRI output"], Sensors: ["C/MRI input"], "Basic accessories": ["C/MRI output"], Signals: ["C/MRI output"], Outputs: ["C/MRI output"] },
+  "Arduino (Serial)": { Turnouts: ["Arduino digital output", "Arduino servo"], Sensors: ["Arduino digital input"], "Basic accessories": ["Arduino digital output"], Signals: ["Arduino digital output"], Outputs: ["Arduino digital output", "Arduino PWM output"] },
 };
 
 export default function HardwareProfilesPage({ connections, profiles, setProfiles }: { connections: ProfileConnection[]; profiles: Profile[]; setProfiles: React.Dispatch<React.SetStateAction<Profile[]>> }) {
@@ -125,7 +127,7 @@ export default function HardwareProfilesPage({ connections, profiles, setProfile
           <Group justify="space-between" align="center" wrap="wrap">
             <Stack gap={4}>
               <Group gap="xs"><Title order={4}>{profile.name}</Title>{activeId === profile.id && <Badge color="blue">Active profile</Badge>}</Group>
-              <Text size="xs" c="dimmed">Profiles reference stable logical device IDs. The layout never stores connection addresses.</Text>
+              <Text size="xs" c="dimmed">Profiles reference stable logical device IDs. The layout never stores connection addresses. C/MRI and Arduino adapters are configuration placeholders.</Text>
             </Stack>
             <Group gap="xs">
               <Button variant="default" leftSection={<IconCopy size={16}/>} onClick={cloneProfile}>Duplicate</Button>
