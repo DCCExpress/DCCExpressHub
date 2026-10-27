@@ -5,7 +5,7 @@ import { IconAlertTriangle, IconCheck, IconCopy, IconPlayerPlay, IconPlus, IconT
 export type ProfileConnection = { id: string; name: string; protocol: string };
 export type LogicalDevice = { id: string; name: string; category: "Turnouts" | "Sensors" | "Basic accessories" | "Signals" | "Outputs" };
 type Mapping = { connectionId: string; controlType: string; address: string; inverted?: boolean };
-type Profile = { id: string; name: string; mappings: Record<string, Mapping> };
+export type Profile = { id: string; name: string; mappings: Record<string, Mapping> };
 const makeId = () => "item-" + Math.random().toString(36).slice(2, 10);
 const initialLogical: LogicalDevice[] = [
   { id: "turnout-20", name: "Station West", category: "Turnouts" },
@@ -13,7 +13,7 @@ const initialLogical: LogicalDevice[] = [
   { id: "sensor-1001", name: "Block A1", category: "Sensors" },
   { id: "sensor-1005", name: "Mid section", category: "Sensors" },
 ];
-const initialProfiles: Profile[] = [
+export const initialProfiles: Profile[] = [
   { id: "z21", name: "Z21 Setup", mappings: {
     "turnout-20": { connectionId: "main", controlType: "DCC Basic Accessory", address: "20" },
     "turnout-21": { connectionId: "main", controlType: "DCC Basic Accessory", address: "21" },
@@ -33,9 +33,8 @@ const supported: Record<string, Record<string, string[]>> = {
   "ESP32": { Turnouts: ["Servo turnout", "Digital output turnout"], Sensors: ["Digital input"], "Basic accessories": ["Digital output"], Signals: ["Digital output"], Outputs: ["Digital output", "PWM output"] },
 };
 
-export default function HardwareProfilesPage({ connections }: { connections: ProfileConnection[] }) {
+export default function HardwareProfilesPage({ connections, profiles, setProfiles }: { connections: ProfileConnection[]; profiles: Profile[]; setProfiles: React.Dispatch<React.SetStateAction<Profile[]>> }) {
   const [logical, setLogical] = useState<LogicalDevice[]>(initialLogical);
-  const [profiles, setProfiles] = useState<Profile[]>(initialProfiles);
   const [activeId, setActiveId] = useState("z21");
   const [editingId, setEditingId] = useState("z21");
   const [category, setCategory] = useState<string>("Turnouts");
