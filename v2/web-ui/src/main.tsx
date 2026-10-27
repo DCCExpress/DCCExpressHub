@@ -30,7 +30,7 @@ function AppContent() {
                       <IconArrowLeft size={23} />
                     </ActionIcon>
                   )}
-                  <ThemeIcon size={48} radius="lg" color="teal" variant="light">
+                  <ThemeIcon size={48} radius="lg" color="blue" variant="light">
                     <IconLayoutDashboard size={27} />
                   </ThemeIcon>
                   <div>
@@ -39,7 +39,7 @@ function AppContent() {
                   </div>
                 </Group>
                 <Group gap="xs">
-                  <Badge color="teal" variant="light">V2 Development</Badge>
+                  <Badge color="blue" variant="light">V2 Development</Badge>
                   <ActionIcon variant="light" size="lg" color="gray" aria-label={colorScheme === "dark" ? "Switch to light theme" : "Switch to dark theme"} title={colorScheme === "dark" ? "Light theme" : "Dark theme"} onClick={() => setColorScheme(colorScheme === "dark" ? "light" : "dark")}>
                     {colorScheme === "dark" ? <IconSun size={20}/> : <IconMoon size={20}/>}
                   </ActionIcon>
@@ -70,7 +70,7 @@ function AppContent() {
                   onClick={() => setPage("layout")}
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setPage("layout"); } }}
                 >
-                  <ThemeIcon size={48} radius="lg" color="teal" variant="light">
+                  <ThemeIcon size={48} radius="lg" color="blue" variant="light">
                     <IconMap size={27} />
                   </ThemeIcon>
                   <Title order={4} mt="md">Layout</Title>
@@ -84,7 +84,7 @@ function AppContent() {
             ) : (
               <Card withBorder radius={5} p="xl">
                 <Group gap="sm" mb="md">
-                  <ThemeIcon size={42} color="teal" variant="light">
+                  <ThemeIcon size={42} color="blue" variant="light">
                     <IconMap size={24} />
                   </ThemeIcon>
                   <Title order={3}>Layout</Title>
@@ -99,5 +99,5 @@ function AppContent() {
 }
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode><MantineProvider defaultColorScheme="dark"><AppContent /></MantineProvider></React.StrictMode>
+  <React.StrictMode><MantineProvider defaultColorScheme="dark" theme={{ primaryColor: "blue" }}><AppContent /></MantineProvider></React.StrictMode>
 );
