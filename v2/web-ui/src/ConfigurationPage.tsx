@@ -103,7 +103,7 @@ export default function ConfigurationPage() {
               <button key={c.id} type="button" onClick={() => changeConnection(c.id)}
                 className={"connection-item" + (selectedId === c.id ? " connection-item-active" : "")}>
                 <Group gap="sm" wrap="nowrap">
-                  <ThemeIcon color={c.enabled ? "teal" : "gray"} variant="light" size="lg" radius="md"><IconRouter size={20}/></ThemeIcon>
+                  <ThemeIcon color={c.enabled ? "blue" : "gray"} variant="light" size="lg" radius="md"><IconRouter size={20}/></ThemeIcon>
                   <Box style={{ minWidth: 0, flex: 1 }}>
                     <Text size="sm" fw={600} truncate>{c.name}</Text>
                     <Text size="xs" c="dimmed">{c.protocol}</Text>
@@ -123,10 +123,10 @@ export default function ConfigurationPage() {
                 <Title order={3}>{connection.name}</Title>
                 <Group gap="xs" mt={5}>
                   <Badge variant="light" color="blue">{connection.protocol}</Badge>
-                  <Badge variant="light" color={connection.enabled ? "teal" : "gray"}>{connection.enabled ? "Enabled" : "Disabled"}</Badge>
+                  <Badge variant="light" color={connection.enabled ? "blue" : "gray"}>{connection.enabled ? "Enabled" : "Disabled"}</Badge>
                 </Group>
               </div>
-              <ThemeIcon size={42} variant="light" color="teal"><IconPlugConnected size={24}/></ThemeIcon>
+              <ThemeIcon size={42} variant="light" color="blue"><IconPlugConnected size={24}/></ThemeIcon>
             </Group>
             <Tabs value={tab} onChange={value => { setTab(value || "Device"); setQuery(""); }} variant="outline" keepMounted={false}>
               <ScrollArea scrollbarSize={6} type="auto">
@@ -166,7 +166,7 @@ export default function ConfigurationPage() {
                           {shown.map(d => <Table.Tr key={d.id}>
                             <Table.Td><Text fw={500} size="sm">{d.name}</Text></Table.Td>
                             <Table.Td>{d.address}</Table.Td>
-                            <Table.Td><Badge variant="light" color={d.mapped ? "teal" : "orange"}>{d.mapped ? d.bindingType : "Unmapped"}</Badge></Table.Td>
+                            <Table.Td><Badge variant="light" color={d.mapped ? "blue" : "orange"}>{d.mapped ? d.bindingType : "Unmapped"}</Badge></Table.Td>
                             <Table.Td><Group gap={4} justify="end" wrap="nowrap">
                               <Button size="compact-xs" variant="subtle" onClick={() => { setDeviceDraft(d); setDialog("device"); }}>Edit</Button>
                               <ActionIcon size="sm" color="red" variant="subtle" aria-label={"Remove " + d.name}
