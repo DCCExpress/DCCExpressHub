@@ -90,37 +90,31 @@ export default function SignalsPage({ profiles, outputs, signals, setSignals }: 
         <Button disabled={!editing?.name.trim() || !editing.aspects.length || editing.aspects.some(a => !a.name.trim())} onClick={save}>Apply</Button></>}>
       {editing && <Stack gap="md">
         <TextInput label="Signal name" value={editing.name} onChange={e => setEditing({ ...editing, name:e.currentTarget.value })}/>
-        <Group justify="space-between"><Text fw={600}>Aspects</Text><Button size="xs" variant="light" leftSection={<IconPlus size={14}/>} onClick={addAspect}>Add aspect</Button></Group>
-        {editing.aspects.map(a => <Group key={a.id} grow={false} wrap="nowrap">
-          <TextInput aria-label="Aspect name" placeholder="Aspect name" value={a.name} style={{ flex:1 }}
-            onChange={e => changeAspect(a.id, { name:e.currentTarget.value })}/>
-          <ColorInput aria-label={"Color for " + a.name} format="hex" w={135} value={a.color}
-            onChange={color => changeAspect(a.id,{color})} popoverProps={{ withinPortal:true, zIndex:1300 }}/>
-          <ActionIcon color="red" variant="subtle" aria-label={"Remove " + a.name} onClick={() => removeAspect(a.id)}><IconTrash size={16}/></ActionIcon>
-        </Group>)}
-        <Divider/>
         <Select label="Hardware profile" value={selectedProfile || null} allowDeselect={false} comboboxProps={popover}
           data={profiles.map(p => ({ value:p.id, label:p.name }))} onChange={v => v && setSelectedProfile(v)}/>
         <Select label="Signal control mode" value={mapping.mode} allowDeselect={false} comboboxProps={popover}
           data={[{value:"extended",label:"One existing Extended accessory (aspect value)"},{value:"outputs",label:"Existing Basic accessories / outputs (multiple actions)"}]}
           onChange={v => v && changeMapping(m => ({ ...m, mode:v as ProfileMapping["mode"] }))}/>
-        {mapping.mode === "extended" ? <Stack gap="sm">
+        {mapping.mode === "extended" && <Stack gap="sm">
           <Select label="Extended accessory" placeholder="Choose an existing logical extended accessory" searchable clearable
             comboboxProps={popover} data={extendedOptions} value={mapping.extendedId || null}
             onChange={v => changeMapping(m => ({ ...m, extendedId:v ?? "" }))}/>
           {!extendedOptions.length && <Text size="xs" c="orange">First create and map an Extended accessory in Hardware Profiles.</Text>}
-          {editing.aspects.map(a => <Group key={a.id} justify="space-between" wrap="nowrap">
-            <Group gap="xs"><span style={{width:12,height:12,borderRadius:"50%",background:a.color}}/><Text size="sm">{a.name}</Text></Group>
-            <NumberInput w={125} label="Value (0–255)" min={0} max={255} clampBehavior="strict" allowDecimal={false}
-              value={mapping.values[a.id] ?? 0} onChange={v => typeof v === "number" && changeMapping(m => ({
-                ...m, values:{...m.values,[a.id]:v}
-              }))}/>
-          </Group>)}
-        </Stack> : <Stack gap="md">
-          {!outputOptions.length && <Text size="xs" c="orange">First create and map Basic accessories or Outputs in Hardware Profiles.</Text>}
-          {editing.aspects.map(a => <Card withBorder p="sm" key={a.id}>
-            <Group justify="space-between" mb="xs">
-              <Group gap="xs"><span style={{width:12,height:12,borderRadius:"50%",background:a.color}}/><Text fw={600} size="sm">{a.name}</Text></Group>
+        </Stack>}
+        <Group justify="space-between"><Text fw={600}>Aspects</Text><Button size="xs" variant="light" leftSection={<IconPlus size={14}/>} onClick={addAspect}>Add aspect</Button></Group>
+        {editing.aspects.map(a => <Card withBorder p="sm" key={a.id}>
+          <Group align="end" gap="xs" wrap="wrap">
+            <TextInput label="Aspect" value={a.name} style={{flex:"1 1 120px"}} onChange={e => changeAspect(a.id,{name:e.currentTarget.value})}/>
+            <Select label="Color (optional)" data={colorChoices} w={130} comboboxProps={popover}
+              value={a.color || ""} allowDeselect={false} onChange={v => changeAspect(a.id,{color:v ?? ""})}/>
+            {mapping.mode === "extended" && <NumberInput label="Value" w={95} min={0} max={255} clampBehavior="strict" allowDecimal={false}
+              value={mapping.values[a.id] ?? 0} onChange={v => typeof v === "number" && changeMapping(m => ({...m,values:{...m.values,[a.id]:v}}))}/>}
+            <Button size="sm" variant="light" leftSection={<IconPlayerPlay size={14}/>} disabled title="Runtime API not implemented">Test</Button>
+            <ActionIcon color="red" variant="subtle" size="lg" aria-label={"Remove "+a.name} onClick={() => removeAspect(a.id)}><IconTrash size={16}/></ActionIcon>
+          </Group>
+          {mapping.mode === "outputs" && <>
+            <Group justify="space-between" mt="sm" mb="xs">
+              <Text size="xs" c="dimmed">Output actions</Text>
               <Button size="compact-xs" leftSection={<IconPlus size={12}/>} variant="light"
                 onClick={() => changeActions(a.id, items => [...items,{id:id(),targetId:"",value:1}])}>Add output</Button>
             </Group>
@@ -134,8 +128,8 @@ export default function SignalsPage({ profiles, outputs, signals, setSignals }: 
               <ActionIcon size="sm" color="red" variant="subtle" aria-label="Remove output"
                 onClick={() => changeActions(a.id, items => items.filter(x => x.id !== action.id))}><IconTrash size={15}/></ActionIcon>
             </Group>)}
-          </Card>)}
-        </Stack>}
+          </>}
+        </Card>)}
         <Text size="xs" c="dimmed">Aspects and colors belong to the logical signal. Hardware output assignments belong to the selected profile. Multiple output actions can be assigned to each aspect.</Text>
       </Stack>}
     </AppWindow>
