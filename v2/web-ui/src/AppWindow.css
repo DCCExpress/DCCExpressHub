@@ -1,5 +1,6 @@
 .app-window-backdrop { position: fixed; inset: 0; z-index: 1100; background: rgba(5, 12, 25, .58); backdrop-filter: blur(2px); }
-.app-window { z-index: 1101 !important; background: var(--mantine-color-body); display: flex; flex-direction: column; height: min(740px, calc(100dvh - 32px)); max-height: calc(100dvh - 32px); overflow: visible; }
+.app-window { z-index: 1101 !important; background: var(--mantine-color-body); display: flex; flex-direction: column; max-height: calc(100dvh - 32px); overflow: visible; }
+.app-window-fixed-height { height: min(740px, calc(100dvh - 32px)); }
 .app-window-header { cursor: move; user-select: none; flex: 0 0 auto; border-radius: var(--mantine-radius-md) var(--mantine-radius-md) 0 0; }
 .app-window-header-blue { background: linear-gradient(105deg, var(--mantine-color-blue-8), var(--mantine-color-cyan-7)); }
 .app-window-header-red { background: linear-gradient(105deg, var(--mantine-color-red-8), var(--mantine-color-red-6)); }
