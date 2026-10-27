@@ -38,28 +38,48 @@ public sealed class HubRuntime : IAsyncDisposable
         {
             ctx.Response.ContentType = "application/json";
             await ctx.Response.Send(
-                "{\"status\":\"ok\",\"application\":\"DCCExpressHub V2\"}", ctx.Token);
+                "{\\\"status\\\":\\\"ok\\\",\\\"application\\\":\\\"DCCExpressHub V2\\\"}", ctx.Token);
             return;
         }
 
-        if (ctx.Request.Method != WatsonWebserver.Core.HttpMethod.GET
-            || (path != "/" && path != "/index.html"))
+        if (ctx.Request.Method != WatsonWebserver.Core.HttpMethod.GET)
+        {
+            ctx.Response.StatusCode = 405;
+            await ctx.Response.Send("Method not allowed", ctx.Token);
+            return;
+        }
+
+        var relative = (path == "/" ? "index.html" : path.TrimStart('/'))
+            .Replace('/', Path.DirectorySeparatorChar);
+        var root = Path.GetFullPath(_webRoot) + Path.DirectorySeparatorChar;
+        var file = Path.GetFullPath(Path.Combine(_webRoot, relative));
+        if (!file.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+        {
+            ctx.Response.StatusCode = 403;
+            await ctx.Response.Send("Forbidden", ctx.Token);
+            return;
+        }
+
+        if (!File.Exists(file))
         {
             ctx.Response.StatusCode = 404;
             await ctx.Response.Send("Not found", ctx.Token);
             return;
         }
 
-        var file = Path.Combine(_webRoot, "index.html");
-        if (!File.Exists(file))
+        ctx.Response.ContentType = Path.GetExtension(file).ToLowerInvariant() switch
         {
-            ctx.Response.StatusCode = 404;
-            await ctx.Response.Send("UI not found", ctx.Token);
-            return;
-        }
-
-        ctx.Response.ContentType = "text/html; charset=utf-8";
-        await ctx.Response.Send(await File.ReadAllTextAsync(file), ctx.Token);
+            ".html" => "text/html; charset=utf-8",
+            ".js" => "text/javascript; charset=utf-8",
+            ".css" => "text/css; charset=utf-8",
+            ".json" => "application/json",
+            ".svg" => "image/svg+xml",
+            ".png" => "image/png",
+            ".ico" => "image/x-icon",
+            ".woff2" => "font/woff2",
+            _ => "application/octet-stream"
+        };
+        await ctx.Response.Send(await File.ReadAllBytesAsync(file), ctx.Token);
     }
 
     public Task StopAsync()
