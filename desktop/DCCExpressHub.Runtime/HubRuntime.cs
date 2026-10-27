@@ -1,3 +1,7 @@
+using DCCExpressHub.Net.CommandCenter;
+using DCCExpressHub.Net.Web;
+using Microsoft.Extensions.Hosting;
+
 namespace DCCExpressHub.Net;
 
 public sealed class HubRuntime : IAsyncDisposable
@@ -8,9 +12,6 @@ public sealed class HubRuntime : IAsyncDisposable
     public async Task StartAsync(string[]? args = null, CancellationToken ct = default)
     {
         if (_host is not null) throw new InvalidOperationException("Hub already started");
-    using DCCExpressHub.Net.CommandCenter;
-    using Microsoft.Extensions.Hosting;
-    using DCCExpressHub.Net.Web;
     
     var builder = Host.CreateApplicationBuilder(args);
     
