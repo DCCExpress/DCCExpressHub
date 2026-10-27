@@ -85,10 +85,10 @@ function App() {
             ) : (
               <Card withBorder radius={5} p="xl">
                 <Group gap="sm" mb="md">
-                  <ThemeIcon size={42} color={page === "configuration" ? "blue" : "teal"} variant="light">
-                    {page === "configuration" ? <IconSettings size={24} /> : <IconMap size={24} />}
+                  <ThemeIcon size={42} color="teal" variant="light">
+                    <IconMap size={24} />
                   </ThemeIcon>
-                  <Title order={3}>{page === "configuration" ? "Configuration" : "Layout"}</Title>
+                  <Title order={3}>Layout</Title>
                 </Group>
                 <Text c="dimmed" size="sm">This section is ready for development.</Text>
               </Card>
