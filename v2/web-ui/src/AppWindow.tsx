@@ -31,7 +31,8 @@ export default function AppWindow({ opened, onClose, title, children, footer, to
 
   if (!opened) return null;
   const actualWidth = Math.min(width, Math.max(280, window.innerWidth - 32));
-  const start = { left: Math.max(16, (window.innerWidth - actualWidth) / 2), top: Math.max(16, (window.innerHeight - 230) / 2) };
+  const actualHeight = Math.min(740, Math.max(200, window.innerHeight - 32));
+  const start = { left: Math.max(16, (window.innerWidth - actualWidth) / 2), top: Math.max(16, (window.innerHeight - (fixedHeight ? actualHeight : 230)) / 2) };
   return (
     <Portal>
       <div className="app-window-backdrop" aria-hidden="true" onClick={onClose} />
@@ -47,6 +48,7 @@ export default function AppWindow({ opened, onClose, title, children, footer, to
           shadow="xl"
           radius="md"
           w={actualWidth}
+          h={fixedHeight ? actualHeight : undefined}
           initialPosition={start}
           constrainToViewport
           constrainOffset={8}
