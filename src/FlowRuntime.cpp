@@ -1191,10 +1191,6 @@ void FlowRuntime::onRuntimeChange(
 
       payload["eventType"] =
           "sensorChanged";
-      payload["address"] =
-          id;
-      payload["on"] =
-          on;
       payload["sensorAddress"] =
           id;
       payload["sensorState"] =
