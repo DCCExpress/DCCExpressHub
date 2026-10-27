@@ -84,12 +84,14 @@ type TimetableDialogProps = {
 type ScheduleMode =
   | "time"
   | "interval"
+  | "offset"
   | "cron";
 
 type EditorSchedule = {
   mode: ScheduleMode;
   time: string;
   intervalMinutes: number;
+  offset: string;
   cron: string;
 };
 
@@ -103,6 +105,9 @@ function parseCronEditor(
 ): EditorSchedule {
   const value =
     cron.trim();
+
+  if (/^\+\d{1,3}:[0-5]\d:[0-5]\d$/.test(value))
+    return { mode: "offset", time: "08:00", intervalMinutes: 5, offset: value, cron: value };
 
   const exact =
     value.match(
@@ -143,6 +148,7 @@ function parseCronEditor(
           )}`,
         intervalMinutes:
           5,
+        offset: "+00:00:10",
         cron:
           value,
       };
@@ -185,7 +191,8 @@ function parseCronEditor(
       "08:00",
     intervalMinutes:
       5,
-    cron:
+    offset: "+00:00:10",
+        cron:
       value ||
       "*/5 *",
   };
@@ -195,6 +202,8 @@ function cronFromEditor(
   editor:
     EditorSchedule
 ): string {
+  if (editor.mode === "offset") return editor.offset.trim();
+
   if (
     editor.mode ===
     "time"
@@ -308,7 +317,8 @@ function createEditorRow(
         "08:00",
       intervalMinutes:
         5,
-      cron:
+      offset: "+00:00:10",
+        cron:
         "0 8",
     },
   };
@@ -1057,6 +1067,7 @@ export default function TimetableDialog({
                                             "ui.timetableEveryNMinutes"
                                           ),
                                       },
+                                      { value: "offset", label: "Current + Offset" },
                                       {
                                         value:
                                           "cron",
