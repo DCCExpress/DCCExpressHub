@@ -66,16 +66,15 @@ export default function HardwareProfilesPage({ connections, profiles, setProfile
     }, { missing: 0, invalid: 0, valid: 0 });
   }, [profile, logical, connections]);
 
-  const invalidByCategory = useMemo(() => {
-    const counts: Record<string, number> = {};
+  const issuesByCategory = useMemo(() => {
+    const counts: Record<string, { invalid: number; unmapped: number }> = {};
     if (!profile) return counts;
     for (const device of logical) {
       const m = profile.mappings[device.id];
-      // Missing mappings are tracked separately as "Unmapped", not "Invalid".
-      if (m?.connectionId && m.address.trim() && m.controlType &&
-          !availableTypes(m.connectionId, device.category).includes(m.controlType)) {
-        counts[device.category] = (counts[device.category] ?? 0) + 1;
-      }
+      const entry = counts[device.category] ?? { invalid: 0, unmapped: 0 };
+      if (!m?.connectionId || !m.address.trim() || !m.controlType) entry.unmapped++;
+      else if (!availableTypes(m.connectionId, device.category).includes(m.controlType)) entry.invalid++;
+      counts[device.category] = entry;
     }
     return counts;
   }, [profile, logical, connections]);
@@ -154,9 +153,14 @@ export default function HardwareProfilesPage({ connections, profiles, setProfile
               <Tabs.Tab key={t} value={t}>
                 <Group gap={6} wrap="nowrap">
                   <span>{t}</span>
-                  {(invalidByCategory[t] ?? 0) > 0 && (
-                    <Badge size="xs" color="red" variant="filled" circle aria-label={invalidByCategory[t] + " invalid devices"}>
-                      {invalidByCategory[t]}
+                  {(issuesByCategory[t]?.invalid ?? 0) > 0 && (
+                    <Badge size="xs" color="red" variant="filled" circle title="Invalid" aria-label={issuesByCategory[t].invalid + " invalid devices"}>
+                      {issuesByCategory[t].invalid}
+                    </Badge>
+                  )}
+                  {(issuesByCategory[t]?.unmapped ?? 0) > 0 && (
+                    <Badge size="xs" color="orange" variant="filled" circle title="Unmapped" aria-label={issuesByCategory[t].unmapped + " unmapped devices"}>
+                      {issuesByCategory[t].unmapped}
                     </Badge>
                   )}
                 </Group>
