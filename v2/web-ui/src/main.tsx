@@ -11,12 +11,11 @@ import { IconArrowLeft, IconLayoutDashboard, IconMap, IconSettings, IconMoon, Ic
 
 type Page = "home" | "configuration" | "layout";
 
-function App() {
+function AppContent() {
   const [page, setPage] = useState<Page>("home");
   const { colorScheme, setColorScheme } = useMantineColorScheme();
 
   return (
-    <MantineProvider defaultColorScheme="dark">
       <Box className="app-shell">
         <Container size="lg" py="xl">
           <Stack gap="md">
@@ -96,10 +95,9 @@ function App() {
           </Stack>
         </Container>
       </Box>
-    </MantineProvider>
   );
 }
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode><App /></React.StrictMode>
+  <React.StrictMode><MantineProvider defaultColorScheme="dark"><AppContent /></MantineProvider></React.StrictMode>
 );
