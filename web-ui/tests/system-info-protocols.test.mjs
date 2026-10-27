@@ -69,7 +69,7 @@ test("LocoNet transports only frame packets; they do not program CVs", () => {
 });
 
 test("both LocoNet runtime transports resolve to one command center", () => {
-  const program = read("../desktop/DCCExpressHub.Net/Program.cs");
+  const program = read("../desktop/DCCExpressHub.Runtime/HubRuntime.cs");
   const bridge = read("../desktop/DCCExpressHub.Net/CommandCenter/ConfiguredCommandCenter.cs");
   const ws = read("../desktop/DCCExpressHub.Net/Web/WsHub.cs");
   assert.match(program, /if \(useLocoNetSerial \|\| useLocoNetTcp\)/);

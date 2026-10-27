@@ -2148,7 +2148,8 @@ namespace DCCExpressHub.Desktop
             env["ASPNETCORE_CONTENTROOT"] = workspace;
             env["ASPNETCORE_WEBROOT"] = webRoot;
 
-            _backendShutdownToken = null;
+            _backendShutdownToken = Guid.NewGuid().ToString("N");
+            env["DCCEXPRESS_DESKTOP_SHUTDOWN_TOKEN"] = _backendShutdownToken;
 
 
 
@@ -2239,7 +2240,7 @@ namespace DCCExpressHub.Desktop
             _hub = runtime;
             try
             {
-                await Task.Run(() => runtime.StartAsync());
+                await Task.Run(() => runtime.StartAsync(log: line => AppendServerLog("HUB", line)));
             }
             catch
             {

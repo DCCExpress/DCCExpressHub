@@ -9,11 +9,13 @@ public sealed class HubRuntime : IAsyncDisposable
     private IHost? _host;
     public bool IsRunning => _host is not null;
 
-    public async Task StartAsync(string[]? args = null, CancellationToken ct = default)
+    public async Task StartAsync(string[]? args = null, CancellationToken ct = default, Action<string>? log = null)
     {
         if (_host is not null) throw new InvalidOperationException("Hub already started");
     
     var builder = Host.CreateApplicationBuilder(args);
+    if (log is not null)
+        builder.Logging.AddProvider(new RuntimeLogProvider(log));
     
     var contentRoot =
         Environment.GetEnvironmentVariable(
@@ -335,6 +337,12 @@ public sealed class HubRuntime : IAsyncDisposable
     _ = app.Services.GetRequiredService<PrecisionBrakingRuntime>();
     _host = app;
     await app.StartAsync(ct);
+    }
+
+    public Task WaitForShutdownAsync(CancellationToken ct = default)
+    {
+        var host = _host ?? throw new InvalidOperationException("Hub is not started");
+        return host.WaitForShutdownAsync(ct);
     }
 
     public async Task StopAsync(CancellationToken ct = default)
