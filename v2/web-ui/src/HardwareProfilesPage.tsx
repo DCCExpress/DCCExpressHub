@@ -66,6 +66,20 @@ export default function HardwareProfilesPage({ connections, profiles, setProfile
     }, { missing: 0, invalid: 0, valid: 0 });
   }, [profile, logical, connections]);
 
+  const invalidByCategory = useMemo(() => {
+    const counts: Record<string, number> = {};
+    if (!profile) return counts;
+    for (const device of logical) {
+      const m = profile.mappings[device.id];
+      // Missing mappings are tracked separately as "Unmapped", not "Invalid".
+      if (m?.connectionId && m.address.trim() && m.controlType &&
+          !availableTypes(m.connectionId, device.category).includes(m.controlType)) {
+        counts[device.category] = (counts[device.category] ?? 0) + 1;
+      }
+    }
+    return counts;
+  }, [profile, logical, connections]);
+
   function addProfile() {
     if (!profileName.trim()) return;
     const id = makeId();
@@ -136,7 +150,18 @@ export default function HardwareProfilesPage({ connections, profiles, setProfile
             <Button variant="light" size="xs" leftSection={<IconPlus size={14}/>} onClick={() => setAddingLogical(true)}>Logical device</Button>
           </Group>
           <Tabs value={category} onChange={x => setCategory(x || "Turnouts")}>
-            <Tabs.List>{(["Turnouts", "Sensors", "Basic accessories", "Signals", "Outputs"] as const).map(t => <Tabs.Tab key={t} value={t}>{t}</Tabs.Tab>)}</Tabs.List>
+            <Tabs.List>{(["Turnouts", "Sensors", "Basic accessories", "Signals", "Outputs"] as const).map(t =>
+              <Tabs.Tab key={t} value={t}>
+                <Group gap={6} wrap="nowrap">
+                  <span>{t}</span>
+                  {(invalidByCategory[t] ?? 0) > 0 && (
+                    <Badge size="xs" color="red" variant="filled" circle aria-label={invalidByCategory[t] + " invalid devices"}>
+                      {invalidByCategory[t]}
+                    </Badge>
+                  )}
+                </Group>
+              </Tabs.Tab>
+            )}</Tabs.List>
           </Tabs>
           <Table.ScrollContainer minWidth={800}>
             <Table striped highlightOnHover verticalSpacing="md">
