@@ -33,7 +33,7 @@ export default function SignalsPage({ profiles, outputs, signals, setSignals }: 
       if (!current) return null;
       const all = { ...current.mappings };
       const forProfile = { ...all[selectedProfile] };
-      forProfile[aspectId] = { targetId:"", value:0, ...forProfile[aspectId], ...patch };
+      forProfile[aspectId] = { ...(forProfile[aspectId] ?? { targetId: "", value: 0 }), ...patch };
       all[selectedProfile] = forProfile;
       return { ...current, mappings:all };
     });
