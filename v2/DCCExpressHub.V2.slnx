@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="DCCExpressHub.V2.Runtime/DCCExpressHub.V2.Runtime.csproj" />
+  <Project Path="DCCExpressHub.V2.Host/DCCExpressHub.V2.Host.csproj" />
+</Solution>
