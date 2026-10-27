@@ -10,7 +10,7 @@ type ProfileMapping = { mode: "extended" | "outputs"; extendedId: string; values
 export type Signal = { id: string; name: string; aspects: Aspect[]; mappings: Record<string, ProfileMapping> };
 export type SignalOutput = { id: string; name: string; category: string };
 const id = () => "id-" + Math.random().toString(36).slice(2, 10);
-const colorChoices = [{value:"",label:"None"},{value:"#fa5252",label:"Red"},{value:"#40c057",label:"Green"},{value:"#fab005",label:"Yellow"},{value:"#228be6",label:"Blue"},{value:"#ffffff",label:"White"}];
+const colorChoices = [{value:"#fa5252",label:"Red"},{value:"#40c057",label:"Green"},{value:"#fab005",label:"Yellow"},{value:"#228be6",label:"Blue"},{value:"#ffffff",label:"White"}];
 const defaultAspects: Aspect[] = [{ id: id(), name: "Stop", color: "#fa5252" }, { id: id(), name: "Proceed", color: "#40c057" }];
 export const initialSignals: Signal[] = [];
 const defaultMapping = (): ProfileMapping => ({ mode: "extended", extendedId: "", values: {}, actions: {} });
@@ -105,8 +105,17 @@ export default function SignalsPage({ profiles, outputs, signals, setSignals }: 
         {editing.aspects.map(a => <Card withBorder p="sm" key={a.id}>
           <Group align="end" gap="xs" wrap="wrap">
             <TextInput label="Aspect" value={a.name} style={{flex:"1 1 120px"}} onChange={e => changeAspect(a.id,{name:e.currentTarget.value})}/>
-            <Select label="Color (optional)" data={colorChoices} w={130} comboboxProps={popover}
-              value={a.color || ""} allowDeselect={false} onChange={v => changeAspect(a.id,{color:v ?? ""})}/>
+            <Stack gap={5}>
+              <Text size="xs" fw={500}>Color</Text>
+              <Group gap={6} wrap="nowrap">
+                {colorChoices.map(c => <ActionIcon key={c.value} variant="transparent" size={27}
+                  aria-label={c.label} title={c.label} aria-pressed={a.color === c.value}
+                  onClick={() => changeAspect(a.id,{color:c.value})}
+                  style={{ borderRadius:"50%", border:a.color === c.value ? "2px solid var(--mantine-primary-color-filled)" : "2px solid transparent" }}>
+                  <span style={{ width:18, height:18, borderRadius:"50%", background:c.value, border:"1px solid #777", boxShadow:a.color === c.value ? "0 0 0 2px var(--mantine-color-body)" : undefined }}/>
+                </ActionIcon>)}
+              </Group>
+            </Stack>
             {mapping.mode === "extended" && <NumberInput label="Value" w={95} min={0} max={255} clampBehavior="strict" allowDecimal={false}
               value={mapping.values[a.id] ?? 0} onChange={v => typeof v === "number" && changeMapping(m => ({...m,values:{...m.values,[a.id]:v}}))}/>}
             <Button size="sm" variant="light" leftSection={<IconPlayerPlay size={14}/>} disabled title="Runtime API not implemented">Test</Button>
