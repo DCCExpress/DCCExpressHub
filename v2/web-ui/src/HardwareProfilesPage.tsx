@@ -40,6 +40,7 @@ export default function HardwareProfilesPage({ connections }: { connections: Pro
   const [editingId, setEditingId] = useState("z21");
   const [category, setCategory] = useState<string>("Turnouts");
   const [addingProfile, setAddingProfile] = useState(false);
+  const [deletingProfile, setDeletingProfile] = useState(false);
   const [profileName, setProfileName] = useState("");
   const [addingLogical, setAddingLogical] = useState(false);
   const [logicalName, setLogicalName] = useState("");
@@ -78,6 +79,13 @@ export default function HardwareProfilesPage({ connections }: { connections: Pro
     setProfiles(items => [...items, { id, name: profile.name + " (copy)", mappings: structuredClone(profile.mappings) }]);
     setEditingId(id);
   }
+  function deleteProfile() {
+    if (!profile || profile.id === activeId) return;
+    setProfiles(items => items.filter(p => p.id !== profile.id));
+    setEditingId(activeId);
+    setDeletingProfile(false);
+    setWarning("");
+  }
   function activate() {
     if (validation.missing || validation.invalid) {
       setWarning("Complete and validate all device mappings before activating this profile.");
@@ -109,6 +117,9 @@ export default function HardwareProfilesPage({ connections }: { connections: Pro
             </Stack>
             <Group gap="xs">
               <Button variant="default" leftSection={<IconCopy size={16}/>} onClick={cloneProfile}>Duplicate</Button>
+              <Button color="red" variant="light" leftSection={<IconTrash size={16}/>}
+                disabled={profile.id === activeId} title={profile.id === activeId ? "Switch to another profile before deleting this one" : "Delete profile"}
+                onClick={() => setDeletingProfile(true)}>Delete</Button>
               <Button leftSection={<IconCheck size={16}/>} disabled={activeId === profile.id || validation.missing > 0 || validation.invalid > 0} onClick={activate}>Set active</Button>
             </Group>
           </Group>
@@ -161,6 +172,15 @@ export default function HardwareProfilesPage({ connections }: { connections: Pro
         </Card>
         <Text size="xs" c="dimmed">Prototype only: profile activation changes the UI selection, not live hardware. Mappings are not yet persisted to the backend.</Text>
       </>}
+      <Modal opened={deletingProfile} onClose={() => setDeletingProfile(false)} title="Delete hardware profile?" centered>
+        <Stack gap="md">
+          <Text size="sm">Delete <strong>{profile?.name}</strong> and all of its hardware mappings? Logical devices and connections will be preserved.</Text>
+          <Group justify="end">
+            <Button variant="default" onClick={() => setDeletingProfile(false)}>Cancel</Button>
+            <Button color="red" leftSection={<IconTrash size={16}/>} onClick={deleteProfile}>Delete profile</Button>
+          </Group>
+        </Stack>
+      </Modal>
       <Modal opened={addingProfile} onClose={() => setAddingProfile(false)} title="New hardware profile" centered>
         <Stack><TextInput label="Profile name" placeholder="e.g. DCC-EX Setup" value={profileName} onChange={e => setProfileName(e.currentTarget.value)}/>
           <Button disabled={!profileName.trim()} onClick={addProfile}>Create profile</Button></Stack>
