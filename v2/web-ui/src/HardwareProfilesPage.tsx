@@ -1,5 +1,5 @@
-import ConfigPickerInput from "./ConfigPickerInput";
-import DeviceConfigWindow, { defaultFeedback, type DeviceAdvancedConfig } from "./DeviceConfigWindow";
+import HardwareDeviceDialog, { type DeviceFormData } from "./HardwareDeviceDialog";
+import type { DeviceAdvancedConfig } from "./DeviceConfigWindow";
 import { useMemo, useState } from "react";
 import { ActionIcon, Alert, Badge, Button, Card, Divider, Group, Modal, NumberInput, Select, Stack, Switch, Table, Tabs, Text, TextInput, Title, Tooltip } from "@mantine/core";
 import { IconAlertTriangle, IconCheck, IconCopy, IconPlayerPlay, IconPlus, IconTrash } from "@tabler/icons-react";
@@ -49,7 +49,9 @@ export default function HardwareProfilesPage({ connections, profiles, setProfile
   const [logicalName, setLogicalName] = useState("");
   const [draftCategory, setDraftCategory] = useState<LogicalDevice["category"]>("Turnouts");
   const [warning, setWarning] = useState("");
-  const [configDeviceId, setConfigDeviceId] = useState<string | null>(null);
+  const [deviceDraft, setDeviceDraft] = useState<DeviceFormData | null>(null);
+  const [deviceNew, setDeviceNew] = useState(false);
+  const [deleteDeviceId, setDeleteDeviceId] = useState<string | null>(null);
   const profile = profiles.find(p => p.id === editingId);
   const connById = (id: string) => connections.find(c => c.id === id);
   const updateMapping = (id: string, value: Mapping | null) =>
@@ -112,6 +114,34 @@ export default function HardwareProfilesPage({ connections, profiles, setProfile
     setWarning("");
   }
   const deviceRows = logical.filter(x => x.category === category);
+  function openEditor(device: LogicalDevice) {
+    const mapping = profile?.mappings[device.id];
+    setDeviceNew(false);
+    setDeviceDraft({ id:device.id, name:device.name, category:device.category, connectionId:mapping?.connectionId ?? "",
+      controlType:mapping?.controlType ?? "", address:mapping?.address ?? "", inverted:mapping?.inverted,
+      testValue:mapping?.testValue, advanced:mapping?.advanced });
+  }
+  function createDevice() {
+    setDeviceNew(true);
+    setDeviceDraft({ id:makeId(), name:"", category, connectionId:"", controlType:"", address:"", testValue:0 });
+  }
+  function saveEditor(draft: DeviceFormData) {
+    if (deviceNew) setLogical(items => [...items, { id:draft.id, name:draft.name, category:draft.category as LogicalDevice["category"] }]);
+    else setLogical(items => items.map(d => d.id === draft.id ? { ...d, name:draft.name } : d));
+    updateMapping(draft.id, { connectionId:draft.connectionId, controlType:draft.controlType, address:draft.address,
+      inverted:draft.inverted, testValue:draft.testValue, advanced:draft.advanced });
+    setDeviceDraft(null);
+  }
+  function deleteLogicalDevice() {
+    if (!deleteDeviceId) return;
+    setLogical(items => items.filter(d => d.id !== deleteDeviceId));
+    setProfiles(items => items.map(p => {
+      const mappings = { ...p.mappings };
+      delete mappings[deleteDeviceId];
+      return { ...p, mappings };
+    }));
+    setDeleteDeviceId(null);
+  }
   return (
     <Stack gap="md">
       <Group justify="space-between" align="center">
@@ -151,7 +181,7 @@ export default function HardwareProfilesPage({ connections, profiles, setProfile
         <Card withBorder radius="md" p="md">
           <Group justify="space-between" mb="sm">
             <Text fw={600}>Logical devices → physical bindings</Text>
-            <Button variant="light" size="xs" leftSection={<IconPlus size={14}/>} onClick={() => setAddingLogical(true)}>Logical device</Button>
+            <Button variant="light" size="xs" leftSection={<IconPlus size={14}/>} onClick={createDevice}>New device</Button>
           </Group>
           <Tabs value={category} onChange={x => setCategory(x || "Turnouts")}>
             <Tabs.List>{(["Turnouts", "Sensors", "Basic accessories", "Extended accessories", "Signals", "Outputs"] as const).map(t =>
@@ -172,78 +202,44 @@ export default function HardwareProfilesPage({ connections, profiles, setProfile
               </Tabs.Tab>
             )}</Tabs.List>
           </Tabs>
-          <Table.ScrollContainer minWidth={1100}>
+          <Table.ScrollContainer minWidth={770}>
             <Table striped highlightOnHover verticalSpacing="md">
-              <Table.Thead><Table.Tr><Table.Th>Logical device</Table.Th><Table.Th>Connection</Table.Th><Table.Th>Control type</Table.Th><Table.Th>Address / ID</Table.Th><Table.Th>{category === "Extended accessories" ? "Value" : "Invert"}</Table.Th><Table.Th>Test</Table.Th><Table.Th>Configuration</Table.Th><Table.Th>Current state</Table.Th><Table.Th>Mapping</Table.Th></Table.Tr></Table.Thead>
+              <Table.Thead><Table.Tr><Table.Th>Logical device</Table.Th><Table.Th>Connection</Table.Th><Table.Th>Address / ID</Table.Th><Table.Th>Current state</Table.Th><Table.Th>Mapping</Table.Th><Table.Th>Actions</Table.Th></Table.Tr></Table.Thead>
               <Table.Tbody>{deviceRows.map(device => {
                 const m = profile.mappings[device.id];
                 const mapped = !!m?.connectionId && !!m?.address.trim() && !!m?.controlType;
                 const valid = mapped && availableTypes(m.connectionId, category).includes(m.controlType);
-                const candidateConnections = connections.filter(c => availableTypes(c.id, category).length > 0);
                 return <Table.Tr key={device.id}>
                   <Table.Td><Text fw={500} size="sm">{device.name}</Text><Text size="xs" c="dimmed">{device.id}</Text></Table.Td>
-                  <Table.Td><Select size="xs" placeholder="Unassigned" clearable w={150}
-                    data={candidateConnections.map(c => ({ value: c.id, label: c.name }))}
-                    value={m?.connectionId || null}
-                    onChange={value => {
-                      if (!value) { updateMapping(device.id, null); return; }
-                      const choices = availableTypes(value, category);
-                      updateMapping(device.id, { connectionId: value, controlType: choices.includes(m?.controlType ?? "") ? m!.controlType : choices[0] ?? "", address: m?.address ?? "", inverted: m?.inverted, testValue: m?.testValue, advanced: m?.advanced });
-                    }}/></Table.Td>
-                  <Table.Td><Select size="xs" w={170} placeholder="Select type" disabled={!m?.connectionId}
-                    data={availableTypes(m?.connectionId ?? "", category)}
-                    value={m?.controlType && availableTypes(m.connectionId, category).includes(m.controlType) ? m.controlType : null}
-                    onChange={value => m && updateMapping(device.id, { ...m, controlType: value ?? "" })}/></Table.Td>
-                  <Table.Td><TextInput size="xs" w={100} placeholder="Address" disabled={!m?.connectionId}
-                    value={m?.address ?? ""} onChange={e => m && updateMapping(device.id, { ...m, address: e.currentTarget.value })}/></Table.Td>
-                  <Table.Td>
-                    {category === "Extended accessories" ? (
-                      <NumberInput size="xs" w={95} min={0} max={255} step={1} allowDecimal={false}
-                        allowNegative={false} clampBehavior="strict" aria-label={"Test value for " + device.name}
-                        value={m?.testValue ?? 0} disabled={!m?.connectionId}
-                        onChange={value => m && typeof value === "number" && Number.isInteger(value) &&
-                          updateMapping(device.id, { ...m, testValue: value })}/>
-                    ) : (["Turnouts", "Sensors", "Basic accessories"] as string[]).includes(category) ? (
-                      <Switch size="sm" aria-label={"Invert " + device.name} checked={m?.inverted ?? false}
-                        disabled={!m?.connectionId}
-                        onChange={event => m && updateMapping(device.id, { ...m, inverted: event.currentTarget.checked })}/>
-                    ) : <Text c="dimmed" size="xs">—</Text>}
-                  </Table.Td>
-                  <Table.Td>
-                    {(["Turnouts", "Sensors", "Basic accessories", "Extended accessories"] as string[]).includes(category) ? (
-                      <Tooltip label="Hardware test will be available after the V2 Runtime device API is implemented.">
-                        <span style={{ display: "inline-block" }}>
-                          <Button size="compact-xs" leftSection={<IconPlayerPlay size={13}/>} disabled>Test</Button>
-                        </span>
-                      </Tooltip>
-                    ) : <Text c="dimmed" size="xs">—</Text>}
-                  </Table.Td>
-                  <Table.Td>
-                    <ConfigPickerInput size="xs" w={154} aria-label={"Configuration for " + device.name}
-                      buttonLabel={"Configure " + device.name}
-                      value={category === "Turnouts" ? (m?.advanced?.feedback.mode ?? defaultFeedback.mode) : "Default"}
-                      onOpen={() => setConfigDeviceId(device.id)}/>
-                  </Table.Td>
-                  <Table.Td><Tooltip label="No live device state available. Hardware Runtime integration is pending."><Badge color="gray" variant="outline">Unknown</Badge></Tooltip></Table.Td>
+                  <Table.Td><Text size="sm" fw={500}>{connById(m?.connectionId ?? "")?.name ?? "Unassigned"}</Text>
+                    <Text size="xs" c="dimmed">{m?.controlType || "No control type"}</Text></Table.Td>
+                  <Table.Td>{m?.address || "—"}</Table.Td>
+                  <Table.Td><Badge color="gray" variant="outline">Unknown</Badge></Table.Td>
                   <Table.Td><Badge color={valid ? "blue" : mapped ? "red" : "orange"} variant="light">{valid ? "Mapped" : mapped ? "Invalid" : "Unmapped"}</Badge></Table.Td>
+                  <Table.Td><Group gap={6} wrap="nowrap">
+                    <Button size="compact-xs" variant="light" onClick={() => openEditor(device)}>Edit</Button>
+                    <ActionIcon size="sm" color="red" variant="subtle" aria-label={"Delete " + device.name}
+                      onClick={() => setDeleteDeviceId(device.id)}><IconTrash size={15}/></ActionIcon>
+                  </Group></Table.Td>
                 </Table.Tr>;
               })}</Table.Tbody>
             </Table>
           </Table.ScrollContainer>
           {!deviceRows.length && <Text ta="center" c="dimmed" py="lg" size="sm">No logical devices in this category.</Text>}
         </Card>
-        <Text size="xs" c="dimmed">Prototype only: Invert is stored per hardware-profile mapping in UI state. Extended accessory Value is a 0–255 byte reserved for the future Test command. Live Current state will show actual hardware feedback once the Runtime device API exists; until then it is Unknown. Test is disabled; no hardware commands are sent. Mappings are not yet persisted to the backend.</Text>
+        <Text size="xs" c="dimmed">Prototype only: device settings and mappings are not yet persisted to the backend. Live Current state is Unknown until Runtime integration.</Text>
       </>}
-      <DeviceConfigWindow opened={!!configDeviceId && !!profile?.mappings[configDeviceId]}
-        onClose={() => setConfigDeviceId(null)}
-        deviceName={logical.find(d => d.id === configDeviceId)?.name ?? ""}
-        category={logical.find(d => d.id === configDeviceId)?.category ?? ""}
-        config={configDeviceId ? profile?.mappings[configDeviceId]?.advanced : undefined}
-        sensors={logical.filter(d => d.category === "Sensors").map(d => ({ value: d.id, label: d.name + " (" + d.id + ")" }))}
-        onApply={advanced => {
-          const binding = configDeviceId ? profile?.mappings[configDeviceId] : undefined;
-          if (configDeviceId && binding) updateMapping(configDeviceId, { ...binding, advanced });
-        }}/>
+      <HardwareDeviceDialog opened={!!deviceDraft} device={deviceDraft} isNew={deviceNew}
+        connections={connections} typesFor={availableTypes}
+        sensors={logical.filter(d => d.category === "Sensors" && d.id !== deviceDraft?.id).map(d => ({ value:d.id, label:d.name + " (" + d.id + ")" }))}
+        onClose={() => setDeviceDraft(null)} onSave={saveEditor}/>
+      <Modal opened={!!deleteDeviceId} onClose={() => setDeleteDeviceId(null)} title="Delete logical device?" centered>
+        <Stack gap="md">
+          <Text size="sm">Delete <strong>{logical.find(d => d.id === deleteDeviceId)?.name}</strong> from every hardware profile? This also removes its physical mappings.</Text>
+          <Group justify="end"><Button variant="default" onClick={() => setDeleteDeviceId(null)}>Cancel</Button>
+            <Button color="red" onClick={deleteLogicalDevice}>Delete device</Button></Group>
+        </Stack>
+      </Modal>
       <Modal opened={deletingProfile} onClose={() => setDeletingProfile(false)} title="Delete hardware profile?" centered>
         <Stack gap="md">
           <Text size="sm">Delete <strong>{profile?.name}</strong> and all of its hardware mappings? Logical devices and connections will be preserved.</Text>
