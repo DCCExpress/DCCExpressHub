@@ -6,7 +6,7 @@ import type { Profile } from "./HardwareProfilesPage";
 
 type Aspect = { id: string; name: string; color: string };
 type Command = { targetId: string; value: number };
-type Signal = { id: string; name: string; aspects: Aspect[]; mappings: Record<string, Record<string, Command>> };
+export type Signal = { id: string; name: string; aspects: Aspect[]; mappings: Record<string, Record<string, Command>> };
 export type SignalOutput = { id: string; name: string; category: string };
 const aspects: Aspect[] = [
   { id: "stop", name: "Stop", color: "red" },
@@ -14,9 +14,8 @@ const aspects: Aspect[] = [
   { id: "proceed", name: "Proceed", color: "green" },
 ];
 const newId = () => "signal-" + Math.random().toString(36).slice(2, 9);
-const initialSignals: Signal[] = [];
-export default function SignalsPage({ profiles, outputs }: { profiles: Profile[]; outputs: SignalOutput[] }) {
-  const [signals, setSignals] = useState<Signal[]>(initialSignals);
+export const initialSignals: Signal[] = [];
+export default function SignalsPage({ profiles, outputs, signals, setSignals }: { profiles: Profile[]; outputs: SignalOutput[]; signals: Signal[]; setSignals: React.Dispatch<React.SetStateAction<Signal[]>> }) {
   const [editing, setEditing] = useState<Signal | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState(profiles[0]?.id ?? "");
