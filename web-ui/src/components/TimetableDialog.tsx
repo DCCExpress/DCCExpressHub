@@ -883,6 +883,7 @@ export default function TimetableDialog({
               cron: cronFromEditor(row.editor),
             }))}
             movements={movements}
+            sequences={movementDocument.sequences}
             scripts={scripts}
           />
         )}
