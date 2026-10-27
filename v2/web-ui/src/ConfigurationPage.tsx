@@ -29,6 +29,12 @@ const initialDevices: Device[] = [
   { id: "sensor-1001", connectionId: "main", category: "Sensors", name: "Block A1", address: "1001", bindingType: "Z21 R-BUS", mapped: true },
   { id: "sensor-1005", connectionId: "feedback", category: "Sensors", name: "Mid section", address: "1005", bindingType: "LocoNet sensor", mapped: true },
 ];
+const controlTypes: Record<Protocol, Partial<Record<Category, string[]>>> = {
+  "Z21": { Sensors: ["R-BUS sensor"], Turnouts: ["DCC Basic Accessory"], "Basic accessories": ["DCC Basic Accessory"], "Extended accessories": ["DCC Extended Accessory"] },
+  "DCC-EX": { Sensors: ["DCC-EX Sensor"], Turnouts: ["DCC-EX Turnout ID", "DCC Basic Accessory"], "Basic accessories": ["DCC Basic Accessory"], Outputs: ["DCC-EX VPIN Output"] },
+  "LocoNet TCP": { Sensors: ["LocoNet sensor"], Turnouts: ["LocoNet switch"], "Basic accessories": ["LocoNet accessory"] },
+  "ESP32": { Sensors: ["Digital input"], Turnouts: ["Servo turnout", "Digital output turnout"], Outputs: ["Digital output", "PWM output"] },
+};
 const uid = () => "id-" + Math.random().toString(36).slice(2, 10);
 
 export default function ConfigurationPage() {
@@ -73,7 +79,7 @@ export default function ConfigurationPage() {
   }
   function newDevice() {
     if (!connection || tab === "Device") return;
-    setDeviceDraft({ id: uid(), connectionId: connection.id, category: tab as Category, name: "", address: "", bindingType: connection.protocol, mapped: true });
+    setDeviceDraft({ id: uid(), connectionId: connection.id, category: tab as Category, name: "", address: "", bindingType: controlTypes[connection.protocol][tab as Category]?.[0] ?? "Unmapped", mapped: !!controlTypes[connection.protocol][tab as Category]?.length });
     setDialog("device");
   }
 
@@ -189,7 +195,12 @@ export default function ConfigurationPage() {
         {deviceDraft && <Stack>
           <TextInput label="Name" value={deviceDraft.name} onChange={e => setDeviceDraft({ ...deviceDraft, name: e.currentTarget.value })}/>
           <TextInput label="Address / ID" value={deviceDraft.address} onChange={e => setDeviceDraft({ ...deviceDraft, address: e.currentTarget.value })}/>
-          <TextInput label="Hardware binding" value={deviceDraft.bindingType} onChange={e => setDeviceDraft({ ...deviceDraft, bindingType: e.currentTarget.value, mapped: true })}/>
+          <Select label="Control type" data={connection ? (controlTypes[connection.protocol][deviceDraft.category] ?? []) : []}
+            placeholder="Select control type"
+            value={deviceDraft.mapped ? deviceDraft.bindingType : null}
+            onChange={value => setDeviceDraft({ ...deviceDraft, bindingType: value ?? "Unmapped", mapped: !!value })}
+            description="Available control types depend on the selected connection protocol."/>
+          {!deviceDraft.mapped && <Text size="xs" c="orange">Hardware mapping needs review.</Text>}
           <Group justify="end">
             <Button variant="default" onClick={() => setDialog(null)}>Cancel</Button>
             <Button leftSection={<IconDeviceFloppy size={16}/>} onClick={saveDevice} disabled={!deviceDraft.name.trim() || !deviceDraft.address.trim()}>Apply</Button>
