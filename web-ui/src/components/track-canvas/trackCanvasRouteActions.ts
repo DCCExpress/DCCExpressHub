@@ -93,7 +93,7 @@ export async function executeExtendedRouteButton(
 
   try {
     const graph =
-      await routeGraphStore.ensureLoaded();
+      await routeGraphStore.reload();
 
     if (!graph) {
       showWarningMessage(

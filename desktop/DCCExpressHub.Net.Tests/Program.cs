@@ -31,6 +31,29 @@ Console.WriteLine("DCC-EX native turnout parser regression: PASS");
 
 
 
+// Cancellation and repeated emergency unlock must never grant stale authority.
+var switchMan = new DCCExpressHub.Net.Web.SwitchManManager();
+using (var cancelled = new CancellationTokenSource())
+{
+    cancelled.Cancel();
+    try
+    {
+        await switchMan.AcquireAsync(new ushort[] { 20 }, "cancelled", "test", 0, cancelled.Token);
+        throw new Exception("Cancelled acquisition unexpectedly succeeded");
+    }
+    catch (OperationCanceledException) { }
+    Check(switchMan.Snapshot().Length == 0, "Cancelled request leaves no locks");
+}
+Check((await switchMan.AcquireAsync(new ushort[] { 20 }, "old-owner", "test", 0, default)).Ok,
+    "Initial owner acquired lock");
+switchMan.ForceReleaseAll();
+switchMan.ForceReleaseAll();
+Check(!(await switchMan.AcquireAsync(new ushort[] { 20 }, "old-owner", "test", 0, default)).Ok,
+    "Repeated force-release preserves revoked owners");
+Check((await switchMan.AcquireAsync(new ushort[] { 20 }, "new-owner", "test", 0, default)).Ok,
+    "New execution may acquire released locks");
+Console.WriteLine("SwitchMan cancellation and revocation regression: PASS");
+
 // Real backend layout/runtime integration (not a mock). A native <T id>
 // must NEVER read/write the Basic accessory map with the same numeric ID.
 using var temp = new TempLayout();

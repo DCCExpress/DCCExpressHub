@@ -98,6 +98,11 @@ class RouteGraphStore {
    * Generate / Refresh gombhoz ezt használjuk.
    */
   async reload(): Promise<Graph | null> {
+    // Finish an older request before issuing a fresh one. Otherwise reload()
+    // would reuse a pre-save response through ensureLoaded's pending promise.
+    if (this.loadingPromise) {
+      try { await this.loadingPromise; } catch { /* Retry with a fresh request. */ }
+    }
     this.stale = true;
     this.graph = null;
     this.trackRuntime = [];

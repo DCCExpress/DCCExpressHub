@@ -139,6 +139,7 @@ public sealed class SwitchManManager
 
             lock (_gate)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 attempt = TryAcquireLocked(addresses, ownerId, ownerName);
 
                 if (attempt.Ok)
@@ -226,7 +227,8 @@ public sealed class SwitchManManager
         lock (_gate)
         {
             released = _locks.Count;
-            _revokedOwnerTokens.Clear();
+            // Revocation lasts for this runtime: repeated force-release must
+            // not permit an earlier revoked execution to reacquire locks.
 
             foreach (var ownerId in _locks.Values.Select(x => x.OwnerId).Distinct(StringComparer.Ordinal))
                 _revokedOwnerTokens.Add(
