@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { ActionIcon, Badge, Button, Card, ColorInput, Divider, Group, NumberInput, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
-import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { ActionIcon, Badge, Button, Card, Divider, Group, NumberInput, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
+import { IconPlayerPlay, IconPlus, IconTrash } from "@tabler/icons-react";
 import AppWindow from "./AppWindow";
 import type { Profile } from "./HardwareProfilesPage";
 
@@ -10,6 +10,7 @@ type ProfileMapping = { mode: "extended" | "outputs"; extendedId: string; values
 export type Signal = { id: string; name: string; aspects: Aspect[]; mappings: Record<string, ProfileMapping> };
 export type SignalOutput = { id: string; name: string; category: string };
 const id = () => "id-" + Math.random().toString(36).slice(2, 10);
+const colorChoices = [{value:"",label:"None"},{value:"#fa5252",label:"Red"},{value:"#40c057",label:"Green"},{value:"#fab005",label:"Yellow"},{value:"#228be6",label:"Blue"},{value:"#ffffff",label:"White"}];
 const defaultAspects: Aspect[] = [{ id: id(), name: "Stop", color: "#fa5252" }, { id: id(), name: "Proceed", color: "#40c057" }];
 export const initialSignals: Signal[] = [];
 const defaultMapping = (): ProfileMapping => ({ mode: "extended", extendedId: "", values: {}, actions: {} });
