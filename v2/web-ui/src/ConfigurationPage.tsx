@@ -2,7 +2,7 @@ import { DeleteConfirmWindow } from "./AppWindow";
 import { useState } from "react";
 import { ActionIcon, Badge, Box, Button, Card, Divider, Group, Modal, Select, SimpleGrid, Stack, Switch, Text, TextInput, ThemeIcon, Title, Tooltip } from "@mantine/core";
 import { IconPlugConnected, IconPlus, IconRouter, IconTrash } from "@tabler/icons-react";
-import HardwareProfilesPage from "./HardwareProfilesPage";
+import HardwareProfilesPage, { initialProfiles, type Profile } from "./HardwareProfilesPage";
 
 type Protocol = "Z21" | "DCC-EX" | "LocoNet TCP" | "ESP32";
 type Connection = { id: string; name: string; protocol: Protocol; host: string; port: string; enabled: boolean };
@@ -17,6 +17,7 @@ const uid = () => "conn-" + Math.random().toString(36).slice(2, 10);
 
 export default function ConfigurationPage() {
   const [connections, setConnections] = useState<Connection[]>(initialConnections);
+  const [profiles, setProfiles] = useState<Profile[]>(initialProfiles);
   const [selectedId, setSelectedId] = useState("main");
   const [section, setSection] = useState<"connections" | "profiles">("connections");
   const [adding, setAdding] = useState(false);
@@ -24,8 +25,7 @@ export default function ConfigurationPage() {
   const [connectionName, setConnectionName] = useState("");
   const connection = connections.find(c => c.id === selectedId);
   const deleting = connections.find(c => c.id === deletingId);
-  // Starter profiles reference these connections. Do not remove them until mappings can be migrated.
-  const referencedConnections = new Set(["main", "feedback", "station"]);
+  const referencedConnections = new Set(profiles.flatMap(p => Object.values(p.mappings).map(m => m.connectionId)));
 
   function selectConnection(id: string) { setSelectedId(id); setSection("connections"); }
   function patch(patch: Partial<Connection>) {
@@ -102,7 +102,7 @@ export default function ConfigurationPage() {
 
         <Card withBorder radius="md" p="md" className="devices-panel">
           {section === "profiles" ? (
-            <HardwareProfilesPage connections={connections.map(c => ({ id: c.id, name: c.name, protocol: c.protocol }))}/>
+            <HardwareProfilesPage connections={connections.map(c => ({ id: c.id, name: c.name, protocol: c.protocol }))} profiles={profiles} setProfiles={setProfiles}/>
           ) : connection ? (
             <Stack gap="lg">
               <Group justify="space-between" align="start">
