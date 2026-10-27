@@ -196,6 +196,7 @@ export default function ScriptEditorDialog({
 
   const handleRun =
     async (): Promise<void> => {
+      if (!scriptEnabled) return;
       try {
         setStarting(true);
         setError(null);
@@ -351,6 +352,7 @@ export default function ScriptEditorDialog({
                     variant="light"
                     color="green"
                     loading={starting}
+                    disabled={!scriptEnabled}
                     onClick={() => void handleRun()}
                     aria-label={i18next.t("ui.runScript")}
                   >
