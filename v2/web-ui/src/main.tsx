@@ -1,17 +1,19 @@
 import React, { useState } from "react";
+import ConfigurationPage from "./ConfigurationPage";
 import ReactDOM from "react-dom/client";
 import "@mantine/core/styles.css";
 import "./styles.css";
 import {
   ActionIcon, Badge, Box, Card, Container, Group, MantineProvider,
-  SimpleGrid, Stack, Text, ThemeIcon, Title
+  SimpleGrid, Stack, Text, ThemeIcon, Title, useMantineColorScheme
 } from "@mantine/core";
-import { IconArrowLeft, IconLayoutDashboard, IconMap, IconSettings } from "@tabler/icons-react";
+import { IconArrowLeft, IconLayoutDashboard, IconMap, IconSettings, IconMoon, IconSun } from "@tabler/icons-react";
 
 type Page = "home" | "configuration" | "layout";
 
 function App() {
   const [page, setPage] = useState<Page>("home");
+  const { colorScheme, setColorScheme } = useMantineColorScheme();
 
   return (
     <MantineProvider defaultColorScheme="dark">
@@ -37,7 +39,12 @@ function App() {
                     <Text size="sm" c="dimmed">Model railway control system</Text>
                   </div>
                 </Group>
-                <Badge color="teal" variant="light">V2 Development</Badge>
+                <Group gap="xs">
+                  <Badge color="teal" variant="light">V2 Development</Badge>
+                  <ActionIcon variant="light" size="lg" color="gray" aria-label={colorScheme === "dark" ? "Switch to light theme" : "Switch to dark theme"} title={colorScheme === "dark" ? "Light theme" : "Dark theme"} onClick={() => setColorScheme(colorScheme === "dark" ? "light" : "dark")}>
+                    {colorScheme === "dark" ? <IconSun size={20}/> : <IconMoon size={20}/>}
+                  </ActionIcon>
+                </Group>
               </Group>
             </Card>
 
@@ -73,6 +80,8 @@ function App() {
                   </Text>
                 </Card>
               </SimpleGrid>
+            ) : page === "configuration" ? (
+              <ConfigurationPage />
             ) : (
               <Card withBorder radius={5} p="xl">
                 <Group gap="sm" mb="md">
