@@ -71,7 +71,7 @@ export default function SignalsPage({ profiles, outputs, signals, setSignals }: 
       </Table.Tr>)}</Table.Tbody>
     </Table>{!signals.length&&<Text ta="center" c="dimmed" py="lg" size="sm">No signals yet.</Text>}</Card>
     <Text size="xs" c="dimmed">UI prototype. No live device test or backend persistence yet.</Text>
-    <AppWindow opened={!!editing} onClose={()=>setEditing(null)} title={isNew?"New signal":"Edit signal"} width={940} fixedHeight
+    <AppWindow opened={!!editing} onClose={()=>setEditing(null)} title={isNew?"New signal":"Edit signal"} width={1200} fixedHeight
       footer={<><Button variant="default" onClick={()=>setEditing(null)}>Cancel</Button>
         <Button disabled={!editing?.name.trim()||!editing.aspects.length||editing.aspects.some(a=>!a.name.trim())} onClick={save}>Apply</Button></>}>
       {editing&&<Stack gap="md">
