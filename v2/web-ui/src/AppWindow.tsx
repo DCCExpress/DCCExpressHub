@@ -12,10 +12,11 @@ type AppWindowProps = {
   footer?: ReactNode;
   tone?: "blue" | "red";
   width?: number;
+  fixedHeight?: boolean;
 };
 
 /** Centered, modal-like and draggable window; shared header/content/footer shell. */
-export default function AppWindow({ opened, onClose, title, children, footer, tone = "blue", width = 440 }: AppWindowProps) {
+export default function AppWindow({ opened, onClose, title, children, footer, tone = "blue", width = 440, fixedHeight = false }: AppWindowProps) {
   // Remount on each opening so FloatingWindow starts centered rather than reusing the prior drag position.
   const [session, setSession] = useState(0);
   useEffect(() => { if (opened) setSession(value => value + 1); }, [opened]);
@@ -51,7 +52,7 @@ export default function AppWindow({ opened, onClose, title, children, footer, to
           constrainOffset={8}
           dragHandleSelector=".app-window-header"
           excludeDragHandleSelector="button"
-          className="app-window"
+          className={"app-window" + (fixedHeight ? " app-window-fixed-height" : "")}
         >
           <Group justify="space-between" gap="sm" className={"app-window-header app-window-header-" + tone} px="md" py="sm" wrap="nowrap">
             <Group gap="xs" wrap="nowrap">
