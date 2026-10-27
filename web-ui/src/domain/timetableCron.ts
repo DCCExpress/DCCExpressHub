@@ -155,7 +155,7 @@ function parseTimetableCron(
 export function isValidTimetableCron(
   cron: string
 ): boolean {
-  return parseTimetableCron(cron) !== null;
+  return /^\+\d{1,3}:[0-5]\d:[0-5]\d$/.test(cron.trim()) || parseTimetableCron(cron) !== null;
 }
 
 export function timetableCronMatches(
