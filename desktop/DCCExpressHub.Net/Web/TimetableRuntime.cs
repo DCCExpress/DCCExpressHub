@@ -40,6 +40,7 @@ public sealed class TimetableRuntime : BackgroundService
     readonly AppPaths _env;
     readonly FastClockRuntime _fastClock;
     readonly MovementRuntime _movement;
+    readonly SequentialMovementRuntime _sequences;
     readonly ScriptRuntime _scripts;
     readonly AutomationExclusiveGate _exclusiveGate;
     readonly ILogger<TimetableRuntime> _log;
@@ -62,6 +63,7 @@ public sealed class TimetableRuntime : BackgroundService
         AppPaths env,
         FastClockRuntime fastClock,
         MovementRuntime movement,
+        SequentialMovementRuntime sequences,
         ScriptRuntime scripts,
         AutomationExclusiveGate exclusiveGate,
         ILogger<TimetableRuntime> log)
@@ -69,12 +71,14 @@ public sealed class TimetableRuntime : BackgroundService
         _env = env;
         _fastClock = fastClock;
         _movement = movement;
+        _sequences = sequences;
         _scripts = scripts;
         _exclusiveGate = exclusiveGate;
         _log = log;
 
         _movement.Changed +=
             OnMovementChanged;
+        _sequences.Changed += OnSequenceChanged;
 
         _scripts.Changed +=
             OnScriptChanged;
@@ -297,6 +301,7 @@ public sealed class TimetableRuntime : BackgroundService
     sealed record StorageSnapshot(
         Dictionary<string, ScriptDefinition> Scripts,
         Dictionary<string, MovementPageModel> Movements,
+        Dictionary<string, SequentialMovementRuntime.Definition> Sequences,
         TimetableEntry[] Entries);
 
     StorageSnapshot LoadStorage()
@@ -314,6 +319,7 @@ public sealed class TimetableRuntime : BackgroundService
                     StringComparer.Ordinal),
                 new(
                     StringComparer.Ordinal),
+                new(StringComparer.Ordinal),
                 []);
 
         using var doc =
@@ -388,6 +394,27 @@ public sealed class TimetableRuntime : BackgroundService
                     _log.LogWarning(
                         ex,
                         "Timetable skipped invalid Movement definition");
+                }
+            }
+        }
+
+        var sequences = new Dictionary<string, SequentialMovementRuntime.Definition>(StringComparer.Ordinal);
+        if (root.TryGetProperty("movement", out var sequenceDocument) &&
+            sequenceDocument.ValueKind == JsonValueKind.Object &&
+            sequenceDocument.TryGetProperty("sequences", out var rawSequences) &&
+            rawSequences.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in rawSequences.EnumerateArray())
+            {
+                try
+                {
+                    var sequence = JsonSerializer.Deserialize<SequentialMovementRuntime.Definition>(item.GetRawText(), _json);
+                    if (sequence is not null && !string.IsNullOrWhiteSpace(sequence.Id))
+                        sequences[sequence.Id] = sequence;
+                }
+                catch (JsonException ex)
+                {
+                    _log.LogWarning(ex, "Timetable skipped invalid Sequential Movement definition");
                 }
             }
         }
@@ -529,6 +556,7 @@ public sealed class TimetableRuntime : BackgroundService
         return new(
             scripts,
             movements,
+            sequences,
             entries.ToArray());
     }
 
@@ -585,6 +613,12 @@ public sealed class TimetableRuntime : BackgroundService
 
             foreach (var action in entry.Actions)
             {
+                if (action.TargetType == "sequential")
+                {
+                    if (storage.Sequences.TryGetValue(action.TargetId, out var sequence))
+                        LaunchSequence(entry, action, sequence, hour, minute, minuteOfDay);
+                    continue;
+                }
                 if (action.TargetType == "fromto")
                 {
                     LaunchFromTo(entry, action, hour, minute, minuteOfDay);
@@ -669,6 +703,92 @@ public sealed class TimetableRuntime : BackgroundService
             _log.LogDebug(
                 "Timetable skipped {Kind} {Name} at block #{BlockId}: {Reason}",
                 kind, name, blockId, reason);
+    }
+
+    void LaunchSequence(
+        TimetableEntry entry,
+        TimetableAction action,
+        SequentialMovementRuntime.Definition sequence,
+        int hour, int minute, int minuteOfDay)
+    {
+        if (!sequence.Enabled || sequence.Steps.Length == 0)
+            return;
+
+        lock (_gate)
+            if (_activeRuns.Values.Any(run =>
+                run.TargetType == "sequential" && run.TargetId == sequence.Id))
+                return;
+
+        var sourceBlockId = sequence.Steps[0].BlockId;
+        if (!_movement.HasSourceLocomotive(sourceBlockId))
+        {
+            LogSourceSkip("Sequential Movement", sequence.Name, sourceBlockId, "source_block_empty");
+            return;
+        }
+        var sourceStatus = _movement.TimetableSourceStatus(sourceBlockId);
+        if (sourceStatus.Skip)
+        {
+            LogSourceSkip("Sequential Movement", sequence.Name, sourceBlockId, sourceStatus.Reason);
+            return;
+        }
+
+        var runId = NewRunId();
+        var active = new TimetableActiveRunState(
+            runId, entry.Id, action.Id, "sequential", sequence.Id,
+            sequence.Name, null, FormatTime(hour, minute), minuteOfDay, "launching", null);
+        lock (_gate)
+        {
+            _activeRuns[runId] = active;
+            _lastTriggeredAt = active.ScheduledTime;
+            _lastTriggeredTargetName = sequence.Name;
+        }
+        Publish();
+
+        // Normal start uses the source block; the preflighted loco is enforced.
+        var result = _sequences.Start(sequence.Id, "normal", sourceStatus.LocoAddress);
+        if (!result.Ok)
+        {
+            if (IsTimetableNotReadyFailure(result.Error) ||
+                result.Error == "sequence_already_running")
+            {
+                lock (_gate) _activeRuns.Remove(runId);
+                Publish();
+                return;
+            }
+            lock (_gate)
+                _activeRuns[runId] = active with {
+                    Status = "error",
+                    Message = result.Error ?? "Sequential Movement start rejected"
+                };
+            Publish();
+            return;
+        }
+
+        lock (_gate)
+            if (_activeRuns.ContainsKey(runId))
+                _activeRuns[runId] = active with {
+                    Status = "running",
+                    Message = result.State?.Info
+                };
+        Publish();
+    }
+
+    void OnSequenceChanged(SequentialMovementRuntime.State state)
+    {
+        lock (_gate)
+        {
+            var pair = _activeRuns.FirstOrDefault(item =>
+                item.Value.TargetType == "sequential" &&
+                item.Value.TargetId == state.SequenceId);
+            if (pair.Key is null) return;
+            if (state.Status is "running" or "waiting" or "finishing")
+                _activeRuns[pair.Key] = pair.Value with {
+                    Status = "running", Message = state.Info
+                };
+            else
+                _activeRuns.Remove(pair.Key);
+        }
+        Publish();
     }
 
     void LaunchMovement(
