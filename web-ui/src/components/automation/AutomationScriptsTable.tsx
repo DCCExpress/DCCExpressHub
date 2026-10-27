@@ -295,6 +295,7 @@ function ScriptCard({
       source:
         string
     ): Promise<void> => {
+      if (definition.enabled === false) return;
       try {
         await runClientScript(
           source,
@@ -667,6 +668,7 @@ function ScriptCard({
                   color="green"
                   disabled={
                     running ||
+                    definition.enabled === false ||
                     !definition.script.trim()
                   }
                   onClick={
