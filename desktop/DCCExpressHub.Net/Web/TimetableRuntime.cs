@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Diagnostics;
 
 namespace DCCExpressHub.Net.Web;
 
@@ -48,6 +49,8 @@ public sealed class TimetableRuntime : BackgroundService
         new(JsonSerializerDefaults.Web);
 
     bool _running;
+    long _schedulerStartedAt;
+    readonly HashSet<string> _offsetTriggered = new(StringComparer.Ordinal);
     bool _finishing;
     long? _previousFastClockTimeMs;
     string? _lastTriggeredAt;
@@ -117,6 +120,8 @@ public sealed class TimetableRuntime : BackgroundService
                 return false;
 
             _running = true;
+            _schedulerStartedAt = Stopwatch.GetTimestamp();
+            _offsetTriggered.Clear();
             _previousFastClockTimeMs =
                 NormalizeDayTime(
                     _fastClock.GetSnapshot().TimeMs);
@@ -134,6 +139,7 @@ public sealed class TimetableRuntime : BackgroundService
                 return false;
 
             _running = false;
+            _offsetTriggered.Clear();
             _previousFastClockTimeMs =
                 null;
         }
@@ -212,6 +218,8 @@ public sealed class TimetableRuntime : BackgroundService
             previous =
                 _previousFastClockTimeMs;
         }
+
+        ProcessOffsets();
 
         var snapshot =
             _fastClock.GetSnapshot();
@@ -560,6 +568,78 @@ public sealed class TimetableRuntime : BackgroundService
             entries.ToArray());
     }
 
+    static long? OffsetMilliseconds(string cron)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(
+            cron.Trim(), @"^\+(\d{1,3}):([0-5]\d):([0-5]\d)$");
+        if (!match.Success) return null;
+        return ((long.Parse(match.Groups[1].Value) * 3600L) +
+                (long.Parse(match.Groups[2].Value) * 60L) +
+                long.Parse(match.Groups[3].Value)) * 1000L;
+    }
+
+    void ProcessOffsets()
+    {
+        long startedAt;
+        lock (_gate)
+        {
+            if (!_running || _finishing) return;
+            startedAt = _schedulerStartedAt;
+        }
+
+        StorageSnapshot storage;
+        try { storage = LoadStorage(); }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Timetable could not load offset schedules");
+            return;
+        }
+
+        var elapsedMs = Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
+        foreach (var entry in storage.Entries)
+        {
+            if (!entry.Enabled) continue;
+            var offset = OffsetMilliseconds(entry.Cron);
+            if (!offset.HasValue || elapsedMs < offset.Value) continue;
+
+            lock (_gate)
+            {
+                if (!_running || _schedulerStartedAt != startedAt) return;
+                if (!_offsetTriggered.Add(entry.Id)) continue;
+            }
+
+            var displayTime = entry.Cron.Trim();
+            foreach (var action in entry.Actions)
+                LaunchScheduledAction(storage, entry, action,
+                    0, 0, 0, displayTime);
+        }
+    }
+
+    void LaunchScheduledAction(StorageSnapshot storage, TimetableEntry entry,
+        TimetableAction action, int hour, int minute, int minuteOfDay,
+        string? scheduledLabel = null)
+    {
+        if (action.TargetType == "sequential")
+        {
+            if (storage.Sequences.TryGetValue(action.TargetId, out var sequence))
+                LaunchSequence(entry, action, sequence, hour, minute, minuteOfDay);
+            return;
+        }
+        if (action.TargetType == "fromto")
+        {
+            LaunchFromTo(entry, action, hour, minute, minuteOfDay);
+            return;
+        }
+        if (action.TargetType == "movement")
+        {
+            if (storage.Movements.TryGetValue(action.TargetId, out var movement))
+                LaunchMovement(entry, action, movement, hour, minute, minuteOfDay);
+            return;
+        }
+        if (storage.Scripts.TryGetValue(action.TargetId, out var script))
+            LaunchScript(entry, action, script, hour, minute, minuteOfDay);
+    }
+
     void ProcessMinute(
         long absoluteMinute)
     {
@@ -605,6 +685,7 @@ public sealed class TimetableRuntime : BackgroundService
         foreach (var entry in storage.Entries)
         {
             if (!entry.Enabled ||
+                OffsetMilliseconds(entry.Cron).HasValue ||
                 !CronMatches(
                     entry.Cron,
                     hour,
@@ -612,48 +693,7 @@ public sealed class TimetableRuntime : BackgroundService
                 continue;
 
             foreach (var action in entry.Actions)
-            {
-                if (action.TargetType == "sequential")
-                {
-                    if (storage.Sequences.TryGetValue(action.TargetId, out var sequence))
-                        LaunchSequence(entry, action, sequence, hour, minute, minuteOfDay);
-                    continue;
-                }
-                if (action.TargetType == "fromto")
-                {
-                    LaunchFromTo(entry, action, hour, minute, minuteOfDay);
-                    continue;
-                }
-                if (string.Equals(
-                        action.TargetType,
-                        "movement",
-                        StringComparison.Ordinal))
-                {
-                    if (storage.Movements.TryGetValue(
-                            action.TargetId,
-                            out var movement))
-                        LaunchMovement(
-                            entry,
-                            action,
-                            movement,
-                            hour,
-                            minute,
-                            minuteOfDay);
-
-                    continue;
-                }
-
-                if (storage.Scripts.TryGetValue(
-                        action.TargetId,
-                        out var script))
-                    LaunchScript(
-                        entry,
-                        action,
-                        script,
-                        hour,
-                        minute,
-                        minuteOfDay);
-            }
+                LaunchScheduledAction(storage, entry, action, hour, minute, minuteOfDay);
         }
     }
 
