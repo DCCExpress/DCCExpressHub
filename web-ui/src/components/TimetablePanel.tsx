@@ -557,6 +557,7 @@ export default function TimetablePanel({
         scripts,
         movements,
         schedulerState.activeRuns,
+        sequences,
         snapshot !== null,
         t,
       ]
