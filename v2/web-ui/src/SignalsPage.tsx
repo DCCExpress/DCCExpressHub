@@ -27,7 +27,7 @@ export default function SignalsPage({ profiles, outputs, signals, setSignals }: 
   const extendedOptions = usable("Extended accessories").map(o => ({ value: o.id, label: o.name }));
   const outputOptions = [...usable("Basic accessories"), ...usable("Outputs")].map(o => ({ value: o.id, label: o.name + " · " + o.category }));
   const mapping = editing?.mappings[selectedProfile] ?? defaultMapping();
-  const popover = { withinPortal: false, zIndex: 1200 };
+  const popover = { withinPortal: true, zIndex: 1300 };
   function changeMapping(update: (value: ProfileMapping) => ProfileMapping) {
     setEditing(current => {
       if (!current) return null;
@@ -84,7 +84,7 @@ export default function SignalsPage({ profiles, outputs, signals, setSignals }: 
       {!signals.length && <Text c="dimmed" ta="center" py="lg" size="sm">No signals yet.</Text>}
     </Card>
     <Text c="dimmed" size="xs">Configuration prototype: outputs are referenced by logical IDs; no hardware command is sent.</Text>
-    <AppWindow opened={!!editing} onClose={() => setEditing(null)} title={isNew ? "New signal" : "Edit signal"} width={750}
+    <AppWindow opened={!!editing} onClose={() => setEditing(null)} title={isNew ? "New signal" : "Edit signal"} width={750} fixedHeight
       footer={<><Button variant="default" onClick={() => setEditing(null)}>Cancel</Button>
         <Button disabled={!editing?.name.trim() || !editing.aspects.length || editing.aspects.some(a => !a.name.trim())} onClick={save}>Apply</Button></>}>
       {editing && <Stack gap="md">
@@ -94,7 +94,7 @@ export default function SignalsPage({ profiles, outputs, signals, setSignals }: 
           <TextInput aria-label="Aspect name" placeholder="Aspect name" value={a.name} style={{ flex:1 }}
             onChange={e => changeAspect(a.id, { name:e.currentTarget.value })}/>
           <ColorInput aria-label={"Color for " + a.name} format="hex" w={135} value={a.color}
-            onChange={color => changeAspect(a.id,{color})} popoverProps={{ withinPortal:false, zIndex:1200 }}/>
+            onChange={color => changeAspect(a.id,{color})} popoverProps={{ withinPortal:true, zIndex:1300 }}/>
           <ActionIcon color="red" variant="subtle" aria-label={"Remove " + a.name} onClick={() => removeAspect(a.id)}><IconTrash size={16}/></ActionIcon>
         </Group>)}
         <Divider/>
