@@ -169,9 +169,9 @@ export default function HardwareProfilesPage({ connections, profiles, setProfile
               </Tabs.Tab>
             )}</Tabs.List>
           </Tabs>
-          <Table.ScrollContainer minWidth={800}>
+          <Table.ScrollContainer minWidth={930}>
             <Table striped highlightOnHover verticalSpacing="md">
-              <Table.Thead><Table.Tr><Table.Th>Logical device</Table.Th><Table.Th>Connection</Table.Th><Table.Th>Control type</Table.Th><Table.Th>Address / ID</Table.Th><Table.Th>{category === "Extended accessories" ? "Value" : "Invert"}</Table.Th><Table.Th>Test</Table.Th><Table.Th>Status</Table.Th></Table.Tr></Table.Thead>
+              <Table.Thead><Table.Tr><Table.Th>Logical device</Table.Th><Table.Th>Connection</Table.Th><Table.Th>Control type</Table.Th><Table.Th>Address / ID</Table.Th><Table.Th>{category === "Extended accessories" ? "Value" : "Invert"}</Table.Th><Table.Th>Test</Table.Th><Table.Th>Current state</Table.Th><Table.Th>Mapping</Table.Th></Table.Tr></Table.Thead>
               <Table.Tbody>{deviceRows.map(device => {
                 const m = profile.mappings[device.id];
                 const mapped = !!m?.connectionId && !!m?.address.trim() && !!m?.controlType;
@@ -215,6 +215,7 @@ export default function HardwareProfilesPage({ connections, profiles, setProfile
                       </Tooltip>
                     ) : <Text c="dimmed" size="xs">—</Text>}
                   </Table.Td>
+                  <Table.Td><Tooltip label="No live device state available. Hardware Runtime integration is pending."><Badge color="gray" variant="outline">Unknown</Badge></Tooltip></Table.Td>
                   <Table.Td><Badge color={valid ? "blue" : mapped ? "red" : "orange"} variant="light">{valid ? "Mapped" : mapped ? "Invalid" : "Unmapped"}</Badge></Table.Td>
                 </Table.Tr>;
               })}</Table.Tbody>
@@ -222,7 +223,7 @@ export default function HardwareProfilesPage({ connections, profiles, setProfile
           </Table.ScrollContainer>
           {!deviceRows.length && <Text ta="center" c="dimmed" py="lg" size="sm">No logical devices in this category.</Text>}
         </Card>
-        <Text size="xs" c="dimmed">Prototype only: Invert is stored per hardware-profile mapping in UI state. Extended accessory Value is a 0–255 byte reserved for the future Test command. Test is disabled until the Runtime device API exists; no hardware commands are sent. Mappings are not yet persisted to the backend.</Text>
+        <Text size="xs" c="dimmed">Prototype only: Invert is stored per hardware-profile mapping in UI state. Extended accessory Value is a 0–255 byte reserved for the future Test command. Live Current state will show actual hardware feedback once the Runtime device API exists; until then it is Unknown. Test is disabled; no hardware commands are sent. Mappings are not yet persisted to the backend.</Text>
       </>}
       <Modal opened={deletingProfile} onClose={() => setDeletingProfile(false)} title="Delete hardware profile?" centered>
         <Stack gap="md">
