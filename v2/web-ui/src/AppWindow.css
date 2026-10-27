@@ -1,5 +1,5 @@
 .app-window-backdrop { position: fixed; inset: 0; z-index: 1100; background: rgba(5, 12, 25, .58); backdrop-filter: blur(2px); }
-.app-window { z-index: 1101 !important; overflow: hidden; background: var(--mantine-color-body); }
+.app-window { z-index: 1101 !important; overflow: visible; background: var(--mantine-color-body); }
 .app-window-header { cursor: move; user-select: none; }
 .app-window-header-blue { background: linear-gradient(105deg, var(--mantine-color-blue-8), var(--mantine-color-cyan-7)); }
 .app-window-header-red { background: linear-gradient(105deg, var(--mantine-color-red-8), var(--mantine-color-red-6)); }
