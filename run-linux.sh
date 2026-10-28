@@ -402,7 +402,11 @@ main() {
             exit 0
             ;;
         --configure)
-            configure
+            if [[ -f "$REPO_ROOT/run-linux-config.sh" ]]; then
+                bash "$REPO_ROOT/run-linux-config.sh"
+            else
+                configure
+            fi
             load_env
             ensure_ui
             show_config
@@ -436,7 +440,11 @@ main() {
     esac
 
     if [[ ! -f "$ENV_FILE" ]]; then
-        configure
+        if [[ -f "$REPO_ROOT/run-linux-config.sh" ]]; then
+            bash "$REPO_ROOT/run-linux-config.sh"
+        else
+            configure
+        fi
     else
         echo "Using saved Linux configuration: $ENV_FILE"
         echo "Run with --configure to change it."
