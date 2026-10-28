@@ -22,6 +22,7 @@ import { getCanvasImage } from "@/models/editor/rendering/ImageCache";
 import type { EditorTool } from "@/models/editor/types/EditorTypes";
 import { wsApi } from "@/services/wsApi";
 import { wsClient, type WsConnectionStatus } from "@/services/wsClient";
+import { getSwitchManModeState } from "@/services/switchManModeRuntime";
 
 const CURSOR_TOOL: EditorTool = { mode: "cursor", elementType: "general" };
 type RuntimeLayoutOverlayProps = { locos: Loco[]; open: boolean; embedded?: boolean };
@@ -67,6 +68,61 @@ export default function RuntimeLayoutOverlay({ locos, open, embedded = false }: 
   }, []);
 
   useEffect(() => wsClient.subscribeStatus(setWsStatus), []);
+
+  // Keep tablet/mobile turnout lock indicators in sync with the authoritative
+  // backend, just like the full Layout Page does.
+  useEffect(() => {
+    const applyLocks = (raw: unknown) => {
+      const ownId = getSwitchManModeState().ownerId;
+      const lockColors = new Map<number, "red" | "yellow" | "white">();
+      if (Array.isArray(raw)) for (const item of raw) {
+        const address = Number(item?.address);
+        const ownerId = typeof item?.ownerId === "string" ? item.ownerId : "";
+        if (!Number.isInteger(address) || address < 1 || address > 32767) continue;
+        lockColors.set(address, ownerId === ownId ? "white"
+          : /^(movement|dispatcher|timetable|script|flow):/.test(ownerId) ? "red" : "yellow");
+      }
+      let changed = false;
+      for (const element of layout.getAllElements()) {
+        const addresses = isTurnoutElement(element)
+          ? [element.turnoutAddress]
+          : element instanceof TrackTurnoutDoubleElement || element instanceof TrackTurnoutThreeWayElement
+            ? [element.turnout1Address, element.turnout2Address] : [];
+        if (!addresses.length) continue;
+        const colors = addresses.map(address => lockColors.get(address)).filter(
+          (value): value is "red" | "yellow" | "white" => value !== undefined);
+        const locked = colors.length > 0;
+        const color = colors.includes("red") ? "red" : colors.includes("yellow") ? "yellow" : "white";
+        if (element.locked !== locked || element.lockIndicatorColor !== color) {
+          element.locked = locked;
+          element.lockIndicatorColor = color;
+          changed = true;
+        }
+      }
+      if (changed) invalidate();
+    };
+    const unsubscribe = wsClient.subscribeMessages(message => {
+      const raw = message as unknown as { type?: string; data?: { action?: string; locks?: unknown; extra?: { locks?: unknown } } };
+      if (raw.type === "switchManChanged") applyLocks(raw.data?.locks);
+      else if (raw.type === "switchManResponse" && raw.data?.action === "snapshot")
+        applyLocks(raw.data?.extra?.locks);
+    });
+    const requestSnapshot = () => {
+      wsClient.send({ type: "switchManCommand", data: {
+        requestId: `tablet-switchman-snapshot-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        action: "snapshot"
+      } });
+    };
+    const unsubscribeStatus = wsClient.subscribeStatus(status => {
+      if (status === "connected") requestSnapshot();
+    });
+    if (wsClient.isConnected()) requestSnapshot();
+    const timer = window.setInterval(() => {
+      if (layout.getAllElements().some(element => element.locked)) invalidate();
+    }, 450);
+    return () => { unsubscribe(); unsubscribeStatus(); window.clearInterval(timer); };
+  }, [layout, invalidate]);
+
   useEffect(() => { for (const loco of locos) if (loco.image) getCanvasImage(loco.image); }, [locos]);
 
   useEffect(() => wsClient.on("error", data => {
