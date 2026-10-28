@@ -3,7 +3,7 @@ import {
   ActionIcon, Alert, Badge, Button, Collapse, Group, Menu, ScrollArea, Select,
   Paper, Stack, Table, Text, Tooltip,
 } from "@mantine/core";
-import { IconAlertTriangle, IconChevronDown, IconChevronUp, IconDotsVertical, IconEdit, IconFlag, IconPlayerPlay, IconPlayerStop, IconPlus, IconTrash, IconX, IconSquare, IconSquareCheck, IconRoute } from "@tabler/icons-react";
+import { IconAlertTriangle, IconChevronDown, IconChevronUp, IconDotsVertical, IconEdit, IconFlag, IconPlayerPlay, IconPlayerStop, IconPlus, IconTrash, IconX, IconSquare, IconSquareCheck, IconRoute, IconCircleNumber1, IconRepeat } from "@tabler/icons-react";
 import type { LayoutView } from "@/models/editor/core/LayoutView";
 import type { Loco } from "@/domain/domainTypes";
 import { BlockElement } from "@/models/editor/elements/BlockElement";
@@ -460,7 +460,7 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
               <Stack gap="xs">
                 {/* Keep the sequence name readable independently of the action toolbar. */}
                 <Text fw={700} size="sm" style={{ overflowWrap: "anywhere" }}>
-                  {sequence.repeat && <Badge color="lime" variant="filled" size="sm" radius="sm" title="Restart Sequence" aria-label="Repeating sequence" mr={6}>↻</Badge>}{sequence.name}
+                  <Badge color="green.8" variant="filled" size="sm" radius="sm" title={sequence.repeat ? "Restart Sequence" : "Single run"} mr={6}>{sequence.repeat ? <IconRepeat size={13} stroke={2.5}/> : <IconCircleNumber1 size={13} stroke={2.5}/>}</Badge>{sequence.name}
                 </Text>
                 {/* Actions and live status remain visible even with details collapsed. */}
                 <Group justify="space-between" align="center" gap="xs" wrap="nowrap">
