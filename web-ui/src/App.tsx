@@ -1268,7 +1268,7 @@ export default function App() {
       );
     }
 
-    if (page === "tablet") return <TabletControlPage locos={locos} status={status} onBack={() => navigate("home")} />;
+    if (page === "tablet") return <TabletControlPage locos={locos} status={status} version={version} automationFlow={automationFlow} onAutomationFlowChange={setAutomationFlow} onBack={() => navigate("home")} />;
 
     if (page === "layout") return <LiteLayoutPage version={version} locos={locos} automationFlow={automationFlow} onAutomationFlowChange={setAutomationFlow} onBack={() => navigate("home")} onOpenLocoEditor={() => setLocoEditorOpened(true)} />;
 
