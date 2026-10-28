@@ -104,6 +104,7 @@ type AutomationPanelProps = {
   /** Tablet may operate running scripts/flows without opening their editors. */
   editorsEnabled?: boolean;
   showScriptFlowTabs?: boolean;
+  allowCreate?: boolean;
 };
 
 export default function AutomationPanel({
@@ -123,6 +124,7 @@ export default function AutomationPanel({
   onPersistRouteTopology,
   editorsEnabled = true,
   showScriptFlowTabs = true,
+  allowCreate = true,
 }: AutomationPanelProps) {
   const [
     activeTab,
@@ -305,6 +307,7 @@ export default function AutomationPanel({
             stationNames={stationNames}
             onOpenStationRoutes={onOpenStationRoutes}
             onPersistRouteTopology={onPersistRouteTopology}
+            allowCreate={allowCreate}
           />
         </Tabs.Panel>
 
