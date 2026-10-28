@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # DCCExpressHub dialog configuration UI for Debian/Linux.
 set -Eeuo pipefail
+# Render Unicode box-drawing characters correctly over UTF-8 SSH terminals.
+export NCURSES_NO_UTF8_ACS=1
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$ROOT/desktop/DCCExpressHub.Net/.env.linux"
 BACKEND_DIR="$ROOT/desktop/DCCExpressHub.Net"
