@@ -624,12 +624,12 @@ export default function LocoPanel({
 
 
   useEffect(() => {
-    if (!mobileViewport) return;
-
     const container = fitContainerRef.current;
     const content = fitContentRef.current;
 
     if (!container || !content) return;
+    const tabletFit = !mobileViewport && Boolean(container.closest(".tablet-shell"));
+    if (!mobileViewport && !tabletFit) return;
 
     let frame = 0;
 
@@ -662,7 +662,7 @@ export default function LocoPanel({
       const scale = Math.min(
         availableWidth / contentWidth,
         availableHeight / contentHeight,
-        window.matchMedia("(orientation: landscape)").matches ? 1.6 : 1.25
+        tabletFit ? 1 : window.matchMedia("(orientation: landscape)").matches ? 1.6 : 1.25
       );
 
       const scaledWidth = contentWidth * scale;
@@ -943,7 +943,7 @@ export default function LocoPanel({
           className={
             mobileViewport
               ? "mobile-throttle-fit mobile-throttle-fit--viewport"
-              : "mobile-throttle-fit"
+              : "mobile-throttle-fit tablet-throttle-fit"
           }
         >
           <div
@@ -951,7 +951,7 @@ export default function LocoPanel({
             className={
               mobileViewport
                 ? "mobile-throttle-layout mobile-throttle-layout--viewport"
-                : "mobile-throttle-layout"
+                : "mobile-throttle-layout tablet-throttle-layout"
             }
           >
             {!currentLoco ? (
