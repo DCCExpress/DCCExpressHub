@@ -76,6 +76,7 @@ import SignalAspectPropertyEditor from "@/layout/property-panel/SignalAspectProp
 import TurnoutBitPropertyEditor from "@/layout/property-panel/TurnoutBitPropertyEditor";
 import RouteTurnoutSelectionPropertyEditor from "@/layout/property-panel/RouteTurnoutSelectionPropertyEditor";
 import LocoPanel from "@/layout/LocoPanel";
+import LayoutStatusBar from "@/components/LayoutStatusBar";
 import AutomationPanel from "@/components/AutomationPanel";
 import MovementTaskManager from "@/components/movement/MovementTaskManager";
 import TimetableDialog from "@/components/TimetableDialog";
@@ -2448,159 +2449,24 @@ export default function LiteLayoutPage({
         )}
       </div>
 
-      <Card withBorder p={5} radius="sm" className="lite-status-bar">
-        <Group justify="flex-start" wrap="nowrap" gap="xs">
-          <Group gap={6} wrap="nowrap" inert={blockSelectionActive} style={{ opacity: blockSelectionActive ? 0.55 : 1 }}>
-            <Badge
-              data-command-center-status-role="layout-ws"
-              size="sm"
-              variant={wsStatus === "connected" ? "light" : "filled"}
-              color={wsStatus === "connected" ? "green" : "red"}
-              className={wsStatus === "connected" ? "" : "lite-ws-alert"}
-              title={wsStatus === "connected" ? i18next.t("ui.websocketConnected") : i18next.t("ui.websocketReconnectingAutomatically", { value1: wsStatus })}
-            >
-              {wsStatus === "connected" ? "WS" : wsStatus === "reconnecting" ? i18next.t("ui.wsRetry") : i18next.t("ui.wsLost")}
-            </Badge>
-
-            <Badge
-              size="sm"
-              variant="light"
-              color={commandCenter.powerInfo?.emergencyStop ? "red" : "gray"}
-              onClick={emergencyStopAndCancelSelection}
-              style={{ pointerEvents: "auto" }}
-              title={i18next.t("ui.estop")}
-              className={`lite-status-action${commandCenter.powerInfo?.emergencyStop
-                ? " blinkBadge"
-                : ""
-                }`}
-            > {i18next.t("ui.estop")} </Badge>
-            <Divider orientation="vertical" />
-            <Badge
-              size="sm"
-              variant={anyTrackOverload ? "filled" : "light"}
-              color={anyTrackOverload ? "red" : "gray"}
-              className={anyTrackOverload ? "blinkBadge" : ""}
-              title={
-                anyTrackOverload
-                  ? i18next.t("ui.overloadTrack", { value1: overloadedTrackNames })
-                  : i18next.t("ui.noTrackOverload")
-              }
-            > {i18next.t("ui.overload")} </Badge>
-
-            <Divider orientation="vertical" />
-
-            <ActionIcon
-              size="sm"
-              variant="filled"
-              color={
-                broadcastAudioEnabled
-                  ? "lime"
-                  : "dark"
-              }
-              aria-label={
-                broadcastAudioEnabled
-                  ? "Disable broadcast audio on this client"
-                  : "Enable broadcast audio on this client"
-              }
-              title={
-                broadcastAudioEnabled
-                  ? "Broadcast audio enabled on this client"
-                  : "Broadcast audio muted on this client"
-              }
-              onClick={() =>
-                setBroadcastAudioEnabled(
-                  !broadcastAudioEnabled
-                )
-              }
-            >
-              <IconVolume size={15} />
-            </ActionIcon>
-
-            <Divider orientation="vertical" />
-
-            <ActionIcon
-              size="sm"
-              variant={
-                switchManModeState.enabled
-                  ? "filled"
-                  : "light"
-              }
-              color={
-                switchManModeBusy
-                  ? "yellow"
-                  : switchManModeState.enabled
-                    ? "teal"
-                    : "gray"
-              }
-              disabled={
-                switchManModeBusy ||
-                wsStatus !==
-                  "connected"
-              }
-              aria-label={
-                i18next.t(
-                  "ui.switchManMode"
-                )
-              }
-              title={
-                switchManModeState.enabled
-                  ? i18next.t(
-                      "ui.switchManModeActive",
-                      {
-                        count:
-                          switchManModeState
-                            .ownedAddresses
-                            .length,
-                      }
-                    )
-                  : i18next.t(
-                      "ui.switchManModeInactive"
-                    )
-              }
-              onClick={
-                () => {
-                  void toggleSwitchManMode();
-                }
-              }
-            >
-              <IconUserShield
-                size={15}
-              />
-            </ActionIcon>
-
-            <Divider orientation="vertical" />
-
-            <Badge style={{ display: "none" }} size="sm" variant="light" color={commandCenter.locked ? "orange" : "gray"}>{commandCenter.locked ? i18next.t("ui.lock") : i18next.t("ui.free")}</Badge>
-            <ActionIcon
-              size="sm"
-              variant={rightPanelMode === "loco" ? "filled" : "light"}
-              color={rightPanelMode === "loco" ? "green" : "gray"}
-              aria-label={i18next.t("ui.toggleRightLocomotivePanel")}
-              title={rightPanelMode === "loco" ? i18next.t("ui.rightPanelLocomotiveControl") : i18next.t("ui.rightPanelProperties")}
-              onClick={() => {
-                setRightPanelMode(value => value === "property" ? "loco" : "property");
-                setPropertyPanelCollapsed(false);
-              }}
-            >
-              <IconTrain size={15} />
-            </ActionIcon>
-            {blockSelectionActive && (
-              <>
-                <Divider orientation="vertical" />
-                <Badge color="lime" variant="filled" size="sm">Yellow: FROM · Lime: destination · Esc to cancel</Badge>
-              </>
-            )}
-          </Group>
-          {blockSelectionActive && (
-            <Button size="compact-xs" color="red" variant="filled" onClick={emergencyStopAndCancelSelection}>
-              {i18next.t("ui.estop")}
-            </Button>
-          )}
-          <Text size="xs" c="dimmed" truncate style={{ marginLeft: "auto" }}>
-            {layout.getAllElements().length} elements · {locos.length} locos
-          </Text>
-        </Group>
-      </Card>
+      <LayoutStatusBar
+        wsStatus={wsStatus}
+        emergencyStop={commandCenter.powerInfo?.emergencyStop === true}
+        onEmergencyStop={emergencyStopAndCancelSelection}
+        anyTrackOverload={anyTrackOverload}
+        overloadedTrackNames={overloadedTrackNames}
+        broadcastAudioEnabled={broadcastAudioEnabled}
+        onToggleAudio={() => setBroadcastAudioEnabled(!broadcastAudioEnabled)}
+        switchManModeEnabled={switchManModeState.enabled}
+        switchManOwnedCount={switchManModeState.ownedAddresses.length}
+        switchManModeBusy={switchManModeBusy}
+        onToggleSwitchMan={() => { void toggleSwitchManMode(); }}
+        blockSelectionActive={blockSelectionActive}
+        rightPanelMode={rightPanelMode}
+        onToggleRightPanel={() => { setRightPanelMode(value => value === "property" ? "loco" : "property"); setPropertyPanelCollapsed(false); }}
+        elementCount={layout.getAllElements().length}
+        locoCount={locos.length}
+      />
 
       <AppModal
         opened={pickerOpened}
