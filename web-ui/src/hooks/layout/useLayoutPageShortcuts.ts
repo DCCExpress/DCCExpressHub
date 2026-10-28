@@ -23,6 +23,7 @@ export type UseLayoutPageShortcutsParams = {
   editMode?: boolean;
   undoLayout?: () => void;
   redoLayout?: () => void;
+  enabled?: boolean;
 };
 
 export function useLayoutPageShortcuts({
@@ -33,8 +34,10 @@ export function useLayoutPageShortcuts({
   editMode = false,
   undoLayout,
   redoLayout,
+  enabled = true,
 }: UseLayoutPageShortcutsParams): void {
   useEffect(() => {
+    if (!enabled) return;
     const onKeyDown = (
       ev: KeyboardEvent
     ): void => {
@@ -115,5 +118,6 @@ export function useLayoutPageShortcuts({
     editMode,
     undoLayout,
     redoLayout,
+    enabled,
   ]);
 }
