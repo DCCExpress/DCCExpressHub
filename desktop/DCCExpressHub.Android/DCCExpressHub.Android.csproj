@@ -19,15 +19,8 @@
     <MauiIcon Include="Resources/AppIcon/appicon.png" />
     <MauiAsset Include="Resources/Raw/*" />
   </ItemGroup>
-  <!-- VS rebuilds the MAUI project, not Vite. Generate fresh UI assets before
-       MAUI enumerates and packages its MauiAsset inputs. -->
-  <Target Name="BuildAndroidWebUi" BeforeTargets="AssignTargetPaths"
-          Condition="'$(DesignTimeBuild)' != 'true'">
-    <Exec WorkingDirectory="$(MSBuildProjectDirectory)/../../web-ui"
-          Command="npm run build" />
-    <ItemGroup>
-      <MauiAsset Include="$(MSBuildProjectDirectory)/../../web-ui/dist/**/*"
-                 LogicalName="wwwroot/%(RecursiveDir)%(Filename)%(Extension)" />
-    </ItemGroup>
-  </Target>
+  <ItemGroup>
+    <MauiAsset Include="../DCCExpressHub.Net/wwwroot/**/*"
+               LogicalName="wwwroot/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
 </Project>
