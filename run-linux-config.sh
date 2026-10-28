@@ -69,8 +69,7 @@ change_protocol() {
 serial_devices() {
   local key="$1" file
   local -a items=(manual 'Enter device manually')
-  for file in /dev/serial/by-id
-/* /dev/ttyACM* /dev/ttyUSB*; do
+  for file in /dev/serial/by-id/* /dev/ttyACM* /dev/ttyUSB*; do
     [[ -e "$file" ]] && items+=("$file" 'Serial device')
   done
   if ui --title 'Serial devices' --menu 'Select device' 20 76 11 "${items[@]}"; then
