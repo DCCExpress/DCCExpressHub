@@ -66,6 +66,7 @@ type TimetablePanelProps = {
   movements: MovementPage[];
   onOpenTimetable: () => void;
   timetableRevision?: number;
+  editingEnabled?: boolean;
 };
 
 type ExpandedTimetableRow = {
@@ -125,6 +126,7 @@ export default function TimetablePanel({
   movements,
   onOpenTimetable,
   timetableRevision = 0,
+  editingEnabled = true,
 }: TimetablePanelProps) {
   const { t } = useTranslation();
 
@@ -876,6 +878,7 @@ export default function TimetablePanel({
                 color="blue"
                 variant="light"
                 leftSection={<IconCalendarTime size={17} />}
+                disabled={!editingEnabled}
                 onClick={onOpenTimetable}
               >
                 {t("ui.editTimetable")}
