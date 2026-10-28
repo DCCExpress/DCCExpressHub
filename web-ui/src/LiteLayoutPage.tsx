@@ -179,6 +179,7 @@ type LiteLayoutPageProps = {
   ) => void;
   onBack: () => void;
   onOpenLocoEditor: () => void;
+  tabletMode?: boolean;
 };
 
 type PickerItem = {
@@ -414,6 +415,7 @@ const LOCO_COLLAPSED_KEY = "dcc-express-lite.layout.locoPanelCollapsed";
 const PROPERTY_COLLAPSED_KEY = "dcc-express-lite.layout.propertyPanelCollapsed";
 const RIGHT_PANEL_MODE_KEY = "dcc-express-lite.layout.rightPanelMode";
 const RUNTIME_TAB_SESSION_KEY = "dcc-express-lite.layout.runtimeTab";
+const tabletStorageKey = (key: string) => `${key}.tablet`;
 const RIGHT_LOCO_STORAGE_KEY = "dcc-express-lite.loco-panel.right.selected-loco-id";
 const LAYOUT_ELEMENT_PICKER_TAB_KEY = "dcc-express-lite.layout.elementPickerTab";
 
@@ -1015,6 +1017,7 @@ export default function LiteLayoutPage({
   onAutomationFlowChange,
   onBack,
   onOpenLocoEditor,
+  tabletMode = false,
 }: LiteLayoutPageProps) {
   useTranslation();
   const commandCenter = useCommandCenter();
@@ -1171,11 +1174,11 @@ export default function LiteLayoutPage({
   const [error, setError] = useState<string | null>(null);
   const [wsStatus, setWsStatus] = useState<WsConnectionStatus>(() => wsClient.getStatus());
   const [dccExStatus, setDccExStatus] = useState<DccExStatusPayload | null>(null);
-  const [locoPanelWidth, setLocoPanelWidth] = useState(() => readStoredNumber(LOCO_WIDTH_KEY, 380));
-  const [propertyPanelWidth, setPropertyPanelWidth] = useState(() => readStoredNumber(PROPERTY_WIDTH_KEY, 380));
-  const [locoPanelCollapsed, setLocoPanelCollapsed] = useState(() => readStoredBoolean(LOCO_COLLAPSED_KEY));
-  const [propertyPanelCollapsed, setPropertyPanelCollapsed] = useState(() => readStoredBoolean(PROPERTY_COLLAPSED_KEY));
-  const [rightPanelMode, setRightPanelMode] = useState<RightPanelMode>(readStoredRightPanelMode);
+  const [locoPanelWidth, setLocoPanelWidth] = useState(() => readStoredNumber(tabletMode ? tabletStorageKey(LOCO_WIDTH_KEY) : LOCO_WIDTH_KEY, tabletMode ? 240 : 380));
+  const [propertyPanelWidth, setPropertyPanelWidth] = useState(() => readStoredNumber(tabletMode ? tabletStorageKey(PROPERTY_WIDTH_KEY) : PROPERTY_WIDTH_KEY, tabletMode ? 260 : 380));
+  const [locoPanelCollapsed, setLocoPanelCollapsed] = useState(() => readStoredBoolean(tabletMode ? tabletStorageKey(LOCO_COLLAPSED_KEY) : LOCO_COLLAPSED_KEY));
+  const [propertyPanelCollapsed, setPropertyPanelCollapsed] = useState(() => readStoredBoolean(tabletMode ? tabletStorageKey(PROPERTY_COLLAPSED_KEY) : PROPERTY_COLLAPSED_KEY));
+  const [rightPanelMode, setRightPanelMode] = useState<RightPanelMode>(() => tabletMode ? (localStorage.getItem(tabletStorageKey(RIGHT_PANEL_MODE_KEY)) === "loco" ? "loco" : "property") : readStoredRightPanelMode());
   const [runtimeTab, setRuntimeTab] = useState<RuntimeTab>(readStoredRuntimeTab);
   const resizeRef = useRef<{ side: "left" | "right"; startX: number; startWidth: number } | null>(null);
   const temperatureCriticalRef = useRef(false);
@@ -1674,23 +1677,23 @@ export default function LiteLayoutPage({
   }, [editMode]);
 
   useEffect(() => {
-    localStorage.setItem(LOCO_WIDTH_KEY, String(locoPanelWidth));
+    localStorage.setItem(tabletMode ? tabletStorageKey(LOCO_WIDTH_KEY) : LOCO_WIDTH_KEY, String(locoPanelWidth));
   }, [locoPanelWidth]);
 
   useEffect(() => {
-    localStorage.setItem(PROPERTY_WIDTH_KEY, String(propertyPanelWidth));
+    localStorage.setItem(tabletMode ? tabletStorageKey(PROPERTY_WIDTH_KEY) : PROPERTY_WIDTH_KEY, String(propertyPanelWidth));
   }, [propertyPanelWidth]);
 
   useEffect(() => {
-    localStorage.setItem(LOCO_COLLAPSED_KEY, String(locoPanelCollapsed));
+    localStorage.setItem(tabletMode ? tabletStorageKey(LOCO_COLLAPSED_KEY) : LOCO_COLLAPSED_KEY, String(locoPanelCollapsed));
   }, [locoPanelCollapsed]);
 
   useEffect(() => {
-    localStorage.setItem(PROPERTY_COLLAPSED_KEY, String(propertyPanelCollapsed));
+    localStorage.setItem(tabletMode ? tabletStorageKey(PROPERTY_COLLAPSED_KEY) : PROPERTY_COLLAPSED_KEY, String(propertyPanelCollapsed));
   }, [propertyPanelCollapsed]);
 
   useEffect(() => {
-    localStorage.setItem(RIGHT_PANEL_MODE_KEY, rightPanelMode);
+    localStorage.setItem(tabletMode ? tabletStorageKey(RIGHT_PANEL_MODE_KEY) : RIGHT_PANEL_MODE_KEY, rightPanelMode);
   }, [rightPanelMode]);
 
   useEffect(() => {
@@ -2055,6 +2058,7 @@ export default function LiteLayoutPage({
     editMode,
     undoLayout,
     redoLayout,
+    enabled: !tabletMode,
   });
 
   const beginResize = (side: "left" | "right", event: React.PointerEvent<HTMLDivElement>) => {
@@ -2086,7 +2090,7 @@ export default function LiteLayoutPage({
 
 
   return (
-    <Stack gap={6} className="lite-layout-page">
+    <Stack gap={6} className={tabletMode ? "lite-layout-page lite-layout-page-tablet" : "lite-layout-page"}>
       <input
         ref={importFileRef}
         type="file"
@@ -2098,6 +2102,25 @@ export default function LiteLayoutPage({
         }}
       />
 
+      {tabletMode && <Card withBorder px={6} py={3} radius="sm" className="lite-layout-toolbar">
+        <Group justify="space-between" wrap="nowrap">
+          <Group gap="xs" wrap="nowrap">
+            <ActionIcon variant="subtle" onClick={onBack} title={i18next.t("ui.home")} aria-label={i18next.t("ui.back")}>
+              <IconArrowLeft size={20} />
+            </ActionIcon>
+            <Title order={5}>Tablet Control</Title>
+          </Group>
+          <Group gap="xs" wrap="nowrap">
+            <ActionIcon variant="light" onClick={() => setFitCounter(value => value + 1)} title={i18next.t("ui.fitLayout")} aria-label={i18next.t("ui.fitLayout")}>
+              <IconFocusCentered size={19} />
+            </ActionIcon>
+            <ActionIcon variant="light" loading={loading} onClick={() => void loadLayout()} title={i18next.t("ui.reload")} aria-label={i18next.t("ui.reloadLayout")}>
+              <IconRefresh size={19} />
+            </ActionIcon>
+          </Group>
+        </Group>
+      </Card>}
+      {!tabletMode && (
       <Card withBorder px={6} py={3} radius="sm" className="lite-layout-toolbar" inert={blockSelectionActive} style={{ opacity: blockSelectionActive ? 0.55 : 1 }}>
         <Group justify="space-between" align="center" wrap="nowrap">
           <Group gap="xs">
@@ -2234,6 +2257,7 @@ export default function LiteLayoutPage({
           </Group>
         </Group>
       </Card>
+      )}
 
       {error && <Alert color="red">{error}</Alert>}
 
@@ -2392,6 +2416,8 @@ export default function LiteLayoutPage({
                           onScriptsChange={setAutomationScripts}
                           flows={automationFlow}
                           onFlowsChange={onAutomationFlowChange}
+                          editorsEnabled={!tabletMode}
+                          showScriptFlowTabs={!tabletMode}
                           onOpenFlowEditor={pageId => {
                             const url = new URL(window.location.href);
                             url.hash = "flows";
@@ -2451,6 +2477,8 @@ export default function LiteLayoutPage({
 
       <LayoutStatusBar
         wsStatus={wsStatus}
+        powerOn={tabletMode ? commandCenter.powerInfo?.trackVoltageOn === true : undefined}
+        onTogglePower={tabletMode ? () => { void wsApi.setTrackPower(!commandCenter.powerInfo?.trackVoltageOn); } : undefined}
         emergencyStop={commandCenter.powerInfo?.emergencyStop === true}
         onEmergencyStop={emergencyStopAndCancelSelection}
         anyTrackOverload={anyTrackOverload}
