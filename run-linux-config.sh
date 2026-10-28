@@ -3,6 +3,8 @@
 set -Eeuo pipefail
 # Render Unicode box-drawing characters correctly over UTF-8 SSH terminals.
 export NCURSES_NO_UTF8_ACS=1
+# Force portable line drawing: avoids literal ACS letters (l, q, x, k) over SSH.
+# ASCII corners/lines are preferable to broken terminal escape rendering.
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$ROOT/desktop/DCCExpressHub.Net/.env.linux"
 BACKEND_DIR="$ROOT/desktop/DCCExpressHub.Net"
@@ -45,7 +47,7 @@ cleanup() { rm -f -- "$temp_output"; clear || true; }
 trap cleanup EXIT
 ui() {
   : > "$temp_output"
-  dialog --clear --backtitle "DCCExpressHub | Linux configuration" --output-fd 3 "$@" 3>"$temp_output"
+  dialog --ascii-lines --clear --backtitle "DCCExpressHub | Linux configuration" --output-fd 3 "$@" 3>"$temp_output"
 }
 ask() {
   local key="$1" title="$2" new
@@ -69,7 +71,7 @@ page() {
         item="$(cat "$temp_output")"
         case "$item" in
           1) ask DCCEXPRESS_HTTP_URL "Backend listen URL" ;;
-          2|3) dialog --msgbox "These paths are managed by the launcher, not editable here." 9 58 ;;
+          2|3) dialog --ascii-lines --msgbox "These paths are managed by the launcher, not editable here." 9 58 ;;
         esac ;;
       center)
         ui --title "Command center" --menu "Choose protocol" 16 74 5 1 "DCC-EX" 2 "Roco Z21" 3 "YaMoRC YD7010" || return
@@ -111,16 +113,16 @@ validate() {
   local key
   for key in DccEx__Port Z21__Port LocoNet__LbServerPort LocoNet__BinaryPort; do
     [[ "${values[$key]}" =~ ^[0-9]+$ ]] && ((10#${values[$key]} >= 1 && 10#${values[$key]} <= 65535)) || {
-      dialog --msgbox "Invalid port: $key = ${values[$key]}" 9 65; return 1;
+      dialog --ascii-lines --msgbox "Invalid port: $key = ${values[$key]}" 9 65; return 1;
     }
   done
   [[ "${values[DCCEXPRESS_HTTP_URL]}" == http://* || "${values[DCCEXPRESS_HTTP_URL]}" == https://* ]] || {
-    dialog --msgbox "Listen URL must begin with http:// or https://" 8 65; return 1;
+    dialog --ascii-lines --msgbox "Listen URL must begin with http:// or https://" 8 65; return 1;
   }
 }
 save() {
   validate || return
-  if ! dialog --yesno "Save configuration to .env.linux? A backup will be created if it exists." 9 70; then return; fi
+  if ! dialog --ascii-lines --yesno "Save configuration to .env.linux? A backup will be created if it exists." 9 70; then return; fi
   local dir tmp backup key line prefix found escaped
   dir="$(dirname "$ENV_FILE")"; mkdir -p "$dir"
   tmp="$(mktemp "$dir/.env.linux.tmp.XXXXXX")"
@@ -150,7 +152,7 @@ save() {
   done
   mv -f -- "$tmp" "$ENV_FILE"
   dirty=0
-  dialog --msgbox "Linux configuration saved. Restart the Hub to apply changes." 9 65
+  dialog --ascii-lines --msgbox "Linux configuration saved. Restart the Hub to apply changes." 9 65
 }
 while true; do
   ui --title "DCCExpressHub" --menu "Configuration | ${values[CommandCenter__Protocol]}" 20 80 10 1 "General / HTTP" 2 "Command center" 3 "DCC-EX" 4 "Z21 / R-BUS" 5 "LocoNet / YaMoRC" 6 "Save configuration" 7 "Exit" || choice=7
@@ -160,7 +162,7 @@ while true; do
     6) save ;;
     7)
       if ((dirty)); then
-        if dialog --yesno "Unsaved changes. Exit without saving?" 9 60; then break; fi
+        if dialog --ascii-lines --yesno "Unsaved changes. Exit without saving?" 9 60; then break; fi
       else break; fi ;;
   esac
   choice=''
