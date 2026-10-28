@@ -19,8 +19,8 @@ public sealed class MainPage : ContentPage
     readonly VerticalStackLayout _serialFields = new() { Spacing = 8 };
     readonly Label _status = new() { Text = "Ready to start", TextColor = Colors.LightGray };
     readonly Button _start = new() { Text = "Start HUB", BackgroundColor = Color.FromArgb("#2563EB"), TextColor = Colors.White };
-    readonly Button _stop = new() { Text = "Stop HUB", IsEnabled = false };
-    readonly Button _reload = new() { Text = "Reload", IsEnabled = false };
+    readonly Button _stop = new() { Text = "Stop HUB", IsEnabled = false, IsVisible = false };
+    readonly Button _reload = new() { Text = "Reload", IsEnabled = false, IsVisible = false };
     readonly Button _settingsButton = new() { Text = "Settings", IsVisible = false };
     readonly WebView _browser = new() { IsVisible = false };
     readonly ScrollView _startup = new();
@@ -49,7 +49,6 @@ public sealed class MainPage : ContentPage
 
     public MainPage()
     {
-        Title = "DCCExpress HUB";
         BackgroundColor = Color.FromArgb("#0F172A");
         // Explicit colors: Android may default to a light text theme regardless
         // of the page background, making Picker/Entry/Button text unreadable.
@@ -169,6 +168,8 @@ public sealed class MainPage : ContentPage
         _browser.IsVisible = false;
         _startup.IsVisible = true;
         _settingsButton.IsVisible = false;
+        _reload.IsVisible = false;
+        _stop.IsVisible = false;
     }
 
     static int ParsePort(string? value, string name)
@@ -238,6 +239,8 @@ public sealed class MainPage : ContentPage
             _stop.IsEnabled = true;
             _reload.IsEnabled = true;
             _settingsButton.IsVisible = true;
+            _reload.IsVisible = true;
+            _stop.IsVisible = true;
         }
         catch (Exception ex)
         {
