@@ -47,7 +47,7 @@ cleanup() { rm -f -- "$temp_output"; clear || true; }
 trap cleanup EXIT
 ui() {
   : > "$temp_output"
-  dialog --ascii-lines --clear --backtitle "DCCExpressHub | Linux configuration" --output-fd 3 "$@" 3>"$temp_output"
+  dialog --ascii-lines --backtitle "DCCExpressHub | Linux configuration" --output-fd 3 "$@" 3>"$temp_output"
 }
 ask() {
   local key="$1" title="$2" new
@@ -67,14 +67,14 @@ page() {
   while true; do
     case "$section" in
       server)
-        ui --title "Server" --menu "HTTP / Web settings" 16 76 5 1 "Listen URL: ${values[DCCEXPRESS_HTTP_URL]}" 2 "Content root (managed)" 3 "Web root (managed)" || return
+        ui --title "Server" --menu "HTTP / Web settings" 16 76 5 1 "Listen URL: ${values[DCCEXPRESS_HTTP_URL]}" 2 "Content root (managed)" 3 "Web root (managed)" || return 0
         item="$(cat "$temp_output")"
         case "$item" in
           1) ask DCCEXPRESS_HTTP_URL "Backend listen URL" ;;
           2|3) dialog --ascii-lines --msgbox "These paths are managed by the launcher, not editable here." 9 58 ;;
         esac ;;
       center)
-        ui --title "Command center" --menu "Choose protocol" 16 74 5 1 "DCC-EX" 2 "Roco Z21" 3 "YaMoRC YD7010" || return
+        ui --title "Command center" --menu "Choose protocol" 16 74 5 1 "DCC-EX" 2 "Roco Z21" 3 "YaMoRC YD7010" || return 0
         case "$(cat "$temp_output")" in
           1) values[CommandCenter__Protocol]="dccex" ;;
           2) values[CommandCenter__Protocol]="z21" ;;
@@ -82,7 +82,7 @@ page() {
         esac
         dirty=1 ;;
       dccex)
-        ui --title "DCC-EX" --menu "Connection settings" 18 76 7 1 "Transport: ${values[DccEx__Transport]}" 2 "Host: ${values[DccEx__Host]}" 3 "TCP port: ${values[DccEx__Port]}" 4 "Serial device: ${values[DccEx__SerialPort]}" || return
+        ui --title "DCC-EX" --menu "Connection settings" 18 76 7 1 "Transport: ${values[DccEx__Transport]}" 2 "Host: ${values[DccEx__Host]}" 3 "TCP port: ${values[DccEx__Port]}" 4 "Serial device: ${values[DccEx__SerialPort]}" || return 0
         case "$(cat "$temp_output")" in
           1) choose DccEx__Transport "DCC-EX transport" Tcp "TCP" Serial "USB / serial" ;;
           2) ask DccEx__Host "DCC-EX host" ;;
@@ -90,14 +90,14 @@ page() {
           4) ask DccEx__SerialPort "DCC-EX serial device" ;;
         esac ;;
       z21)
-        ui --title "Z21" --menu "Z21 and R-BUS settings" 16 76 5 1 "Host: ${values[Z21__Host]}" 2 "UDP port: ${values[Z21__Port]}" 3 "R-BUS offset: ${values[Z21__RBusOffset]}" || return
+        ui --title "Z21" --menu "Z21 and R-BUS settings" 16 76 5 1 "Host: ${values[Z21__Host]}" 2 "UDP port: ${values[Z21__Port]}" 3 "R-BUS offset: ${values[Z21__RBusOffset]}" || return 0
         case "$(cat "$temp_output")" in
           1) ask Z21__Host "Z21 host" ;;
           2) ask Z21__Port "Z21 UDP port" ;;
           3) ask Z21__RBusOffset "R-BUS offset" ;;
         esac ;;
       loconet)
-        ui --title "LocoNet" --menu "LocoNet feedback settings" 19 78 8 1 "Host: ${values[LocoNet__Host]}" 2 "LBServer TCP: ${values[LocoNet__LbServerPort]}" 3 "LBServer feedback: ${values[LocoNet__LbServerFeedback]}" 4 "Binary port: ${values[LocoNet__BinaryPort]}" 5 "Binary feedback: ${values[LocoNet__BinaryFeedback]}" 6 "Sensor offset: ${values[LocoNet__SensorOffset]}" || return
+        ui --title "LocoNet" --menu "LocoNet feedback settings" 19 78 8 1 "Host: ${values[LocoNet__Host]}" 2 "LBServer TCP: ${values[LocoNet__LbServerPort]}" 3 "LBServer feedback: ${values[LocoNet__LbServerFeedback]}" 4 "Binary port: ${values[LocoNet__BinaryPort]}" 5 "Binary feedback: ${values[LocoNet__BinaryFeedback]}" 6 "Sensor offset: ${values[LocoNet__SensorOffset]}" || return 0
         case "$(cat "$temp_output")" in
           1) ask LocoNet__Host "LocoNet host" ;;
           2) ask LocoNet__LbServerPort "LBServer TCP port" ;;
@@ -158,7 +158,7 @@ while true; do
   ui --title "DCCExpressHub" --menu "Configuration | ${values[CommandCenter__Protocol]}" 20 80 10 1 "General / HTTP" 2 "Command center" 3 "DCC-EX" 4 "Z21 / R-BUS" 5 "LocoNet / YaMoRC" 6 "Save configuration" 7 "Exit" || choice=7
   choice="${choice:-$(cat "$temp_output")}"
   case "$choice" in
-    1) page server ;; 2) page center ;; 3) page dccex ;; 4) page z21 ;; 5) page loconet ;;
+    1) page server || true ;; 2) page center || true ;; 3) page dccex || true ;; 4) page z21 || true ;; 5) page loconet || true ;;
     6) save ;;
     7)
       if ((dirty)); then
