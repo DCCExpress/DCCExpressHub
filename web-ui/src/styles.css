@@ -622,3 +622,44 @@ button,
     grid-template-columns: var(--lite-loco-width) 5px minmax(0, 1fr) 5px var(--lite-property-width);
   }
 }
+
+/* Tablet's left-hand traditional throttle only: fit all 29 function buttons
+   into the smaller CSS-pixel height of an Android WebView. The locomotive
+   cards view and desktop controls keep their original dimensions. */
+.tablet-shell .lite-loco-panel .mobile-throttle-fit {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.tablet-shell .lite-loco-panel .mobile-throttle-layout {
+  height: 100%;
+  min-height: 0;
+  gap: 4px;
+}
+.tablet-shell .lite-loco-panel .mobile-throttle-controls {
+  flex: 0 0 auto;
+}
+.tablet-shell .lite-loco-panel .mobile-throttle-functions {
+  flex: 1 1 auto;
+  overflow: hidden;
+  min-height: 0;
+}
+.tablet-shell .lite-loco-panel .mobile-throttle-functions .mantine-Card-root {
+  height: 100%;
+  min-height: 0;
+  padding: 4px;
+}
+.tablet-shell .lite-loco-panel .mobile-throttle-functions .mantine-Stack-root {
+  min-height: 0;
+  gap: 0;
+}
+.tablet-shell .lite-loco-panel .mobile-throttle-functions .mantine-ScrollArea-root {
+  min-height: 0;
+}
+.tablet-shell .lite-loco-panel .mobile-throttle-functions .mantine-SimpleGrid-root {
+  gap: 4px;
+}
+.tablet-shell .lite-loco-panel .mobile-throttle-functions .mantine-Button-root {
+  height: 36px !important;
+  min-height: 36px;
+}
