@@ -90,6 +90,7 @@ import {
 } from "@/services/backupService";
 
 const LiteLayoutPage = lazy(() => import("./LiteLayoutPage"));
+const TabletControlPage = lazy(() => import("./TabletControlPage"));
 const AutomationFlowPage = lazy(() => import("./AutomationFlowPage"));
 const RuntimeLayoutOverlay = lazy(() => import("./RuntimeLayoutOverlay"));
 const ProgrammingPage = lazy(() => import("./ProgrammingPage"));
@@ -99,7 +100,7 @@ const GamepadPage = lazy(() => import("./GamepadPage"));
 const ConsolePage = lazy(() => import("./ConsolePage"));
 
 type LoadState = "idle" | "loading" | "ready" | "error";
-type Page = "home" | "drive" | "layout" | "flows" | "programming" | "s88-adapter" | "external-devices" | "settings" | "device-config" | "gamepad" | "console" | "files" | "backup" | "debug";
+type Page = "home" | "drive" | "tablet" | "layout" | "flows" | "programming" | "s88-adapter" | "external-devices" | "settings" | "device-config" | "gamepad" | "console" | "files" | "backup" | "debug";
 
 type NetworkSettingsDto = {
   configured: boolean;
@@ -143,7 +144,7 @@ function formatStatus(status: WsConnectionStatus): string {
 
 function pageFromHash(): Page {
   const page = window.location.hash.replace("#", "");
-  return page === "drive" || page === "layout" || page === "flows" || page === "programming" || page === "s88-adapter" || page === "external-devices" || page === "settings" || page === "device-config" || page === "gamepad" || page === "console" || page === "files" || page === "backup" || page === "debug" ? page : "home";
+  return page === "drive" || page === "tablet" || page === "layout" || page === "flows" || page === "programming" || page === "s88-adapter" || page === "external-devices" || page === "settings" || page === "device-config" || page === "gamepad" || page === "console" || page === "files" || page === "backup" || page === "debug" ? page : "home";
 }
 
 function AppHeader({
@@ -310,6 +311,12 @@ function HomePage({
           <Text size="sm" c="dimmed" mt={4}>
             {t("homeHub.cards.layout.description")}
           </Text>
+        </Card>
+
+        <Card className="action-card" withBorder radius={5} p="lg" onClick={() => onNavigate("tablet")}>
+          <ThemeIcon size={48} radius="lg" color="blue" variant="light"><IconMap size={27} /></ThemeIcon>
+          <Title order={4} mt="md">Tablet Control</Title>
+          <Text size="sm" c="dimmed" mt={4}>Layout and two locomotive controllers, without editing tools.</Text>
         </Card>
 
         <Card className="action-card" withBorder radius={5} p="lg" onClick={() => onNavigate("drive")}>
@@ -1258,6 +1265,8 @@ export default function App() {
         />
       );
     }
+
+    if (page === "tablet") return <TabletControlPage locos={locos} onBack={() => navigate("home")} />;
 
     if (page === "layout") return <LiteLayoutPage version={version} locos={locos} automationFlow={automationFlow} onAutomationFlowChange={setAutomationFlow} onBack={() => navigate("home")} onOpenLocoEditor={() => setLocoEditorOpened(true)} />;
 
