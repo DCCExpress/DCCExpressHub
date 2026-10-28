@@ -108,6 +108,7 @@ type Props = {
   stationNames: Array<{ id: string; name: string }>;
   onOpenStationRoutes: (routeId: string) => void;
   onPersistRouteTopology?: (() => Promise<void>) | undefined;
+  allowCreate?: boolean;
 };
 
 function routeLabel(
@@ -505,6 +506,7 @@ export default function MovementPagesTable({
   stationNames,
   onOpenStationRoutes,
   onPersistRouteTopology,
+  allowCreate = true,
 }: Props) {
   const [collectionTab, setCollectionTab] = useState<MovementCollectionTab>(loadMovementCollectionTab);
   const changeCollectionTab = (value: string | null) => {
@@ -1107,6 +1109,7 @@ export default function MovementPagesTable({
                   null
                 )
             }
+            disabled={!allowCreate}
           >
             {mt("movementNew")}
           </Button>
@@ -1194,7 +1197,7 @@ export default function MovementPagesTable({
                 </Badge>
               </Group>
               <Button size="xs" leftSection={<IconPlus size={14}/>}
-                onClick={() => onOpenStationRoutes("")}>{mt("movementNew")}</Button>
+                disabled={!allowCreate} onClick={() => onOpenStationRoutes("")}>{mt("movementNew")}</Button>
             </Group>
             <ScrollArea style={{ flex: 1, minHeight: 0 }} type="always">
               <Stack gap="sm">
@@ -1263,6 +1266,7 @@ export default function MovementPagesTable({
             locos={locos}
             onMovementsChange={onDocumentChange}
             onPersistRouteTopology={onPersistRouteTopology}
+            allowCreate={allowCreate}
           />
         </Tabs.Panel>
       </Tabs>
