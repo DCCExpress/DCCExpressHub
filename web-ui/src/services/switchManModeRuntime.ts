@@ -653,75 +653,46 @@ export function isSwitchManModeEnabled():
   return enabled;
 }
 
-export async function setSwitchManModeEnabled(
-  value: boolean
-): Promise<void> {
+export async function setSwitchManModeEnabled(value: boolean): Promise<void> {
   install();
-
-  if (
-    value
-  ) {
-    if (
-      !enabled
-    ) {
-      enabled =
-        true;
+  if (value) {
+    if (!enabled) {
+      enabled = true;
       emit();
       sendSnapshot();
     }
-
     return;
   }
-
-  if (
-    !enabled
-  ) {
-    return;
-  }
-
-  const response =
-    await request(
-      "release",
-      {
-        ownerId,
-      }
-    );
-
-  if (
-    !response.ok
-  ) {
-    throw new Error(
-      response.message ||
-      i18next.t(
-        "ui.turnoutLockReleaseFailed"
-      )
-    );
-  }
-
-  if (
-    response.extra?.locks
-  ) {
-    applyLocks(
-      response.extra.locks
-    );
-  }
-
-  enabled =
-    false;
-  emit();
+  // Do not release a manual/route operation that is still in flight.
+  return serializeOperation(async () => {
+    if (!enabled) return;
+    const response = await request("release", { ownerId });
+    if (!response.ok) {
+      throw new Error(response.message || i18next.t("ui.turnoutLockReleaseFailed"));
+    }
+    if (response.extra?.locks) applyLocks(response.extra.locks);
+    manualHeldAddresses.clear();
+    routeHeldAddresses.clear();
+    saveProvenance();
+    enabled = false;
+    emit();
+  });
 }
 
 export async function operateSwitchManTurnouts(
-  requestedCommands:
-    SwitchManTurnoutCommand[]
+  requestedCommands: SwitchManTurnoutCommand[],
+  source: "manual" | "route" = "manual"
 ): Promise<boolean> {
   install();
+  if (!enabled) return false;
+  return serializeOperation(() => performSwitchManTurnoutOperation(requestedCommands, source));
+}
 
-  if (
-    !enabled
-  ) {
-    return false;
-  }
+async function performSwitchManTurnoutOperation(
+  requestedCommands: SwitchManTurnoutCommand[],
+  source: "manual" | "route"
+): Promise<boolean> {
+  if (!enabled) return false;
 
   const commandByAddress =
     new Map<
@@ -812,6 +783,13 @@ export async function operateSwitchManTurnouts(
       return false;
     }
 
+    if (source === "manual") {
+      // A manually operated turnout must survive future RouteButton changes,
+      // even if that turnout was first acquired as part of a route.
+      for (const command of commands) manualHeldAddresses.add(command.address);
+      saveProvenance();
+    }
+
     for (
       let index = 0;
       index < commands.length;
@@ -873,6 +851,34 @@ export async function operateSwitchManTurnouts(
           );
         }
       }
+    }
+
+    if (source === "route") {
+      const newRouteAddresses = new Set(commands.map(command => command.address));
+      const obsolete = [...routeHeldAddresses].filter(address =>
+        !newRouteAddresses.has(address) && !manualHeldAddresses.has(address)
+      );
+
+      // Record newly acquired locks before trying to release stale ones. A
+      // failed release must remain visible and be retried on the next route.
+      routeHeldAddresses = new Set([...routeHeldAddresses, ...newRouteAddresses]);
+      saveProvenance();
+
+      if (obsolete.length > 0) {
+        try {
+          const released = await request("release", { ownerId, addresses: obsolete });
+          if (!released.ok) {
+            showOperationError(released.message || i18next.t("ui.turnoutLockReleaseFailed"));
+            return true; // Route is already physically set; keep stale locks safely.
+          }
+          if (released.extra?.locks) applyLocks(released.extra.locks);
+        } catch (releaseError) {
+          showOperationError(releaseError instanceof Error ? releaseError.message : String(releaseError));
+          return true; // Do not claim the route itself failed after it was set.
+        }
+      }
+      routeHeldAddresses = newRouteAddresses;
+      saveProvenance();
     }
 
     return true;
