@@ -1,10 +1,19 @@
-import { Suspense, lazy } from "react";
-import { ActionIcon, Badge, Card, Center, Group, Loader, Text } from "@mantine/core";
+import { Suspense, lazy, useEffect, useState } from "react";
+import { ActionIcon, Center, Loader } from "@mantine/core";
 import { IconArrowLeft } from "@tabler/icons-react";
-import type { Loco } from "@domain/types";
+import { showNotification } from "@mantine/notifications";
+import type { DccExStatusPayload, Loco } from "@domain/types";
 import LocoPanel from "@/layout/LocoPanel";
+import LayoutStatusBar from "@/components/LayoutStatusBar";
 import { useCommandCenter } from "@/context/CommandCenterContext";
 import { wsApi } from "@/services/wsApi";
+import { wsClient } from "@/services/wsClient";
+import {
+  isBroadcastAudioEnabled, setBroadcastAudioEnabled, subscribeBroadcastAudioEnabled
+} from "@/services/broadcastAudioRuntime";
+import {
+  getSwitchManModeState, setSwitchManModeEnabled, subscribeSwitchManModeState
+} from "@/services/switchManModeRuntime";
 import "./tablet-control.css";
 
 const RuntimeLayoutOverlay = lazy(() => import("./RuntimeLayoutOverlay"));
@@ -12,7 +21,32 @@ type Props = { locos: Loco[]; status: string; onBack: () => void };
 
 export default function TabletControlPage({ locos, status, onBack }: Props) {
   const commandCenter = useCommandCenter();
-  const estop = commandCenter.powerInfo?.emergencyStop === true;
+  const [audioEnabled, setAudioEnabled] = useState(isBroadcastAudioEnabled);
+  const [switchState, setSwitchState] = useState(getSwitchManModeState);
+  const [switchBusy, setSwitchBusy] = useState(false);
+  const [dccExStatus, setDccExStatus] = useState<DccExStatusPayload | null>(null);
+  const [elementCount, setElementCount] = useState(0);
+  useEffect(() => subscribeBroadcastAudioEnabled(setAudioEnabled), []);
+  useEffect(() => subscribeSwitchManModeState(setSwitchState), []);
+  useEffect(() => wsClient.on("dccExStatus", setDccExStatus), []);
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/layout", { cache: "no-store" })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (active && data) setElementCount(Array.isArray(data.elements) ? data.elements.length : 0); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
+  const tracks = ((dccExStatus as any)?.tracks ?? []) as { letter?: string; overload?: boolean }[];
+  const overloaded = tracks.filter(track => track.overload);
+  const toggleSwitch = async () => {
+    if (switchBusy) return;
+    setSwitchBusy(true);
+    try { await setSwitchManModeEnabled(!switchState.enabled); }
+    catch (error) {
+      showNotification({ color: "red", title: "SwitchMan", message: error instanceof Error ? error.message : String(error) });
+    } finally { setSwitchBusy(false); }
+  };
   return (
     <div className="tablet-control">
       <ActionIcon className="tablet-control-back" onClick={onBack} radius="xl" size={46}
@@ -32,27 +66,23 @@ export default function TabletControlPage({ locos, status, onBack }: Props) {
           <LocoPanel locos={locos} selectedLocoStorageKey="dcc-express.tablet.right-loco-id" />
         </aside>
       </div>
-      <Card withBorder p={5} radius="sm" className="lite-status-bar tablet-control-status">
-        <Group justify="flex-start" wrap="nowrap" gap="xs" w="100%">
-          <Badge size="sm" variant={status === "connected" ? "light" : "filled"}
-            color={status === "connected" ? "green" : "red"}
-            className={status === "connected" ? "" : "lite-ws-alert"}
-            title={status === "connected" ? "WebSocket connected" : "WebSocket: " + status}>
-            {status === "connected" ? "WS" : "WS LOST"}
-          </Badge>
-          <Badge size="sm" color={estop ? "red" : "gray"} variant={estop ? "filled" : "light"}
-            className={estop ? "blinkBadge lite-status-action" : "lite-status-action"}
-            onClick={() => void wsApi.emergencyStop()}
-            style={{ cursor: "pointer" }} title="Emergency stop">
-            E-STOP
-          </Badge>
-          <Badge size="sm" variant="light" color={commandCenter.powerInfo?.trackVoltageOn ? "green" : "red"}>
-            POWER {commandCenter.powerInfo?.trackVoltageOn ? "ON" : "OFF"}
-          </Badge>
-          <Text size="xs" c="dimmed" truncate>{commandCenter.name || commandCenter.type || "Command Center"}</Text>
-          <Text size="xs" c="dimmed" truncate style={{ marginLeft: "auto" }}>{locos.length} locos</Text>
-        </Group>
-      </Card>
+      <div className="tablet-control-status">
+        <LayoutStatusBar
+          wsStatus={status}
+          emergencyStop={commandCenter.powerInfo?.emergencyStop === true}
+          onEmergencyStop={() => { void wsApi.emergencyStop(); }}
+          anyTrackOverload={overloaded.length > 0}
+          overloadedTrackNames={overloaded.map(t => t.letter ?? "").join(", ")}
+          broadcastAudioEnabled={audioEnabled}
+          onToggleAudio={() => setBroadcastAudioEnabled(!audioEnabled)}
+          switchManModeEnabled={switchState.enabled}
+          switchManOwnedCount={switchState.ownedAddresses.length}
+          switchManModeBusy={switchBusy}
+          onToggleSwitchMan={() => { void toggleSwitch(); }}
+          elementCount={elementCount}
+          locoCount={locos.length}
+        />
+      </div>
     </div>
   );
 }
