@@ -641,14 +641,6 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
         draft && reachableNextBlocks(draft.steps, index, editorRouteTable).has(Number(block.value)))}
       onModify={modify}
       onChangeStep={changeStep}
-      onMoveStep={(index, direction) => {
-        if (!draft) return;
-        const next = [...draft.steps];
-        const target = index + direction;
-        if (target < 0 || target >= next.length) return;
-        [next[index], next[target]] = [next[target]!, next[index]!];
-        modify({ steps: normalizeReversals(next) });
-      }}
       onRemoveStep={index => {
         if (draft && draft.steps.length > 2)
           modify({ steps: normalizeReversals(draft.steps.filter((_, i) => i !== index)) });
