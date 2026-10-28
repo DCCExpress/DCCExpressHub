@@ -79,7 +79,6 @@ type TimetableDialogProps = {
     MovementPage[];
   layout: LayoutView;
   movementDocument: MovementDocument;
-  allowCreate?: boolean;
 };
 
 type ScheduleMode =
@@ -334,7 +333,6 @@ export default function TimetableDialog({
   movements,
   layout,
   movementDocument,
-  allowCreate = true,
 }: TimetableDialogProps) {
   const {
     t,
@@ -1494,7 +1492,6 @@ export default function TimetableDialog({
               />
             }
             disabled={
-              !allowCreate ||
               loading ||
               saving ||
               (
