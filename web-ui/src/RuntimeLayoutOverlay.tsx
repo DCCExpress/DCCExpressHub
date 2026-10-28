@@ -209,11 +209,11 @@ export default function RuntimeLayoutOverlay({ locos, open, embedded = false }: 
 
   if (!open) return null;
   if (loading) return <Center className={embedded ? "tablet-runtime-layout-overlay" : "mobile-runtime-layout-overlay"}><Loader /></Center>;
-  if (error) return <Box className="mobile-runtime-layout-overlay" p="md"><Alert color="red">{error}</Alert></Box>;
+  if (error) return <Box className={embedded ? "tablet-runtime-layout-overlay" : "mobile-runtime-layout-overlay"} p="md"><Alert color="red">{error}</Alert></Box>;
 
   return (
     <>
-      <Box className="mobile-runtime-layout-overlay">
+      <Box className={embedded ? "tablet-runtime-layout-overlay" : "mobile-runtime-layout-overlay"}>
         <Box className="mobile-runtime-layout-canvas">
           <TrackCanvas
             editMode={false}
