@@ -370,7 +370,7 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
   };
 
   const stepsText = (sequence: SequentialMovementDefinition) =>
-    sequence.steps.map(step => blockName(step.blockId)).join(" → ") + (sequence.repeat ? " ↻ Restart" : "");
+    sequence.steps.map(step => blockName(step.blockId)).join(" → ");
 
   const enabledSequenceCount = movements.sequences.filter(sequence => sequence.enabled).length;
 
@@ -460,7 +460,7 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
               <Stack gap="xs">
                 {/* Keep the sequence name readable independently of the action toolbar. */}
                 <Text fw={700} size="sm" style={{ overflowWrap: "anywhere" }}>
-                  {sequence.name}
+                  {sequence.repeat && <span aria-label="Repeating sequence" title="Restart Sequence" style={{ marginRight: 6 }}>↻</span>}{sequence.name}
                 </Text>
                 {/* Actions and live status remain visible even with details collapsed. */}
                 <Group justify="space-between" align="center" gap="xs" wrap="nowrap">
@@ -505,7 +505,6 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
                     </Group>
                   ))}
                 </Group>
-                {sequence.repeat && <Badge size="xs" variant="light" color="teal">↻ Restart Sequence</Badge>}
                 {sequence.directionMode !== "departure" &&
                   <Text size="xs" c="orange">Previous direction format: edit and resave this sequence before starting.</Text>}
                 <Collapse expanded={Boolean(expandedCards[sequence.id])}>
