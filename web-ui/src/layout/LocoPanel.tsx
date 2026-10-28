@@ -634,15 +634,6 @@ export default function LocoPanel({
     let frame = 0;
 
     const updateScale = () => {
-      // Landscape uses the actual 40/60 viewport grid; never scale the entire
-      // 1000px controller into a second, inconsistent coordinate system.
-      if (window.matchMedia("(orientation: landscape)").matches) {
-        content.style.setProperty("--throttle-scale", "1");
-        content.style.setProperty("--throttle-offset-x", "0px");
-        content.style.setProperty("--throttle-offset-y", "0px");
-        return;
-      }
-
       content.style.setProperty("--throttle-scale", "1");
       content.style.setProperty("--throttle-offset-x", "0px");
       content.style.setProperty("--throttle-offset-y", "0px");
@@ -888,7 +879,7 @@ export default function LocoPanel({
 
         <Tooltip label={panelView === "control" ? "Cards view" : "Control view"}>
           <ActionIcon aria-label="Toggle locomotive panel view" size="sm" variant="subtle" color="gray"
-            onClick={togglePanelView} style={{ position: "absolute", right: 2, top: 2, zIndex: 20 }}>
+            onClick={togglePanelView} style={{ position: "absolute", right: mobileViewport ? "calc(60% + 2px)" : 2, top: 2, zIndex: 20 }}>
             {panelView === "control" ? <IconLayoutGrid size={15} /> : <IconAdjustmentsHorizontal size={15} />}
           </ActionIcon>
         </Tooltip>
