@@ -112,3 +112,48 @@
     height: 100dvh;
   }
 }
+
+/* Keep the same left/top locomotive region in portrait. */
+@media (orientation: portrait) {
+  .drive-shell .mobile-loco-controller-card,
+  .drive-shell .mobile-loco-panel {
+    height: 100%;
+    min-height: 0;
+  }
+  .drive-shell .mobile-loco-cards-region,
+  .drive-shell .mobile-throttle-fit--viewport {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 40%;
+    overflow: hidden;
+  }
+  .drive-shell .mobile-functions-region {
+    position: absolute;
+    top: 40%;
+    left: 0;
+    width: 100%;
+    height: 60%;
+    overflow: auto;
+    padding: 6px;
+  }
+  .drive-shell.drive-layout-open .mobile-functions-region {
+    visibility: hidden;
+    pointer-events: none;
+  }
+}
+.drive-shell .mobile-view-toggle {
+  right: calc(60% + 2px);
+}
+@media (orientation: portrait) {
+  .drive-shell .mobile-view-toggle {
+    right: 2px;
+  }
+  .drive-shell .mobile-throttle-layout--viewport {
+    display: flex;
+    flex-direction: column;
+    width: 400px;
+    height: auto;
+  }
+}
