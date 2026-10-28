@@ -3,6 +3,7 @@ import { ActionIcon, Badge, Center, Group, Loader, Text } from "@mantine/core";
 import { IconArrowLeft } from "@tabler/icons-react";
 import type { Loco } from "@domain/types";
 import LocoPanel from "@/layout/LocoPanel";
+import { useCommandCenter } from "@/context/CommandCenterContext";
 import "./tablet-control.css";
 
 const RuntimeLayoutOverlay = lazy(() => import("./RuntimeLayoutOverlay"));
@@ -10,6 +11,7 @@ const RuntimeLayoutOverlay = lazy(() => import("./RuntimeLayoutOverlay"));
 type Props = { locos: Loco[]; status: string; onBack: () => void };
 
 export default function TabletControlPage({ locos, status, onBack }: Props) {
+  const commandCenter = useCommandCenter();
   return (
     <div className="tablet-control">
       <header className="tablet-control-status">
@@ -19,7 +21,9 @@ export default function TabletControlPage({ locos, status, onBack }: Props) {
         </ActionIcon>
         <Text size="sm" fw={700}>Tablet Control</Text>
         <Group gap="xs" ml="auto">
-          <Badge color={status === "connected" ? "green" : "red"} variant="light">{status}</Badge>
+          <Badge color={status === "connected" ? "green" : "red"} variant="light">WS: {status}</Badge>
+          <Badge color={commandCenter.alive ? "green" : "gray"} variant="light">{commandCenter.name || commandCenter.type || "Command Center"}: {commandCenter.alive ? "Connected" : "Offline"}</Badge>
+          <Badge color={commandCenter.powerInfo?.trackVoltageOn ? "green" : "red"} variant="light">Power {commandCenter.powerInfo?.trackVoltageOn ? "ON" : "OFF"}</Badge>
         </Group>
       </header>
       <div className="tablet-control-workspace">
