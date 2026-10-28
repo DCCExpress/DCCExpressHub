@@ -97,9 +97,11 @@ type Props = {
     scripts:
       AutomationScriptDefinition[]
   ) => void;
+  editorsEnabled?: boolean;
 };
 
 type CardProps = {
+  editorsEnabled: boolean;
   definition:
     AutomationScriptDefinition;
   scriptIndex:
@@ -211,6 +213,7 @@ function moveScript(
 }
 
 function ScriptCard({
+  editorsEnabled,
   definition,
   scriptIndex,
   scriptCount,
@@ -400,7 +403,7 @@ function ScriptCard({
         withBorder
         p="sm"
       radius="sm"
-        draggable
+        draggable={editorsEnabled}
         onDragStart={
           event =>
             onDragStart(
@@ -447,9 +450,10 @@ function ScriptCard({
               <ActionIcon
                 variant="subtle"
                 color="gray"
+                disabled={!editorsEnabled}
                 style={{
-                  cursor: "grab",
-                  touchAction: "none",
+                  cursor: editorsEnabled ? "grab" : "default",
+                  touchAction: editorsEnabled ? "none" : "auto",
                 }}
                 aria-label={
                   i18next.t(
@@ -473,6 +477,7 @@ function ScriptCard({
                 value={
                   definition.name
                 }
+                readOnly={!editorsEnabled}
                 style={{
                   flex: 1,
                 }}
@@ -487,7 +492,7 @@ function ScriptCard({
                 }
                 onBlur={
                   () =>
-                    void onSave(
+                    editorsEnabled && void onSave(
                       definition
                     ).catch(
                       () =>
@@ -785,6 +790,7 @@ function ScriptCard({
                   size="sm"
                   variant="light"
                   color="violet"
+                  disabled={!editorsEnabled}
                   onClick={
                     () =>
                       setEditorOpened(
@@ -966,7 +972,7 @@ function ScriptCard({
         </Stack>
       </Modal>
 
-      {editorOpened && (
+      {editorsEnabled && editorOpened && (
         <Suspense
           fallback={
             <Loader />
@@ -1054,6 +1060,7 @@ function ScriptCard({
 export default function AutomationScriptsTable({
   scripts,
   onScriptsChange,
+  editorsEnabled = true,
 }: Props) {
   const commandCenter =
     useCommandCenter();
