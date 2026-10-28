@@ -1,4 +1,7 @@
 using DCCExpressHub.Net;
+using System.Net;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using Microsoft.Maui.Controls;
 
 namespace DCCExpressHub.Android;
@@ -19,9 +22,7 @@ public sealed class MainPage : ContentPage
     readonly VerticalStackLayout _serialFields = new() { Spacing = 8 };
     readonly Label _status = new() { Text = "Ready to start", TextColor = Colors.LightGray };
     readonly Button _start = new() { Text = "Start HUB", BackgroundColor = Color.FromArgb("#2563EB"), TextColor = Colors.White };
-    readonly Button _stop = new() { Text = "Stop HUB", IsEnabled = false, IsVisible = false };
-    readonly Button _reload = new() { Text = "Reload", IsEnabled = false, IsVisible = false };
-    readonly Button _settingsButton = new() { Text = "Settings", IsVisible = false };
+    readonly Label _lanAddress = new() { TextColor = Color.FromArgb("#93C5FD"), FontSize = 13 };
     readonly WebView _browser = new() { IsVisible = false };
     readonly ScrollView _startup = new();
     readonly SemaphoreSlim _gate = new(1, 1);
@@ -63,11 +64,6 @@ public sealed class MainPage : ContentPage
         _protocol.TextColor = foreground;
         _protocol.TitleColor = Color.FromArgb("#94A3B8");
         _protocol.BackgroundColor = inputBackground;
-        foreach (var button in new[] { _stop, _reload, _settingsButton })
-        {
-            button.TextColor = foreground;
-            button.BackgroundColor = Color.FromArgb("#334155");
-        }
         _status.TextColor = Color.FromArgb("#CBD5E1");
 
 
@@ -97,13 +93,9 @@ public sealed class MainPage : ContentPage
         UpdateConnectionFields();
 
         _start.Clicked += async (_, _) => await StartHubAsync();
-        _stop.Clicked += async (_, _) => await StopHubAsync();
-        _reload.Clicked += (_, _) => _browser.Reload();
-        _settingsButton.Clicked += async (_, _) =>
-        {
-            if (_runtime is not null) await StopHubAsync();
-            else ShowStartup();
-        };
+        _lan.Toggled += (_, _) => RefreshLanAddress();
+        _httpPort.TextChanged += (_, _) => RefreshLanAddress();
+        RefreshLanAddress();
 
         var config = new VerticalStackLayout
         {
@@ -124,32 +116,64 @@ public sealed class MainPage : ContentPage
                 }},
                 new Label { Text = "Serial choices remain visible for compatibility, but Android USB serial access needs a native USB transport adapter.",
                     TextColor = Color.FromArgb("#FBBF24"), FontSize = 12 },
+                _lanAddress,
                 _start
             }
         };
         _startup.Content = config;
 
-        var runtimeControls = new HorizontalStackLayout
-        {
-            Spacing = 8, Padding = new Thickness(8, 4),
-            Children = { _settingsButton, _reload, _stop }
-        };
-        var page = new Grid
-        {
-            RowDefinitions =
-            {
-                new RowDefinition(GridLength.Auto),
-                new RowDefinition(GridLength.Auto),
-                new RowDefinition(GridLength.Star)
-            }
-        };
-        page.Add(runtimeControls, 0, 0);
-        page.Add(_status, 0, 1);
-        var content = new Grid();
-        content.Children.Add(_startup);
-        content.Children.Add(_browser);
-        page.Add(content, 0, 2);
+        var page = new Grid();
+        page.Children.Add(_startup);
+        page.Children.Add(_browser);
+        _startup.Content = config;
+        config.Children.Insert(0, _status);
+        _browser.IsVisible = false;
         Content = page;
+    }
+
+    static string[] GetLanAddresses()
+    {
+        try
+        {
+            return NetworkInterface.GetAllNetworkInterfaces()
+                .Where(n => n.OperationalStatus == OperationalStatus.Up &&
+                            n.NetworkInterfaceType != NetworkInterfaceType.Loopback &&
+                            n.NetworkInterfaceType != NetworkInterfaceType.Tunnel)
+                .SelectMany(n => n.GetIPProperties().UnicastAddresses)
+                .Select(a => a.Address)
+                .Where(a => a.AddressFamily == AddressFamily.InterNetwork &&
+                            !IPAddress.IsLoopback(a))
+                .Select(a => a.ToString())
+                .Distinct().ToArray();
+        }
+        catch { return []; }
+    }
+
+    void RefreshLanAddress()
+    {
+        if (!_lan.IsToggled)
+        {
+            _lanAddress.Text = "Local only · other devices cannot connect";
+            return;
+        }
+        var port = int.TryParse(_httpPort.Text, out var parsed) ? parsed : 5174;
+        var addresses = GetLanAddresses();
+        _lanAddress.Text = addresses.Length == 0
+            ? "LAN enabled · no active IPv4 address (connect to Wi-Fi)"
+            : "Connect from another device: " + string.Join("  ·  ", addresses.Select(ip => $"http://{ip}:{port}"));
+    }
+
+    protected override bool OnBackButtonPressed()
+    {
+        if (_runtime is null) return base.OnBackButtonPressed();
+        _ = ConfirmStopAsync();
+        return true;
+    }
+
+    async Task ConfirmStopAsync()
+    {
+        if (await DisplayAlert("Stop HUB?", "Stop the running HUB and return to connection settings?", "Stop HUB", "Cancel"))
+            await StopHubAsync();
     }
 
     void UpdateConnectionFields()
@@ -167,9 +191,7 @@ public sealed class MainPage : ContentPage
     {
         _browser.IsVisible = false;
         _startup.IsVisible = true;
-        _settingsButton.IsVisible = false;
-        _reload.IsVisible = false;
-        _stop.IsVisible = false;
+        RefreshLanAddress();
     }
 
     static int ParsePort(string? value, string name)
@@ -236,11 +258,6 @@ public sealed class MainPage : ContentPage
             _browser.Source = new UrlWebViewSource { Url = endpoint + "/#tablet" };
             _startup.IsVisible = false;
             _browser.IsVisible = true;
-            _stop.IsEnabled = true;
-            _reload.IsEnabled = true;
-            _settingsButton.IsVisible = true;
-            _reload.IsVisible = true;
-            _stop.IsVisible = true;
         }
         catch (Exception ex)
         {
@@ -258,8 +275,6 @@ public sealed class MainPage : ContentPage
     async Task StopHubAsync()
     {
         if (!await _gate.WaitAsync(0)) return;
-        _stop.IsEnabled = false;
-        _reload.IsEnabled = false;
         try
         {
             _browser.IsVisible = false;
