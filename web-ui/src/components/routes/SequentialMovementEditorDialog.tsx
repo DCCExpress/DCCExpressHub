@@ -1,6 +1,6 @@
 import { ActionIcon, Alert, Button, Group, NumberInput, ScrollArea, Select,
   Stack, Switch, Table, Text, TextInput } from "@mantine/core";
-import { IconAlertTriangle, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconAlertTriangle, IconPlus, IconTrash, IconRepeat } from "@tabler/icons-react";
 import AppModal from "@/components/common/AppModal";
 import { useMovementTranslation } from "@/components/movement/movementI18n";
 import type { SequentialMovementDefinition, SequentialMovementStep, SequentialWaitMode } from "@/domain/movement";
@@ -99,7 +99,7 @@ export default function SequentialMovementEditorDialog({
               </Table.Tr>)}
               {draft.repeat && <Table.Tr>
                 <Table.Td>{draft.steps.length + 1}</Table.Td>
-                <Table.Td colSpan={6}><Text fw={600} c="teal">↻ Restart Sequence · return to step 1</Text></Table.Td>
+                <Table.Td colSpan={6}><Group gap={6} wrap="nowrap"><IconRepeat size={15} stroke={2.5}/><Text fw={600} c="teal">Restart Sequence · return to step 1</Text></Group></Table.Td>
                 <Table.Td><ActionIcon size="sm" variant="subtle" color="red" onClick={onRemoveRestart} aria-label="Remove Restart Sequence"><IconTrash size={15}/></ActionIcon></Table.Td>
               </Table.Tr>}
             </Table.Tbody>
