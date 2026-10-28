@@ -811,6 +811,7 @@ export default function LocoPanel({
       p="xs"
       h="100%"
       opacity={alive ? 1 : 0.75}
+      className={mobileViewport ? "mobile-loco-controller-card" : undefined}
     >
       <div
         style={{
@@ -931,7 +932,7 @@ export default function LocoPanel({
           )}
         </Stack> */}
 
-        <div style={{ display: panelView === "cards" ? "block" : "none", height: "100%" }}>
+        <div className={mobileViewport ? "mobile-loco-cards-region" : undefined} style={{ display: panelView === "cards" ? "block" : "none", height: "100%" }}>
           {panelView === "cards" && <LocoCardsView locos={locos} selectedLocoId={selectedLocoId}
             onSelect={loco => selectLocoId(loco.id)} disabled={controlsDisabled}
             emergencyStop={powerInfo?.emergencyStop ?? false} onEmergencyToggle={handleEmergencyToggle} />}
@@ -994,7 +995,7 @@ export default function LocoPanel({
                   />
                 </div>
 
-                <div className="mobile-throttle-functions">
+                {!mobileViewport && <div className="mobile-throttle-functions">
                   <LocoFunctionGrid
                     key={currentLoco.id}
                     loco={currentLoco}
@@ -1004,11 +1005,20 @@ export default function LocoPanel({
                       setActiveFunctions
                     }
                   />
-                </div>
+                </div>}
               </>
             )}
           </div>
         </div>
+        {mobileViewport && currentLoco && <div className="mobile-functions-region">
+          <LocoFunctionGrid
+            key={currentLoco.id}
+            loco={currentLoco}
+            activeFunctions={activeFunctions}
+            disabled={controlsDisabled}
+            onActiveFunctionsChange={setActiveFunctions}
+          />
+        </div>}
       </div>
     </Card>
   );
