@@ -623,43 +623,42 @@ button,
   }
 }
 
-/* Tablet's left-hand traditional throttle only: fit all 29 function buttons
-   into the smaller CSS-pixel height of an Android WebView. The locomotive
-   cards view and desktop controls keep their original dimensions. */
-.tablet-shell .lite-loco-panel .mobile-throttle-fit {
+/* Tablet only: scale the traditional left-hand controller as a single unit,
+   measuring the FULL 29-button matrix rather than clipping its last rows.
+   The locomotive cards view is unaffected. */
+.tablet-shell .lite-loco-panel .tablet-throttle-fit {
+  position: relative;
   height: 100%;
   min-height: 0;
+  width: 100%;
   overflow: hidden;
 }
-.tablet-shell .lite-loco-panel .mobile-throttle-layout {
-  height: 100%;
-  min-height: 0;
-  gap: 4px;
+.tablet-shell .lite-loco-panel .tablet-throttle-layout {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  width: 340px;
+  max-width: none;
+  height: auto;
+  gap: 6px;
+  transform-origin: top left;
+  transform: translate(var(--throttle-offset-x, 0px), var(--throttle-offset-y, 0px)) scale(var(--throttle-scale, 1));
 }
-.tablet-shell .lite-loco-panel .mobile-throttle-controls {
+.tablet-shell .lite-loco-panel .tablet-throttle-layout .mobile-throttle-functions {
   flex: 0 0 auto;
-}
-.tablet-shell .lite-loco-panel .mobile-throttle-functions {
-  flex: 1 1 auto;
-  overflow: hidden;
   min-height: 0;
 }
-.tablet-shell .lite-loco-panel .mobile-throttle-functions .mantine-Card-root {
-  height: 100%;
-  min-height: 0;
-  padding: 4px;
-}
-.tablet-shell .lite-loco-panel .mobile-throttle-functions .mantine-Stack-root {
-  min-height: 0;
-  gap: 0;
-}
-.tablet-shell .lite-loco-panel .mobile-throttle-functions .mantine-ScrollArea-root {
+.tablet-shell .lite-loco-panel .tablet-throttle-layout .mobile-throttle-functions .mantine-Card-root,
+.tablet-shell .lite-loco-panel .tablet-throttle-layout .mobile-throttle-functions .mantine-Stack-root,
+.tablet-shell .lite-loco-panel .tablet-throttle-layout .mobile-throttle-functions .mantine-ScrollArea-root {
+  height: auto;
   min-height: 0;
 }
-.tablet-shell .lite-loco-panel .mobile-throttle-functions .mantine-SimpleGrid-root {
+.tablet-shell .lite-loco-panel .tablet-throttle-layout .mobile-throttle-functions .mantine-SimpleGrid-root {
   gap: 4px;
 }
-.tablet-shell .lite-loco-panel .mobile-throttle-functions .mantine-Button-root {
-  height: 36px !important;
-  min-height: 36px;
+.tablet-shell .lite-loco-panel .tablet-throttle-layout .mobile-throttle-functions .mantine-Button-root {
+  height: 40px !important;
 }
