@@ -1,4 +1,5 @@
-/* Compact tablet driving surface, without loading the full Layout Editor. */
+/* Tablet driving workspace: two independent locos, the shared runtime canvas
+   and permanently clickable panel handles in their own grid tracks. */
 .tablet-shell {
   width: 100%;
   max-width: none;
@@ -8,8 +9,13 @@
   overflow: hidden;
 }
 .tablet-shell > .mantine-Stack-root,
-.tablet-shell .mobile-content { height: 100%; min-height: 0; width: 100%; }
+.tablet-shell .mobile-content {
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+}
 .tablet-control {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -29,28 +35,51 @@
   left: 12px;
   top: 12px;
   z-index: 100;
-  box-shadow: 0 6px 24px rgba(0,0,0,0.65);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.65);
 }
 .tablet-control-workspace {
-  display: grid;
   --tablet-side-width: 24%;
-  grid-template-columns: var(--tablet-left-column, var(--tablet-side-width)) minmax(0, 1fr) var(--tablet-right-column, var(--tablet-side-width));
-  transition: grid-template-columns 220ms ease;
-  gap: 6px;
+  --tablet-handle-width: 34px;
+  display: grid;
+  grid-template-columns:
+    var(--tablet-left-column, var(--tablet-side-width))
+    var(--tablet-handle-width)
+    minmax(0, 1fr)
+    var(--tablet-handle-width)
+    var(--tablet-right-column, var(--tablet-side-width));
+  transition: grid-template-columns 180ms ease;
+  gap: 0;
   padding: 6px;
   width: 100%;
   flex: 1 1 auto;
   min-height: 0;
+  isolation: isolate;
 }
-.tablet-control-loco, .tablet-control-layout {
+.tablet-control-workspace[data-left-visible="false"] { --tablet-left-column: 0px; }
+.tablet-control-workspace[data-right-visible="false"] { --tablet-right-column: 0px; }
+
+.tablet-control-loco,
+.tablet-control-layout {
   position: relative;
   min-width: 0;
   min-height: 0;
   height: 100%;
   overflow: hidden;
 }
-.tablet-control-loco > .mantine-Card-root { height: 100%; min-height: 0; }
-.tablet-control-layout { border-radius: 8px; background: #070a0f; z-index: 0; isolation: isolate; }
+.tablet-control-loco-left { grid-column: 1; }
+.tablet-control-layout { grid-column: 3; }
+.tablet-control-loco-right { grid-column: 5; }
+
+.tablet-control-loco > .mantine-Card-root {
+  height: 100%;
+  min-height: 0;
+}
+.tablet-control-layout {
+  border-radius: 8px;
+  background: #070a0f;
+  z-index: 0;
+  isolation: isolate;
+}
 .tablet-runtime-layout-overlay {
   position: relative;
   width: 100%;
@@ -60,8 +89,8 @@
   padding: 4px;
 }
 .tablet-runtime-layout-overlay .mobile-runtime-layout-canvas {
-  height: 100%;
   width: 100%;
+  height: 100%;
 }
 .tablet-layout-tools {
   position: absolute;
@@ -69,48 +98,38 @@
   bottom: 12px;
   z-index: 30;
 }
+
+/* These are actual grid items outside the canvas, not floating overlays.
+   Their click target remains unobstructed through every panel transition. */
+.tablet-panel-toggle {
+  position: relative;
+  align-self: center;
+  justify-self: center;
+  z-index: 10;
+  touch-action: manipulation;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.65);
+}
+.tablet-panel-toggle-left {
+  grid-column: 2;
+  border-radius: 0 8px 8px 0;
+}
+.tablet-panel-toggle-right {
+  grid-column: 4;
+  border-radius: 8px 0 0 8px;
+}
+.tablet-control-workspace[data-left-visible="false"] .tablet-control-loco-left,
+.tablet-control-workspace[data-right-visible="false"] .tablet-control-loco-right {
+  visibility: hidden;
+  pointer-events: none;
+}
 @media (max-width: 850px) {
   .tablet-control-workspace {
     --tablet-side-width: 25%;
-    gap: 4px;
     padding: 4px;
   }
 }
-
-/* Panel controls stay accessible even when their locomotive pane is hidden. */
-.tablet-control-workspace { position: relative; isolation: isolate; }
-.tablet-panel-toggle {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 1000;
-  pointer-events: auto;
-  box-shadow: 0 4px 16px rgba(0,0,0,.65);
-  transition: left 220ms ease, right 220ms ease;
-  touch-action: manipulation;
-}
-.tablet-panel-toggle-left { border-radius: 0 8px 8px 0; }
-.tablet-panel-toggle-right { border-radius: 8px 0 0 8px; }
-
-/* Reserve the same grid tracks when either side is collapsed. */
-.tablet-control-loco[aria-label="Left locomotive controller"] { grid-column: 1; }
-.tablet-control-layout { grid-column: 2; }
-.tablet-control-loco[aria-label="Right locomotive controller"] { grid-column: 3; }
-
-/* One source of truth for tracks and handles. Buttons track the moving
-   grid boundary smoothly; they never jump or get re-mounted. */
-.tablet-control-workspace[data-left-visible="false"] {
-  --tablet-left-column: 0px;
-}
-.tablet-control-workspace[data-right-visible="false"] {
-  --tablet-right-column: 0px;
-}
-.tablet-panel-toggle-left { left: calc(var(--tablet-side-width) - 14px); }
-.tablet-panel-toggle-right { right: calc(var(--tablet-side-width) - 14px); }
-.tablet-control-workspace[data-left-visible="false"] .tablet-panel-toggle-left { left: 6px; }
-.tablet-control-workspace[data-right-visible="false"] .tablet-panel-toggle-right { right: 6px; }
-.tablet-control-workspace[data-left-visible="false"] .tablet-control-loco[aria-label="Left locomotive controller"],
-.tablet-control-workspace[data-right-visible="false"] .tablet-control-loco[aria-label="Right locomotive controller"] {
-  visibility: hidden;
-  pointer-events: none;
+@media (prefers-reduced-motion: reduce) {
+  .tablet-control-workspace {
+    transition: none;
+  }
 }
