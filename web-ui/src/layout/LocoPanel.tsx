@@ -634,6 +634,15 @@ export default function LocoPanel({
     let frame = 0;
 
     const updateScale = () => {
+      // Landscape uses the actual 40/60 viewport grid; never scale the entire
+      // 1000px controller into a second, inconsistent coordinate system.
+      if (window.matchMedia("(orientation: landscape)").matches) {
+        content.style.setProperty("--throttle-scale", "1");
+        content.style.setProperty("--throttle-offset-x", "0px");
+        content.style.setProperty("--throttle-offset-y", "0px");
+        return;
+      }
+
       content.style.setProperty("--throttle-scale", "1");
       content.style.setProperty("--throttle-offset-x", "0px");
       content.style.setProperty("--throttle-offset-y", "0px");
