@@ -152,6 +152,8 @@ export type SequentialMovementDefinition = {
   enabled: boolean;
   speed: number;
   steps: SequentialMovementStep[];
+  /** Restart after the final block; valid only for a closed path. */
+  repeat?: boolean;
   segments: SequentialMovementSegment[];
 };
 
@@ -1069,6 +1071,7 @@ function normalizeSequentialMovements(raw: unknown): SequentialMovementDefinitio
       enabled: candidate.enabled !== false,
       speed: integerRange(candidate.speed, 20, 1, 126),
       steps,
+      repeat: candidate.repeat === true,
       segments,
     }];
   });
