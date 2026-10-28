@@ -24,7 +24,7 @@ import {
   IconArrowLeft,
   IconCheck,
   IconDeviceFloppy,
-  IconDeviceTablet,
+  IconDeviceIpadHorizontal,
   IconDeviceMobile,
   IconDownload,
   IconEdit,
@@ -315,7 +315,7 @@ function HomePage({
         </Card>
 
         <Card className="action-card" withBorder radius={5} p="lg" onClick={() => onNavigate("tablet")}>
-          <ThemeIcon size={48} radius="lg" color="blue" variant="light"><IconDeviceTablet size={27} /></ThemeIcon>
+          <ThemeIcon size={48} radius="lg" color="blue" variant="light"><IconDeviceIpadHorizontal size={27} /></ThemeIcon>
           <Title order={4} mt="md">Tablet Control</Title>
           <Text size="sm" c="dimmed" mt={4}>Layout and two locomotive controllers, without editing tools.</Text>
         </Card>
