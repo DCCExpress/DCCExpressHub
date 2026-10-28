@@ -92,7 +92,6 @@ import {
 } from "@/services/backupService";
 
 const LiteLayoutPage = lazy(() => import("./LiteLayoutPage"));
-const TabletControlPage = lazy(() => import("./TabletControlPage"));
 const AutomationFlowPage = lazy(() => import("./AutomationFlowPage"));
 const RuntimeLayoutOverlay = lazy(() => import("./RuntimeLayoutOverlay"));
 const ProgrammingPage = lazy(() => import("./ProgrammingPage"));
@@ -1268,7 +1267,7 @@ export default function App() {
       );
     }
 
-    if (page === "tablet") return <TabletControlPage locos={locos} status={status} version={version} automationFlow={automationFlow} onAutomationFlowChange={setAutomationFlow} onBack={() => navigate("home")} />;
+    if (page === "tablet") return <LiteLayoutPage key="tablet" tabletMode version={version} locos={locos} automationFlow={automationFlow} onAutomationFlowChange={setAutomationFlow} onBack={() => navigate("home")} onOpenLocoEditor={() => setLocoEditorOpened(true)} />;
 
     if (page === "layout") return <LiteLayoutPage version={version} locos={locos} automationFlow={automationFlow} onAutomationFlowChange={setAutomationFlow} onBack={() => navigate("home")} onOpenLocoEditor={() => setLocoEditorOpened(true)} />;
 
