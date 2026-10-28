@@ -106,19 +106,12 @@ public sealed class MainPage : ContentPage
             else ShowStartup();
         };
 
-        var heading = new Label { Text = "DCCExpress HUB", FontSize = 28, FontAttributes = FontAttributes.Bold,
-            TextColor = Colors.White, HorizontalTextAlignment = TextAlignment.Center };
-        var subtitle = new Label { Text = "Android · Shared Runtime", FontSize = 13,
-            TextColor = Color.FromArgb("#94A3B8"), HorizontalTextAlignment = TextAlignment.Center };
-
         var config = new VerticalStackLayout
         {
             Padding = new Thickness(22, 26),
             Spacing = 16,
             Children =
             {
-                heading, subtitle,
-                new BoxView { HeightRequest = 1, Color = Color.FromArgb("#334155") },
                 Field("Connection protocol", _protocol),
                 _tcpFields,
                 _serialFields,
