@@ -111,10 +111,13 @@ test("SwitchMan RouteButton locks every motor before setting, without the legacy
 
     // The planner must not send a partial route if two configured elements
     // require contradictory logical states for the same DCC address.
+    const original = new TrackTurnoutLeftElement(3, 0);
+    original.turnoutAddress = 25;
+    original.turnoutClosedValue = false;
     const duplicate = new TrackTurnoutLeftElement(4, 0);
     duplicate.turnoutAddress = 25;
     duplicate.turnoutClosedValue = true;
-    const conflicting = createRoute(one, duplicate);
+    const conflicting = createRoute(original, duplicate);
     const prior = sent.length;
     assert.equal(await executeLegacyRouteButton({
       routeButton: conflicting.route, layout: conflicting.layout, commandCenterLocked: false,
