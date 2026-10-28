@@ -16,6 +16,7 @@
     <ProjectReference Include="../DCCExpressHub.Runtime/DCCExpressHub.Runtime.csproj" />
     <PackageReference Include="Microsoft.Maui.Controls" Version="10.0.12" />
     <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.12" />
+    <MauiIcon Include="Resources/AppIcon/appicon.png" />
     <MauiAsset Include="../DCCExpressHub.Net/wwwroot/**/*" LogicalName="wwwroot/%(RecursiveDir)%(Filename)%(Extension)" />
     <MauiAsset Include="Resources/Raw/*" />
   </ItemGroup>
