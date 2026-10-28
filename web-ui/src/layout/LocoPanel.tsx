@@ -31,6 +31,7 @@ type LocoPanelProps = {
   locos?: Loco[];
   selectedLocoStorageKey?: string;
   mobileViewport?: boolean;
+  tabletMode?: boolean;
 };
 
 const SELECTED_LOCO_STORAGE_KEY =
@@ -54,6 +55,7 @@ export default function LocoPanel({
   locos = [],
   selectedLocoStorageKey = SELECTED_LOCO_STORAGE_KEY,
   mobileViewport = false,
+  tabletMode = false,
 }: LocoPanelProps) {
   const { t } = useTranslation();
   const [panelView, setPanelView] = useState<"control" | "cards">(() =>
@@ -998,7 +1000,7 @@ export default function LocoPanel({
                 {!mobileViewport && <div className="mobile-throttle-functions">
                   <LocoFunctionGrid
                     key={currentLoco.id}
-                    fitHeight
+                    fitHeight={tabletMode}
                     loco={currentLoco}
                     activeFunctions={activeFunctions}
                     disabled={controlsDisabled}
