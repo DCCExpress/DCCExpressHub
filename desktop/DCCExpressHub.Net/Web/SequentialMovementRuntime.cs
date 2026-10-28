@@ -139,7 +139,8 @@ public sealed class SequentialMovementRuntime
         var segments = definition.Segments;
         if (steps is null || segments is null) return "invalid_sequence";
         if (!definition.Enabled) return "sequence_disabled";
-        if (definition.Repeat && (steps.Length < 2 || steps[0].BlockId != steps[^1].BlockId))
+        if (definition.Repeat && (steps is null || steps.Length < 2 ||
+            steps[0] is null || steps[^1] is null || steps[0].BlockId != steps[^1].BlockId))
             return "sequence_repeat_requires_matching_endpoints";
         if (string.IsNullOrWhiteSpace(definition.Id) || steps.Length is < 2 or > 64 ||
             segments.Length is < 1 or > 63 || definition.Speed is < 1 or > 126)
@@ -505,96 +506,96 @@ public sealed class SequentialMovementRuntime
 
             while (true)
             {
-            for (var index = run.StartSegmentIndex; index < run.Definition.Segments.Length; index++)
-            {
-                token.ThrowIfCancellationRequested();
-                if (_hubState.EmergencyStop) throw new InvalidOperationException("emergency_stop_active");
-                var state = await WaitForChild(run, token);
-                var endIndex = run.Definition.Segments[index].EndStepIndex;
-                var step = run.Definition.Steps[endIndex];
+                for (var index = run.StartSegmentIndex; index < run.Definition.Segments.Length; index++)
+                {
+                    token.ThrowIfCancellationRequested();
+                    if (_hubState.EmergencyStop) throw new InvalidOperationException("emergency_stop_active");
+                    var state = await WaitForChild(run, token);
+                    var endIndex = run.Definition.Segments[index].EndStepIndex;
+                    var step = run.Definition.Steps[endIndex];
 
-                if (run.FinishRequested)
-                {
-                    var firstIndex = index == run.StartSegmentIndex
-                        ? run.StartStepIndex
-                        : run.Definition.Segments[index - 1].EndStepIndex;
-                    var currentIndex = Enumerable.Range(firstIndex, endIndex - firstIndex + 1)
-                        .Where(i => run.Definition.Steps[i].BlockId == state.CurrentBlockId)
-                        .DefaultIfEmpty(firstIndex).Last();
-                    Publish(run, "completed", currentIndex + 1,
-                        "Finished safely at block #" +
-                        (state.CurrentBlockId ?? step.BlockId));
-                    return;
-                }
-
-                var seconds = step.WaitMode switch
-                {
-                    "fixed" => step.WaitSeconds,
-                    "random" => Random.Shared.Next(step.MinSeconds, step.MaxSeconds + 1),
-                    _ => 0
-                };
-                if (seconds > 0)
-                {
-                    Publish(run, "waiting", endIndex + 1,
-                        "Stopped at block #" + step.BlockId + " · waiting " + seconds + " s");
-                    using var waitCancellation =
-                        CancellationTokenSource.CreateLinkedTokenSource(token, run.FinishWake.Token);
-                    try
+                    if (run.FinishRequested)
                     {
-                        await Task.Delay(TimeSpan.FromSeconds(seconds), waitCancellation.Token);
+                        var firstIndex = index == run.StartSegmentIndex
+                            ? run.StartStepIndex
+                            : run.Definition.Segments[index - 1].EndStepIndex;
+                        var currentIndex = Enumerable.Range(firstIndex, endIndex - firstIndex + 1)
+                            .Where(i => run.Definition.Steps[i].BlockId == state.CurrentBlockId)
+                            .DefaultIfEmpty(firstIndex).Last();
+                        Publish(run, "completed", currentIndex + 1,
+                            "Finished safely at block #" +
+                            (state.CurrentBlockId ?? step.BlockId));
+                        return;
                     }
-                    catch (OperationCanceledException) when (run.FinishRequested && !token.IsCancellationRequested)
+
+                    var seconds = step.WaitMode switch
+                    {
+                        "fixed" => step.WaitSeconds,
+                        "random" => Random.Shared.Next(step.MinSeconds, step.MaxSeconds + 1),
+                        _ => 0
+                    };
+                    if (seconds > 0)
+                    {
+                        Publish(run, "waiting", endIndex + 1,
+                            "Stopped at block #" + step.BlockId + " · waiting " + seconds + " s");
+                        using var waitCancellation =
+                            CancellationTokenSource.CreateLinkedTokenSource(token, run.FinishWake.Token);
+                        try
+                        {
+                            await Task.Delay(TimeSpan.FromSeconds(seconds), waitCancellation.Token);
+                        }
+                        catch (OperationCanceledException) when (run.FinishRequested && !token.IsCancellationRequested)
+                        {
+                            Publish(run, "completed", endIndex + 1,
+                                "Finished safely at block #" + step.BlockId);
+                            return;
+                        }
+                    }
+
+                    if (run.FinishRequested)
                     {
                         Publish(run, "completed", endIndex + 1,
                             "Finished safely at block #" + step.BlockId);
                         return;
                     }
-                }
 
-                if (run.FinishRequested)
-                {
-                    Publish(run, "completed", endIndex + 1,
-                        "Finished safely at block #" + step.BlockId);
-                    return;
-                }
-
-                // The final block always stops; the final wait has completed.
-                if (index == run.Definition.Segments.Length - 1)
-                {
-                    token.ThrowIfCancellationRequested();
-                    if (!run.Definition.Repeat)
+                    // The final block always stops; the final wait has completed.
+                    if (index == run.Definition.Segments.Length - 1)
                     {
-                        Publish(run, "completed", endIndex + 1, "Sequence completed");
-                        return;
+                        token.ThrowIfCancellationRequested();
+                        if (!run.Definition.Repeat)
+                        {
+                            Publish(run, "completed", endIndex + 1, "Sequence completed");
+                            return;
+                        }
+                        // A closed route ends where it started. Start a new lap
+                        // without releasing the locomotive's sequential reservation.
+                        // Each child Movement needs a unique ID on every lap.
+                        run.Lap++;
+                        run.StartSegmentIndex = 0;
+                        run.StartStepIndex = 0;
+                        run.OverrideFirstRoute = null;
+                        run.ChildId = run.Prefix + "-lap" + run.Lap + "-0";
+                        var repeatFirst = _movement.StartTransient(ChildPage(run, 0), calibrationBypass: false);
+                        if (!repeatFirst.Ok)
+                            throw new InvalidOperationException(repeatFirst.Error ?? "sequence_repeat_start_failed");
+                        Publish(run, "running", 1, "Restarting sequence · lap " + (run.Lap + 1));
+                        break;
                     }
-                    // A closed route ends where it started. Start a new lap
-                    // without releasing the locomotive's sequential reservation.
-                    // Each child Movement needs a unique ID on every lap.
-                    run.Lap++;
-                    run.StartSegmentIndex = 0;
-                    run.StartStepIndex = 0;
-                    run.OverrideFirstRoute = null;
-                    run.ChildId = run.Prefix + "-lap" + run.Lap + "-0";
-                    var repeatFirst = _movement.StartTransient(ChildPage(run, 0), calibrationBypass: false);
-                    if (!repeatFirst.Ok)
-                        throw new InvalidOperationException(repeatFirst.Error ?? "sequence_repeat_start_failed");
-                    Publish(run, "running", 1, "Restarting sequence · lap " + (run.Lap + 1));
-                    break;
-                }
 
-                token.ThrowIfCancellationRequested();
-                if (_hubState.EmergencyStop) throw new InvalidOperationException("emergency_stop_active");
-                run.ChildId = run.Lap == 0
-                    ? run.Prefix + "-" + (index + 1)
-                    : run.Prefix + "-lap" + run.Lap + "-" + (index + 1);
-                var next = _movement.StartTransient(ChildPage(run, index + 1), calibrationBypass: false);
-                if (!next.Ok)
-                    throw new InvalidOperationException(next.Error ?? "sequence_segment_start_failed");
-                if (run.FinishRequested)
-                    _movement.FinishAtNextBlock(run.ChildId);
-                Publish(run, "running", endIndex + 1, "Running route " +
-                    (index + 2) + "/" + run.Definition.Segments.Length);
-            }
+                    token.ThrowIfCancellationRequested();
+                    if (_hubState.EmergencyStop) throw new InvalidOperationException("emergency_stop_active");
+                    run.ChildId = run.Lap == 0
+                        ? run.Prefix + "-" + (index + 1)
+                        : run.Prefix + "-lap" + run.Lap + "-" + (index + 1);
+                    var next = _movement.StartTransient(ChildPage(run, index + 1), calibrationBypass: false);
+                    if (!next.Ok)
+                        throw new InvalidOperationException(next.Error ?? "sequence_segment_start_failed");
+                    if (run.FinishRequested)
+                        _movement.FinishAtNextBlock(run.ChildId);
+                    Publish(run, "running", endIndex + 1, "Running route " +
+                        (index + 2) + "/" + run.Definition.Segments.Length);
+                }
             }
         }
         catch (OperationCanceledException)
