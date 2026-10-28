@@ -44,6 +44,7 @@ import {
 } from "./useAutomationFlowRuntime";
 
 type Props = {
+  editorsEnabled?: boolean;
   document:
     AutomationFlowDocument;
   onDocumentChange: (
@@ -107,6 +108,7 @@ function FlowCard({
   document,
   onDocumentChange,
   onOpenEditor,
+  editorsEnabled,
   onDragStart,
   onDragEnd,
   onDragOverPage,
@@ -130,6 +132,7 @@ function FlowCard({
     pageId:
       string
   ) => void;
+  editorsEnabled: boolean;
   onDragStart: (
     event:
       DragEvent<HTMLDivElement>,
@@ -215,7 +218,7 @@ function FlowCard({
       withBorder
       p="sm"
       radius="sm"
-      draggable
+      draggable={editorsEnabled}
       onDragStart={
         event =>
           onDragStart(
@@ -315,7 +318,7 @@ opacity:
                 color="gray"
                 variant="light"
                 disabled={
-                  pageIndex ===
+                  !editorsEnabled || pageIndex ===
                   0
                 }
                 onClick={
@@ -349,7 +352,7 @@ opacity:
                 color="gray"
                 variant="light"
                 disabled={
-                  pageIndex >=
+                  !editorsEnabled || pageIndex >=
                   pageCount - 1
                 }
                 onClick={
@@ -412,6 +415,7 @@ opacity:
               size="sm"
               variant="light"
               color="violet"
+              disabled={!editorsEnabled}
               onClick={
                 () =>
                   onOpenEditor(
@@ -445,6 +449,7 @@ export default function AutomationFlowsTable({
   document,
   onDocumentChange,
   onOpenEditor,
+  editorsEnabled = true,
 }: Props) {
   const [
     draggedPageId,
@@ -664,6 +669,7 @@ export default function AutomationFlowsTable({
                 size={14}
               />
             }
+            disabled={!editorsEnabled}
             onClick={
               () =>
                 onOpenEditor(
