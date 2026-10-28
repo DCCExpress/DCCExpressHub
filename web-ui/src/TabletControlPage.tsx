@@ -56,32 +56,32 @@ export default function TabletControlPage({ locos, status, onBack }: Props) {
         <IconArrowLeft size={25} />
       </ActionIcon>
       <div className="tablet-control-workspace"
-        style={{ gridTemplateColumns: (leftVisible ? "minmax(130px, 24%)" : "0px") + " minmax(0, 1fr) " + (rightVisible ? "minmax(130px, 24%)" : "0px") }}>
+        data-left-visible={leftVisible} data-right-visible={rightVisible}>
         <ActionIcon className="tablet-panel-toggle tablet-panel-toggle-left" size={30} variant="filled" color="dark"
-          style={{ left: leftVisible ? "calc(24% - 22px)" : "2px" }}
+          
           aria-label={leftVisible ? "Hide left locomotive panel" : "Show left locomotive panel"}
           title={leftVisible ? "Hide left locomotive panel" : "Show left locomotive panel"}
           onClick={() => setLeftVisible(value => !value)}>
           {leftVisible ? <IconChevronLeft size={17}/> : <IconChevronRight size={17}/>}
         </ActionIcon>
         <ActionIcon className="tablet-panel-toggle tablet-panel-toggle-right" size={30} variant="filled" color="dark"
-          style={{ right: rightVisible ? "calc(24% - 22px)" : "2px" }}
+          
           aria-label={rightVisible ? "Hide right locomotive panel" : "Show right locomotive panel"}
           title={rightVisible ? "Hide right locomotive panel" : "Show right locomotive panel"}
           onClick={() => setRightVisible(value => !value)}>
           {rightVisible ? <IconChevronRight size={17}/> : <IconChevronLeft size={17}/>}
         </ActionIcon>
-        {leftVisible && <aside className="tablet-control-loco" aria-label="Left locomotive controller">
+        <aside className="tablet-control-loco" aria-label="Left locomotive controller" inert={!leftVisible} aria-hidden={!leftVisible}>
           <LocoPanel locos={locos} selectedLocoStorageKey="dcc-express.tablet.left-loco-id" />
-        </aside>}
+        </aside>
         <main className="tablet-control-layout" aria-label="Railway layout">
           <Suspense fallback={<Center h="100%"><Loader /></Center>}>
             <RuntimeLayoutOverlay locos={locos} open embedded />
           </Suspense>
         </main>
-        {rightVisible && <aside className="tablet-control-loco" aria-label="Right locomotive controller">
+        <aside className="tablet-control-loco" aria-label="Right locomotive controller" inert={!rightVisible} aria-hidden={!rightVisible}>
           <LocoPanel locos={locos} selectedLocoStorageKey="dcc-express.tablet.right-loco-id" />
-        </aside>}
+        </aside>
       </div>
       <div className="tablet-control-status">
         <LayoutStatusBar
