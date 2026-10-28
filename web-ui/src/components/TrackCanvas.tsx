@@ -1,5 +1,7 @@
 import { wsApi } from "../services/wsApi";
-import { useMantineColorScheme } from "@mantine/core";
+import { Alert, Button, Group, Stack, Text, useMantineColorScheme } from "@mantine/core";
+import { IconAlertTriangle } from "@tabler/icons-react";
+import AppModal from "./common/AppModal";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -125,6 +127,7 @@ export default function TrackCanvas({
   const [drawVersion, setDrawVersion] = useState(0);
   const [canvasSize, setCanvasSize] = useState<CanvasSize>({ width: 0, height: 0 });
   const [locoPickerOpen, setLocoPickerOpen] = useState(false);
+  const [driveToBlockError, setDriveToBlockError] = useState<{ title: string; reason: string; action: string } | null>(null);
   const [blockPopupPoint, setBlockPopupPoint] = useState({ x: 0, y: 0 });
   const [selectedBlock, setSelectedBlock] = useState<BlockElement | null>(null);
   const [driveBlockLocos, setDriveBlockLocos] = useState<Record<string, number>>({});
@@ -168,7 +171,24 @@ export default function TrackCanvas({
     const sourceId = current?.currentBlockId;
     if (!tracking.enabled || !tracking.active || !tracking.ready ||
         current?.confidence !== "certain" || sourceId == null) {
-      showNotification({ color: "orange", message: "Drive to Block requires a confirmed current locomotive block." });
+      const hu = (t("ui.backToHome") !== "ui.backToHome" && document.documentElement.lang.toLowerCase().startsWith("hu")) ||
+        window.localStorage.getItem("i18nextLng")?.toLowerCase().startsWith("hu");
+      const reason = !tracking.enabled
+        ? (hu ? "A Train Tracking ki van kapcsolva." : "Train Tracking is disabled.")
+        : (!tracking.active || !tracking.ready)
+          ? (hu ? "A Train Tracking még nem aktív vagy nem áll készen." : "Train Tracking is not active or ready.")
+          : !current
+            ? (hu ? "A kiválasztott mozdony nem szerepel a követett mozdonyok között." : "The selected locomotive is not registered for tracking.")
+            : sourceId == null
+              ? (hu ? "A mozdony aktuális blokkja ismeretlen." : "The locomotive's current block is unknown.")
+              : (hu ? "A mozdony pozíciója nem megerősített." : "The locomotive's position is not confirmed.");
+      setDriveToBlockError({
+        title: hu ? "Drive to Block – indítás letiltva" : "Drive to Block – start blocked",
+        reason,
+        action: hu
+          ? "Ellenőrizd és engedélyezd a Train Trackinget, majd nézd meg, hogy a mozdony a megfelelő blokkban szerepel-e megerősített (Certain) pozícióval. A művelet nem indult el."
+          : "Check and enable Train Tracking, then verify the locomotive has the correct current block with confirmed (Certain) position. No movement was started.",
+      });
       return;
     }
     // Lock the editor while the asynchronously loaded destinations are prepared.
@@ -1625,6 +1645,27 @@ export default function TrackCanvas({
   return (
     <>
       <canvas tabIndex={0} ref={canvasRef} className="track-canvas" />
+
+      <AppModal
+        opened={driveToBlockError !== null}
+        onClose={() => setDriveToBlockError(null)}
+        title={driveToBlockError?.title ?? "Drive to Block"}
+        centered
+        draggable
+        closeOnClickOutside={false}
+        size="md"
+        zIndex={1100}
+      >
+        {driveToBlockError && <Stack gap="md">
+          <Alert color="orange" icon={<IconAlertTriangle size={20} />}>
+            <Text size="sm">{driveToBlockError.reason}</Text>
+          </Alert>
+          <Text size="sm">{driveToBlockError.action}</Text>
+          <Group justify="flex-end">
+            <Button onClick={() => setDriveToBlockError(null)}>OK</Button>
+          </Group>
+        </Stack>}
+      </AppModal>
 
       <TrackCanvasSignalAspectPopover
         state={signalAspectPopover}
