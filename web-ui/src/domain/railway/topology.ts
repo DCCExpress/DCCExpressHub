@@ -324,7 +324,12 @@ export class RailwayTopologyLayout {
   getPhysicalTrackAt(point: Point, from?: Point): TopologyTrackElement | undefined {
     return this.getPhysicalTrackElements().find(element =>
       element.x === point.x && element.y === point.y &&
-      (!from || element.getNeighborPointPairs().some(pair => pair.some(endpoint => endpoint.x === from.x && endpoint.y === from.y)))
+      (!from || (isTopologyTurnoutElement(element)
+        // Topology includes every physical port, independent of live position.
+        // RouteGraphBuilder applies the required turnout state to each edge.
+        ? Object.values(element.getConnections())
+        : element.getNeighborPointPairs().flat()
+      ).some(endpoint => endpoint.x === from.x && endpoint.y === from.y))
     );
   }
 
