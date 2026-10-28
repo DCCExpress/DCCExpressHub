@@ -1,8 +1,10 @@
 import { Suspense, lazy, useEffect, useState } from "react";
 import { ActionIcon, Center, Loader } from "@mantine/core";
-import { IconArrowLeft, IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
+import { IconArrowLeft, IconChevronLeft, IconChevronRight, IconLayoutDashboard } from "@tabler/icons-react";
 import { showNotification } from "@mantine/notifications";
 import type { DccExStatusPayload, Loco } from "@domain/types";
+import type { AutomationFlowDocument } from "@/domain/automationFlow";
+import type { LayoutView } from "@/models/editor/core/LayoutView";
 import LocoPanel from "@/layout/LocoPanel";
 import LayoutStatusBar from "@/components/LayoutStatusBar";
 import { useCommandCenter } from "@/context/CommandCenterContext";
@@ -17,11 +19,14 @@ import {
 import "./tablet-control.css";
 
 const RuntimeLayoutOverlay = lazy(() => import("./RuntimeLayoutOverlay"));
-type Props = { locos: Loco[]; status: string; onBack: () => void };
+const TabletRuntimeDrawer = lazy(() => import("./TabletRuntimeDrawer"));
+type Props = { locos: Loco[]; status: string; version: string; automationFlow: AutomationFlowDocument; onAutomationFlowChange: (flow: AutomationFlowDocument) => void; onBack: () => void };
 
-export default function TabletControlPage({ locos, status, onBack }: Props) {
+export default function TabletControlPage({ locos, status, version, automationFlow, onAutomationFlowChange, onBack }: Props) {
   const commandCenter = useCommandCenter();
   const [leftVisible, setLeftVisible] = useState(true);
+  const [runtimeOpened, setRuntimeOpened] = useState(false);
+  const [runtimeLayout, setRuntimeLayout] = useState<LayoutView | null>(null);
   const [rightVisible, setRightVisible] = useState(true);
   const [audioEnabled, setAudioEnabled] = useState(isBroadcastAudioEnabled);
   const [switchState, setSwitchState] = useState(getSwitchManModeState);
@@ -55,6 +60,11 @@ export default function TabletControlPage({ locos, status, onBack }: Props) {
         color="dark" variant="filled" aria-label="Back to home" title="Back to home">
         <IconArrowLeft size={25} />
       </ActionIcon>
+      <ActionIcon className="tablet-control-runtime-button" size={44} radius="xl" variant="filled"
+        color="dark" aria-label="Runtime panels" title="Runtime panels"
+        onClick={() => setRuntimeOpened(true)}>
+        <IconLayoutDashboard size={24} />
+      </ActionIcon>
       <div className="tablet-control-workspace"
         data-left-visible={leftVisible} data-right-visible={rightVisible}>
         <aside className="tablet-control-loco tablet-control-loco-left"
@@ -70,7 +80,7 @@ export default function TabletControlPage({ locos, status, onBack }: Props) {
         </ActionIcon>
         <main className="tablet-control-layout" aria-label="Railway layout">
           <Suspense fallback={<Center h="100%"><Loader /></Center>}>
-            <RuntimeLayoutOverlay locos={locos} open embedded />
+            <RuntimeLayoutOverlay locos={locos} open embedded onLayoutReady={setRuntimeLayout} />
           </Suspense>
         </main>
         <ActionIcon className="tablet-panel-toggle tablet-panel-toggle-right"
@@ -85,6 +95,11 @@ export default function TabletControlPage({ locos, status, onBack }: Props) {
           <LocoPanel locos={locos} selectedLocoStorageKey="dcc-express.tablet.right-loco-id" />
         </aside>
       </div>
+      {runtimeOpened && runtimeLayout && <Suspense fallback={null}>
+        <TabletRuntimeDrawer opened={runtimeOpened} onClose={() => setRuntimeOpened(false)}
+          locos={locos} layout={runtimeLayout} version={version}
+          automationFlow={automationFlow} onAutomationFlowChange={onAutomationFlowChange} />
+      </Suspense>}
       <div className="tablet-control-status">
         <LayoutStatusBar
           wsStatus={status}
