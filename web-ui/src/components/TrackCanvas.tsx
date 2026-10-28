@@ -112,7 +112,7 @@ export default function TrackCanvas({
   setBusy,
   locos,
 }: TrackCanvasProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const { colorScheme } = useMantineColorScheme();
   const commandCenter = useCommandCenter();
@@ -171,8 +171,7 @@ export default function TrackCanvas({
     const sourceId = current?.currentBlockId;
     if (!tracking.enabled || !tracking.active || !tracking.ready ||
         current?.confidence !== "certain" || sourceId == null) {
-      const hu = (t("ui.backToHome") !== "ui.backToHome" && document.documentElement.lang.toLowerCase().startsWith("hu")) ||
-        window.localStorage.getItem("i18nextLng")?.toLowerCase().startsWith("hu");
+      const hu = (i18n.resolvedLanguage ?? i18n.language).toLowerCase().startsWith("hu");
       const reason = !tracking.enabled
         ? (hu ? "A Train Tracking ki van kapcsolva." : "Train Tracking is disabled.")
         : (!tracking.active || !tracking.ready)
