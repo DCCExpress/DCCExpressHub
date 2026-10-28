@@ -57,33 +57,31 @@ export default function TabletControlPage({ locos, status, onBack }: Props) {
       </ActionIcon>
       <div className="tablet-control-workspace"
         data-left-visible={leftVisible} data-right-visible={rightVisible}>
-        <ActionIcon className="tablet-panel-toggle tablet-panel-toggle-left" size={30} variant="filled" color="dark"
-          
-          aria-label={leftVisible ? "Hide left locomotive panel" : "Show left locomotive panel"}
-          title={leftVisible ? "Hide left locomotive panel" : "Show left locomotive panel"}
-          onPointerDown={event => event.stopPropagation()}
-          onPointerUp={event => event.stopPropagation()}
-          onClick={event => { event.stopPropagation(); setLeftVisible(value => !value); }}>
-          {leftVisible ? <IconChevronLeft size={17}/> : <IconChevronRight size={17}/>}
-        </ActionIcon>
-        <ActionIcon className="tablet-panel-toggle tablet-panel-toggle-right" size={30} variant="filled" color="dark"
-          
-          aria-label={rightVisible ? "Hide right locomotive panel" : "Show right locomotive panel"}
-          title={rightVisible ? "Hide right locomotive panel" : "Show right locomotive panel"}
-          onPointerDown={event => event.stopPropagation()}
-          onPointerUp={event => event.stopPropagation()}
-          onClick={event => { event.stopPropagation(); setRightVisible(value => !value); }}>
-          {rightVisible ? <IconChevronRight size={17}/> : <IconChevronLeft size={17}/>}
-        </ActionIcon>
-        <aside className="tablet-control-loco" aria-label="Left locomotive controller" inert={!leftVisible} aria-hidden={!leftVisible}>
+        <aside className="tablet-control-loco tablet-control-loco-left"
+          aria-label="Left locomotive controller" inert={!leftVisible} aria-hidden={!leftVisible}>
           <LocoPanel locos={locos} selectedLocoStorageKey="dcc-express.tablet.left-loco-id" />
         </aside>
+        <ActionIcon className="tablet-panel-toggle tablet-panel-toggle-left"
+          size={34} variant="filled" color="dark"
+          aria-label={leftVisible ? "Hide left locomotive panel" : "Show left locomotive panel"}
+          title={leftVisible ? "Hide left locomotive panel" : "Show left locomotive panel"}
+          onClick={event => { event.stopPropagation(); setLeftVisible(value => !value); }}>
+          {leftVisible ? <IconChevronLeft size={19} /> : <IconChevronRight size={19} />}
+        </ActionIcon>
         <main className="tablet-control-layout" aria-label="Railway layout">
           <Suspense fallback={<Center h="100%"><Loader /></Center>}>
             <RuntimeLayoutOverlay locos={locos} open embedded />
           </Suspense>
         </main>
-        <aside className="tablet-control-loco" aria-label="Right locomotive controller" inert={!rightVisible} aria-hidden={!rightVisible}>
+        <ActionIcon className="tablet-panel-toggle tablet-panel-toggle-right"
+          size={34} variant="filled" color="dark"
+          aria-label={rightVisible ? "Hide right locomotive panel" : "Show right locomotive panel"}
+          title={rightVisible ? "Hide right locomotive panel" : "Show right locomotive panel"}
+          onClick={event => { event.stopPropagation(); setRightVisible(value => !value); }}>
+          {rightVisible ? <IconChevronRight size={19} /> : <IconChevronLeft size={19} />}
+        </ActionIcon>
+        <aside className="tablet-control-loco tablet-control-loco-right"
+          aria-label="Right locomotive controller" inert={!rightVisible} aria-hidden={!rightVisible}>
           <LocoPanel locos={locos} selectedLocoStorageKey="dcc-express.tablet.right-loco-id" />
         </aside>
       </div>
