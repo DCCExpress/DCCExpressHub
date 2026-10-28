@@ -11,7 +11,18 @@ type Props = { locos: Loco[]; status: string; onBack: () => void };
 
 export default function TabletControlPage({ locos, status, onBack }: Props) {
   return (
-    <div className="tablet-control">\n      <header className="tablet-control-status">\n        <ActionIcon className="tablet-control-back" onClick={onBack} radius="xl" size={42}\n          color="dark" variant="filled" aria-label="Back to home" title="Back to home">\n          <IconArrowLeft size={23} />\n        </ActionIcon>\n        <Text size="sm" fw={700}>Tablet Control</Text>\n        <Group gap="xs" ml="auto">\n          <Badge color={status === "connected" ? "green" : "red"} variant="light">{status}</Badge>\n        </Group>\n      </header>\n      <div className="tablet-control-workspace">
+    <div className="tablet-control">
+      <header className="tablet-control-status">
+        <ActionIcon className="tablet-control-back" onClick={onBack} radius="xl" size={42}
+          color="dark" variant="filled" aria-label="Back to home" title="Back to home">
+          <IconArrowLeft size={23} />
+        </ActionIcon>
+        <Text size="sm" fw={700}>Tablet Control</Text>
+        <Group gap="xs" ml="auto">
+          <Badge color={status === "connected" ? "green" : "red"} variant="light">{status}</Badge>
+        </Group>
+      </header>
+      <div className="tablet-control-workspace">
       <aside className="tablet-control-loco" aria-label="Left locomotive controller">
         <LocoPanel locos={locos} selectedLocoStorageKey="dcc-express.tablet.left-loco-id" />
       </aside>
