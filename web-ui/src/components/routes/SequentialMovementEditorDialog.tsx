@@ -1,6 +1,6 @@
 import { ActionIcon, Alert, Button, Group, NumberInput, ScrollArea, Select,
   Stack, Switch, Table, Text, TextInput } from "@mantine/core";
-import { IconAlertTriangle, IconArrowDown, IconArrowUp, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconAlertTriangle, IconPlus, IconTrash } from "@tabler/icons-react";
 import AppModal from "@/components/common/AppModal";
 import { useMovementTranslation } from "@/components/movement/movementI18n";
 import type { SequentialMovementDefinition, SequentialMovementStep, SequentialWaitMode } from "@/domain/movement";
@@ -17,7 +17,6 @@ type Props = {
   availableBlocks: (index: number) => BlockOption[];
   onModify: (patch: Partial<SequentialMovementDefinition>) => void;
   onChangeStep: (index: number, patch: Partial<SequentialMovementStep>) => void;
-  onMoveStep: (index: number, direction: -1 | 1) => void;
   onRemoveStep: (index: number) => void;
   onAddStep: () => void;
   onClose: () => void;
@@ -27,7 +26,7 @@ type Props = {
 /** New/Edit editor opened by the Sequential Movement collection. */
 export default function SequentialMovementEditorDialog({
   draft, busy, error, routeTableReady, validationIssue, segmentsOutdated, blocks, availableBlocks,
-  onModify, onChangeStep, onMoveStep, onRemoveStep, onAddStep, onClose, onSave,
+  onModify, onChangeStep, onRemoveStep, onAddStep, onClose, onSave,
 }: Props) {
   const mt = useMovementTranslation();
   return (
@@ -92,8 +91,6 @@ export default function SequentialMovementEditorDialog({
                 <Table.Td><NumberInput size="xs" w={75} min={0} max={86400} disabled={step.waitMode !== "random"}
                   value={step.maxSeconds} onChange={v => onChangeStep(index,{maxSeconds:Math.max(0,Math.min(86400,Number(v)||0))})}/></Table.Td>
                 <Table.Td><Group gap={2} wrap="nowrap">
-                  <ActionIcon size="sm" variant="subtle" disabled={index===0} onClick={() => onMoveStep(index, -1)}><IconArrowUp size={15}/></ActionIcon>
-                  <ActionIcon size="sm" variant="subtle" disabled={index===draft.steps.length-1} onClick={() => onMoveStep(index, 1)}><IconArrowDown size={15}/></ActionIcon>
                   <ActionIcon size="sm" variant="subtle" color="red" disabled={draft.steps.length<=2}
                     onClick={() => onRemoveStep(index)}><IconTrash size={15}/></ActionIcon>
                 </Group></Table.Td>
