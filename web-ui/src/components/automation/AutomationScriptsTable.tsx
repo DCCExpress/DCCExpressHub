@@ -523,7 +523,7 @@ function ScriptCard({
                   color="gray"
                   variant="light"
                   disabled={
-                    scriptIndex ===
+                    !editorsEnabled || scriptIndex ===
                     0
                   }
                   onClick={
@@ -557,7 +557,7 @@ function ScriptCard({
                   color="gray"
                   variant="light"
                   disabled={
-                    scriptIndex >=
+                    !editorsEnabled || scriptIndex >=
                     scriptCount - 1
                   }
                   onClick={
@@ -826,7 +826,7 @@ function ScriptCard({
                   variant="light"
                   color="red"
                   disabled={
-                    !idle
+                    !idle || !editorsEnabled
                   }
                   onClick={
                     () =>
@@ -1799,6 +1799,7 @@ export default function AutomationScriptsTable({
             onClick={
               createScript
             }
+            disabled={!editorsEnabled}
           >
             +
             {" "}
@@ -1828,6 +1829,7 @@ export default function AutomationScriptsTable({
                 scriptIndex
               ) => (
                 <ScriptCard
+                  editorsEnabled={editorsEnabled}
                   key={
                     definition.id
                   }
