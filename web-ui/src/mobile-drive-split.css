@@ -157,3 +157,39 @@
     height: auto;
   }
 }
+
+/* Center the function matrix within its 60% pane in landscape.
+   The grid can still scroll vertically when the viewport is short. */
+@media (orientation: landscape) {
+  .drive-shell .mobile-functions-region {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .drive-shell .mobile-functions-region > .mantine-Card-root {
+    flex: 0 1 auto !important;
+    width: 100%;
+    height: min(100%, 560px);
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .drive-shell .mobile-functions-region > .mantine-Card-root > .mantine-Stack-root {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .drive-shell .mobile-functions-region .mantine-ScrollArea-root {
+    min-height: 0;
+  }
+
+  .drive-shell .mobile-functions-region .mantine-ScrollArea-viewport > div {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+}
