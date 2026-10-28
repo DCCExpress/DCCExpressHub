@@ -2461,6 +2461,7 @@ export default function LiteLayoutPage({
                       scripts={automationScripts}
                       movements={movementDocument.pages}
                       timetableRevision={timetableRevision}
+                      editingEnabled={!tabletMode}
                       onOpenTimetable={() => setTimetableOpened(true)}
                     />
                   </Tabs.Panel>
