@@ -529,11 +529,13 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
                           {blockName(step.blockId)}
                         </Badge>
                         <Text size="xs" c="dimmed">
-                          {step.waitMode === "pass"
-                            ? index === sequence.steps.length - 1 ? "Stop" : "Pass"
-                            : step.waitMode === "fixed"
-                              ? `${step.waitSeconds} s`
-                              : `${step.minSeconds}–${step.maxSeconds} s (random)`}
+                          {index === sequence.steps.length - 1 && sequence.repeat
+                            ? "Restart"
+                            : step.waitMode === "pass"
+                              ? index === sequence.steps.length - 1 ? "Stop" : "Pass"
+                              : step.waitMode === "fixed"
+                                ? `${step.waitSeconds} s`
+                                : `${step.minSeconds}–${step.maxSeconds} s (random)`}
                         </Text>
                       </Group>
                     ))}
