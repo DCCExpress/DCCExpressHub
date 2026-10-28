@@ -460,7 +460,7 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
               <Stack gap="xs">
                 {/* Keep the sequence name readable independently of the action toolbar. */}
                 <Text fw={700} size="sm" style={{ overflowWrap: "anywhere" }}>
-                  <span title={sequence.repeat ? "Restart Sequence" : "Single run"} style={{ display: "inline-flex", verticalAlign: "middle", marginRight: 6, padding: 3, borderRadius: 5, backgroundColor: "var(--mantine-color-green-8)", color: "white" }}>{sequence.repeat ? <IconRepeat size={15} stroke={2.5}/> : <IconCircleNumber1 size={15} stroke={2.5}/>}</span>{sequence.name}
+                  <span title={sequence.repeat ? "Restart Sequence" : "Single run"} style={{ display: "inline-flex", verticalAlign: "middle", marginRight: 6, padding: 3, borderRadius: 5, backgroundColor: "var(--mantine-color-blue-6)", color: "white" }}>{sequence.repeat ? <IconRepeat size={15} stroke={2.5}/> : <IconCircleNumber1 size={15} stroke={2.5}/>}</span>{sequence.name}
                 </Text>
                 {/* Actions and live status remain visible even with details collapsed. */}
                 <Group justify="space-between" align="center" gap="xs" wrap="nowrap">
