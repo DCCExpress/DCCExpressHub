@@ -81,9 +81,9 @@ connection_summary() {
 }
 ui() {
   : > "$out"
-  local -a buttons=(--ok-label 'Kiválasztás' --cancel-label 'Vissza')
+  local -a buttons=(--ok-label 'OK' --cancel-label 'Back')
   case " $* " in
-    *" --inputbox "*) buttons=(--ok-label 'Alkalmaz' --cancel-label 'Mégse') ;;
+    *" --inputbox "*) buttons=(--ok-label 'OK' --cancel-label 'Cancel') ;;
   esac
   local status=0
   dialog --ascii-lines --backtitle 'DCCExpressHub | Linux settings' \
@@ -94,7 +94,7 @@ ui() {
   return "$status"
 }
 readval() { REPLY="$(cat "$out")"; }
-message() { dialog --ascii-lines --ok-label 'Bezárás' --msgbox "$1" 10 72; }
+message() { dialog --ascii-lines --ok-label 'OK' --msgbox "$1" 10 72; }
 edit() {
   local key="$1" label="$2" next
   if ui --title "$label" --inputbox "$label" 10 72 "${s[$key]}"; then
@@ -225,7 +225,7 @@ known_key() {
 put() { printf 'export %s=%q\n' "$1" "$2" >> "$temp_env"; }
 save_settings() {
   validate || return 0
-  dialog --ascii-lines --yes-label 'Mentés' --no-label 'Mégse' --yesno 'Save configuration? A backup of the current file will be created.' 9 72 || return 0
+  dialog --ascii-lines --yes-label 'Save' --no-label 'Cancel' --yesno 'Save configuration? A backup of the current file will be created.' 9 72 || return 0
   local line key backup
   mkdir -p -- "$(dirname -- "$ENV_FILE")"
   temp_env="$(mktemp "$(dirname -- "$ENV_FILE")/.env.linux.tmp.XXXXXX")"
@@ -257,7 +257,7 @@ save_settings() {
 }
 exit_menu() {
   if ((dirty)); then
-    dialog --ascii-lines --yes-label 'Kilépés' --no-label 'Maradok' --yesno 'Discard unsaved changes and exit?' 9 63
+    dialog --ascii-lines --yes-label 'Exit' --no-label 'Stay' --yesno 'Discard unsaved changes and exit?' 9 63
   else return 0; fi
 }
 while true; do
