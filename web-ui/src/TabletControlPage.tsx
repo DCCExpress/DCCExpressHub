@@ -61,14 +61,18 @@ export default function TabletControlPage({ locos, status, onBack }: Props) {
           
           aria-label={leftVisible ? "Hide left locomotive panel" : "Show left locomotive panel"}
           title={leftVisible ? "Hide left locomotive panel" : "Show left locomotive panel"}
-          onClick={() => setLeftVisible(value => !value)}>
+          onPointerDown={event => event.stopPropagation()}
+          onPointerUp={event => event.stopPropagation()}
+          onClick={event => { event.stopPropagation(); setLeftVisible(value => !value); }}>
           {leftVisible ? <IconChevronLeft size={17}/> : <IconChevronRight size={17}/>}
         </ActionIcon>
         <ActionIcon className="tablet-panel-toggle tablet-panel-toggle-right" size={30} variant="filled" color="dark"
           
           aria-label={rightVisible ? "Hide right locomotive panel" : "Show right locomotive panel"}
           title={rightVisible ? "Hide right locomotive panel" : "Show right locomotive panel"}
-          onClick={() => setRightVisible(value => !value)}>
+          onPointerDown={event => event.stopPropagation()}
+          onPointerUp={event => event.stopPropagation()}
+          onClick={event => { event.stopPropagation(); setRightVisible(value => !value); }}>
           {rightVisible ? <IconChevronRight size={17}/> : <IconChevronLeft size={17}/>}
         </ActionIcon>
         <aside className="tablet-control-loco" aria-label="Left locomotive controller" inert={!leftVisible} aria-hidden={!leftVisible}>
