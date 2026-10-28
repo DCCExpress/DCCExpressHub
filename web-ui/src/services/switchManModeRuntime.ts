@@ -41,7 +41,6 @@ type Listener = (
 
 const OWNER_STORAGE_KEY =
   "dcc-express.switchman.owner-id";
-const PROVENANCE_STORAGE_KEY = "dcc-express.switchman.lock-provenance";
 
 // Keep manual SwitchMan operations friendly to every backend. The Windows Z21
 // backend waits for its complete 150 ms ON + 50 ms settle cycle before ACKing,
@@ -107,49 +106,9 @@ function loadOwnerId(): string {
 let ownerId =
   loadOwnerId();
 
-// The backend owns the real locks. These per-tab sets track *why* we own
-// each address so a new RouteButton releases only its previous route locks,
-// without releasing turnouts that were also operated manually.
-type LockProvenance = { ownerId: string; manual: number[]; route: number[] };
-function readProvenance(): { manual: Set<number>; route: Set<number> } {
-  try {
-    const parsed = JSON.parse(window.sessionStorage.getItem(PROVENANCE_STORAGE_KEY) ?? "null") as LockProvenance | null;
-    if (parsed?.ownerId === ownerId) {
-      const valid = (items: unknown) => new Set(
-        Array.isArray(items) ? items.filter((n): n is number => Number.isInteger(n) && n >= 1 && n <= 32767) : []
-      );
-      return { manual: valid(parsed.manual), route: valid(parsed.route) };
-    }
-  } catch { /* Unknown previous state: protect those locks, never guess ownership. */ }
-  return { manual: new Set<number>(), route: new Set<number>() };
-}
-const restoredProvenance = readProvenance();
-let manualHeldAddresses = restoredProvenance.manual;
-let routeHeldAddresses = restoredProvenance.route;
-function saveProvenance(): void {
-  try {
-    window.sessionStorage.setItem(PROVENANCE_STORAGE_KEY, JSON.stringify({
-      ownerId, manual: [...manualHeldAddresses], route: [...routeHeldAddresses],
-    }));
-  } catch { /* Session storage unavailable: current in-memory state still works. */ }
-}
-
-// Serialize manual and route operations within this UI client. A manual click
-// must not race a RouteButton release (or SwitchMan OFF).
-let operationQueue: Promise<void> = Promise.resolve();
-function serializeOperation<T>(work: () => Promise<T>): Promise<T> {
-  const result = operationQueue.then(work);
-  operationQueue = result.then(() => undefined, () => undefined);
-  return result;
-}
-
-
 function regenerateOwnerId(): void {
   ownerId =
     newOwnerId();
-  manualHeldAddresses.clear();
-  routeHeldAddresses.clear();
-  saveProvenance();
 
   if (
     typeof window !==
@@ -253,18 +212,6 @@ function applyLocks(
     normalizeLocks(
       rawLocks
     );
-
-  // Reconcile local provenance with authoritative backend ownership.
-  // Unclassified locks are intentionally left untouched on route changes.
-  const owned = new Set(locks.filter(lock => lock.ownerId === ownerId).map(lock => lock.address));
-  let changed = false;
-  for (const address of manualHeldAddresses) if (!owned.has(address)) {
-    manualHeldAddresses.delete(address); changed = true;
-  }
-  for (const address of routeHeldAddresses) if (!owned.has(address)) {
-    routeHeldAddresses.delete(address); changed = true;
-  }
-  if (changed) saveProvenance();
 
   /*
    * sessionStorage keeps this browser tab's owner id across reloads.
@@ -653,46 +600,75 @@ export function isSwitchManModeEnabled():
   return enabled;
 }
 
-export async function setSwitchManModeEnabled(value: boolean): Promise<void> {
+export async function setSwitchManModeEnabled(
+  value: boolean
+): Promise<void> {
   install();
-  if (value) {
-    if (!enabled) {
-      enabled = true;
+
+  if (
+    value
+  ) {
+    if (
+      !enabled
+    ) {
+      enabled =
+        true;
       emit();
       sendSnapshot();
     }
+
     return;
   }
-  // Do not release a manual/route operation that is still in flight.
-  return serializeOperation(async () => {
-    if (!enabled) return;
-    const response = await request("release", { ownerId });
-    if (!response.ok) {
-      throw new Error(response.message || i18next.t("ui.turnoutLockReleaseFailed"));
-    }
-    if (response.extra?.locks) applyLocks(response.extra.locks);
-    manualHeldAddresses.clear();
-    routeHeldAddresses.clear();
-    saveProvenance();
-    enabled = false;
-    emit();
-  });
+
+  if (
+    !enabled
+  ) {
+    return;
+  }
+
+  const response =
+    await request(
+      "release",
+      {
+        ownerId,
+      }
+    );
+
+  if (
+    !response.ok
+  ) {
+    throw new Error(
+      response.message ||
+      i18next.t(
+        "ui.turnoutLockReleaseFailed"
+      )
+    );
+  }
+
+  if (
+    response.extra?.locks
+  ) {
+    applyLocks(
+      response.extra.locks
+    );
+  }
+
+  enabled =
+    false;
+  emit();
 }
 
 export async function operateSwitchManTurnouts(
-  requestedCommands: SwitchManTurnoutCommand[],
-  source: "manual" | "route" = "manual"
+  requestedCommands:
+    SwitchManTurnoutCommand[]
 ): Promise<boolean> {
   install();
-  if (!enabled) return false;
-  return serializeOperation(() => performSwitchManTurnoutOperation(requestedCommands, source));
-}
 
-async function performSwitchManTurnoutOperation(
-  requestedCommands: SwitchManTurnoutCommand[],
-  source: "manual" | "route"
-): Promise<boolean> {
-  if (!enabled) return false;
+  if (
+    !enabled
+  ) {
+    return false;
+  }
 
   const commandByAddress =
     new Map<
@@ -783,13 +759,6 @@ async function performSwitchManTurnoutOperation(
       return false;
     }
 
-    if (source === "manual") {
-      // A manually operated turnout must survive future RouteButton changes,
-      // even if that turnout was first acquired as part of a route.
-      for (const command of commands) manualHeldAddresses.add(command.address);
-      saveProvenance();
-    }
-
     for (
       let index = 0;
       index < commands.length;
@@ -851,34 +820,6 @@ async function performSwitchManTurnoutOperation(
           );
         }
       }
-    }
-
-    if (source === "route") {
-      const newRouteAddresses = new Set(commands.map(command => command.address));
-      const obsolete = [...routeHeldAddresses].filter(address =>
-        !newRouteAddresses.has(address) && !manualHeldAddresses.has(address)
-      );
-
-      // Record newly acquired locks before trying to release stale ones. A
-      // failed release must remain visible and be retried on the next route.
-      routeHeldAddresses = new Set([...routeHeldAddresses, ...newRouteAddresses]);
-      saveProvenance();
-
-      if (obsolete.length > 0) {
-        try {
-          const released = await request("release", { ownerId, addresses: obsolete });
-          if (!released.ok) {
-            showOperationError(released.message || i18next.t("ui.turnoutLockReleaseFailed"));
-            return true; // Route is already physically set; keep stale locks safely.
-          }
-          if (released.extra?.locks) applyLocks(released.extra.locks);
-        } catch (releaseError) {
-          showOperationError(releaseError instanceof Error ? releaseError.message : String(releaseError));
-          return true; // Do not claim the route itself failed after it was set.
-        }
-      }
-      routeHeldAddresses = newRouteAddresses;
-      saveProvenance();
     }
 
     return true;
