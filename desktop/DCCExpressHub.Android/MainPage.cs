@@ -1,4 +1,3 @@
-using System.Net.Http;
 using DCCExpressHub.Net;
 using Microsoft.Maui.Controls;
 
@@ -6,57 +5,220 @@ namespace DCCExpressHub.Android;
 
 public sealed class MainPage : ContentPage
 {
-    private readonly Label _status = new() { Text = "HUB stopped", VerticalTextAlignment = TextAlignment.Center };
-    private readonly Button _start = new() { Text = "Start HUB" };
-    private readonly Button _stop = new() { Text = "Stop", IsEnabled = false };
-    private readonly Button _reload = new() { Text = "Reload UI", IsEnabled = false };
-    private readonly WebView _browser = new() { IsVisible = false };
-    private readonly SemaphoreSlim _gate = new(1, 1);
-    private HubRuntime? _runtime;
+    readonly AndroidStartupSettings _settings = AndroidStartupSettings.Load();
+    readonly Picker _protocol = new() { Title = "Command center" };
+    readonly Entry _host = new() { Placeholder = "IP address or hostname" };
+    readonly Entry _port = new() { Keyboard = Keyboard.Numeric };
+    readonly Entry _serial = new() { Placeholder = "Serial device path (USB requires Android adapter)" };
+    readonly Entry _baud = new() { Keyboard = Keyboard.Numeric };
+    readonly Entry _rbus = new() { Keyboard = Keyboard.Numeric };
+    readonly Entry _loconetOffset = new() { Keyboard = Keyboard.Numeric };
+    readonly Entry _httpPort = new() { Keyboard = Keyboard.Numeric };
+    readonly Switch _lan = new();
+    readonly VerticalStackLayout _tcpFields = new() { Spacing = 8 };
+    readonly VerticalStackLayout _serialFields = new() { Spacing = 8 };
+    readonly Label _status = new() { Text = "Ready to start", TextColor = Colors.LightGray };
+    readonly Button _start = new() { Text = "Start HUB", BackgroundColor = Color.FromArgb("#2563EB"), TextColor = Colors.White };
+    readonly Button _stop = new() { Text = "Stop HUB", IsEnabled = false };
+    readonly Button _reload = new() { Text = "Reload", IsEnabled = false };
+    readonly Button _settingsButton = new() { Text = "Settings", IsVisible = false };
+    readonly WebView _browser = new() { IsVisible = false };
+    readonly ScrollView _startup = new();
+    readonly SemaphoreSlim _gate = new(1, 1);
+    HubRuntime? _runtime;
+
+    static readonly (string Name, string Id, int Port)[] Protocols =
+    [
+        ("DCC-EX · TCP", "tcp", 2560),
+        ("DCC-EX · Serial (experimental)", "serial", 2560),
+        ("Z21 + R-BUS", "z21", 21105),
+        ("LocoNet TCP", "loconet", 1234),
+        ("LocoNet Serial (experimental)", "loconet-serial", 1234),
+        ("Z21 + R-BUS + LocoNet (legacy)", "yamorc7010", 21105)
+    ];
+
+    static View Field(string caption, View input) => new VerticalStackLayout
+    {
+        Spacing = 3,
+        Children =
+        {
+            new Label { Text = caption, TextColor = Color.FromArgb("#94A3B8"), FontSize = 12 },
+            input
+        }
+    };
 
     public MainPage()
     {
         Title = "DCCExpress HUB";
+        BackgroundColor = Color.FromArgb("#0F172A");
+
+        foreach (var option in Protocols) _protocol.Items.Add(option.Name);
+        _protocol.SelectedIndex = Math.Max(0, Array.FindIndex(Protocols, p => p.Id == _settings.Protocol));
+        _host.Text = _settings.TcpHost;
+        _port.Text = _settings.TcpPort.ToString();
+        _serial.Text = _settings.SerialPort;
+        _baud.Text = _settings.SerialBaudRate.ToString();
+        _rbus.Text = _settings.RBusOffset.ToString();
+        _loconetOffset.Text = _settings.LocoNetSensorOffset.ToString();
+        _httpPort.Text = _settings.HttpPort.ToString();
+        _lan.IsToggled = _settings.AllowLan;
+
+        _tcpFields.Children.Add(Field("Host / IP", _host));
+        _tcpFields.Children.Add(Field("Command center port", _port));
+        _serialFields.Children.Add(Field("Serial port", _serial));
+        _serialFields.Children.Add(Field("Baud rate", _baud));
+
+        _protocol.SelectedIndexChanged += (_, _) =>
+        {
+            var option = Protocols[_protocol.SelectedIndex];
+            // When switching transports update the default port, but preserve custom values on load.
+            if (_settings.Protocol != option.Id) _port.Text = option.Port.ToString();
+            UpdateConnectionFields();
+        };
+        UpdateConnectionFields();
+
         _start.Clicked += async (_, _) => await StartHubAsync();
         _stop.Clicked += async (_, _) => await StopHubAsync();
         _reload.Clicked += (_, _) => _browser.Reload();
-        var toolbar = new HorizontalStackLayout { Spacing = 8, Padding = new Thickness(12, 8) };
-        toolbar.Children.Add(_start);
-        toolbar.Children.Add(_stop);
-        toolbar.Children.Add(_reload);
+        _settingsButton.Clicked += (_, _) => ShowStartup();
+
+        var heading = new Label { Text = "DCCExpress HUB", FontSize = 28, FontAttributes = FontAttributes.Bold,
+            TextColor = Colors.White, HorizontalTextAlignment = TextAlignment.Center };
+        var subtitle = new Label { Text = "Android · Shared Runtime", FontSize = 13,
+            TextColor = Color.FromArgb("#94A3B8"), HorizontalTextAlignment = TextAlignment.Center };
+
+        var config = new VerticalStackLayout
+        {
+            Padding = new Thickness(22, 26),
+            Spacing = 16,
+            Children =
+            {
+                heading, subtitle,
+                new BoxView { HeightRequest = 1, Color = Color.FromArgb("#334155") },
+                Field("Connection protocol", _protocol),
+                _tcpFields,
+                _serialFields,
+                Field("R-BUS sensor offset", _rbus),
+                Field("LocoNet sensor offset", _loconetOffset),
+                Field("HUB HTTP port", _httpPort),
+                new HorizontalStackLayout { Spacing = 12, Children =
+                {
+                    new Label { Text = "Allow other devices on LAN", TextColor = Colors.White,
+                        VerticalTextAlignment = TextAlignment.Center }, _lan
+                }},
+                new Label { Text = "Serial choices remain visible for compatibility, but Android USB serial access needs a native USB transport adapter.",
+                    TextColor = Color.FromArgb("#FBBF24"), FontSize = 12 },
+                _start
+            }
+        };
+        _startup.Content = config;
+
+        var runtimeControls = new HorizontalStackLayout
+        {
+            Spacing = 8, Padding = new Thickness(8, 4),
+            Children = { _settingsButton, _reload, _stop }
+        };
         var page = new Grid
         {
-            RowDefinitions = { new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Star) }
+            RowDefinitions =
+            {
+                new RowDefinition(GridLength.Auto),
+                new RowDefinition(GridLength.Auto),
+                new RowDefinition(GridLength.Star)
+            }
         };
-        page.Add(toolbar, 0, 0);
+        page.Add(runtimeControls, 0, 0);
         page.Add(_status, 0, 1);
-        page.Add(_browser, 0, 2);
+        var content = new Grid();
+        content.Children.Add(_startup);
+        content.Children.Add(_browser);
+        page.Add(content, 0, 2);
         Content = page;
     }
 
-    private async Task StartHubAsync()
+    void UpdateConnectionFields()
+    {
+        if (_protocol.SelectedIndex < 0) return;
+        var id = Protocols[_protocol.SelectedIndex].Id;
+        var serial = id is "serial" or "loconet-serial";
+        _tcpFields.IsVisible = !serial;
+        _serialFields.IsVisible = serial;
+        _rbus.IsEnabled = id is "z21" or "yamorc7010";
+        _loconetOffset.IsEnabled = id is "loconet" or "loconet-serial" or "yamorc7010";
+    }
+
+    void ShowStartup()
+    {
+        _browser.IsVisible = false;
+        _startup.IsVisible = true;
+        _settingsButton.IsVisible = false;
+    }
+
+    static int ParsePort(string? value, string name)
+    {
+        if (!int.TryParse(value, out var port) || port is < 1 or > 65535)
+            throw new InvalidOperationException($"{name} must be between 1 and 65535.");
+        return port;
+    }
+
+    async Task StartHubAsync()
     {
         if (!await _gate.WaitAsync(0)) return;
         _start.IsEnabled = false;
-        _status.Text = "Preparing local HUB files…";
+        _status.Text = "Preparing HUB…";
         try
         {
+            var protocol = Protocols[_protocol.SelectedIndex].Id;
+            if (protocol is "serial" or "loconet-serial")
+                throw new NotSupportedException("Android USB serial transport is not implemented yet. Select a TCP or UDP command center.");
+
+            _settings.Protocol = protocol;
+            _settings.TcpHost = _host.Text?.Trim() ?? "";
+            _settings.TcpPort = ParsePort(_port.Text, "Command center port");
+            _settings.SerialPort = _serial.Text?.Trim() ?? "";
+            _settings.SerialBaudRate = ParsePort(_baud.Text, "Serial baud rate");
+            _settings.RBusOffset = int.TryParse(_rbus.Text, out var rbus) ? Math.Clamp(rbus, 0, 65375) : 0;
+            _settings.LocoNetSensorOffset = int.TryParse(_loconetOffset.Text, out var offset) ? Math.Clamp(offset, 0, 61439) : 0;
+            _settings.HttpPort = ParsePort(_httpPort.Text, "HUB HTTP port");
+            _settings.AllowLan = _lan.IsToggled;
+            if (string.IsNullOrWhiteSpace(_settings.TcpHost))
+                throw new InvalidOperationException("Enter the command center IP address.");
+            _settings.Save();
+
             var root = Path.Combine(FileSystem.AppDataDirectory, "hub");
             var webRoot = Path.Combine(root, "wwwroot");
             Directory.CreateDirectory(webRoot);
-            // Packaged wwwroot is copied once per install/update from Android assets.
             await AndroidWebAssets.ExtractAsync(webRoot);
+            var endpoint = $"http://127.0.0.1:{_settings.HttpPort}";
             Environment.SetEnvironmentVariable("DCCEXPRESS_CONTENT_ROOT", root);
             Environment.SetEnvironmentVariable("DCCEXPRESS_WEB_ROOT", webRoot);
-            Environment.SetEnvironmentVariable("DCCEXPRESS_HTTP_URL", "http://127.0.0.1:5174");
+            Environment.SetEnvironmentVariable("DCCEXPRESS_HTTP_URL",
+                $"http://{(_settings.AllowLan ? "0.0.0.0" : "127.0.0.1")}:{_settings.HttpPort}");
+            Environment.SetEnvironmentVariable("CommandCenter__Protocol", protocol);
+            Environment.SetEnvironmentVariable("DccEx__Transport", protocol == "serial" ? "Serial" : "Tcp");
+            Environment.SetEnvironmentVariable("DccEx__Host", _settings.TcpHost);
+            Environment.SetEnvironmentVariable("DccEx__Port", _settings.TcpPort.ToString());
+            Environment.SetEnvironmentVariable("DccEx__SerialPort", _settings.SerialPort);
+            Environment.SetEnvironmentVariable("DccEx__BaudRate", _settings.SerialBaudRate.ToString());
+            Environment.SetEnvironmentVariable("Z21__Host", _settings.TcpHost);
+            Environment.SetEnvironmentVariable("Z21__Port", _settings.TcpPort.ToString());
+            Environment.SetEnvironmentVariable("Z21__RBusOffset", _settings.RBusOffset.ToString());
+            Environment.SetEnvironmentVariable("LocoNet__Host", _settings.TcpHost);
+            Environment.SetEnvironmentVariable("LocoNet__LbServerPort", (protocol == "loconet" ? _settings.TcpPort : 1234).ToString());
+            Environment.SetEnvironmentVariable("LocoNet__SensorOffset", _settings.LocoNetSensorOffset.ToString());
+            Environment.SetEnvironmentVariable("LocoNet__SerialPort", _settings.SerialPort);
+            Environment.SetEnvironmentVariable("LocoNet__SerialBaudRate", _settings.SerialBaudRate.ToString());
+            Environment.SetEnvironmentVariable("LocoNet__LbServerFeedback", "false");
 
             _runtime = new HubRuntime();
             await _runtime.StartAsync();
-            _status.Text = "HUB running · http://127.0.0.1:5174";
-            _browser.Source = new UrlWebViewSource { Url = "http://127.0.0.1:5174/#tablet" };
+            _status.Text = "HUB running · " + endpoint;
+            _browser.Source = new UrlWebViewSource { Url = endpoint + "/#tablet" };
+            _startup.IsVisible = false;
             _browser.IsVisible = true;
             _stop.IsEnabled = true;
             _reload.IsEnabled = true;
+            _settingsButton.IsVisible = true;
         }
         catch (Exception ex)
         {
@@ -71,7 +233,7 @@ public sealed class MainPage : ContentPage
         finally { _gate.Release(); }
     }
 
-    private async Task StopHubAsync()
+    async Task StopHubAsync()
     {
         if (!await _gate.WaitAsync(0)) return;
         _stop.IsEnabled = false;
@@ -86,12 +248,9 @@ public sealed class MainPage : ContentPage
                 _runtime = null;
             }
             _status.Text = "HUB stopped";
+            ShowStartup();
         }
         catch (Exception ex) { _status.Text = "Stop failed: " + ex.Message; }
-        finally
-        {
-            _start.IsEnabled = true;
-            _gate.Release();
-        }
+        finally { _start.IsEnabled = true; _gate.Release(); }
     }
 }
