@@ -2113,6 +2113,17 @@ export default function LiteLayoutPage({
             <Title order={5}>Tablet Control</Title>
           </Group>
           <Group gap="xs" wrap="nowrap">
+            <Button
+              size="xs"
+              variant={commandCenter.powerInfo?.trackVoltageOn ? "filled" : "light"}
+              color={commandCenter.powerInfo?.trackVoltageOn ? "green" : "red"}
+              leftSection={<IconPower size={16} />}
+              disabled={wsStatus !== "connected" || !commandCenter.alive}
+              onClick={() => { void wsApi.setTrackPower(!commandCenter.powerInfo?.trackVoltageOn); }}
+              title={commandCenter.powerInfo?.trackVoltageOn ? i18next.t("ui.turnTrackPowerOff") : i18next.t("ui.turnTrackPowerOn")}
+            >
+              {i18next.t("ui.power")} {commandCenter.powerInfo?.trackVoltageOn ? i18next.t("ui.on") : i18next.t("ui.off")}
+            </Button>
             <ActionIcon variant="light" onClick={() => setFitCounter(value => value + 1)} title={i18next.t("ui.fitLayout")} aria-label={i18next.t("ui.fitLayout")}>
               <IconFocusCentered size={19} />
             </ActionIcon>
@@ -2479,10 +2490,6 @@ export default function LiteLayoutPage({
 
       <LayoutStatusBar
         wsStatus={wsStatus}
-        {...(tabletMode ? {
-          powerOn: commandCenter.powerInfo?.trackVoltageOn === true,
-          onTogglePower: () => { void wsApi.setTrackPower(!commandCenter.powerInfo?.trackVoltageOn); },
-        } : {})}
         emergencyStop={commandCenter.powerInfo?.emergencyStop === true}
         onEmergencyStop={emergencyStopAndCancelSelection}
         anyTrackOverload={anyTrackOverload}
