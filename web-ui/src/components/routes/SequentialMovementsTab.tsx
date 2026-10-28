@@ -31,6 +31,7 @@ type Props = {
   onMovementsChange: (next: MovementDocument) => void;
   onPersistRouteTopology?: (() => Promise<void>) | undefined;
   presentation?: "cards" | "table" | undefined;
+  allowCreate?: boolean;
 };
 
 const createStep = (blockId: number, direction: "forward" | "reverse" = "forward"): SequentialMovementStep =>
@@ -152,7 +153,7 @@ function currentSequenceStepIndex(
   return detectedIndex >= 0 ? detectedIndex : confirmedIndex;
 }
 
-export default function SequentialMovementsTab({ layout, movements, locos, onMovementsChange, onPersistRouteTopology, presentation = "table" }: Props) {
+export default function SequentialMovementsTab({ layout, movements, locos, onMovementsChange, onPersistRouteTopology, presentation = "table", allowCreate = true }: Props) {
   const mt = useMovementTranslation();
   // Read the live layout on each render; its block names can be edited in place
   // without replacing the LayoutView instance.
@@ -442,7 +443,7 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
           {mt("movementEnabledCount", { count: enabledSequenceCount })}
         </Badge>
       </Group>
-      <Button size="xs" leftSection={<IconPlus size={14}/>} onClick={() => { setError(null); setDraft(blank()); }}>{mt("movementNew")}</Button>
+      <Button size="xs" leftSection={<IconPlus size={14}/>} disabled={!allowCreate} onClick={() => { setError(null); setDraft(blank()); }}>{mt("movementNew")}</Button>
     </Group>
     {error && <Alert color="red" variant="light" title="Sequence cannot start or save" icon={<IconAlertTriangle size={17}/>}> <Text size="sm">{formatRuntimeMessage(error)}</Text> </Alert>}
     <ScrollArea style={{ flex: 1, minHeight: 0 }} type="always">
