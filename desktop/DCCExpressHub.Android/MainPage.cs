@@ -51,6 +51,26 @@ public sealed class MainPage : ContentPage
     {
         Title = "DCCExpress HUB";
         BackgroundColor = Color.FromArgb("#0F172A");
+        // Explicit colors: Android may default to a light text theme regardless
+        // of the page background, making Picker/Entry/Button text unreadable.
+        var inputBackground = Color.FromArgb("#1E293B");
+        var foreground = Colors.White;
+        foreach (var entry in new[] { _host, _port, _serial, _baud, _rbus, _loconetOffset, _httpPort })
+        {
+            entry.TextColor = foreground;
+            entry.PlaceholderColor = Color.FromArgb("#94A3B8");
+            entry.BackgroundColor = inputBackground;
+        }
+        _protocol.TextColor = foreground;
+        _protocol.TitleColor = Color.FromArgb("#94A3B8");
+        _protocol.BackgroundColor = inputBackground;
+        foreach (var button in new[] { _stop, _reload, _settingsButton })
+        {
+            button.TextColor = foreground;
+            button.BackgroundColor = Color.FromArgb("#334155");
+        }
+        _status.TextColor = Color.FromArgb("#CBD5E1");
+
 
         foreach (var option in Protocols) _protocol.Items.Add(option.Name);
         _protocol.SelectedIndex = Math.Max(0, Array.FindIndex(Protocols, p => p.Id == _settings.Protocol));
