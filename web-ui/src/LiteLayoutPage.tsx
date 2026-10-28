@@ -511,11 +511,12 @@ function readStoredRightPanelMode(): RightPanelMode {
   return localStorage.getItem(RIGHT_PANEL_MODE_KEY) === "loco" ? "loco" : "property";
 }
 
-function readStoredRuntimeTab(): RuntimeTab {
+function readStoredRuntimeTab(tabletMode = false): RuntimeTab {
+  const key = tabletMode ? tabletStorageKey(RUNTIME_TAB_SESSION_KEY) : RUNTIME_TAB_SESSION_KEY;
   let value: string | null = null;
   try {
-    value = window.localStorage.getItem(RUNTIME_TAB_SESSION_KEY)
-      ?? window.sessionStorage.getItem(RUNTIME_TAB_SESSION_KEY);
+    value = window.localStorage.getItem(key)
+      ?? window.sessionStorage.getItem(key);
   } catch {
     // Storage may be disabled; the UI still works with its default tab.
   }
@@ -523,13 +524,14 @@ function readStoredRuntimeTab(): RuntimeTab {
   if (value === "info") return "settings";
   return value === "tasks" || value === "automation" ||
     value === "timetable" || value === "settings" || value === "log"
-    ? value : "automation";
+    ? value : tabletMode ? "tasks" : "automation";
 }
 
-function persistRuntimeTab(tab: RuntimeTab): void {
+function persistRuntimeTab(tab: RuntimeTab, tabletMode = false): void {
+  const key = tabletMode ? tabletStorageKey(RUNTIME_TAB_SESSION_KEY) : RUNTIME_TAB_SESSION_KEY;
   try {
-    window.localStorage.setItem(RUNTIME_TAB_SESSION_KEY, tab);
-    window.sessionStorage.setItem(RUNTIME_TAB_SESSION_KEY, tab);
+    window.localStorage.setItem(key, tab);
+    window.sessionStorage.setItem(key, tab);
   } catch {
     // Keep the current in-memory choice if storage is unavailable.
   }
@@ -1179,7 +1181,7 @@ export default function LiteLayoutPage({
   const [locoPanelCollapsed, setLocoPanelCollapsed] = useState(() => readStoredBoolean(tabletMode ? tabletStorageKey(LOCO_COLLAPSED_KEY) : LOCO_COLLAPSED_KEY));
   const [propertyPanelCollapsed, setPropertyPanelCollapsed] = useState(() => readStoredBoolean(tabletMode ? tabletStorageKey(PROPERTY_COLLAPSED_KEY) : PROPERTY_COLLAPSED_KEY));
   const [rightPanelMode, setRightPanelMode] = useState<RightPanelMode>(() => tabletMode ? (localStorage.getItem(tabletStorageKey(RIGHT_PANEL_MODE_KEY)) === "loco" ? "loco" : "property") : readStoredRightPanelMode());
-  const [runtimeTab, setRuntimeTab] = useState<RuntimeTab>(readStoredRuntimeTab);
+  const [runtimeTab, setRuntimeTab] = useState<RuntimeTab>(() => readStoredRuntimeTab(tabletMode));
   const resizeRef = useRef<{ side: "left" | "right"; startX: number; startWidth: number } | null>(null);
   const temperatureCriticalRef = useRef(false);
   const [commandCenterConfigOpened, setCommandCenterConfigOpened] = useState(false);
@@ -2357,7 +2359,7 @@ export default function LiteLayoutPage({
                         : "automation";
 
                     setRuntimeTab(nextTab);
-                    persistRuntimeTab(nextTab);
+                    persistRuntimeTab(nextTab, tabletMode);
                   }}
                   className="lite-runtime-tabs"
                 >
