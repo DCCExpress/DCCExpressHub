@@ -1,4 +1,9 @@
+import { useState } from "react";
+import i18next from "i18next";
+import { IconAlertTriangle } from "@tabler/icons-react";
+import AppModal from "@/components/common/AppModal";
 import {
+  Button,
   Card,
   Checkbox,
   Group,
@@ -75,12 +80,31 @@ export default function LocoDialogContent({
     setImageFromFile,
   } = state;
 
+  const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const pendingDeleteLoco = locos.find(loco => loco.id === pendingDeleteId) ?? null;
+  const requestLocoDeletion = () => {
+    if (!selectedLoco) return;
+    setPendingDeleteId(selectedLoco.id);
+    setDeleteConfirmationOpen(true);
+  };
+  const confirmLocoDeletion = () => {
+    // Never delete a different locomotive if selection changed while the
+    // confirmation dialog was open.
+    if (pendingDeleteId && selectedLoco?.id === pendingDeleteId) {
+      deleteSelectedLoco();
+    }
+    setDeleteConfirmationOpen(false);
+    setPendingDeleteId(null);
+  };
+
   const trainTypeOptions = TRAIN_TYPE_OPTIONS.map(value => ({
     value,
     label: t(`locodialog.trainTypes.${value}`),
   }));
 
   return (
+    <>
     <Group className="loco-dialog-content" align="stretch" gap="md" wrap="nowrap" style={{ flex: 1, minHeight: 0 }}>
       <LocoListPanel
         locos={locos}
@@ -89,7 +113,7 @@ export default function LocoDialogContent({
         onActiveChange={setLocoActive}
         onAdd={addLoco}
         
-        onDeleteSelected={deleteSelectedLoco}
+        onDeleteSelected={requestLocoDeletion}
         hasSelectedLoco={!!selectedLoco}
         t={t}
       />
@@ -279,5 +303,37 @@ export default function LocoDialogContent({
         )}
       </Card>
     </Group>
+    <AppModal
+      opened={deleteConfirmationOpen}
+      onClose={() => { setDeleteConfirmationOpen(false); setPendingDeleteId(null); }}
+      title={i18next.t("locodialog.confirmDeleteTitle", { defaultValue: "Delete locomotive?" })}
+      centered
+      size="sm"
+    >
+      <Stack gap="md">
+        <Group gap="sm" wrap="nowrap" align="flex-start">
+          <IconAlertTriangle size={26} color="var(--mantine-color-red-6)" />
+          <Stack gap={4}>
+            <Text fw={600}>{pendingDeleteLoco?.name || t("locodialog.unknownloco")}</Text>
+            <Text size="sm" c="dimmed">
+              {i18next.t("locodialog.confirmDeleteMessage", {
+                defaultValue: "Remove locomotive {{name}} (DCC address {{address}}) from the editor? Save to apply the deletion.",
+                name: pendingDeleteLoco?.name || t("locodialog.unknownloco"),
+                address: pendingDeleteLoco?.address ?? "—",
+              })}
+            </Text>
+          </Stack>
+        </Group>
+        <Group justify="flex-end">
+          <Button variant="default" onClick={() => { setDeleteConfirmationOpen(false); setPendingDeleteId(null); }}>
+            {i18next.t("ui.cancel", { defaultValue: "Cancel" })}
+          </Button>
+          <Button color="red" disabled={!pendingDeleteLoco} onClick={confirmLocoDeletion}>
+            {t("locodialog.delete")}
+          </Button>
+        </Group>
+      </Stack>
+    </AppModal>
+    </>
   );
 }
