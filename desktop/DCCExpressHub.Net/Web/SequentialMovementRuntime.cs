@@ -568,6 +568,43 @@ public sealed class SequentialMovementRuntime
                             Publish(run, "completed", endIndex + 1, "Sequence completed");
                             return;
                         }
+                        // The repeat destination is also the first block. Apply the
+                        // first row's departure wait BEFORE launching the next lap;
+                        // otherwise the first row is skipped on every restart.
+                        var firstStep = run.Definition.Steps[0];
+                        var startWaitSeconds = firstStep.WaitMode switch
+                        {
+                            "fixed" => firstStep.WaitSeconds,
+                            "random" => Random.Shared.Next(firstStep.MinSeconds, firstStep.MaxSeconds + 1),
+                            _ => 0
+                        };
+                        if (startWaitSeconds > 0)
+                        {
+                            Publish(run, "waiting", 1,
+                                "Restart at block #" + firstStep.BlockId + " · waiting " + startWaitSeconds + " s");
+                            using var restartWaitCancellation =
+                                CancellationTokenSource.CreateLinkedTokenSource(token, run.FinishWake.Token);
+                            try
+                            {
+                                await Task.Delay(TimeSpan.FromSeconds(startWaitSeconds), restartWaitCancellation.Token);
+                            }
+                            catch (OperationCanceledException) when (run.FinishRequested && !token.IsCancellationRequested)
+                            {
+                                Publish(run, "completed", 1,
+                                    "Finished safely at block #" + firstStep.BlockId);
+                                return;
+                            }
+                        }
+                        token.ThrowIfCancellationRequested();
+                        if (run.FinishRequested)
+                        {
+                            Publish(run, "completed", 1,
+                                "Finished safely at block #" + firstStep.BlockId);
+                            return;
+                        }
+                        if (_hubState.EmergencyStop)
+                            throw new InvalidOperationException("emergency_stop_active");
+
                         // A closed route ends where it started. Start a new lap
                         // without releasing the locomotive's sequential reservation.
                         // Each child Movement needs a unique ID on every lap.
