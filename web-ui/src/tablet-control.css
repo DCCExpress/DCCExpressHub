@@ -86,3 +86,8 @@
 }
 .tablet-panel-toggle-left { border-radius: 0 8px 8px 0; }
 .tablet-panel-toggle-right { border-radius: 8px 0 0 8px; }
+
+/* Reserve the same grid tracks when either side is collapsed. */
+.tablet-control-loco[aria-label="Left locomotive controller"] { grid-column: 1; }
+.tablet-control-layout { grid-column: 2; }
+.tablet-control-loco[aria-label="Right locomotive controller"] { grid-column: 3; }
