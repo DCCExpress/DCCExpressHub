@@ -513,7 +513,7 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
                       {runtime && active(sequence.id) &&
                         <Badge variant="light" size="xs" color="blue">{runtime.stepIndex} / {runtime.stepCount}</Badge>}
                     </Group>
-                    {sequence.steps.map((step, index) => step.waitMode === "pass" ? null : (
+                    {sequence.steps.map((step, index) => (
                       <Group key={index} gap={5} wrap="nowrap">
                         <Badge
                           size="xs"
@@ -526,9 +526,11 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
                           {blockName(step.blockId)}
                         </Badge>
                         <Text size="xs" c="dimmed">
-                          {step.waitMode === "fixed"
-                            ? `${step.waitSeconds} s`
-                            : `${step.minSeconds}–${step.maxSeconds} s (random)`}
+                          {step.waitMode === "pass"
+                            ? index === sequence.steps.length - 1 ? "Stop" : "Pass"
+                            : step.waitMode === "fixed"
+                              ? `${step.waitSeconds} s`
+                              : `${step.minSeconds}–${step.maxSeconds} s (random)`}
                         </Text>
                       </Group>
                     ))}
