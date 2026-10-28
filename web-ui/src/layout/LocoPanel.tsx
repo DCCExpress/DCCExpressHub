@@ -662,7 +662,7 @@ export default function LocoPanel({
       const scale = Math.min(
         availableWidth / contentWidth,
         availableHeight / contentHeight,
-        1.25
+        window.matchMedia("(orientation: landscape)").matches ? 1.6 : 1.25
       );
 
       const scaledWidth = contentWidth * scale;
