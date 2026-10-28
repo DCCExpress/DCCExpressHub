@@ -370,7 +370,7 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
   };
 
   const stepsText = (sequence: SequentialMovementDefinition) =>
-    sequence.steps.map(step => blockName(step.blockId)).join(" → ");
+    sequence.steps.map(step => blockName(step.blockId)).join(" → ") + (sequence.repeat ? " ↻ Restart" : "");
 
   const enabledSequenceCount = movements.sequences.filter(sequence => sequence.enabled).length;
 
@@ -425,7 +425,7 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
         disabled={busy || !active(sequence.id)}
         onClick={() => void command("sequenceAbort", sequence.id)}><IconX size={MOVEMENT_CARD_ICON_SIZE}/></ActionIcon></Tooltip>
       <Tooltip label="Edit"><ActionIcon size={MOVEMENT_CARD_ACTION_SIZE} aria-label="Edit sequence" color="violet" variant="light"
-        disabled={busy || active(sequence.id)}
+        disabled={busy}
         onClick={() => { setError(null); setDraft({ ...sequence, steps: sequence.steps.map(step => ({ ...step })) }); }}>
         <IconEdit size={MOVEMENT_CARD_ICON_SIZE}/></ActionIcon></Tooltip>
       <Tooltip label="Delete"><ActionIcon size={MOVEMENT_CARD_ACTION_SIZE} aria-label="Delete sequence" color="red" variant="light"
@@ -505,6 +505,7 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
                     </Group>
                   ))}
                 </Group>
+                {sequence.repeat && <Badge size="xs" variant="light" color="teal">↻ Restart Sequence</Badge>}
                 {sequence.directionMode !== "departure" &&
                   <Text size="xs" c="orange">Previous direction format: edit and resave this sequence before starting.</Text>}
                 <Collapse expanded={Boolean(expandedCards[sequence.id])}>
