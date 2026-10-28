@@ -106,6 +106,7 @@ export default function SequentialMovementEditorDialog({
           </Table>
         </ScrollArea>
         <Group justify="space-between" style={{ flexShrink: 0 }}>
+          <Group gap="xs" wrap="nowrap">
           <Button size="xs" variant="light" leftSection={<IconPlus size={14}/>}
             disabled={draft.steps.length >= 64 || draft.repeat === true}
             onClick={onAddStep}>Add block</Button>
@@ -114,6 +115,7 @@ export default function SequentialMovementEditorDialog({
               !draft.steps[0]?.blockId ||
               draft.steps[0].blockId !== draft.steps[draft.steps.length - 1]?.blockId}
             onClick={onAddRestart}>Restart Sequence</Button>
+          </Group>
           <Group><Button variant="default" onClick={onClose}>Cancel</Button>
             <Button loading={busy} disabled={Boolean(validationIssue)} onClick={onSave}>Save sequence</Button></Group>
         </Group>
