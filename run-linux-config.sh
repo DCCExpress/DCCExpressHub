@@ -66,9 +66,16 @@ connection_summary() {
     loconet-serial) printf 'LocoNet Serial (%s)' "${s[ln_serial]}" ;;
   esac
 }
-ui() { : > "$out"; dialog --ascii-lines --backtitle 'DCCExpressHub | Linux settings' --output-fd 3 "$@" 3>"$out"; }
+ui() {
+  : > "$out"
+  local -a buttons=(--ok-label 'Kiválasztás' --cancel-label 'Vissza')
+  case " $* " in
+    *" --inputbox "*) buttons=(--ok-label 'Alkalmaz' --cancel-label 'Mégse') ;;
+  esac
+  dialog --ascii-lines --backtitle 'DCCExpressHub | Linux settings'     --hline 'Nyilak: menü | Tab: gombváltás | Enter: kijelölt gomb | Esc: vissza'     "${buttons[@]}" --output-fd 3 "$@" 3>"$out"
+}
 readval() { REPLY="$(cat "$out")"; }
-message() { dialog --ascii-lines --msgbox "$1" 10 72; }
+message() { dialog --ascii-lines --ok-label 'Bezárás' --msgbox "$1" 10 72; }
 edit() {
   local key="$1" label="$2" next
   if ui --title "$label" --inputbox "$label" 10 72 "${s[$key]}"; then
@@ -199,7 +206,7 @@ known_key() {
 put() { printf 'export %s=%q\n' "$1" "$2" >> "$temp_env"; }
 save_settings() {
   validate || return 0
-  dialog --ascii-lines --yesno 'Save configuration? A backup of the current file will be created.' 9 72 || return 0
+  dialog --ascii-lines --yes-label 'Mentés' --no-label 'Mégse' --yesno 'Save configuration? A backup of the current file will be created.' 9 72 || return 0
   local line key backup
   mkdir -p -- "$(dirname -- "$ENV_FILE")"
   temp_env="$(mktemp "$(dirname -- "$ENV_FILE")/.env.linux.tmp.XXXXXX")"
@@ -231,11 +238,11 @@ save_settings() {
 }
 exit_menu() {
   if ((dirty)); then
-    dialog --ascii-lines --yesno 'Discard unsaved changes and exit?' 9 63
+    dialog --ascii-lines --yes-label 'Kilépés' --no-label 'Maradok' --yesno 'Discard unsaved changes and exit?' 9 63
   else return 0; fi
 }
 while true; do
-  ui --title 'DCCExpressHub Linux' --menu 'Configuration' 19 80 8 \
+  ui --title 'DCCExpressHub Linux' --menu 'Beállítások - Enter: kiválasztás, Esc: kilépés' 19 80 8 \
     1 "Command station: $(connection_summary)" 2 "Web server: $mode / HTTP port $http_port" \
     3 "Workspace: ${s[workspace]}" 4 "Test $(protocol_label) connection" \
     5 'Save settings' 6 'Exit' || { exit_menu && break; continue; }
