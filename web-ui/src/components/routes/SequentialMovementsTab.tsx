@@ -227,7 +227,7 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
     id: `sequential-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     name: "Sequential Movement", directionMode: "departure", enabled: true, speed: 20,
     steps: [createStep(Number(blocks[0]?.value ?? 0)), createStep(Number(blocks[1]?.value ?? 0))],
-    segments: [],
+    repeat: false, segments: [],
   });
   // Check the exact segment data that Save will persist. When a previously
   // saved sequence has stale route segments, explain why Edit + Save can fix
@@ -335,6 +335,9 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
   const save = async () => {
     if (!draft) return;
     if (!draft.name.trim()) { setError("Enter a sequence name."); return; }
+    if (draft.repeat && (!draft.steps[0]?.blockId || draft.steps[0].blockId !== draft.steps[draft.steps.length - 1]?.blockId)) {
+      setError("Restart Sequence requires the last block to match the first block."); return;
+    }
     if (draftReview.issue) { setError(draftReview.issue); return; }
     try {
       const segments = compileSegments(editorRouteTable, draft.steps, blockName);
@@ -646,12 +649,18 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
           modify({ steps: normalizeReversals(draft.steps.filter((_, i) => i !== index)) });
       }}
       onAddStep={() => {
-        if (draft && draft.steps.length < 64)
+        if (draft && !draft.repeat && draft.steps.length < 64)
           modify({ steps: normalizeReversals([
             ...draft.steps,
             createStep(0, draft.steps[draft.steps.length - 1]?.direction ?? "forward"),
           ]) });
       }}
+      onAddRestart={() => {
+        if (draft && !draft.repeat && draft.steps.length > 1 && draft.steps[0]?.blockId &&
+          draft.steps[0].blockId === draft.steps[draft.steps.length - 1]?.blockId)
+          modify({ repeat: true });
+      }}
+      onRemoveRestart={() => modify({ repeat: false })}
       onClose={() => setDraft(null)}
       onSave={() => void save()}
     />
