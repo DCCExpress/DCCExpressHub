@@ -39,7 +39,8 @@
 }
 .tablet-control-workspace {
   --tablet-side-width: 24%;
-  --tablet-handle-width: 34px;
+  /* Narrow permanent handle tracks: buttons overhang the canvas, not the loco panels. */
+  --tablet-handle-width: 4px;
   display: grid;
   grid-template-columns:
     var(--tablet-left-column, var(--tablet-side-width))
@@ -111,10 +112,12 @@
 }
 .tablet-panel-toggle-left {
   grid-column: 2;
+  justify-self: start;
   border-radius: 0 8px 8px 0;
 }
 .tablet-panel-toggle-right {
   grid-column: 4;
+  justify-self: end;
   border-radius: 8px 0 0 8px;
 }
 .tablet-control-workspace[data-left-visible="false"] .tablet-control-loco-left,
