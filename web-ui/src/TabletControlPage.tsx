@@ -58,14 +58,14 @@ export default function TabletControlPage({ locos, status, onBack }: Props) {
       <div className="tablet-control-workspace"
         style={{ gridTemplateColumns: (leftVisible ? "minmax(130px, 24%)" : "0px") + " minmax(0, 1fr) " + (rightVisible ? "minmax(130px, 24%)" : "0px") }}>
         <ActionIcon className="tablet-panel-toggle tablet-panel-toggle-left" size={30} variant="filled" color="dark"
-          style={{ left: leftVisible ? "calc(24% - 14px)" : "6px" }}
+          style={{ left: "calc(24% - 14px)" }}
           aria-label={leftVisible ? "Hide left locomotive panel" : "Show left locomotive panel"}
           title={leftVisible ? "Hide left locomotive panel" : "Show left locomotive panel"}
           onClick={() => setLeftVisible(value => !value)}>
           {leftVisible ? <IconChevronLeft size={17}/> : <IconChevronRight size={17}/>}
         </ActionIcon>
         <ActionIcon className="tablet-panel-toggle tablet-panel-toggle-right" size={30} variant="filled" color="dark"
-          style={{ right: rightVisible ? "calc(24% - 14px)" : "6px" }}
+          style={{ right: "calc(24% - 14px)" }}
           aria-label={rightVisible ? "Hide right locomotive panel" : "Show right locomotive panel"}
           title={rightVisible ? "Hide right locomotive panel" : "Show right locomotive panel"}
           onClick={() => setRightVisible(value => !value)}>
