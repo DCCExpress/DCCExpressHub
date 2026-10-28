@@ -8,6 +8,7 @@ import { sendTurnoutOutput } from "./layoutOutput";
 import { wsApi } from "./wsApi";
 import { wsClient } from "./wsClient";
 import { resolveRouteSecondClosed } from "../models/editor/turnout/routeTurnoutState";
+import { isSwitchManModeEnabled, operateSwitchManTurnouts, type SwitchManTurnoutCommand } from "./switchManModeRuntime";
 
 type ExecuteLegacyRouteButtonParams = {
   routeButton: RouteButtonElement;
@@ -84,6 +85,57 @@ export async function executeLegacyRouteButton({
     layout.checkRoutes();
     onInvalidate?.();
   };
+
+  // Manual SwitchMan ownership must cover the entire route, not only
+  // individually clicked turnouts. The service acquires all motor addresses
+  // atomically before sending any set command, including on mobile/tablet.
+  if (isSwitchManModeEnabled()) {
+    const requested = new Map<number, boolean>();
+    const addMotor = (address: number, physical: boolean, closedValue: boolean): boolean => {
+      if (!Number.isInteger(address) || address < 1 || address > 32767) return false;
+      const logicalClosed = physical === closedValue;
+      if (requested.has(address) && requested.get(address) !== logicalClosed) return false;
+      requested.set(address, logicalClosed);
+      return true;
+    };
+
+    for (const { element, closed, secondClosed } of turnouts) {
+      if (element instanceof TrackTurnoutDoubleElement || element instanceof TrackTurnoutThreeWayElement) {
+        if (!addMotor(element.turnout1Address, closed, element.turnout1ClosedValue) ||
+            !addMotor(element.turnout2Address, secondClosed!, element.turnout2ClosedValue)) return false;
+      } else if (isTurnoutElement(element)) {
+        if (!addMotor(element.turnoutAddress, closed, element.turnoutClosedValue)) return false;
+      }
+    }
+    if (requested.size === 0) return false;
+
+    const commands: SwitchManTurnoutCommand[] = [...requested].map(
+      ([address, closed]) => ({ address, closed })
+    );
+    routeExecutionInProgress = true;
+    try {
+      setBusy?.(true, busyText);
+      const completed = await operateSwitchManTurnouts(commands);
+      if (!completed) return false;
+
+      // SwitchMan only acknowledges successful set commands. Update the
+      // physical display after the complete route succeeded; backend
+      // turnoutChanged feedback continues to be authoritative.
+      for (const { element, closed, secondClosed } of turnouts) {
+        if (element instanceof TrackTurnoutDoubleElement || element instanceof TrackTurnoutThreeWayElement) {
+          element.turnout1Closed = closed;
+          element.turnout2Closed = secondClosed!;
+        } else if (isTurnoutElement(element)) {
+          element.turnoutClosed = closed;
+        }
+      }
+      return true;
+    } finally {
+      routeExecutionInProgress = false;
+      setBusy?.(false);
+      refresh();
+    }
+  }
 
   if (!wsApi.routeLock()) return false;
   routeExecutionInProgress = true;
