@@ -46,6 +46,26 @@ fi
 out="$(mktemp)"
 trap 'rm -f -- "$out"; printf "\033[0m"' EXIT
 dirty=0; saved=0
+# Present full protocol names everywhere. Internal identifiers must never leak
+# into user-facing menus (tcp vs loconet TCP would be ambiguous).
+protocol_label() {
+  case "$protocol" in
+    tcp) printf 'DCC-EX TCP' ;;
+    serial) printf 'DCC-EX Serial' ;;
+    z21) printf 'Z21 + R-BUS' ;;
+    loconet) printf 'LocoNet TCP' ;;
+    loconet-serial) printf 'LocoNet Serial' ;;
+  esac
+}
+connection_summary() {
+  case "$protocol" in
+    tcp) printf 'DCC-EX TCP (%s:%s)' "${s[tcp_host]}" "${s[tcp_port]}" ;;
+    serial) printf 'DCC-EX Serial (%s)' "${s[serial]}" ;;
+    z21) printf 'Z21 + R-BUS (%s:%s UDP)' "${s[z21_host]}" "${s[z21_port]}" ;;
+    loconet) printf 'LocoNet TCP (%s:%s)' "${s[ln_host]}" "${s[ln_port]}" ;;
+    loconet-serial) printf 'LocoNet Serial (%s)' "${s[ln_serial]}" ;;
+  esac
+}
 ui() { : > "$out"; dialog --ascii-lines --backtitle 'DCCExpressHub | Linux settings' --output-fd 3 "$@" 3>"$out"; }
 readval() { REPLY="$(cat "$out")"; }
 message() { dialog --ascii-lines --msgbox "$1" 10 72; }
@@ -58,7 +78,7 @@ edit() {
   return 0
 }
 change_protocol() {
-  if ui --title 'Command station' --menu 'Select protocol' 17 76 6 \
+  if ui --no-tags --title 'Command station' --menu 'Select protocol' 17 76 6 \
     tcp 'DCC-EX TCP' serial 'DCC-EX Serial' z21 'Z21 + R-BUS' \
     loconet 'LocoNet TCP' loconet-serial 'LocoNet Serial'; then
     readval
@@ -162,12 +182,12 @@ connection_test() {
   esac
   if [[ -n "${device:-}" ]]; then
     if [[ -e "$device" && -r "$device" && -w "$device" ]]; then
-      message "Serial device accessible: $device (protocol not verified)."
-    else message "Serial device missing/inaccessible: $device"; fi
+      message "$(protocol_label): Serial device accessible: $device (protocol not verified)."
+    else message "$(protocol_label): Serial device missing/inaccessible: $device"; fi
   elif command -v timeout >/dev/null 2>&1; then
     if timeout 3 bash -c 'exec 3<>/dev/tcp/"$1"/"$2"' _ "$host" "$port" 2>/dev/null; then
-      message "TCP socket open: $host:$port (protocol not verified)."
-    else message "TCP connection failed: $host:$port"; fi
+      message "$(protocol_label): TCP socket open: $host:$port (protocol not verified)."
+    else message "$(protocol_label): TCP connection failed: $host:$port"; fi
   else message 'TCP test requires the standard timeout command.'; fi
 }
 known_key() {
@@ -216,8 +236,8 @@ exit_menu() {
 }
 while true; do
   ui --title 'DCCExpressHub Linux' --menu 'Configuration' 19 80 8 \
-    1 "Connection: $protocol" 2 "Web server: $mode / $http_port" \
-    3 "Workspace: ${s[workspace]}" 4 'Test connection' \
+    1 "Command station: $(connection_summary)" 2 "Web server: $mode / HTTP port $http_port" \
+    3 "Workspace: ${s[workspace]}" 4 "Test $(protocol_label) connection" \
     5 'Save settings' 6 'Exit' || { exit_menu && break; continue; }
   readval
   case "$REPLY" in
