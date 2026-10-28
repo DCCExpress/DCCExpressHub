@@ -1,5 +1,5 @@
 import { ActionIcon, Badge, Button, Card, Divider, Group, Text } from "@mantine/core";
-import { IconTrain, IconUserShield, IconVolume } from "@tabler/icons-react";
+import { IconPower, IconTrain, IconUserShield, IconVolume } from "@tabler/icons-react";
 import i18next from "i18next";
 
 export type LayoutStatusBarProps = {
@@ -19,6 +19,8 @@ export type LayoutStatusBarProps = {
   onToggleRightPanel?: () => void;
   elementCount: number;
   locoCount: number;
+  powerOn?: boolean;
+  onTogglePower?: () => void;
 };
 
 export default function LayoutStatusBar(p: LayoutStatusBarProps) {
@@ -37,6 +39,14 @@ export default function LayoutStatusBar(p: LayoutStatusBarProps) {
           title={i18next.t("ui.estop")} className={`lite-status-action${p.emergencyStop ? " blinkBadge" : ""}`}>
           {i18next.t("ui.estop")}
         </Badge>
+        {p.onTogglePower && <>
+          <Divider orientation="vertical"/>
+          <Button size="compact-xs" variant={p.powerOn ? "filled" : "light"} color={p.powerOn ? "green" : "red"}
+            leftSection={<IconPower size={15}/>} onClick={p.onTogglePower}
+            title={p.powerOn ? i18next.t("ui.turnTrackPowerOff") : i18next.t("ui.turnTrackPowerOn")}>
+            {i18next.t("ui.power")} {p.powerOn ? i18next.t("ui.on") : i18next.t("ui.off")}
+          </Button>
+        </>}
         <Divider orientation="vertical"/>
         <Badge size="sm" variant={p.anyTrackOverload ? "filled" : "light"}
           color={p.anyTrackOverload ? "red" : "gray"} className={p.anyTrackOverload ? "blinkBadge" : ""}
