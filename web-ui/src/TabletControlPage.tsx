@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useState } from "react";
 import { ActionIcon, Center, Loader } from "@mantine/core";
-import { IconArrowLeft } from "@tabler/icons-react";
+import { IconArrowLeft, IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 import { showNotification } from "@mantine/notifications";
 import type { DccExStatusPayload, Loco } from "@domain/types";
 import LocoPanel from "@/layout/LocoPanel";
@@ -21,6 +21,8 @@ type Props = { locos: Loco[]; status: string; onBack: () => void };
 
 export default function TabletControlPage({ locos, status, onBack }: Props) {
   const commandCenter = useCommandCenter();
+  const [leftVisible, setLeftVisible] = useState(true);
+  const [rightVisible, setRightVisible] = useState(true);
   const [audioEnabled, setAudioEnabled] = useState(isBroadcastAudioEnabled);
   const [switchState, setSwitchState] = useState(getSwitchManModeState);
   const [switchBusy, setSwitchBusy] = useState(false);
@@ -53,22 +55,39 @@ export default function TabletControlPage({ locos, status, onBack }: Props) {
         color="dark" variant="filled" aria-label="Back to home" title="Back to home">
         <IconArrowLeft size={25} />
       </ActionIcon>
-      <div className="tablet-control-workspace">
-        <aside className="tablet-control-loco" aria-label="Left locomotive controller">
+      <div className="tablet-control-workspace"
+        style={{ gridTemplateColumns: (leftVisible ? "minmax(130px, 24%)" : "0px") + " minmax(0, 1fr) " + (rightVisible ? "minmax(130px, 24%)" : "0px") }}>
+        <ActionIcon className="tablet-panel-toggle tablet-panel-toggle-left" size={30} variant="filled" color="dark"
+          style={{ left: leftVisible ? "calc(24% - 14px)" : "6px" }}
+          aria-label={leftVisible ? "Hide left locomotive panel" : "Show left locomotive panel"}
+          title={leftVisible ? "Hide left locomotive panel" : "Show left locomotive panel"}
+          onClick={() => setLeftVisible(value => !value)}>
+          {leftVisible ? <IconChevronLeft size={17}/> : <IconChevronRight size={17}/>}
+        </ActionIcon>
+        <ActionIcon className="tablet-panel-toggle tablet-panel-toggle-right" size={30} variant="filled" color="dark"
+          style={{ right: rightVisible ? "calc(24% - 14px)" : "6px" }}
+          aria-label={rightVisible ? "Hide right locomotive panel" : "Show right locomotive panel"}
+          title={rightVisible ? "Hide right locomotive panel" : "Show right locomotive panel"}
+          onClick={() => setRightVisible(value => !value)}>
+          {rightVisible ? <IconChevronRight size={17}/> : <IconChevronLeft size={17}/>}
+        </ActionIcon>
+        {leftVisible && <aside className="tablet-control-loco" aria-label="Left locomotive controller">
           <LocoPanel locos={locos} selectedLocoStorageKey="dcc-express.tablet.left-loco-id" />
-        </aside>
+        </aside>}
         <main className="tablet-control-layout" aria-label="Railway layout">
           <Suspense fallback={<Center h="100%"><Loader /></Center>}>
             <RuntimeLayoutOverlay locos={locos} open embedded />
           </Suspense>
         </main>
-        <aside className="tablet-control-loco" aria-label="Right locomotive controller">
+        {rightVisible && <aside className="tablet-control-loco" aria-label="Right locomotive controller">
           <LocoPanel locos={locos} selectedLocoStorageKey="dcc-express.tablet.right-loco-id" />
-        </aside>
+        </aside>}
       </div>
       <div className="tablet-control-status">
         <LayoutStatusBar
           wsStatus={status}
+          powerOn={commandCenter.powerInfo?.trackVoltageOn === true}
+          onTogglePower={() => { void wsApi.setTrackPower(!commandCenter.powerInfo?.trackVoltageOn); }}
           emergencyStop={commandCenter.powerInfo?.emergencyStop === true}
           onEmergencyStop={() => { void wsApi.emergencyStop(); }}
           anyTrackOverload={overloaded.length > 0}
