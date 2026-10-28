@@ -460,7 +460,7 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
               <Stack gap="xs">
                 {/* Keep the sequence name readable independently of the action toolbar. */}
                 <Text fw={700} size="sm" style={{ overflowWrap: "anywhere" }}>
-                  {sequence.repeat && <span aria-label="Repeating sequence" title="Restart Sequence" style={{ marginRight: 6 }}>↻</span>}{sequence.name}
+                  {sequence.repeat && <Badge color="lime" variant="filled" size="sm" radius="sm" title="Restart Sequence" aria-label="Repeating sequence" mr={6}>↻</Badge>}{sequence.name}
                 </Text>
                 {/* Actions and live status remain visible even with details collapsed. */}
                 <Group justify="space-between" align="center" gap="xs" wrap="nowrap">
