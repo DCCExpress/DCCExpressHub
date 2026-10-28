@@ -53,3 +53,62 @@
     height: 60dvh;
   }
 }
+
+/* Mobile landscape: both controller and locomotive-list modes use the
+   same actual 40/60 viewport regions. The map replaces functions only. */
+@media (orientation: landscape) {
+  .drive-shell .mobile-loco-panel,
+  .drive-shell .mobile-loco-controller-card {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+  }
+
+  .drive-shell .mobile-loco-controller-card > .mantine-Card-section,
+  .drive-shell .mobile-loco-controller-card > div {
+    min-height: 0;
+  }
+
+  .drive-shell .mobile-loco-cards-region,
+  .drive-shell .mobile-throttle-fit--viewport {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 40%;
+    height: 100%;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  /* Scale only the left throttle into its 40% container. */
+  .drive-shell .mobile-throttle-layout--viewport {
+    display: flex;
+    flex-direction: column;
+    width: 430px;
+    height: auto;
+    gap: 8px;
+  }
+
+  .drive-shell .mobile-functions-region {
+    position: absolute;
+    left: 40%;
+    top: 0;
+    width: 60%;
+    height: 100%;
+    min-width: 0;
+    overflow: auto;
+    padding: 4px 8px;
+  }
+
+  .drive-shell.drive-layout-open .mobile-functions-region {
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .drive-shell.drive-layout-open .mobile-runtime-layout-overlay {
+    position: fixed;
+    inset: 0 0 0 40%;
+    width: 60%;
+    height: 100dvh;
+  }
+}
