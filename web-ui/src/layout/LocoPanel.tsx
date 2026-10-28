@@ -880,7 +880,7 @@ export default function LocoPanel({
 
         <Tooltip label={panelView === "control" ? "Cards view" : "Control view"}>
           <ActionIcon aria-label="Toggle locomotive panel view" size="sm" variant="subtle" color="gray"
-            onClick={togglePanelView} style={{ position: "absolute", right: mobileViewport ? "calc(60% + 2px)" : 2, top: 2, zIndex: 20 }}>
+            onClick={togglePanelView} className={mobileViewport ? "mobile-view-toggle" : undefined} style={{ position: "absolute", right: mobileViewport ? undefined : 2, top: 2, zIndex: 20 }}>
             {panelView === "control" ? <IconLayoutGrid size={15} /> : <IconAdjustmentsHorizontal size={15} />}
           </ActionIcon>
         </Tooltip>
