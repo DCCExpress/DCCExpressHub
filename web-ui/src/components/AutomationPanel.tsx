@@ -101,6 +101,8 @@ type AutomationPanelProps = {
   stationNames: Array<{ id: string; name: string }>;
   onOpenStationRoutes: (routeId: string) => void;
   onPersistRouteTopology?: (() => Promise<void>) | undefined;
+  /** Tablet may operate running scripts/flows without opening their editors. */
+  editorsEnabled?: boolean;
 };
 
 export default function AutomationPanel({
@@ -118,6 +120,7 @@ export default function AutomationPanel({
   stationNames,
   onOpenStationRoutes,
   onPersistRouteTopology,
+  editorsEnabled = true,
 }: AutomationPanelProps) {
   const [
     activeTab,
@@ -250,6 +253,7 @@ export default function AutomationPanel({
             onScriptsChange={
               onScriptsChange
             }
+            editorsEnabled={editorsEnabled}
           />
         </Tabs.Panel>
 
@@ -270,6 +274,7 @@ export default function AutomationPanel({
             onOpenEditor={
               onOpenFlowEditor
             }
+            editorsEnabled={editorsEnabled}
           />
         </Tabs.Panel>
 
