@@ -998,6 +998,7 @@ export default function LocoPanel({
                 {!mobileViewport && <div className="mobile-throttle-functions">
                   <LocoFunctionGrid
                     key={currentLoco.id}
+                    fitHeight
                     loco={currentLoco}
                     activeFunctions={activeFunctions}
                     disabled={controlsDisabled}
