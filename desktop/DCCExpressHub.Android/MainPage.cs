@@ -80,7 +80,11 @@ public sealed class MainPage : ContentPage
         _start.Clicked += async (_, _) => await StartHubAsync();
         _stop.Clicked += async (_, _) => await StopHubAsync();
         _reload.Clicked += (_, _) => _browser.Reload();
-        _settingsButton.Clicked += (_, _) => ShowStartup();
+        _settingsButton.Clicked += async (_, _) =>
+        {
+            if (_runtime is not null) await StopHubAsync();
+            else ShowStartup();
+        };
 
         var heading = new Label { Text = "DCCExpress HUB", FontSize = 28, FontAttributes = FontAttributes.Bold,
             TextColor = Colors.White, HorizontalTextAlignment = TextAlignment.Center };
@@ -176,7 +180,9 @@ public sealed class MainPage : ContentPage
             _settings.TcpHost = _host.Text?.Trim() ?? "";
             _settings.TcpPort = ParsePort(_port.Text, "Command center port");
             _settings.SerialPort = _serial.Text?.Trim() ?? "";
-            _settings.SerialBaudRate = ParsePort(_baud.Text, "Serial baud rate");
+            if (!int.TryParse(_baud.Text, out var baudRate) || baudRate is < 300 or > 4000000)
+                throw new InvalidOperationException("Invalid serial baud rate.");
+            _settings.SerialBaudRate = baudRate;
             _settings.RBusOffset = int.TryParse(_rbus.Text, out var rbus) ? Math.Clamp(rbus, 0, 65375) : 0;
             _settings.LocoNetSensorOffset = int.TryParse(_loconetOffset.Text, out var offset) ? Math.Clamp(offset, 0, 61439) : 0;
             _settings.HttpPort = ParsePort(_httpPort.Text, "HUB HTTP port");
