@@ -24,9 +24,9 @@ import { wsApi } from "@/services/wsApi";
 import { wsClient, type WsConnectionStatus } from "@/services/wsClient";
 
 const CURSOR_TOOL: EditorTool = { mode: "cursor", elementType: "general" };
-type RuntimeLayoutOverlayProps = { locos: Loco[]; open: boolean };
+type RuntimeLayoutOverlayProps = { locos: Loco[]; open: boolean; embedded?: boolean };
 
-export default function RuntimeLayoutOverlay({ locos, open }: RuntimeLayoutOverlayProps) {
+export default function RuntimeLayoutOverlay({ locos, open, embedded = false }: RuntimeLayoutOverlayProps) {
   useTranslation();
   const commandCenter = useCommandCenter();
   const [layout, setLayout] = useState(() => new LayoutView());
@@ -208,7 +208,7 @@ export default function RuntimeLayoutOverlay({ locos, open }: RuntimeLayoutOverl
   useEffect(() => { if (!open) { setFitCounter(0); setCenterCounter(0); } }, [open]);
 
   if (!open) return null;
-  if (loading) return <Center className="mobile-runtime-layout-overlay"><Loader /></Center>;
+  if (loading) return <Center className={embedded ? "tablet-runtime-layout-overlay" : "mobile-runtime-layout-overlay"}><Loader /></Center>;
   if (error) return <Box className="mobile-runtime-layout-overlay" p="md"><Alert color="red">{error}</Alert></Box>;
 
   return (
@@ -233,7 +233,7 @@ export default function RuntimeLayoutOverlay({ locos, open }: RuntimeLayoutOverl
           />
         </Box>
       </Box>
-      {open && <Group className="mobile-layout-tools" gap="xs" wrap="nowrap">
+      {open && <Group className={embedded ? "tablet-layout-tools" : "mobile-layout-tools"} gap="xs" wrap="nowrap">
         <ActionIcon size={52} radius="xl" variant="filled" color="cyan" aria-label={i18next.t("ui.centerLayoutView")} title={i18next.t("ui.centerLayoutView")} onClick={() => setCenterCounter(value => value + 1)}>
           <IconCrosshair size={25} />
         </ActionIcon>
