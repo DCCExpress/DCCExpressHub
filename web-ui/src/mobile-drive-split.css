@@ -53,3 +53,38 @@
     height: 60dvh;
   }
 }
+
+/* Landscape must use real viewport proportions rather than a scaled
+   1000px design canvas. Keep geometry identical with map open/closed. */
+@media (orientation: landscape) {
+  .drive-shell .mobile-throttle-fit--viewport {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+  }
+
+  .drive-shell .mobile-throttle-layout--viewport {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    display: grid;
+    grid-template-columns: minmax(0, 40%) minmax(0, 60%);
+    gap: 0;
+    transform: none;
+  }
+
+  .drive-shell .mobile-throttle-controls,
+  .drive-shell .mobile-throttle-functions {
+    min-width: 0;
+    height: 100%;
+    overflow: auto;
+  }
+
+  .drive-shell.drive-layout-open .mobile-runtime-layout-overlay {
+    left: 40%;
+    right: 0;
+    width: 60%;
+  }
+}
