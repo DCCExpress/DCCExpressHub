@@ -41,6 +41,7 @@ type Listener = (
 
 const OWNER_STORAGE_KEY =
   "dcc-express.switchman.owner-id";
+const PROVENANCE_STORAGE_KEY = "dcc-express.switchman.lock-provenance";
 
 // Keep manual SwitchMan operations friendly to every backend. The Windows Z21
 // backend waits for its complete 150 ms ON + 50 ms settle cycle before ACKing,
@@ -106,9 +107,49 @@ function loadOwnerId(): string {
 let ownerId =
   loadOwnerId();
 
+// The backend owns the real locks. These per-tab sets track *why* we own
+// each address so a new RouteButton releases only its previous route locks,
+// without releasing turnouts that were also operated manually.
+type LockProvenance = { ownerId: string; manual: number[]; route: number[] };
+function readProvenance(): { manual: Set<number>; route: Set<number> } {
+  try {
+    const parsed = JSON.parse(window.sessionStorage.getItem(PROVENANCE_STORAGE_KEY) ?? "null") as LockProvenance | null;
+    if (parsed?.ownerId === ownerId) {
+      const valid = (items: unknown) => new Set(
+        Array.isArray(items) ? items.filter((n): n is number => Number.isInteger(n) && n >= 1 && n <= 32767) : []
+      );
+      return { manual: valid(parsed.manual), route: valid(parsed.route) };
+    }
+  } catch { /* Unknown previous state: protect those locks, never guess ownership. */ }
+  return { manual: new Set<number>(), route: new Set<number>() };
+}
+const restoredProvenance = readProvenance();
+let manualHeldAddresses = restoredProvenance.manual;
+let routeHeldAddresses = restoredProvenance.route;
+function saveProvenance(): void {
+  try {
+    window.sessionStorage.setItem(PROVENANCE_STORAGE_KEY, JSON.stringify({
+      ownerId, manual: [...manualHeldAddresses], route: [...routeHeldAddresses],
+    }));
+  } catch { /* Session storage unavailable: current in-memory state still works. */ }
+}
+
+// Serialize manual and route operations within this UI client. A manual click
+// must not race a RouteButton release (or SwitchMan OFF).
+let operationQueue: Promise<void> = Promise.resolve();
+function serializeOperation<T>(work: () => Promise<T>): Promise<T> {
+  const result = operationQueue.then(work);
+  operationQueue = result.then(() => undefined, () => undefined);
+  return result;
+}
+
+
 function regenerateOwnerId(): void {
   ownerId =
     newOwnerId();
+  manualHeldAddresses.clear();
+  routeHeldAddresses.clear();
+  saveProvenance();
 
   if (
     typeof window !==
@@ -212,6 +253,18 @@ function applyLocks(
     normalizeLocks(
       rawLocks
     );
+
+  // Reconcile local provenance with authoritative backend ownership.
+  // Unclassified locks are intentionally left untouched on route changes.
+  const owned = new Set(locks.filter(lock => lock.ownerId === ownerId).map(lock => lock.address));
+  let changed = false;
+  for (const address of manualHeldAddresses) if (!owned.has(address)) {
+    manualHeldAddresses.delete(address); changed = true;
+  }
+  for (const address of routeHeldAddresses) if (!owned.has(address)) {
+    routeHeldAddresses.delete(address); changed = true;
+  }
+  if (changed) saveProvenance();
 
   /*
    * sessionStorage keeps this browser tab's owner id across reloads.
