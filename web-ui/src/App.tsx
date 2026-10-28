@@ -1266,7 +1266,7 @@ export default function App() {
       );
     }
 
-    if (page === "tablet") return <TabletControlPage locos={locos} onBack={() => navigate("home")} />;
+    if (page === "tablet") return <TabletControlPage locos={locos} status={status} onBack={() => navigate("home")} />;
 
     if (page === "layout") return <LiteLayoutPage version={version} locos={locos} automationFlow={automationFlow} onAutomationFlowChange={setAutomationFlow} onBack={() => navigate("home")} onOpenLocoEditor={() => setLocoEditorOpened(true)} />;
 
@@ -1349,7 +1349,7 @@ export default function App() {
 
   return (
     <Box
-      className={`mobile-shell${page === "debug" ? " debug-shell" : ""}${page === "flows" ? " flows-shell" : ""}${page === "layout" ? " layout-shell" : ""
+      className={`mobile-shell${page === "debug" ? " debug-shell" : ""}${page === "flows" ? " flows-shell" : ""}${page === "layout" ? " layout-shell" : ""}${page === "tablet" ? " tablet-shell" : ""
         }${page === "drive" ? ` drive-shell${driveLayoutOpen ? " drive-layout-open" : ""}` : ""
         }${page === "device-config" ? " device-config-shell" : ""
         }`}
