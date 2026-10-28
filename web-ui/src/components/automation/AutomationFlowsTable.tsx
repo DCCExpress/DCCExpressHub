@@ -722,6 +722,7 @@ export default function AutomationFlowsTable({
                 pageIndex
               ) => (
                 <FlowCard
+                  editorsEnabled={editorsEnabled}
                   key={
                     page.id
                   }
