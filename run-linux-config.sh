@@ -44,7 +44,20 @@ if [[ "$url" =~ ^http://(127\.0\.0\.1|0\.0\.0\.0):([0-9]+)$ ]]; then
   http_port="${BASH_REMATCH[2]}"
 fi
 out="$(mktemp)"
-trap 'rm -f -- "$out"; printf "\033[0m"' EXIT
+cleanup_terminal() {
+  # Restore the screen/terminal even after an interrupted dialog.
+  printf '\033[0m' > /dev/tty 2>/dev/null || true
+  stty sane < /dev/tty 2>/dev/null || true
+  clear > /dev/tty 2>/dev/null || true
+}
+abort_configuration() {
+  trap - INT TERM HUP
+  cleanup_terminal
+  printf 'Configuration interrupted. Nothing was saved.\n' >&2
+  exit 130
+}
+trap 'rm -f -- "$out"; cleanup_terminal' EXIT
+trap 'abort_configuration' INT TERM HUP
 dirty=0; saved=0
 # Present full protocol names everywhere. Internal identifiers must never leak
 # into user-facing menus (tcp vs loconet TCP would be ambiguous).
@@ -72,7 +85,13 @@ ui() {
   case " $* " in
     *" --inputbox "*) buttons=(--ok-label 'Alkalmaz' --cancel-label 'Mégse') ;;
   esac
-  dialog --ascii-lines --backtitle 'DCCExpressHub | Linux settings'     --hline 'Nyilak: menü | Tab: gombváltás | Enter: kijelölt gomb | Esc: vissza'     "${buttons[@]}" --output-fd 3 "$@" 3>"$out"
+  local status=0
+  dialog --ascii-lines --backtitle 'DCCExpressHub | Linux settings' \
+    --hline 'Nyilak: menü | Tab: gombváltás | Enter: kijelölt gomb | Esc: vissza | Ctrl+C: kilépés' \
+    "${buttons[@]}" --output-fd 3 "$@" 3>"$out" || status=$?
+  # SIGINT often terminates dialog with 130; never treat that as Cancel.
+  if (( status == 130 || status == 131 || status == 143 )); then abort_configuration; fi
+  return "$status"
 }
 readval() { REPLY="$(cat "$out")"; }
 message() { dialog --ascii-lines --ok-label 'Bezárás' --msgbox "$1" 10 72; }
