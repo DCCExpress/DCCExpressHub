@@ -19,6 +19,8 @@ type Props = {
   onChangeStep: (index: number, patch: Partial<SequentialMovementStep>) => void;
   onRemoveStep: (index: number) => void;
   onAddStep: () => void;
+  onAddRestart: () => void;
+  onRemoveRestart: () => void;
   onClose: () => void;
   onSave: () => void;
 };
@@ -26,7 +28,7 @@ type Props = {
 /** New/Edit editor opened by the Sequential Movement collection. */
 export default function SequentialMovementEditorDialog({
   draft, busy, error, routeTableReady, validationIssue, segmentsOutdated, blocks, availableBlocks,
-  onModify, onChangeStep, onRemoveStep, onAddStep, onClose, onSave,
+  onModify, onChangeStep, onRemoveStep, onAddStep, onAddRestart, onRemoveRestart, onClose, onSave,
 }: Props) {
   const mt = useMovementTranslation();
   return (
@@ -95,13 +97,23 @@ export default function SequentialMovementEditorDialog({
                     onClick={() => onRemoveStep(index)}><IconTrash size={15}/></ActionIcon>
                 </Group></Table.Td>
               </Table.Tr>)}
+              {draft.repeat && <Table.Tr>
+                <Table.Td>{draft.steps.length + 1}</Table.Td>
+                <Table.Td colSpan={6}><Text fw={600} c="teal">↻ Restart Sequence · return to step 1</Text></Table.Td>
+                <Table.Td><ActionIcon size="sm" variant="subtle" color="red" onClick={onRemoveRestart} aria-label="Remove Restart Sequence"><IconTrash size={15}/></ActionIcon></Table.Td>
+              </Table.Tr>}
             </Table.Tbody>
           </Table>
         </ScrollArea>
         <Group justify="space-between" style={{ flexShrink: 0 }}>
           <Button size="xs" variant="light" leftSection={<IconPlus size={14}/>}
-            disabled={draft.steps.length >= 64}
+            disabled={draft.steps.length >= 64 || draft.repeat === true}
             onClick={onAddStep}>Add block</Button>
+          <Button size="xs" variant="light" color="teal" leftSection={<IconPlus size={14}/>}
+            disabled={draft.repeat === true || draft.steps.length < 2 ||
+              !draft.steps[0]?.blockId ||
+              draft.steps[0].blockId !== draft.steps[draft.steps.length - 1]?.blockId}
+            onClick={onAddRestart}>Restart Sequence</Button>
           <Group><Button variant="default" onClick={onClose}>Cancel</Button>
             <Button loading={busy} disabled={Boolean(validationIssue)} onClick={onSave}>Save sequence</Button></Group>
         </Group>
