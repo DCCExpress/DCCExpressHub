@@ -103,6 +103,7 @@ type AutomationPanelProps = {
   onPersistRouteTopology?: (() => Promise<void>) | undefined;
   /** Tablet may operate running scripts/flows without opening their editors. */
   editorsEnabled?: boolean;
+  showScriptFlowTabs?: boolean;
 };
 
 export default function AutomationPanel({
@@ -121,13 +122,17 @@ export default function AutomationPanel({
   onOpenStationRoutes,
   onPersistRouteTopology,
   editorsEnabled = true,
+  showScriptFlowTabs = true,
 }: AutomationPanelProps) {
   const [
     activeTab,
     setActiveTab,
   ] =
     useState<AutomationPanelTab>(
-      loadAutomationPanelTab
+      () => {
+        const stored = loadAutomationPanelTab();
+        return showScriptFlowTabs || (stored !== "scripts" && stored !== "flows") ? stored : "movement";
+      }
     );
 
   const changeTab =
@@ -135,6 +140,7 @@ export default function AutomationPanel({
       value:
         string | null
     ): void => {
+      if (!showScriptFlowTabs && (value === "scripts" || value === "flows")) return;
       if (
         value !==
           "scripts" &&
@@ -210,6 +216,7 @@ export default function AutomationPanel({
             }
           </Tabs.Tab>
 
+          {showScriptFlowTabs && <>
           <Tabs.Tab
             value="flows"
           >
@@ -237,8 +244,10 @@ export default function AutomationPanel({
               )
             }
           </Tabs.Tab>
+          </>}
         </Tabs.List>
 
+        {showScriptFlowTabs && <>
         <Tabs.Panel
           value="scripts"
           style={{
@@ -278,6 +287,7 @@ export default function AutomationPanel({
           />
         </Tabs.Panel>
 
+        </>}
         <Tabs.Panel
           value="movement"
           style={{
