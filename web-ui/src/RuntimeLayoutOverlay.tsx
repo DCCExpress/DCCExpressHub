@@ -25,9 +25,9 @@ import { wsClient, type WsConnectionStatus } from "@/services/wsClient";
 import { getSwitchManModeState } from "@/services/switchManModeRuntime";
 
 const CURSOR_TOOL: EditorTool = { mode: "cursor", elementType: "general" };
-type RuntimeLayoutOverlayProps = { locos: Loco[]; open: boolean; embedded?: boolean; onLayoutReady?: (layout: LayoutView) => void };
+type RuntimeLayoutOverlayProps = { locos: Loco[]; open: boolean; embedded?: boolean };
 
-export default function RuntimeLayoutOverlay({ locos, open, embedded = false, onLayoutReady }: RuntimeLayoutOverlayProps) {
+export default function RuntimeLayoutOverlay({ locos, open, embedded = false }: RuntimeLayoutOverlayProps) {
   useTranslation();
   const commandCenter = useCommandCenter();
   const [layout, setLayout] = useState(() => new LayoutView());
@@ -59,14 +59,13 @@ export default function RuntimeLayoutOverlay({ locos, open, embedded = false, on
         const nextLayout = LayoutView.fromJSON(data);
         nextLayout.checkRoutes();
         setLayout(nextLayout);
-        onLayoutReady?.(nextLayout);
       })
       .catch(loadError => {
         if (!cancelled) setError(loadError instanceof Error ? loadError.message : String(loadError));
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [onLayoutReady]);
+  }, []);
 
   useEffect(() => wsClient.subscribeStatus(setWsStatus), []);
 
