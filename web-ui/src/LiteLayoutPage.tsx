@@ -2402,6 +2402,7 @@ export default function LiteLayoutPage({
                             variant="light"
                             color="blue"
                             leftSection={<IconRoute size={15} />}
+                            disabled={tabletMode}
                             onClick={() => {
                               setRoutesMovementPageId(null);
                               setRoutesOpened(true);
@@ -2431,6 +2432,7 @@ export default function LiteLayoutPage({
                           onFlowsChange={onAutomationFlowChange}
                           editorsEnabled={!tabletMode}
                           showScriptFlowTabs={!tabletMode}
+                          allowCreate={!tabletMode}
                           onOpenFlowEditor={pageId => {
                             const url = new URL(window.location.href);
                             url.hash = "flows";
