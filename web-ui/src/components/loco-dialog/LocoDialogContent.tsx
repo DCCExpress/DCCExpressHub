@@ -1,7 +1,6 @@
 import { useState } from "react";
 import i18next from "i18next";
-import { IconAlertTriangle } from "@tabler/icons-react";
-import AppModal from "@/components/common/AppModal";
+import AppConfirmDialog from "@/components/common/AppConfirmDialog";
 import {
   Button,
   Card,
@@ -303,37 +302,19 @@ export default function LocoDialogContent({
         )}
       </Card>
     </Group>
-    <AppModal
+    <AppConfirmDialog
       opened={deleteConfirmationOpen}
-      onClose={() => { setDeleteConfirmationOpen(false); setPendingDeleteId(null); }}
+      onCancel={() => { setDeleteConfirmationOpen(false); setPendingDeleteId(null); }}
+      onConfirm={confirmLocoDeletion}
       title={i18next.t("locodialog.confirmDeleteTitle", { defaultValue: "Delete locomotive?" })}
-      centered
-      size="sm"
-    >
-      <Stack gap="md">
-        <Group gap="sm" wrap="nowrap" align="flex-start">
-          <IconAlertTriangle size={26} color="var(--mantine-color-red-6)" />
-          <Stack gap={4}>
-            <Text fw={600}>{pendingDeleteLoco?.name || t("locodialog.unknownloco")}</Text>
-            <Text size="sm" c="dimmed">
-              {i18next.t("locodialog.confirmDeleteMessage", {
-                defaultValue: "Remove locomotive {{name}} (DCC address {{address}}) from the editor? Save to apply the deletion.",
-                name: pendingDeleteLoco?.name || t("locodialog.unknownloco"),
-                address: pendingDeleteLoco?.address ?? "—",
-              })}
-            </Text>
-          </Stack>
-        </Group>
-        <Group justify="flex-end">
-          <Button variant="default" onClick={() => { setDeleteConfirmationOpen(false); setPendingDeleteId(null); }}>
-            {i18next.t("ui.cancel", { defaultValue: "Cancel" })}
-          </Button>
-          <Button color="red" disabled={!pendingDeleteLoco} onClick={confirmLocoDeletion}>
-            {t("locodialog.delete")}
-          </Button>
-        </Group>
-      </Stack>
-    </AppModal>
+      message={i18next.t("locodialog.confirmDeleteMessage", {
+        defaultValue: "Remove locomotive {{name}} (DCC address {{address}}) from the editor? Save to apply the deletion.",
+        name: pendingDeleteLoco?.name || t("locodialog.unknownloco"),
+        address: pendingDeleteLoco?.address ?? "—",
+      })}
+      confirmLabel={t("locodialog.delete")}
+      confirmDisabled={!pendingDeleteLoco}
+    />
     </>
   );
 }
