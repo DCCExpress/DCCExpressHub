@@ -30,6 +30,7 @@ public sealed class SequentialMovementRuntime
         public string Name { get; set; } = "";
         public string DirectionMode { get; set; } = "";
         public bool Enabled { get; set; } = true;
+        public bool Repeat { get; set; }
         public int Speed { get; set; } = 20;
         public Step[] Steps { get; set; } = [];
         public Segment[] Segments { get; set; } = [];
@@ -49,6 +50,7 @@ public sealed class SequentialMovementRuntime
         public bool EmergencyAbort;
         public volatile bool FinishRequested;
         public int StartSegmentIndex;
+        public int Lap;
         public int StartStepIndex;
         public MovementRouteRefModel? OverrideFirstRoute;
         public MovementRouteRefModel? ApproachRoute;
@@ -137,6 +139,8 @@ public sealed class SequentialMovementRuntime
         var segments = definition.Segments;
         if (steps is null || segments is null) return "invalid_sequence";
         if (!definition.Enabled) return "sequence_disabled";
+        if (definition.Repeat && (steps.Length < 2 || steps[0].BlockId != steps[^1].BlockId))
+            return "sequence_repeat_requires_matching_endpoints";
         if (string.IsNullOrWhiteSpace(definition.Id) || steps.Length is < 2 or > 64 ||
             segments.Length is < 1 or > 63 || definition.Speed is < 1 or > 126)
             return "invalid_sequence";
@@ -499,6 +503,8 @@ public sealed class SequentialMovementRuntime
                 Publish(run, "running", 1, "Running route 1/" + run.Definition.Segments.Length);
             }
 
+            while (true)
+            {
             for (var index = run.StartSegmentIndex; index < run.Definition.Segments.Length; index++)
             {
                 token.ThrowIfCancellationRequested();
@@ -556,13 +562,31 @@ public sealed class SequentialMovementRuntime
                 if (index == run.Definition.Segments.Length - 1)
                 {
                     token.ThrowIfCancellationRequested();
-                    Publish(run, "completed", endIndex + 1, "Sequence completed");
-                    return;
+                    if (!run.Definition.Repeat)
+                    {
+                        Publish(run, "completed", endIndex + 1, "Sequence completed");
+                        return;
+                    }
+                    // A closed route ends where it started. Start a new lap
+                    // without releasing the locomotive's sequential reservation.
+                    // Each child Movement needs a unique ID on every lap.
+                    run.Lap++;
+                    run.StartSegmentIndex = 0;
+                    run.StartStepIndex = 0;
+                    run.OverrideFirstRoute = null;
+                    run.ChildId = run.Prefix + "-lap" + run.Lap + "-0";
+                    var repeatFirst = _movement.StartTransient(ChildPage(run, 0), calibrationBypass: false);
+                    if (!repeatFirst.Ok)
+                        throw new InvalidOperationException(repeatFirst.Error ?? "sequence_repeat_start_failed");
+                    Publish(run, "running", 1, "Restarting sequence · lap " + (run.Lap + 1));
+                    break;
                 }
 
                 token.ThrowIfCancellationRequested();
                 if (_hubState.EmergencyStop) throw new InvalidOperationException("emergency_stop_active");
-                run.ChildId = run.Prefix + "-" + (index + 1);
+                run.ChildId = run.Lap == 0
+                    ? run.Prefix + "-" + (index + 1)
+                    : run.Prefix + "-lap" + run.Lap + "-" + (index + 1);
                 var next = _movement.StartTransient(ChildPage(run, index + 1), calibrationBypass: false);
                 if (!next.Ok)
                     throw new InvalidOperationException(next.Error ?? "sequence_segment_start_failed");
@@ -570,6 +594,7 @@ public sealed class SequentialMovementRuntime
                     _movement.FinishAtNextBlock(run.ChildId);
                 Publish(run, "running", endIndex + 1, "Running route " +
                     (index + 2) + "/" + run.Definition.Segments.Length);
+            }
             }
         }
         catch (OperationCanceledException)
