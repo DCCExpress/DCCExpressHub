@@ -24,6 +24,8 @@ import {
   IconArrowLeft,
   IconCheck,
   IconDeviceFloppy,
+  IconDeviceTablet,
+  IconDeviceMobile,
   IconDownload,
   IconEdit,
   IconFile,
@@ -314,14 +316,14 @@ function HomePage({
         </Card>
 
         <Card className="action-card" withBorder radius={5} p="lg" onClick={() => onNavigate("tablet")}>
-          <ThemeIcon size={48} radius="lg" color="blue" variant="light"><IconMap size={27} /></ThemeIcon>
+          <ThemeIcon size={48} radius="lg" color="blue" variant="light"><IconDeviceTablet size={27} /></ThemeIcon>
           <Title order={4} mt="md">Tablet Control</Title>
           <Text size="sm" c="dimmed" mt={4}>Layout and two locomotive controllers, without editing tools.</Text>
         </Card>
 
         <Card className="action-card" withBorder radius={5} p="lg" onClick={() => onNavigate("drive")}>
           <ThemeIcon size={48} radius="lg" color="cyan" variant="light">
-            <IconTrain size={27} />
+            <IconDeviceMobile size={27} />
           </ThemeIcon>
           <Title order={4} mt="md">{t("homeHub.cards.mobile.title")}</Title>
           <Text size="sm" c="dimmed" mt={4}>
