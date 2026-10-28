@@ -2479,8 +2479,10 @@ export default function LiteLayoutPage({
 
       <LayoutStatusBar
         wsStatus={wsStatus}
-        powerOn={tabletMode ? commandCenter.powerInfo?.trackVoltageOn === true : undefined}
-        onTogglePower={tabletMode ? () => { void wsApi.setTrackPower(!commandCenter.powerInfo?.trackVoltageOn); } : undefined}
+        {...(tabletMode ? {
+          powerOn: commandCenter.powerInfo?.trackVoltageOn === true,
+          onTogglePower: () => { void wsApi.setTrackPower(!commandCenter.powerInfo?.trackVoltageOn); },
+        } : {})}
         emergencyStop={commandCenter.powerInfo?.emergencyStop === true}
         onEmergencyStop={emergencyStopAndCancelSelection}
         anyTrackOverload={anyTrackOverload}
