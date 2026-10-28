@@ -131,7 +131,7 @@ test("browser Flow runtime is a backend log and command proxy only", () => {
 test("Windows backend owns Script and Flow runtimes", () => {
   const program =
     read(
-      "desktop/DCCExpressHub.Net/Program.cs"
+      "desktop/DCCExpressHub.Runtime/HubRuntime.cs"
     );
 
   assert.match(
@@ -151,7 +151,7 @@ test("Windows backend owns Script and Flow runtimes", () => {
 
   const project =
     read(
-      "desktop/DCCExpressHub.Net/DCCExpressHub.Net.csproj"
+      "desktop/DCCExpressHub.Runtime/DCCExpressHub.Runtime.csproj"
     );
 
   assert.match(

@@ -46,7 +46,7 @@ function sliceBetween(
   assert.ok(
     start >= 0 &&
     end > start,
-    \`Could not slice \${startMarker}\`
+    `Could not slice ${startMarker}`
   );
 
   return source.slice(

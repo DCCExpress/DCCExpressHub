@@ -1,3 +1,4 @@
+using DCCExpressHub.Net;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Ports;
@@ -37,7 +38,8 @@ namespace DCCExpressHub.Desktop
 
         private const string PidFileName = "dccexpresshub-backend.pid";
 
-        private Process? _backend;
+        private HubRuntime? _hub;
+        private Process? _backend; // legacy helpers, no longer launched
         private readonly HttpClient _http = new() { Timeout = TimeSpan.FromMilliseconds(500) };
         private Mutex? _singleInstanceMutex;
         private DesktopSettings _settings = DesktopSettingsStore.Load();
@@ -152,7 +154,7 @@ namespace DCCExpressHub.Desktop
                 StartupText.Text =
                     L("checkingBackend");
 
-                KillStaleBackend();
+                // No separate backend process is launched in embedded mode.
 
                 InitializeSetupPanel();
 
@@ -1647,7 +1649,7 @@ namespace DCCExpressHub.Desktop
                 StartupText.Text =
                     L("startingBackend");
 
-                StartBackend();
+                await StartBackendAsync();
 
                 await WaitForBackendAsync(
                     TimeSpan.FromSeconds(20));
@@ -1687,7 +1689,7 @@ namespace DCCExpressHub.Desktop
             }
             catch (Exception ex)
             {
-                StopBackend();
+                await StopBackendAsync();
 
                 Browser.Visibility =
                     Visibility.Collapsed;
@@ -2129,121 +2131,55 @@ namespace DCCExpressHub.Desktop
             return false;
         }
 
-        private void StartBackend()
+        private async Task StartBackendAsync()
         {
-            var backendDir =
-                Path.Combine(
-                    AppContext.BaseDirectory,
-                    "backend");
-
-            var exe =
-                Path.Combine(
-                    backendDir,
-                    "DCCExpressHub.Net.exe");
-
-            var dll =
-                Path.Combine(
-                    backendDir,
-                    "DCCExpressHub.Net.dll");
-
-            var workspace =
-                Path.GetFullPath(
-                    _settings.WorkspaceDirectory);
-
-            var webRoot =
-                Path.Combine(
-                    backendDir,
-                    "wwwroot");
-
-            var index =
-                Path.Combine(
-                    webRoot,
-                    "index.html");
-
-            if (!File.Exists(exe) &&
-                !File.Exists(dll))
-            {
-                throw new FileNotFoundException(
-                    L("backendNotFound"),
-                    exe);
-            }
-
+            var backendDir = Path.Combine(AppContext.BaseDirectory, "backend");
+            var workspace = Path.GetFullPath(_settings.WorkspaceDirectory);
+            var webRoot = Path.Combine(backendDir, "wwwroot");
+            var index = Path.Combine(webRoot, "index.html");
             if (!File.Exists(index))
-            {
-                throw new FileNotFoundException(
-                    L("backendWebUiNotFound"),
-                    index);
-            }
+                throw new FileNotFoundException(L("backendWebUiNotFound"), index);
 
-            ProcessStartInfo psi;
+            var env = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+            env["DCCEXPRESS_DESKTOP_URL"] = HubListenUrl;
+            env["ASPNETCORE_URLS"] = HubListenUrl;
+            env["Urls"] = HubListenUrl;
+            env["ASPNETCORE_ENVIRONMENT"] = "Production";
+            env["ASPNETCORE_CONTENTROOT"] = workspace;
+            env["ASPNETCORE_WEBROOT"] = webRoot;
 
-            if (File.Exists(exe))
-            {
-                // Published release: self-contained single-file backend.
-                psi = new ProcessStartInfo(exe)
-                {
-                    WorkingDirectory = backendDir,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true
-                };
-            }
-            else
-            {
-                // Normal Visual Studio/debug build: framework-dependent DLL.
-                psi = new ProcessStartInfo(
-                    "dotnet",
-                    $"\"{dll}\"")
-                {
-                    WorkingDirectory = backendDir,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true
-                };
-            }
+            _backendShutdownToken = Guid.NewGuid().ToString("N");
+            env["DCCEXPRESS_DESKTOP_SHUTDOWN_TOKEN"] = _backendShutdownToken;
 
-            psi.Environment["DCCEXPRESS_DESKTOP_URL"] = HubListenUrl;
-            psi.Environment["ASPNETCORE_URLS"] = HubListenUrl;
-            psi.Environment["Urls"] = HubListenUrl;
-            psi.Environment["ASPNETCORE_ENVIRONMENT"] = "Production";
-            psi.Environment["ASPNETCORE_CONTENTROOT"] = workspace;
-            psi.Environment["ASPNETCORE_WEBROOT"] = webRoot;
 
-            _backendShutdownToken =
-                Guid.NewGuid().ToString("N");
 
-            psi.Environment["DCCEXPRESS_DESKTOP_SHUTDOWN_TOKEN"] =
-                _backendShutdownToken;
-
-            psi.Environment["CommandCenter__Protocol"] =
+            env["CommandCenter__Protocol"] =
                 _settings.Protocol;
 
-            psi.Environment["DccEx__Transport"] =
+            env["DccEx__Transport"] =
                 _settings.Protocol == "serial"
                     ? "Serial"
                     : "Tcp";
 
-            psi.Environment["DccEx__Host"] =
+            env["DccEx__Host"] =
                 _settings.TcpHost;
 
-            psi.Environment["DccEx__Port"] =
+            env["DccEx__Port"] =
                 _settings.TcpPort.ToString();
 
-            psi.Environment["DccEx__SerialPort"] =
+            env["DccEx__SerialPort"] =
                 _settings.SerialPort;
 
-            psi.Environment["DccEx__BaudRate"] =
+            env["DccEx__BaudRate"] =
                 _settings.SerialBaudRate.ToString();
 
-            psi.Environment["Z21__Host"] =
+            env["Z21__Host"] =
                 _settings.TcpHost;
 
-            psi.Environment["Z21__Port"] =
+            env["Z21__Port"] =
                 _settings.TcpPort.ToString();
 
-            psi.Environment["Z21__RBusOffset"] =
+            env["Z21__RBusOffset"] =
                 (
                     _settings.Protocol == "z21"
                         ? _settings.RBusOffset
@@ -2252,31 +2188,31 @@ namespace DCCExpressHub.Desktop
                             : 0
                 ).ToString();
 
-            psi.Environment["LocoNet__Host"] =
+            env["LocoNet__Host"] =
                 _settings.TcpHost;
 
-            psi.Environment["LocoNet__SensorOffset"] =
+            env["LocoNet__SensorOffset"] =
                 (
                     _settings.Protocol is "yamorc7010" or "loconet" or "loconet-serial"
                         ? _settings.YaMoRcLocoNetOffset
                         : 0
                 ).ToString();
 
-            psi.Environment["LocoNet__LbServerFeedback"] =
+            env["LocoNet__LbServerFeedback"] =
                 (_settings.Protocol == "yamorc7010" && _settings.UseLocoNet)
                     .ToString();
 
-            psi.Environment["LocoNet__LbServerPort"] =
+            env["LocoNet__LbServerPort"] =
                 (_settings.Protocol == "loconet" ? _settings.TcpPort : 1234).ToString();
 
-            psi.Environment["LocoNet__SerialPort"] = _settings.SerialPort;
-            psi.Environment["LocoNet__SerialBaudRate"] = _settings.SerialBaudRate.ToString();
-            psi.Environment["LocoNet__SerialFeedback"] = (_settings.Protocol == "loconet-serial").ToString();
+            env["LocoNet__SerialPort"] = _settings.SerialPort;
+            env["LocoNet__SerialBaudRate"] = _settings.SerialBaudRate.ToString();
+            env["LocoNet__SerialFeedback"] = (_settings.Protocol == "loconet-serial").ToString();
 
-            psi.Environment["LocoNet__BinaryFeedback"] =
+            env["LocoNet__BinaryFeedback"] =
                 "false";
 
-            psi.Environment["LocoNet__BinaryPort"] =
+            env["LocoNet__BinaryPort"] =
                 "5560";
 
             if (_settings.Protocol == "loconet-serial")
@@ -2290,50 +2226,29 @@ namespace DCCExpressHub.Desktop
                     "LocoNet__Host", "LocoNet__LbServerPort",
                     "LocoNet__BinaryPort"
                 })
-                    psi.Environment.Remove(key);
-                psi.Environment["LocoNet__LbServerFeedback"] = "false";
-                psi.Environment["LocoNet__BinaryFeedback"] = "false";
+                    env.Remove(key);
+                env["LocoNet__LbServerFeedback"] = "false";
+                env["LocoNet__BinaryFeedback"] = "false";
             }
 
+
+            foreach (var entry in env)
+                Environment.SetEnvironmentVariable(entry.Key, entry.Value);
+
             _backendExpectedStop = false;
-
-            _backend = new Process
+            var runtime = new HubRuntime();
+            _hub = runtime;
+            try
             {
-                StartInfo = psi,
-                EnableRaisingEvents = true
-            };
-
-            _backend.Exited +=
-                Backend_Exited;
-
-            _backend.OutputDataReceived += (_, a) =>
+                await Task.Run(() => runtime.StartAsync(log: line => AppendServerLog("HUB", line)));
+            }
+            catch
             {
-                if (a.Data == null) return;
-                Debug.WriteLine("[Hub] " + a.Data);
-                AppendServerLog("OUT", a.Data);
-            };
-
-            _backend.ErrorDataReceived += (_, a) =>
-            {
-                if (a.Data == null) return;
-                Debug.WriteLine("[Hub:ERR] " + a.Data);
-                AppendServerLog("ERR", a.Data);
-            };
-
-            if (!_backend.Start())
-                throw new InvalidOperationException(L("backendStartFailed"));
-
-            Directory.CreateDirectory(
-                Path.GetDirectoryName(PidFilePath)!);
-
-            File.WriteAllText(
-                PidFilePath,
-                _backend.Id.ToString());
-
-            _backend.BeginOutputReadLine();
-            _backend.BeginErrorReadLine();
+                _hub = null;
+                await runtime.DisposeAsync();
+                throw;
+            }
         }
-
         private void Backend_Exited(
             object? sender,
             EventArgs e)
@@ -2402,19 +2317,7 @@ namespace DCCExpressHub.Desktop
 
             try
             {
-                _backendExpectedStop = true;
-
-                try
-                {
-                    _backend?.Dispose();
-                }
-                catch
-                {
-                }
-
-                _backend = null;
-                _backendShutdownToken = null;
-                TryDeletePidFile();
+                await StopBackendAsync();
 
                 if (!IsHubPortAvailable(
                         out var portError))
@@ -2423,7 +2326,7 @@ namespace DCCExpressHub.Desktop
                         portError);
                 }
 
-                StartBackend();
+                await StartBackendAsync();
 
                 await WaitForBackendAsync(
                     TimeSpan.FromSeconds(20));
@@ -2476,8 +2379,8 @@ namespace DCCExpressHub.Desktop
 
             while (DateTime.UtcNow < until)
             {
-                if (_backend?.HasExited == true)
-                    throw new InvalidOperationException(L("backendExited") + _backend.ExitCode);
+                if (_hub is null || !_hub.IsRunning)
+                    throw new InvalidOperationException(L("backendExited"));
 
                 try
                 {
@@ -2503,10 +2406,16 @@ namespace DCCExpressHub.Desktop
                 return;
             }
 
+            if (_closeDialogActive || _setupBusy || _restartInProgress)
+            {
+                e.Cancel = true;
+                return;
+            }
+
             // If no backend is running there is nothing that needs a power-off
             // decision. This also makes Cancel on the startup panel a clean exit.
-            if (_backend is null ||
-                _backend.HasExited)
+            if (_hub is null ||
+                !_hub.IsRunning)
             {
                 _closeApproved = true;
                 FinalizeClose();
@@ -2549,8 +2458,7 @@ namespace DCCExpressHub.Desktop
 
                 await ShowShutdownOverlayAsync();
 
-                await Task.Run(
-                    StopBackend);
+                await StopBackendAsync();
 
                 _closeApproved = true;
                 Close();
@@ -2645,9 +2553,7 @@ namespace DCCExpressHub.Desktop
         {
             _isClosing = true;
 
-            // StopBackend() is normally already completed by the first close pass.
-            // Keep this call idempotent so programmatic shutdown is safe as well.
-            StopBackend();
+            // The asynchronous close pass has already stopped the runtime.
 
             try
             {
@@ -2787,57 +2693,13 @@ namespace DCCExpressHub.Desktop
             ServerLogText.Clear();
         }
 
-        private void StopBackend()
+        private async Task StopBackendAsync()
         {
-            var process =
-                _backend;
-
             _backendExpectedStop = true;
-
-            try
-            {
-                if (process is { HasExited: false })
-                {
-                    bool graceful = false;
-
-                    try
-                    {
-                        graceful =
-                            RequestGracefulBackendShutdownAsync()
-                                .GetAwaiter()
-                                .GetResult();
-                    }
-                    catch
-                    {
-                    }
-
-                    if (!graceful ||
-                        !process.WaitForExit(5000))
-                    {
-                        process.Kill(
-                            entireProcessTree: true);
-
-                        process.WaitForExit(5000);
-                    }
-                }
-            }
-            catch
-            {
-            }
-            finally
-            {
-                try
-                {
-                    process?.Dispose();
-                }
-                catch
-                {
-                }
-
-                _backend = null;
-                _backendShutdownToken = null;
-                TryDeletePidFile();
-            }
+            var runtime = _hub;
+            _hub = null;
+            if (runtime is null) return;
+            await Task.Run(async () => await runtime.DisposeAsync());
         }
 
         private async Task<bool> RequestGracefulBackendShutdownAsync()

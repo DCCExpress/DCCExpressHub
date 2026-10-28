@@ -315,6 +315,7 @@ public sealed class WsHub
                  * logical Movement/Timetable run alive to continue later from
                  * stale sensor/authority state when power returns.
                  */
+                SequentialMovement.StopAll(false);
                 Movement.StopAll(false);
                 Scripts.AbortManualOnPowerOff();
                 Timetable.StopScheduler();
@@ -340,6 +341,7 @@ public sealed class WsHub
                 ClearRailComPresence();
                 LocoCounters.SetTrackPower(false);
 
+                SequentialMovement.StopAll(false);
                 Movement.StopAll(false);
                 Scripts.AbortAll(
                     "Command center disconnected.");
