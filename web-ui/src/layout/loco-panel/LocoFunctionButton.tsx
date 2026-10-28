@@ -18,6 +18,7 @@ type LocoFunctionButtonProps = {
   active: boolean;
   activeFunctions: Record<number, boolean>;
   disabled?: boolean;
+  fitHeight?: boolean;
   onActiveFunctionsChange: Dispatch<
     SetStateAction<Record<number, boolean>>
   >;
@@ -29,6 +30,7 @@ export default function LocoFunctionButton({
   fn,
   active,
   disabled = false,
+  fitHeight = false,
   onActiveFunctionsChange,
 }: LocoFunctionButtonProps) {
   const displayMode = useFunctionButtonDisplayMode();
@@ -67,7 +69,8 @@ export default function LocoFunctionButton({
       color={active ? "blue" : "gray"}
       disabled={disabled}
       style={{
-        height: 48,
+        height: fitHeight ? "100%" : 48,
+        minHeight: 0,
         padding: 2,
         touchAction: "none",
         userSelect: "none",
