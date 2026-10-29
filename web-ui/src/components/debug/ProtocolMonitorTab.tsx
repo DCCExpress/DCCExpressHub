@@ -29,6 +29,36 @@ export default function ProtocolMonitorTab({ opened }: { opened: boolean }) {
 
   useEffect(() => {
     if (!opened) return;
+    let alive = true;
+    let lastState = "";
+    const poll = async () => {
+      try {
+        const response = await fetch("/api/z21-handheld/status", { cache: "no-store" });
+        if (!response.ok) return;
+        const result = await response.json() as {
+          ok?: boolean; status?: { enabled: boolean; state: string; port: number; clients: number };
+        };
+        if (!result.ok || !result.status || !alive) return;
+        const state = result.status;
+        const signature = JSON.stringify(state);
+        if (signature === lastState) return;
+        lastState = signature;
+        const now = new Date();
+        const time = `${now.toTimeString().slice(0, 8)}.${String(now.getMilliseconds()).padStart(3, "0")}`;
+        setRows(previous => [{
+          id: ++nextId.current, time, source: "Z21 WLAN", kind: "SYS",
+          detail: `UDP ${state.port} · ${state.enabled ? state.state : "Disabled"} · ${state.clients} client(s)`,
+          raw: signature,
+        }, ...previous].slice(0, MAX_ROWS));
+      } catch { /* keep previous diagnostics */ }
+    };
+    void poll();
+    const interval = window.setInterval(() => void poll(), 3000);
+    return () => { alive = false; window.clearInterval(interval); };
+  }, [opened]);
+
+  useEffect(() => {
+    if (!opened) return;
     const unsubscribe = wsClient.subscribeMessages(message => {
       if (pausedRef.current) return;
 
@@ -105,7 +135,7 @@ export default function ProtocolMonitorTab({ opened }: { opened: boolean }) {
       <Select w={155} size="xs" aria-label="Source" value={sourceFilter} onChange={value => setSourceFilter(value ?? "all")}
         data={[{ value: "all", label: "All sources" }, ...["LocoNet", "Z21 WLAN", "Command center", "Hub sensor", "Hub"].map(value => ({ value, label: value }))]} />
       <Select w={155} size="xs" aria-label="Message type" value={kind} onChange={value => setKind(value ?? "all")}
-        data={[{ value: "all", label: "All events" }, ...["Raw", "Sensor", "Snapshot", "Turnout", "Locomotive", "Power"].map(value => ({ value, label: value }))]} />
+        data={[{ value: "all", label: "All events" }, ...["RX", "TX", "SYS", "Raw", "Sensor", "Snapshot", "Turnout", "Locomotive", "Power"].map(value => ({ value, label: value }))]} />
       <TextInput size="xs" style={{ flex: 1, minWidth: 120 }} placeholder="Search address, event or HEX…" value={query} onChange={event => setQuery(event.currentTarget.value)} />
       <Button size="xs" variant="light" color="gray" leftSection={paused ? <IconPlayerPlay size={14}/> : <IconPlayerPause size={14}/>}
         onClick={() => setPaused(value => !value)}>{paused ? "Resume" : "Pause"}</Button>
