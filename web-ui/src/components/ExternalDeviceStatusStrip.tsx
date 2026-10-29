@@ -77,8 +77,9 @@ export default function ExternalDeviceStatusStrip() {
   const enabledHandhelds = handhelds.filter(item => item.enabled);
   if (!enabledAdapters.length && !enabledHandhelds.length) return null;
 
-  return <ul aria-label="External devices" style={{ margin: 0, paddingLeft: 22, alignSelf: "flex-start", fontSize: 12 }}>
-    <li><Text span size="xs" fw={600}>External devices</Text></li>
+  return <div style={{ alignSelf: "flex-start" }}>
+    <Text size="xs" fw={600}>External devices</Text>
+    <ul aria-label="External devices" style={{ margin: 0, paddingLeft: 22, fontSize: 12 }}>
     {enabledAdapters.map(device => {
       const state = statuses.find(item => item.id === device.id);
       const online = available && !!state?.connected;
@@ -89,5 +90,6 @@ export default function ExternalDeviceStatusStrip() {
         {z21Status?.listeners?.some(x => x.port === device.udpPort && x.clients > 0) ? "Client detected" : z21Status?.listeners?.find(x => x.port === device.udpPort)?.state ?? "Offline"}
       </Text></li>
     )}
-  </ul>;
+    </ul>
+  </div>;
 }
