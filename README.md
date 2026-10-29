@@ -9,6 +9,11 @@
 ![React](https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-blue?logo=typescript&logoColor=white)
 
+![DCC-EX](https://img.shields.io/badge/DCC--EX-Supported-E67E22)
+![YaMoRC](https://img.shields.io/badge/YaMoRC-Supported-1B8B58)
+![Z21](https://img.shields.io/badge/Z21-Supported-0077B6)
+![LocoNet](https://img.shields.io/badge/LocoNet-Supported-7952B3)
+
 **Version: 0.1.0-alpha.9**
 
 **DCCExpressHub** is a model railway control and automation application supporting the **DCC-EX**, **Z21 + R-BUS**, and **LocoNet** protocols.
