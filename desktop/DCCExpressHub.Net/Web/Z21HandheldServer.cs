@@ -11,12 +11,13 @@ namespace DCCExpressHub.Net.Web;
 public sealed class Z21HandheldServer : BackgroundService
 {
     readonly ILogger<Z21HandheldServer> _log;
+    readonly WsHub _ws;
     readonly object _gate = new();
     int _port = 21105;
     bool _enabled;
     int _clients;
     string _state = "Disabled";
-    public Z21HandheldServer(ILogger<Z21HandheldServer> log) => _log = log;
+    public Z21HandheldServer(ILogger<Z21HandheldServer> log, WsHub ws) { _log = log; _ws = ws; }
 
     public object Status()
     {
@@ -51,6 +52,7 @@ public sealed class Z21HandheldServer : BackgroundService
                     try { packet = await udp.ReceiveAsync(shortWait.Token); }
                     catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested) { continue; }
                     var data = packet.Buffer;
+                    _ws.PublishZ21Packet("RX", packet.RemoteEndPoint.ToString(), data, "Z21 UDP inbound");
                     if (data.Length < 4 || BinaryPrimitives.ReadUInt16LittleEndian(data) != data.Length)
                         continue;
                     clients.Add(packet.RemoteEndPoint);
@@ -64,7 +66,11 @@ public sealed class Z21HandheldServer : BackgroundService
                         _ => null
                     };
                     if (header == 0x0030) { clients.Remove(packet.RemoteEndPoint); lock (_gate) _clients = clients.Count; }
-                    if (reply is not null) await udp.SendAsync(reply, packet.RemoteEndPoint, stoppingToken);
+                    if (reply is not null)
+                    {
+                        await udp.SendAsync(reply, packet.RemoteEndPoint, stoppingToken);
+                        _ws.PublishZ21Packet("TX", packet.RemoteEndPoint.ToString(), reply, "Z21 UDP response");
+                    }
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
