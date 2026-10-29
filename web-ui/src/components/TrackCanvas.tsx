@@ -664,7 +664,7 @@ export default function TrackCanvas({
       if (needsBlinkRedraw) {
         requestDraw();
       }
-    }, 225);
+    }, 500);
 
     return () => {
       window.clearInterval(timer);
