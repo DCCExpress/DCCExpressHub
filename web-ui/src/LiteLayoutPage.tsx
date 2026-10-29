@@ -1432,7 +1432,7 @@ export default function LiteLayoutPage({
       if (needsBlinkRedraw) {
         invalidate();
       }
-    }, 225);
+    }, 500);
 
     return () => window.clearInterval(timer);
   }, [layout, invalidate]);
