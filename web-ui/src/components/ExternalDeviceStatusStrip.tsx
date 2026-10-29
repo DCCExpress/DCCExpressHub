@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 type Adapter = { id: string; name: string; enabled: boolean };
 type AdapterStatus = { id: string; connected: boolean; message?: string };
 type Z21Draft = { id: string; name: string; enabled: boolean; udpPort: number };
-type Z21Status = { enabled: boolean; port: number; clients: number; state: string };
+type Z21Status = { enabled: boolean; port: number; clients: number; state: string; listeners?: { port: number; clients: number; state: string }[] };
 
 const Z21_KEY = "dccexpress.external-devices.z21.v1";
 
@@ -15,8 +15,12 @@ function loadHandhelds(): Z21Draft[] {
     const devices = value.filter((item): item is Z21Draft =>
       !!item && typeof item.id === "string" && typeof item.name === "string"
       && typeof item.enabled === "boolean");
-    const selected = devices.find(item => item.enabled) ?? devices[0];
-    return selected ? [selected] : [];
+    const byPort = new Map<number, Z21Draft>();
+    for (const device of devices) {
+      if (!byPort.has(device.udpPort) || (device.enabled && !byPort.get(device.udpPort)!.enabled))
+        byPort.set(device.udpPort, device);
+    }
+    return [...byPort.values()];
   } catch { return []; }
 }
 
@@ -30,8 +34,7 @@ export default function ExternalDeviceStatusStrip() {
   useEffect(() => {
     // Restore the opt-in listener after HUB restart when this browser has a
     // saved enabled handheld. Backend-side persistence will follow.
-    const device = loadHandhelds().find(item => item.enabled && Number.isInteger(item.udpPort));
-    if (device) {
+    for (const device of loadHandhelds().filter(item => item.enabled && Number.isInteger(item.udpPort))) {
       void fetch("/api/z21-handheld/configure", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -82,8 +85,8 @@ export default function ExternalDeviceStatusStrip() {
       return <li key={device.id} title={state?.message ?? ""}>{device.name} · <Text span c={online ? "teal" : "dimmed"}>{online ? "Online" : available ? "Offline" : "Unknown"}</Text></li>;
     })}
     {enabledHandhelds.map(device =>
-      <li key={device.id}>{device.name} · <Text span c={z21Status?.enabled && z21Status.clients > 0 ? "teal" : "dimmed"}>
-        {z21Status?.enabled && z21Status.clients > 0 ? "Client detected" : z21Status?.enabled ? z21Status.state : "Offline"}
+      <li key={device.id}>{device.name} · <Text span c={z21Status?.listeners?.some(x => x.port === device.udpPort && x.clients > 0) ? "teal" : "dimmed"}>
+        {z21Status?.enabled && z21Status.clients > 0 ? "Client detected" : z21Status?.listeners?.find(x => x.port === device.udpPort)?.state ?? "Offline"}
       </Text></li>
     )}
   </ul>;
