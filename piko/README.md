@@ -51,3 +51,24 @@ keyboard matrix, so **no GPIO transitions does not prove broken controls**.
 When testing, keep the serial monitor open, press keys, rotate the encoder
 slowly and copy any `piko_hw: GPIO ...` lines. No changes means next steps
 are PCB photos and factory firmware pin tracing, not random GPIO driving.
+
+## Reverse-engineering the factory firmware (offline, no flashing)
+
+A confirmed `Firmware-Handheld.bin` image contains keypad, rotary
+and LCD string references but **not a known pin map**.
+
+On Windows with PlatformIO installed, run:
+
+```powershell
+python piko/tools/trace_handheld.py "C:\\path\\to\\Firmware-Handheld.bin"
+```
+
+This detects the PlatformIO Xtensa objdump, disassembles the ESP32 image
+code segments, and writes candidate `l32r` callers to
+`piko/analysis/handheld_xrefs.txt`. Share the relevant report excerpts
+for further GPIO/SPI tracing. This is a heuristic: disassembly of raw
+binary may be misaligned, and candidate instructions must be verified.
+Do **not** put the vendor firmware or flash dump into Git.
+
+For deeper analysis use Ghidra's ESP32 flash-image loader, which
+supports application images and maps the ESP32 memory segments.
