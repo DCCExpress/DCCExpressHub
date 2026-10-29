@@ -469,6 +469,14 @@ public sealed class WsHub
         return ok;
     }
 
+    public void PublishPikoPacket(string direction, string remote, byte[] payload, string detail)
+    {
+        _ = Broadcast("pikoPacket", new
+        {
+            direction, remote, detail, raw = Convert.ToHexString(payload)
+        });
+    }
+
     public void PublishZ21Packet(string direction, string remote, byte[] payload, string detail)
     {
         QueueStateBroadcast("z21Packet", new
