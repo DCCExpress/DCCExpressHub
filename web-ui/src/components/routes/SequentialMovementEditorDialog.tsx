@@ -54,7 +54,7 @@ export default function SequentialMovementEditorDialog({
           <NumberInput label={mt("movementCruiseSpeed")} min={1} max={126} value={draft.speed} onChange={v => onModify({ speed: Math.max(1, Math.min(126, Number(v) || 20)) })}/>
           <Switch label="Enabled" checked={draft.enabled} onChange={e => onModify({ enabled: e.currentTarget.checked })}/>
         </Group>
-        <Text size="xs" c="dimmed">Direction = departure from this block. Fixed 0 s is a valid complete stop with immediate departure; it is not Pass. The next block list comes from the saved route graph. The final block always stops.</Text>
+        <Text size="xs" c="dimmed">Direction = departure from this block. The next block list comes from the saved route graph. The final block always stops.</Text>
         {validationIssue && <Alert color="orange" variant="light" title="Sequence needs attention" icon={<IconAlertTriangle size={17}/>}>
           <Text size="sm">{validationIssue}</Text>
         </Alert>}
