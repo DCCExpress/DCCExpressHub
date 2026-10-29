@@ -1,9 +1,10 @@
 import {
   Alert, Badge, Button, Card, Group, NumberInput, Select, Stack,
-  Switch, Text, TextInput, Title, SimpleGrid, Table, Modal
+  Switch, Text, TextInput, Title, SimpleGrid, Table, Autocomplete
 } from "@mantine/core";
 import { useCallback, useEffect, useState } from "react";
 import { S88SensorIndicator } from "./components/S88SensorIndicator";
+import AppModal from "./components/common/AppModal";
 
 type ExternalDevice = {
   id: string;
@@ -209,12 +210,12 @@ export default function ExternalDevicesPage({
       </Group>
     </Group>
 
-    <Modal opened={addTypeOpen} onClose={() => setAddTypeOpen(false)} title="Add external device" centered>
+    <AppModal opened={addTypeOpen} onClose={() => setAddTypeOpen(false)} title="Add external device" centered>
       <Stack>
         <Button variant="light" onClick={() => { startNew(); setZ21Draft(null); setAddTypeOpen(false); }}>DCCExpress S88 adapter</Button>
         <Button variant="light" onClick={() => { setZ21Draft(newZ21()); setEditing(false); setMonitorId(null); setAddTypeOpen(false); }}>Z21 handheld controller (WLANMAUS)</Button>
       </Stack>
-    </Modal>
+    </AppModal>
 
     {message && <Alert color={message.startsWith("NOK") ? "red" : "blue"} onClose={() => setMessage("")} withCloseButton>{message}</Alert>}
 
@@ -259,22 +260,22 @@ export default function ExternalDevicesPage({
       </Table.ScrollContainer>
     </Card>
 
-    {z21Draft && <Card withBorder radius="md" p="lg">
+    <AppModal opened={z21Draft !== null} onClose={() => setZ21Draft(null)} title="Z21 handheld configuration" centered size="lg">
       <Stack gap="md">
         <Group justify="space-between"><Title order={4}>Z21 handheld configuration</Title><Badge color="yellow">Planned</Badge></Group>
         <Alert color="blue">Configuration is saved in this browser only. The Z21 UDP server is not implemented yet.</Alert>
-        <TextInput label="Name" value={z21Draft.name} onChange={event => setZ21Draft(old => old && ({ ...old, name: event.currentTarget.value }))} />
-        <NumberInput label="Z21 server UDP port" min={1} max={65535} value={z21Draft.udpPort}
+        <TextInput label="Name" value={z21Draft?.name ?? ""} onChange={event => setZ21Draft(old => old && ({ ...old, name: event.currentTarget.value }))} />
+        <NumberInput label="Z21 server UDP port" min={1} max={65535} value={z21Draft?.udpPort ?? 21105}
           description="Default: 21105. The handset connects to the HUB's IP address."
           onChange={value => setZ21Draft(old => old && ({ ...old, udpPort: typeof value === "number" ? value : 0 }))} />
-        <Switch label="Enable handheld support (when available)" checked={z21Draft.enabled}
+        <Switch label="Enable handheld support (when available)" checked={z21Draft?.enabled ?? false}
           onChange={event => setZ21Draft(old => old && ({ ...old, enabled: event.currentTarget.checked }))} />
         <Group justify="flex-end">
           <Button variant="light" onClick={() => setZ21Draft(null)}>Cancel</Button>
-          <Button onClick={saveZ21} disabled={!z21Draft.name.trim() || z21Draft.udpPort < 1 || z21Draft.udpPort > 65535}>Save</Button>
+          <Button onClick={saveZ21} disabled={!z21Draft?.name.trim() || !z21Draft || z21Draft.udpPort < 1 || z21Draft.udpPort > 65535}>Save</Button>
         </Group>
       </Stack>
-    </Card>}
+    </AppModal>
 
 
 
@@ -318,7 +319,7 @@ export default function ExternalDevicesPage({
       </Stack>
     </Card>}
 
-    {editing && <Card withBorder radius="md" p="lg">
+    <AppModal opened={editing} onClose={() => setEditing(false)} title={draft.id ? "Configure S88 adapter" : "Add S88 adapter"} centered size="lg">
       <Stack gap="md">
         <Title order={4}>{draft.id ? "Configure S88 adapter" : "Add S88 adapter"}</Title>
         {draft.id && <Group gap="xs">
@@ -334,14 +335,17 @@ export default function ExternalDevicesPage({
           allowDeselect={false}
         />
         <TextInput label="Name" value={draft.name} onChange={event => setDraft(old => ({ ...old, name: event.currentTarget.value }))} />
-        <Select
+        <Autocomplete
           label="Serial port"
-          placeholder="Select COM / tty port"
-          searchable
+          placeholder="Select or type COM9 / tty path"
           data={portOptions}
-          value={draft.serialPort || null}
-          onChange={value => setDraft(old => ({ ...old, serialPort: value ?? "" }))}
+          value={draft.serialPort}
+          onChange={value => setDraft(old => ({ ...old, serialPort: value }))}
+          description="Manual port names are allowed even when the device is disconnected."
         />
+        {draft.serialPort.trim() && ports.length > 0 &&
+          !ports.some(port => port.toLowerCase() === draft.serialPort.trim().toLowerCase()) &&
+          <Alert color="yellow">Port {draft.serialPort} is not currently detected. The configuration can still be saved; connection may fail until the device is available.</Alert>}
         <Group grow>
           <NumberInput label="Sensor offset" description="Input 1 = offset + 1" min={0} max={65527} value={draft.sensorOffset}
             onChange={value => setDraft(old => ({ ...old, sensorOffset: typeof value === "number" ? value : 0 }))} />
@@ -367,6 +371,6 @@ export default function ExternalDevicesPage({
           <Button loading={busy} onClick={() => void save()}>Save device</Button>
         </Group>
       </Stack>
-    </Card>}
+    </AppModal>
   </Stack>;
 }
