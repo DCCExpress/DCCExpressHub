@@ -63,9 +63,12 @@ function loadZ21(): Z21Device[] {
     const valid = parsed.filter((x): x is Z21Device => x && typeof x.id === "string" &&
       typeof x.name === "string" && typeof x.enabled === "boolean" &&
       Number.isInteger(x.udpPort) && x.udpPort > 0 && x.udpPort <= 65535);
-    // Only one UDP server exists. Preserve the enabled entry, otherwise the first.
-    const preferred = valid.find(x => x.enabled) ?? valid[0];
-    return preferred ? [preferred] : [];
+    // One listener per UDP port. Prefer the enabled entry for older duplicates.
+    const byPort = new Map<number, Z21Device>();
+    for (const device of valid)
+      if (!byPort.has(device.udpPort) || (device.enabled && !byPort.get(device.udpPort)!.enabled))
+        byPort.set(device.udpPort, device);
+    return [...byPort.values()];
   } catch { return []; }
 }
 const newZ21 = (): Z21Device => ({
@@ -90,15 +93,15 @@ export default function ExternalDevicesPage({
   const [addTypeOpen, setAddTypeOpen] = useState(false);
   const [z21Devices, setZ21Devices] = useState<Z21Device[]>(loadZ21);
   useEffect(() => {
-    // Persist the normalized single-instance configuration, removing older duplicates.
+    // Normalize older duplicate entries sharing the same UDP port.
     try { window.localStorage.setItem(Z21_KEY, JSON.stringify(loadZ21())); } catch { /* storage unavailable */ }
   }, []);
   const [z21Draft, setZ21Draft] = useState<Z21Device | null>(null);
-  const [z21Status, setZ21Status] = useState<{ enabled: boolean; clients: number; state: string; port: number } | null>(null);
+  const [z21Status, setZ21Status] = useState<{ enabled: boolean; clients: number; state: string; port: number; listeners?: { port: number; clients: number; state: string }[] } | null>(null);
   const refreshZ21 = useCallback(async () => {
     const response = await fetch("/api/z21-handheld/status", { cache: "no-store" });
     if (!response.ok) throw new Error("Z21 status unavailable");
-    const result = await response.json() as { ok: boolean; status: { enabled: boolean; clients: number; state: string; port: number } };
+    const result = await response.json() as { ok: boolean; status: { enabled: boolean; clients: number; state: string; port: number; listeners?: { port: number; clients: number; state: string }[] } };
     if (result.ok) setZ21Status(result.status);
   }, []);
   useEffect(() => {
@@ -109,11 +112,17 @@ export default function ExternalDevicesPage({
   const saveZ21 = async () => {
     if (!z21Draft || !z21Draft.name.trim() || !Number.isInteger(z21Draft.udpPort) ||
         z21Draft.udpPort < 1 || z21Draft.udpPort > 65535) return;
-    const next = [z21Draft];
+    if (z21Devices.some(x => x.id !== z21Draft.id && x.udpPort === z21Draft.udpPort)) {
+      setMessage("NOK: Another Z21 listener already uses UDP port " + z21Draft.udpPort);
+      return;
+    }
+    const previous = z21Devices.find(x => x.id === z21Draft.id);
+    const next = [...z21Devices.filter(x => x.id !== z21Draft.id), z21Draft];
     try {
-      const chosen = next.find(x => x.enabled);
+      if (previous?.enabled && previous.udpPort !== z21Draft.udpPort)
+        await postForm("/api/z21-handheld/configure", { enabled: "false", port: String(previous.udpPort) });
       await postForm("/api/z21-handheld/configure", {
-        enabled: String(!!chosen), port: String(chosen?.udpPort ?? z21Draft.udpPort),
+        enabled: String(z21Draft.enabled), port: String(z21Draft.udpPort),
       });
       window.localStorage.setItem(Z21_KEY, JSON.stringify(next));
       setZ21Devices(next);
@@ -126,7 +135,7 @@ export default function ExternalDevicesPage({
     if (!window.confirm("Delete this Z21 handheld configuration?")) return;
     const next = z21Devices.filter(x => x.id !== id);
     try {
-      await postForm("/api/z21-handheld/configure", { enabled: "false", port: String(z21Devices[0]?.udpPort ?? 21105) });
+      await postForm("/api/z21-handheld/configure", { enabled: "false", port: String(z21Devices.find(x => x.id === id)?.udpPort ?? 21105) });
       window.localStorage.setItem(Z21_KEY, JSON.stringify(next));
       setZ21Devices(next);
       if (z21Draft?.id === id) setZ21Draft(null);
@@ -238,8 +247,8 @@ export default function ExternalDevicesPage({
     <AppModal opened={addTypeOpen} onClose={() => setAddTypeOpen(false)} title="Add external device" centered>
       <Stack>
         <Button variant="light" onClick={() => { startNew(); setZ21Draft(null); setAddTypeOpen(false); }}>DCCExpress S88 adapter</Button>
-        <Button variant="light" disabled={z21Devices.length > 0} onClick={() => { if (z21Devices.length > 0) return; setZ21Draft(newZ21()); setEditing(false); setMonitorId(null); setAddTypeOpen(false); }}>Z21 handheld controller (WLANMAUS)</Button>
-        {z21Devices.length > 0 && <Text size="xs" c="dimmed">A Z21 server is already configured. Use Config to edit it.</Text>}
+        <Button variant="light" onClick={() => { setZ21Draft({ ...newZ21(), udpPort: [21105, ...z21Devices.map(x => x.udpPort)].reduce((port, used) => port === used ? port + 1 : port, 21105) }); setEditing(false); setMonitorId(null); setAddTypeOpen(false); }}>Z21 handheld controller (WLANMAUS)</Button>
+        <Text size="xs" c="dimmed">Multiple Z21 listeners require distinct UDP ports.</Text>
       </Stack>
     </AppModal>
 
@@ -272,8 +281,8 @@ export default function ExternalDevicesPage({
               <Table.Td><Text fw={600}>{device.name}</Text></Table.Td>
               <Table.Td>Z21 WLANMAUS</Table.Td>
               <Table.Td>UDP {device.udpPort} · Z21 LAN</Table.Td>
-              <Table.Td><Badge color={z21Status?.enabled && z21Status.clients > 0 ? "teal" : "gray"}>
-                {z21Status?.enabled && z21Status.clients > 0 ? "Client detected" : z21Status?.enabled ? z21Status.state : "Disabled"}
+              <Table.Td><Badge color={z21Status?.listeners?.find(x => x.port === device.udpPort)?.clients ? "teal" : "gray"}>
+                {z21Status?.listeners?.find(x => x.port === device.udpPort)?.clients ? "Client detected" : z21Status?.listeners?.find(x => x.port === device.udpPort)?.state ?? "Disabled"}
               </Badge></Table.Td>
               <Table.Td><Group gap="xs" wrap="nowrap">
                 <Button size="xs" variant="light" onClick={() => { setZ21Draft({ ...device }); setEditing(false); setMonitorId(null); }}>Config</Button>
