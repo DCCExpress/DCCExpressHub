@@ -17,7 +17,7 @@ Drive locomotives, operate turnouts and signals, design your track layout, monit
 
 Available for:
 
-- **Windows** — desktop application powered by .NET 10.
+- **Windows** — desktop application and server powered by .NET 10.
 - **Linux** — runs as a server, with the interface available in a web browser.
 - **Android** — standalone app with its own .NET 10 Hub and tablet-optimized interface; it can also serve other devices over the local network. **Tablet recommended.**
 
