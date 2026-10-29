@@ -8,6 +8,7 @@ type Z21Draft = { id: string; name: string; enabled: boolean; udpPort: number };
 type Z21Status = { enabled: boolean; port: number; clients: number; state: string; listeners?: { port: number; clients: number; state: string }[] };
 
 const Z21_KEY = "dccexpress.external-devices.z21.v1";
+const PIKO_KEY = "dccexpress.external-devices.piko.v1";
 
 function loadHandhelds(): Z21Draft[] {
   try {
@@ -32,7 +33,21 @@ export default function ExternalDeviceStatusStrip() {
   const [handhelds, setHandhelds] = useState<Z21Draft[]>(loadHandhelds);
   const [available, setAvailable] = useState(true);
   const [z21Status, setZ21Status] = useState<Z21Status | null>(null);
+  const [pikoStatus, setPikoStatus] = useState<{ clients: number; state: string } | null>(null);
+  const [pikoEnabled, setPikoEnabled] = useState(false);
 
+  useEffect(() => {
+    try {
+      const device = JSON.parse(window.localStorage.getItem(PIKO_KEY) ?? "null") as { enabled?: boolean; tcpPort?: number } | null;
+      if (device?.enabled && Number.isInteger(device.tcpPort)) {
+        void fetch("/api/piko-handheld/configure", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ enabled: "true", port: String(device.tcpPort) })
+        }).catch(() => {});
+      }
+    } catch { /* no saved PIKO device */ }
+  }, []);
   useEffect(() => {
     // Restore the opt-in listener after HUB restart when this browser has a
     // saved enabled handheld. Backend-side persistence will follow.
@@ -64,6 +79,13 @@ export default function ExternalDeviceStatusStrip() {
       }
       if (active) setHandhelds(loadHandhelds());
       try {
+        const stored = JSON.parse(window.localStorage.getItem(PIKO_KEY) ?? "null") as { enabled?: boolean } | null;
+        if (active) setPikoEnabled(!!stored?.enabled);
+        const reply = await fetch("/api/piko-handheld/status", { cache: "no-store" });
+        const data = await reply.json() as { ok: boolean; status: { clients: number; state: string } };
+        if (active) setPikoStatus(data.ok ? data.status : null);
+      } catch { if (active) setPikoStatus(null); }
+      try {
         const response = await fetch("/api/z21-handheld/status", { cache: "no-store" });
         if (!response.ok) throw new Error("Z21 unavailable");
         const data = await response.json() as { ok: boolean; status: Z21Status };
@@ -89,6 +111,9 @@ export default function ExternalDeviceStatusStrip() {
     <li>Gamepad · <Text span c={gamepads.some(x => x.index === selectedGamepadIndex) ? "teal" : "dimmed"}>
       {gamepads.some(x => x.index === selectedGamepadIndex) ? "Connected" : "Disconnected"}
     </Text></li>
+    {pikoEnabled && <li>PIKO SmartControl WLAN · <Text span c={pikoStatus?.clients ? "teal" : "dimmed"}>
+      {pikoStatus?.clients ? "TCP connected (experimental)" : pikoStatus?.state ?? "Offline"}
+    </Text></li>}
     {enabledHandhelds.map(device =>
       <li key={device.id}>{device.name} · <Text span c={z21Status?.listeners?.some(x => x.port === device.udpPort && x.clients > 0) ? "teal" : "dimmed"}>
         {z21Status?.listeners?.some(x => x.port === device.udpPort && x.clients > 0) ? "Client detected" : z21Status?.listeners?.find(x => x.port === device.udpPort)?.state ?? "Offline"}
