@@ -76,6 +76,16 @@ const newZ21 = (): Z21Device => ({
   id: "z21-" + Date.now(), name: "ROCO WLANMAUS", enabled: false, udpPort: 21105,
 });
 
+type PikoDevice = { name: string; enabled: boolean; tcpPort: number };
+const PIKO_KEY = "dccexpress.external-devices.piko.v1";
+function loadPiko(): PikoDevice | null {
+  try {
+    const value = JSON.parse(window.localStorage.getItem(PIKO_KEY) ?? "null") as PikoDevice | null;
+    return value && typeof value.name === "string" && typeof value.enabled === "boolean" &&
+      Number.isInteger(value.tcpPort) && value.tcpPort > 0 && value.tcpPort <= 65535 ? value : null;
+  } catch { return null; }
+}
+
 export default function ExternalDevicesPage({
   onBack,
   onDiagnostics,
@@ -86,6 +96,44 @@ export default function ExternalDevicesPage({
   onGamepadConfig: () => void;
 }) {
   const { gamepads, selectedGamepadIndex } = useGamepad();
+  const [piko, setPiko] = useState<PikoDevice | null>(loadPiko);
+  const [pikoDraft, setPikoDraft] = useState<PikoDevice | null>(null);
+  const [pikoStatus, setPikoStatus] = useState<{ state: string; clients: number; port: number } | null>(null);
+  const refreshPiko = useCallback(async () => {
+    const response = await fetch("/api/piko-handheld/status", { cache: "no-store" });
+    if (!response.ok) return;
+    const result = await response.json() as { ok: boolean; status: { state: string; clients: number; port: number } };
+    if (result.ok) setPikoStatus(result.status);
+  }, []);
+  useEffect(() => {
+    void refreshPiko();
+    const timer = window.setInterval(() => void refreshPiko(), 4000);
+    return () => window.clearInterval(timer);
+  }, [refreshPiko]);
+  const savePiko = async () => {
+    if (!pikoDraft || !pikoDraft.name.trim() || !Number.isInteger(pikoDraft.tcpPort) ||
+        pikoDraft.tcpPort < 1 || pikoDraft.tcpPort > 65535) return;
+    try {
+      if (piko?.enabled && piko.tcpPort !== pikoDraft.tcpPort)
+        await postForm("/api/piko-handheld/configure", { enabled: "false", port: String(piko.tcpPort) });
+      await postForm("/api/piko-handheld/configure", { enabled: String(pikoDraft.enabled), port: String(pikoDraft.tcpPort) });
+      window.localStorage.setItem(PIKO_KEY, JSON.stringify(pikoDraft));
+      setPiko(pikoDraft);
+      setPikoDraft(null);
+      await refreshPiko();
+      setMessage("PIKO TCP diagnostics listener configured. Train operation is not enabled until handshake and validation are confirmed.");
+    } catch (error) { setMessage("NOK: " + String(error)); }
+  };
+  const deletePiko = async () => {
+    if (!piko || !window.confirm("Delete PIKO handheld configuration?")) return;
+    try {
+      await postForm("/api/piko-handheld/configure", { enabled: "false", port: String(piko.tcpPort) });
+      window.localStorage.removeItem(PIKO_KEY);
+      setPiko(null);
+      await refreshPiko();
+    } catch (error) { setMessage("NOK: " + String(error)); }
+  };
+
   const [devices, setDevices] = useState<ExternalDevice[]>([]);
   const [status, setStatus] = useState<DeviceStatus[]>([]);
   const [ports, setPorts] = useState<string[]>([]);
@@ -252,6 +300,7 @@ export default function ExternalDevicesPage({
       <Stack>
         <Button variant="light" onClick={() => { startNew(); setZ21Draft(null); setAddTypeOpen(false); }}>DCCExpress S88 adapter</Button>
         <Button variant="light" onClick={() => { setAddTypeOpen(false); onGamepadConfig(); }}>Gamepad (configure existing controller)</Button>
+        <Button variant="light" disabled={!!piko} onClick={() => { setPikoDraft({ name: "PIKO SmartControl WLAN", enabled: false, tcpPort: 55566 }); setAddTypeOpen(false); }}>PIKO SmartControl WLAN (experimental)</Button>
         <Button variant="light" onClick={() => { setZ21Draft({ ...newZ21(), udpPort: Array.from({ length: 100 }, (_, i) => 21105 + i).find(port => !z21Devices.some(x => x.udpPort === port)) ?? 21105 }); setEditing(false); setMonitorId(null); setAddTypeOpen(false); }}>Z21 handheld controller (WLANMAUS)</Button>
         <Text size="xs" c="dimmed">Multiple Z21 listeners require distinct UDP ports.</Text>
       </Stack>
@@ -294,6 +343,18 @@ export default function ExternalDevicesPage({
                 <Button size="xs" color="red" variant="subtle" onClick={() => void deleteZ21(device.id)}>Delete</Button>
               </Group></Table.Td>
             </Table.Tr>)}
+            {piko && <Table.Tr>
+              <Table.Td><Text fw={600}>{piko.name}</Text></Table.Td>
+              <Table.Td>PIKO SmartControl WLAN</Table.Td>
+              <Table.Td>TCP {piko.tcpPort} · experimental</Table.Td>
+              <Table.Td><Badge color={pikoStatus?.clients ? "teal" : "gray"}>
+                {piko.enabled ? pikoStatus?.clients ? "Connected" : pikoStatus?.state ?? "Starting" : "Disabled"}
+              </Badge></Table.Td>
+              <Table.Td><Group gap="xs" wrap="nowrap">
+                <Button size="xs" variant="light" onClick={() => setPikoDraft({ ...piko })}>Config</Button>
+                <Button size="xs" variant="subtle" color="red" onClick={() => void deletePiko()}>Delete</Button>
+              </Group></Table.Td>
+            </Table.Tr>}
             <Table.Tr>
               <Table.Td><Text fw={600}>{gamepads.find(x => x.index === selectedGamepadIndex)?.id ?? "Gamepad"}</Text></Table.Td>
               <Table.Td>Gamepad</Table.Td>
@@ -307,6 +368,21 @@ export default function ExternalDevicesPage({
         </Table>
       </Table.ScrollContainer>
     </Card>
+
+    <AppModal opened={pikoDraft !== null} onClose={() => setPikoDraft(null)} title="PIKO SmartControl WLAN" centered>
+      <Stack gap="md">
+        <Alert color="yellow">Experimental TCP diagnostics only. The firmware handshake and checksum are not yet verified; locomotive commands are deliberately blocked.</Alert>
+        <TextInput label="Name" value={pikoDraft?.name ?? ""} onChange={event => { const value = event.currentTarget.value; setPikoDraft(old => old && ({ ...old, name: value })); }} />
+        <NumberInput label="PIKO SmartBox TCP port" value={pikoDraft?.tcpPort ?? 55566} min={1} max={65535}
+          onChange={value => setPikoDraft(old => old && ({ ...old, tcpPort: typeof value === "number" ? value : 0 }))} />
+        <Switch label="Enable PIKO listener" checked={pikoDraft?.enabled ?? false}
+          onChange={event => { const checked = event.currentTarget.checked; setPikoDraft(old => old && ({ ...old, enabled: checked })); }} />
+        <Group justify="flex-end">
+          <Button variant="subtle" onClick={() => setPikoDraft(null)}>Cancel</Button>
+          <Button onClick={() => void savePiko()}>Save</Button>
+        </Group>
+      </Stack>
+    </AppModal>
 
     <AppModal opened={z21Draft !== null} onClose={() => setZ21Draft(null)} title="Z21 handheld configuration" centered size="lg">
       <Stack gap="md">
