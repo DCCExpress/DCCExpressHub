@@ -247,7 +247,7 @@ export default function ExternalDevicesPage({
     <AppModal opened={addTypeOpen} onClose={() => setAddTypeOpen(false)} title="Add external device" centered>
       <Stack>
         <Button variant="light" onClick={() => { startNew(); setZ21Draft(null); setAddTypeOpen(false); }}>DCCExpress S88 adapter</Button>
-        <Button variant="light" onClick={() => { setZ21Draft({ ...newZ21(), udpPort: [21105, ...z21Devices.map(x => x.udpPort)].reduce((port, used) => port === used ? port + 1 : port, 21105) }); setEditing(false); setMonitorId(null); setAddTypeOpen(false); }}>Z21 handheld controller (WLANMAUS)</Button>
+        <Button variant="light" onClick={() => { setZ21Draft({ ...newZ21(), udpPort: Array.from({ length: 100 }, (_, i) => 21105 + i).find(port => !z21Devices.some(x => x.udpPort === port)) ?? 21105 }); setEditing(false); setMonitorId(null); setAddTypeOpen(false); }}>Z21 handheld controller (WLANMAUS)</Button>
         <Text size="xs" c="dimmed">Multiple Z21 listeners require distinct UDP ports.</Text>
       </Stack>
     </AppModal>
