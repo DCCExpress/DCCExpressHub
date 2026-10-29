@@ -161,7 +161,7 @@ public sealed class MainPage : ContentPage
             Field("LocoNet sensor offset", _loconetOffset)));
         _config.Children.Add(Field("HUB HTTP port", _httpPort));
 #if WINDOWS
-        _config.Children.Add(WorkspaceField());
+        _config.Children.Add(Field("Workspace directory", _workspace));
 #endif
         _config.Children.Add(new HorizontalStackLayout
         {
