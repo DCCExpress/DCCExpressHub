@@ -4,3 +4,7 @@ sdkconfig.old
 sdkconfig.*
 !sdkconfig.defaults
 analysis/
+# Factory flash backups can contain credentials and pairing data; never publish.
+*.bin
+*.zip
+*.tar
