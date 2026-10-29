@@ -13,21 +13,46 @@ public sealed class Z21HandheldServer : BackgroundService
     readonly ILogger<Z21HandheldServer> _log;
     readonly WsHub _ws;
     readonly object _gate = new();
-    int _port = 21105;
-    bool _enabled;
-    int _clients;
-    string _state = "Disabled";
+    sealed class ListenerState
+    {
+        public required int Port { get; init; }
+        public string State { get; set; } = "Starting";
+        public int Clients { get; set; }
+        public CancellationTokenSource? Cancellation { get; set; }
+        public Task? Task { get; set; }
+    }
+    readonly Dictionary<int, ListenerState> _listeners = new();
+
     public Z21HandheldServer(ILogger<Z21HandheldServer> log, WsHub ws) { _log = log; _ws = ws; }
 
     public object Status()
     {
-        lock (_gate) return new { enabled = _enabled, port = _port, clients = _clients, state = _state };
+        lock (_gate) return new
+        {
+            enabled = _listeners.Count > 0,
+            port = _listeners.Keys.FirstOrDefault(),
+            clients = _listeners.Values.Sum(x => x.Clients),
+            state = _listeners.Count == 0 ? "Disabled" : string.Join(", ", _listeners.Values.Select(x => x.State)),
+            listeners = _listeners.Values.Select(x => new
+            {
+                port = x.Port, enabled = true, clients = x.Clients, state = x.State
+            }).ToArray()
+        };
     }
 
     public void Configure(bool enabled, int port)
     {
         if (port is < 1 or > 65535) throw new ArgumentOutOfRangeException(nameof(port));
-        lock (_gate) { _enabled = enabled; _port = port; _state = enabled ? "Starting" : "Disabled"; }
+        lock (_gate)
+        {
+            if (enabled)
+            {
+                if (!_listeners.ContainsKey(port))
+                    _listeners[port] = new ListenerState { Port = port };
+            }
+            else if (_listeners.Remove(port, out var listener))
+                listener.Cancellation?.Cancel();
+        }
     }
 
     static bool CheckXor(byte[] frame)
@@ -39,20 +64,50 @@ public sealed class Z21HandheldServer : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        try
+        {
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                lock (_gate)
+                {
+                    foreach (var listener in _listeners.Values)
+                    {
+                        if (listener.Task is not null) continue;
+                        listener.Cancellation = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+                        listener.Task = ListenAsync(listener, listener.Cancellation.Token);
+                    }
+                }
+                await Task.Delay(500, stoppingToken);
+            }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
+        finally
+        {
+            Task[] running;
+            lock (_gate)
+            {
+                foreach (var item in _listeners.Values) item.Cancellation?.Cancel();
+                running = _listeners.Values.Select(x => x.Task).OfType<Task>().ToArray();
+            }
+            try { await Task.WhenAll(running); }
+            catch (OperationCanceledException) { }
+        }
+    }
+
+    private async Task ListenAsync(ListenerState listener, CancellationToken stoppingToken)
+    {
+        int port = listener.Port;
         while (!stoppingToken.IsCancellationRequested)
         {
-            bool enabled; int port;
-            lock (_gate) { enabled = _enabled; port = _port; }
-            if (!enabled) { await Task.Delay(500, stoppingToken); continue; }
             try
             {
                 using var udp = new UdpClient(new IPEndPoint(IPAddress.Any, port));
-                lock (_gate) _state = "Listening";
+                lock (_gate) listener.State = "Listening";
                 _log.LogInformation("Z21 handheld UDP listener active on {Port}", port);
                 var clients = new HashSet<IPEndPoint>();
                 while (!stoppingToken.IsCancellationRequested)
                 {
-                    lock (_gate) { if (!_enabled || _port != port) break; }
+
                     using var shortWait = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
                     shortWait.CancelAfter(500);
                     UdpReceiveResult packet;
@@ -63,7 +118,7 @@ public sealed class Z21HandheldServer : BackgroundService
                     if (data.Length < 4 || BinaryPrimitives.ReadUInt16LittleEndian(data) != data.Length)
                         continue;
                     clients.Add(packet.RemoteEndPoint);
-                    lock (_gate) _clients = clients.Count;
+                    lock (_gate) listener.Clients = clients.Count;
                     var header = BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(2));
                     byte[]? reply = header switch
                     {
@@ -147,7 +202,7 @@ public sealed class Z21HandheldServer : BackgroundService
                                 ok ? "Z21 command applied" : "Z21 command rejected");
                         }
                     }
-                    if (header == 0x0030) { clients.Remove(packet.RemoteEndPoint); lock (_gate) _clients = clients.Count; }
+                    if (header == 0x0030) { clients.Remove(packet.RemoteEndPoint); lock (_gate) listener.Clients = clients.Count; }
                     if (reply is not null)
                     {
                         await udp.SendAsync(reply, packet.RemoteEndPoint, stoppingToken);
@@ -159,10 +214,10 @@ public sealed class Z21HandheldServer : BackgroundService
             catch (Exception ex)
             {
                 _log.LogWarning(ex, "Z21 handheld listener unavailable");
-                lock (_gate) _state = "Error: " + ex.Message;
+                lock (_gate) listener.State = "Error: " + ex.Message;
                 await Task.Delay(2000, stoppingToken);
             }
-            finally { lock (_gate) _clients = 0; }
+            finally { lock (_gate) listener.Clients = 0; }
         }
     }
 }
