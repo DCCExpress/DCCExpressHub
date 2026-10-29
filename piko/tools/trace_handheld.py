@@ -70,7 +70,7 @@ def partition_entries(flash):
                 entries = []
                 break
             entries.append(dict(
-                name=label.split(b"\\x00", 1)[0].decode("ascii", "replace"),
+                name=label.split(b"\x00", 1)[0].decode("ascii", "replace"),
                 kind=kind, subtype=subtype, off=offset, size=size))
         if len(entries) > len(best) and any(e["kind"] == 0 for e in entries):
             best, best_offset = entries, base
