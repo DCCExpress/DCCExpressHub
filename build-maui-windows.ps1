@@ -78,7 +78,12 @@ if ($Publish) {
   $launcher = Join-Path $packageRoot "Start DCCExpressHub.cmd"
   $launcherText = @(
     "@echo off",
-    'start "" /D "%~dp0app" "%~dp0app\app\DCCExpressHub.App.exe" %*'
+    'if not exist "%~dp0app\DCCExpressHub.App.exe" (',
+    '  echo ERROR: Missing app\DCCExpressHub.App.exe',
+    '  pause',
+    '  exit /b 1',
+    ')',
+    'start "" /D "%~dp0app" "%~dp0app\DCCExpressHub.App.exe" %*'
   ) -join "`r`n"
   [System.IO.File]::WriteAllText(
     $launcher, $launcherText + "`r`n",
