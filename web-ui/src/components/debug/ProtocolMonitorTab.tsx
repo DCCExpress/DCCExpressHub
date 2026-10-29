@@ -71,7 +71,7 @@ export default function ProtocolMonitorTab({ opened }: { opened: boolean }) {
 
       if (type === "z21Packet") {
         source = "Z21 WLAN";
-        kind = payload.direction === "RX" ? "RX" : "TX";
+        kind = payload.direction === "RX" ? "RX" : payload.direction === "SYS" ? "SYS" : "TX";
         detail = `${kind} ${String(payload.remote ?? "")} · ${String(payload.detail ?? "")}`;
         raw = String(payload.raw ?? "");
       } else if (type === "rawInfo") {
