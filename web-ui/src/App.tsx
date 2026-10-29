@@ -57,6 +57,7 @@ import LocoDialog from "@/components/LocoDialog";
 import DebugDialog from "@/components/debug/DebugDialog";
 import CommandCenterSettingsDialog from "@/components/CommandCenterSettingsDialog";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
+import ExternalDeviceStatusStrip from "@/components/ExternalDeviceStatusStrip";
 import LocoPanel from "@/layout/LocoPanel";
 import { getDefaultWsUrl } from "@/services/defaultWsUrl";
 import { wsApi } from "@/services/wsApi";
@@ -300,6 +301,7 @@ function HomePage({
           <Group justify="flex-end" align="center" gap="sm" wrap="wrap">
             <LanguageSwitcher />
           </Group>
+          <ExternalDeviceStatusStrip />
         </Stack>
       </Card>
 
