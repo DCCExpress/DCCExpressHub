@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 
 type Adapter = { id: string; name: string; enabled: boolean };
 type AdapterStatus = { id: string; connected: boolean; message?: string };
-type Z21Draft = { id: string; name: string; enabled: boolean };
+type Z21Draft = { id: string; name: string; enabled: boolean; udpPort: number };
+type Z21Status = { enabled: boolean; port: number; clients: number; state: string };
 
 const Z21_KEY = "dccexpress.external-devices.z21.v1";
 
@@ -22,6 +23,7 @@ export default function ExternalDeviceStatusStrip() {
   const [statuses, setStatuses] = useState<AdapterStatus[]>([]);
   const [handhelds, setHandhelds] = useState<Z21Draft[]>(loadHandhelds);
   const [available, setAvailable] = useState(true);
+  const [z21Status, setZ21Status] = useState<Z21Status | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -41,6 +43,12 @@ export default function ExternalDeviceStatusStrip() {
         if (active) setAvailable(false);
       }
       if (active) setHandhelds(loadHandhelds());
+      try {
+        const response = await fetch("/api/z21-handheld/status", { cache: "no-store" });
+        if (!response.ok) throw new Error("Z21 unavailable");
+        const data = await response.json() as { ok: boolean; status: Z21Status };
+        if (active) setZ21Status(data.ok ? data.status : null);
+      } catch { if (active) setZ21Status(null); }
     };
     void refresh();
     const timer = window.setInterval(() => void refresh(), 4000);
@@ -59,7 +67,9 @@ export default function ExternalDeviceStatusStrip() {
       return <li key={device.id} title={state?.message ?? ""}>{device.name} · <Text span c={online ? "teal" : "dimmed"}>{online ? "Online" : available ? "Offline" : "Unknown"}</Text></li>;
     })}
     {enabledHandhelds.map(device =>
-      <li key={device.id}>{device.name} · <Text span c="dimmed">Not connected</Text></li>
+      <li key={device.id}>{device.name} · <Text span c={z21Status?.enabled && z21Status.clients > 0 ? "teal" : "dimmed"}>
+        {z21Status?.enabled && z21Status.clients > 0 ? "Client detected" : z21Status?.enabled ? z21Status.state : "Offline"}
+      </Text></li>
     )}
   </ul>;
 }
