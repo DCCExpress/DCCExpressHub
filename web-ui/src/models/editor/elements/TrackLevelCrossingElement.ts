@@ -342,7 +342,7 @@ export class TrackLevelCrossingElement extends TrackSignalElement {
     // so every crossing is synchronized and no runtime state is mutated
     // merely for animation.
     const blinkPhase =
-      Math.floor(Date.now() / 450) % 2 === 0;
+      Math.floor(Date.now() / 500) % 2 === 0;
 
     const leftRedActive =
       !open &&
