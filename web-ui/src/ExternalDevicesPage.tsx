@@ -239,7 +239,7 @@ export default function ExternalDevicesPage({
       <Stack>
         <Button variant="light" onClick={() => { startNew(); setZ21Draft(null); setAddTypeOpen(false); }}>DCCExpress S88 adapter</Button>
         <Button variant="light" disabled={z21Devices.length > 0} onClick={() => { if (z21Devices.length > 0) return; setZ21Draft(newZ21()); setEditing(false); setMonitorId(null); setAddTypeOpen(false); }}>Z21 handheld controller (WLANMAUS)</Button>
-        {z21Devices.length > 0 && <Text size="xs" c="dimmed">A Z21 server is already configured. Use Config to edit it.</Text>
+        {z21Devices.length > 0 && <Text size="xs" c="dimmed">A Z21 server is already configured. Use Config to edit it.</Text>}
       </Stack>
     </AppModal>
 
