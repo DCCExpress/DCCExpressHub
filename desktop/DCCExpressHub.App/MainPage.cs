@@ -33,6 +33,7 @@ public sealed class MainPage : ContentPage
     readonly Label _lanAddress = new() { TextColor = Color.FromArgb("#93C5FD"), FontSize = 13 };
     readonly WebView _browser = new() { IsVisible = false };
     readonly ScrollView _startup = new();
+    readonly VerticalStackLayout _config = new() { Spacing = 14 };
     readonly SemaphoreSlim _gate = new(1, 1);
     HubRuntime? _runtime;
 
@@ -55,6 +56,23 @@ public sealed class MainPage : ContentPage
             input
         }
     };
+
+    static Grid TwoColumns(View left, View right)
+    {
+        var grid = new Grid
+        {
+            ColumnSpacing = 14,
+            ColumnDefinitions =
+            {
+                new ColumnDefinition { Width = GridLength.Star },
+                new ColumnDefinition { Width = new GridLength(160) }
+            }
+        };
+        grid.Children.Add(left);
+        grid.Children.Add(right);
+        Grid.SetColumn(right, 1);
+        return grid;
+    }
 
     public MainPage()
     {
@@ -87,13 +105,14 @@ public sealed class MainPage : ContentPage
         _workspace.Text = _settings.WorkspaceDirectory;
         _lan.IsToggled = _settings.AllowLan;
 
-        _tcpFields.Children.Add(Field("Host / IP", _host));
-        _tcpFields.Children.Add(Field("Command center port", _port));
-        _serialFields.Children.Add(Field("Serial port", _serial));
-        _serialFields.Children.Add(Field("Baud rate", _baud));
+        _tcpFields.Children.Add(TwoColumns(
+            Field("Host / IP", _host), Field("Command center port", _port)));
+        _serialFields.Children.Add(TwoColumns(
+            Field("Serial port", _serial), Field("Baud rate", _baud)));
 
         _protocol.SelectedIndexChanged += (_, _) =>
         {
+            if (_protocol.SelectedIndex < 0) return;
             var option = Protocols[_protocol.SelectedIndex];
             // When switching transports update the default port, but preserve custom values on load.
             if (_settings.Protocol != option.Id) _port.Text = option.Port.ToString();
@@ -106,41 +125,91 @@ public sealed class MainPage : ContentPage
         _httpPort.TextChanged += (_, _) => RefreshLanAddress();
         RefreshLanAddress();
 
-        var config = new VerticalStackLayout
+        _start.HorizontalOptions = LayoutOptions.Start;
+        _start.MinimumWidthRequest = 154;
+        _start.HeightRequest = 42;
+        _start.BackgroundColor = Color.FromArgb("#0369A1");
+        _browser.BackgroundColor = Color.FromArgb("#111827");
+
+        // WPF-inspired desktop layout: centered, capped form instead of
+        // full-window text entries; the same layout can shrink on tablets.
+        _config.Children.Add(new Label
         {
-            Padding = new Thickness(22, 26),
-            Spacing = 16,
+            Text = "DCCEXPRESSHUB",
+            TextColor = Color.FromArgb("#F8FAFC"),
+            FontAttributes = FontAttributes.Bold,
+            FontSize = 26
+        });
+        _config.Children.Add(new Label
+        {
+            Text = "Command center and HUB startup",
+            TextColor = Color.FromArgb("#94A3B8"),
+            FontSize = 13
+        });
+        _config.Children.Add(new BoxView
+        {
+            HeightRequest = 1,
+            Color = Color.FromArgb("#334155"),
+            Margin = new Thickness(0, 7)
+        });
+        _config.Children.Add(_status);
+        _config.Children.Add(Field("Connection protocol", _protocol));
+        _config.Children.Add(_tcpFields);
+        _config.Children.Add(_serialFields);
+        _config.Children.Add(TwoColumns(
+            Field("R-BUS sensor offset", _rbus),
+            Field("LocoNet sensor offset", _loconetOffset)));
+        _config.Children.Add(Field("HUB HTTP port", _httpPort));
+#if WINDOWS
+        _config.Children.Add(Field("Workspace directory", _workspace));
+#endif
+        _config.Children.Add(new HorizontalStackLayout
+        {
+            Spacing = 12,
             Children =
             {
-                Field("Connection protocol", _protocol),
-                _tcpFields,
-                _serialFields,
-                Field("R-BUS sensor offset", _rbus),
-                Field("LocoNet sensor offset", _loconetOffset),
-                Field("HUB HTTP port", _httpPort),
-#if WINDOWS
-                Field("Workspace directory", _workspace),
-#endif
-                new HorizontalStackLayout { Spacing = 12, Children =
+                new Label
                 {
-                    new Label { Text = "Allow other devices on LAN", TextColor = Colors.White,
-                        VerticalTextAlignment = TextAlignment.Center }, _lan
-                }},
-#if ANDROID
-                new Label { Text = "Android USB serial needs a native transport adapter. Use TCP/UDP command stations.",
-                    TextColor = Color.FromArgb("#FBBF24"), FontSize = 12 },
-#endif
-                _lanAddress,
-                _start
+                    Text = "Allow other devices on LAN",
+                    TextColor = Colors.White,
+                    VerticalTextAlignment = TextAlignment.Center
+                },
+                _lan
             }
+        });
+#if ANDROID
+        _config.Children.Add(new Label
+        {
+            Text = "Android USB serial needs a native transport adapter. Use TCP/UDP command stations.",
+            TextColor = Color.FromArgb("#FBBF24"),
+            FontSize = 12
+        });
+#endif
+        _config.Children.Add(_lanAddress);
+        _config.Children.Add(_start);
+
+        var panel = new Border
+        {
+            BackgroundColor = Color.FromArgb("#172033"),
+            Stroke = new SolidColorBrush(Color.FromArgb("#334155")),
+            StrokeThickness = 1,
+            Padding = new Thickness(24),
+            Content = _config
         };
-        _startup.Content = config;
+        // MaximumWidthRequest keeps the form comfortable at desktop sizes;
+        // a single scrollable view can narrow it for tablet/mobile widths.
+        panel.MaximumWidthRequest = 640;
+        panel.HorizontalOptions = LayoutOptions.Fill;
+        var centered = new VerticalStackLayout
+        {
+            Padding = new Thickness(18, 28),
+            Children = { panel }
+        };
+        _startup.Content = centered;
 
         var page = new Grid();
         page.Children.Add(_startup);
         page.Children.Add(_browser);
-        _startup.Content = config;
-        config.Children.Insert(0, _status);
         _browser.IsVisible = false;
         Content = page;
     }
