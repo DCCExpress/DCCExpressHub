@@ -9,7 +9,6 @@ or writes to the input firmware. Addresses below came from the factory image
 L32R reports, NOT a guessed pin map.
 """
 import argparse
-from bisect import bisect_left
 from pathlib import Path
 import re
 import sys
@@ -88,31 +87,36 @@ def main():
     objdump = find_objdump(args.objdump)
     with tempfile.TemporaryDirectory(prefix="piko-peripherals-") as tmp:
         segments = segments_of(image)
-        for seg in segments:
-            selected = [(name, addr) for name, addr in targets
-                        if seg["addr"] <= addr < seg["addr"] + seg["length"]]
-            if not selected:
+        for name, addr in targets:
+            seg = next((s for s in segments
+                        if s["addr"] <= addr < s["addr"] + s["length"]), None)
+            if seg is None:
+                report.append("UNRESOLVED %s @ 0x%08X (no image segment)" % (name, addr))
                 continue
-            listing = disassemble(objdump, seg, Path(tmp))
-            index = []
-            positions = []
-            for i, line in enumerate(listing):
-                matched = ADDRESS.match(line)
-                if matched:
-                    positions.append(int(matched.group(1), 16))
-                    index.append(i)
-            for name, addr in selected:
-                pos = bisect_left(positions, addr)
-                if pos >= len(positions) or positions[pos] != addr:
-                    report.append("UNRESOLVED %s @ 0x%08X (disassembler alignment)" % (name, addr))
-                    continue
-                lines = listing[index[pos]:index[pos] + args.lines]
-                report.append("\n===== %s @ 0x%08X =====" % (name, addr))
-                report.extend(lines)
-                calls = sorted(set(int(x, 16)
-                    for line in lines for x in CALL.findall(line)))
-                report.append("CALL TARGETS (verify call sites): " +
-                              ", ".join("0x%08X" % c for c in calls))
+            # Important: raw objdump may lose Xtensa instruction alignment
+            # when decoding the entire IROM from its literal pool. Rebase
+            # at the KNOWN function entry and disassemble from that byte.
+            relative = addr - seg["addr"]
+            tail = seg["data"][relative:relative + 0x3000]
+            rebased = dict(seg)
+            rebased["number"] = "%s_%08X" % (name, addr)
+            rebased["addr"] = addr
+            rebased["data"] = tail
+            listing = disassemble(objdump, rebased, Path(tmp))
+            matching = [i for i, line in enumerate(listing)
+                        if ADDRESS.match(line) and
+                        int(ADDRESS.match(line).group(1), 16) == addr]
+            if not matching:
+                report.append("UNRESOLVED %s @ 0x%08X (objdump did not decode entry)" %
+                              (name, addr))
+                continue
+            lines = listing[matching[0]:matching[0] + args.lines]
+            report.append("\\n===== %s @ 0x%08X =====" % (name, addr))
+            report.extend(lines)
+            calls = sorted(set(int(x, 16)
+                for line in lines for x in CALL.findall(line)))
+            report.append("CALL TARGETS (verify call sites): " +
+                          ", ".join("0x%08X" % c for c in calls))
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text("\n".join(report) + "\n", encoding="utf-8")
     print("Written:", args.out)
