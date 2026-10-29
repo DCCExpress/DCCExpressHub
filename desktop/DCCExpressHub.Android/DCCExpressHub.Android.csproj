@@ -8,8 +8,8 @@
     <Nullable>enable</Nullable>
     <ApplicationTitle>DCCExpress HUB</ApplicationTitle>
     <ApplicationId>hu.dccexpress.hub</ApplicationId>
-    <ApplicationVersion>1</ApplicationVersion>
-    <ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
+    <ApplicationVersion>9</ApplicationVersion>
+    <ApplicationDisplayVersion>0.1.0-alpha.9</ApplicationDisplayVersion>
     <SupportedOSPlatformVersion>26.0</SupportedOSPlatformVersion>
   </PropertyGroup>
   <ItemGroup>
