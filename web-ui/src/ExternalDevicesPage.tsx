@@ -325,7 +325,7 @@ export default function ExternalDevicesPage({
           <Button variant="light" size="xs" disabled={busy} onClick={() => { setMonitorId(draft.id); setEditing(false); }}>Monitor</Button>
           <Button variant="light" size="xs" disabled={busy || !draft.enabled} onClick={() => void test(draft.id)}>Test</Button>
           <Button variant="light" size="xs" disabled={busy} onClick={() => void setEnabled(draft, !draft.enabled)}>{draft.enabled ? "Stop" : "Start"}</Button>
-        </Group>
+        </Group>}
         <Select
           label="Device"
           data={[{ value: "dcc-express-s88-adapter", label: "DCCExpressS88Adapter" }]}
