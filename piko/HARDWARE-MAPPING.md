@@ -35,3 +35,48 @@ flash backup, security configuration and restore process.
 | Keypad | Unknown (direct or expander) | Unknown | No |
 | Battery / charging | Unknown | Unknown | No |
 | USB console | UART0 likely (verify) | Unknown | No |
+
+
+## Factory handheld firmware inspection (2025-12-11 release)
+
+Source analyzed offline: `2025-12-11_Update_PSCW_1_3_0_0.zip`,
+`Firmware-Handheld.bin` (1,354,752 bytes).
+ESP32 application image metadata: project `Firmware-Handheld`,
+version `1.3.0.0`, compiled Dec 11 2025, ESP-IDF `v5.4.2-dirty`.
+This is distinct from the older 1.0.3.0 application boot log observed on
+the device. **Do not flash this vendor image based solely on this analysis.**
+
+Firmware string references (file offsets, hexadecimal):
+| Offset | Firmware string | Implication |
+|---|---|---|
+| 0x601c | `./main/src/keypad.c` | Dedicated keypad module |
+| 0x6060 | `INTERRUPT KEYPAD` | Keypad interrupt path |
+| 0x6074 | `TIMEOUT KEYPAD` | Keypad timeout path |
+| 0x62d4 | `RotaryTask` | Rotary FreeRTOS task |
+| 0x63dc | `RotaryKnob` | Rotary-related code |
+| 0x643c | `RotaryEncoder` | Rotary encoder-related code |
+| 0x7260 | `LCD-Task` | LCD task |
+| 0x7271 | `LCD first DAh respond is %x` | LCD response / identification path |
+| 0x72a5 | `after reset LCD first DAh respond is %x` | LCD reset/retry check |
+| 0xde09 | `Failed to spi_bus_initialize` | SPI peripheral initialization path |
+| 0x1cf90 | `INTERRUPT_KEYPAD` | Keypad-related identifier |
+| 0x1cfa4 | `keypad_BackLight_init` | Keypad backlight init identifier |
+
+**Not yet established:** which GPIOs connect to 74HC595 SER/SRCLK/RCLK,
+keyboard return lines, rotary A/B or LCD SPI/control lines; also no
+confirmed LCD controller ID. Strings are evidence of module existence,
+**not a pin map**. In particular, the 0xDA LCD read command is used by
+multiple display controllers and does not identify one uniquely.
+
+### Next reverse-engineering steps
+- Load the extracted ESP32 application image into Ghidra with an Xtensa
+  processor extension / appropriate ESP32 loader.
+- Find references to `./main/src/keypad.c`,
+  `INTERRUPT KEYPAD`, `RotaryEncoder`, `LCD-Task`.
+- Identify callers of `gpio_config`/`gpio_set_direction`,
+  `gpio_set_level`, `gpio_isr_handler_add` and
+  `spi_bus_initialize`; extract actual pin constants at call sites.
+- Cross-check all recovered GPIOs against board routing before allowing
+  any output drive.
+- Keep the firmware's SPIFFS dependency in mind; the current minimal
+  experimental partition table has no SPIFFS partition.
