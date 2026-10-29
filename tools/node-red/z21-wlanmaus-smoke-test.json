@@ -310,5 +310,45 @@
         "dccex0000000005"
       ]
     ]
+  },
+  {
+    "id": "dccexinfo00000001",
+    "type": "inject",
+    "z": "dccex0000000001",
+    "name": "Get loco #10 info",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "payload": "[9,0,64,0,227,240,0,10,25]",
+    "payloadType": "json",
+    "x": 210,
+    "y": 750,
+    "wires": [
+      [
+        "dccex0000000005"
+      ]
+    ]
+  },
+  {
+    "id": "dccexinfo00000002",
+    "type": "inject",
+    "z": "dccex0000000001",
+    "name": "Get turnout #25 info",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "payload": "[8,0,64,0,67,0,24,91]",
+    "payloadType": "json",
+    "x": 210,
+    "y": 802,
+    "wires": [
+      [
+        "dccex0000000005"
+      ]
+    ]
   }
 ]
