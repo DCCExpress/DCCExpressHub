@@ -39,7 +39,12 @@ export default function ProtocolMonitorTab({ opened }: { opened: boolean }) {
       let detail = "";
       let raw = "";
 
-      if (type === "rawInfo") {
+      if (type === "z21Packet") {
+        source = "Z21 WLAN";
+        kind = payload.direction === "RX" ? "RX" : "TX";
+        detail = `${kind} ${String(payload.remote ?? "")} · ${String(payload.detail ?? "")}`;
+        raw = String(payload.raw ?? "");
+      } else if (type === "rawInfo") {
         const value = typeof payload.raw === "string" ? payload.raw : "";
         if (!value) return;
         source = /loconet/i.test(value) ? "LocoNet" : "Command center";
@@ -98,7 +103,7 @@ export default function ProtocolMonitorTab({ opened }: { opened: boolean }) {
   return <Stack h="100%" gap="xs" style={{ minHeight: 0 }}>
     <Group gap="xs" wrap="wrap">
       <Select w={155} size="xs" aria-label="Source" value={sourceFilter} onChange={value => setSourceFilter(value ?? "all")}
-        data={[{ value: "all", label: "All sources" }, ...["LocoNet", "Command center", "Hub sensor", "Hub"].map(value => ({ value, label: value }))]} />
+        data={[{ value: "all", label: "All sources" }, ...["LocoNet", "Z21 WLAN", "Command center", "Hub sensor", "Hub"].map(value => ({ value, label: value }))]} />
       <Select w={155} size="xs" aria-label="Message type" value={kind} onChange={value => setKind(value ?? "all")}
         data={[{ value: "all", label: "All events" }, ...["Raw", "Sensor", "Snapshot", "Turnout", "Locomotive", "Power"].map(value => ({ value, label: value }))]} />
       <TextInput size="xs" style={{ flex: 1, minWidth: 120 }} placeholder="Search address, event or HEX…" value={query} onChange={event => setQuery(event.currentTarget.value)} />
