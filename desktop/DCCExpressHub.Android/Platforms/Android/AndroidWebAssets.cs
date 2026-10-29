@@ -1,18 +1,10 @@
-namespace DCCExpressHub.App;
+namespace DCCExpressHub.Android;
 
 /// <summary>Copies the Vite-built wwwroot assets from the APK into the private app directory.</summary>
-internal static class WebAssets
+internal static class AndroidWebAssets
 {
-    public static async Task<string> PrepareAsync(string contentRoot, CancellationToken ct = default)
+    public static async Task ExtractAsync(string destination, CancellationToken ct = default)
     {
-#if WINDOWS
-        var outputRoot = Path.Combine(AppContext.BaseDirectory, "wwwroot");
-        if (!File.Exists(Path.Combine(outputRoot, "index.html")))
-            throw new InvalidOperationException("Web UI assets missing from MAUI Windows output. Run build-maui-windows.ps1 first.");
-        return outputRoot;
-#else
-        var destination = Path.Combine(contentRoot, "wwwroot");
-        Directory.CreateDirectory(destination);
         var assets = global::Android.App.Application.Context.Assets
             ?? throw new InvalidOperationException("Android AssetManager unavailable.");
         var index = assets.List("wwwroot");
@@ -22,11 +14,8 @@ internal static class WebAssets
         await CopyDirectory("wwwroot", destination, assets, ct);
         if (!File.Exists(Path.Combine(destination, "index.html")))
             throw new InvalidOperationException("wwwroot/index.html not found in the Android package.");
-        return destination;
-#endif
     }
 
-#if ANDROID
     private static async Task CopyDirectory(string source, string destination,
         global::Android.Content.Res.AssetManager assets, CancellationToken ct)
     {
@@ -47,5 +36,4 @@ internal static class WebAssets
             await input.CopyToAsync(output, ct);
         }
     }
-#endif
 }

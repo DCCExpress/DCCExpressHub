@@ -4,28 +4,20 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using Microsoft.Maui.Controls;
 
-namespace DCCExpressHub.App;
+namespace DCCExpressHub.Android;
 
 public sealed class MainPage : ContentPage
 {
-    readonly HubStartupSettings _settings = HubStartupSettings.Load();
+    readonly AndroidStartupSettings _settings = AndroidStartupSettings.Load();
     readonly Picker _protocol = new() { Title = "Command center" };
     readonly Entry _host = new() { Placeholder = "IP address or hostname" };
     readonly Entry _port = new() { Keyboard = Keyboard.Numeric };
-    readonly Entry _serial = new()
-    {
-#if ANDROID
-        Placeholder = "Serial device path (USB requires Android adapter)"
-#else
-        Placeholder = "COM port (e.g. COM3)"
-#endif
-    };
+    readonly Entry _serial = new() { Placeholder = "Serial device path (USB requires Android adapter)" };
     readonly Entry _baud = new() { Keyboard = Keyboard.Numeric };
     readonly Entry _rbus = new() { Keyboard = Keyboard.Numeric };
     readonly Entry _loconetOffset = new() { Keyboard = Keyboard.Numeric };
     readonly Entry _httpPort = new() { Keyboard = Keyboard.Numeric };
-    readonly Entry _workspace = new() { Placeholder = "Workspace directory" };
-    readonly Switch _lan = new() { OnColor = Color.FromArgb("#0284C7"), ThumbColor = Colors.White };
+    readonly Switch _lan = new();
     readonly VerticalStackLayout _tcpFields = new() { Spacing = 8 };
     readonly VerticalStackLayout _serialFields = new() { Spacing = 8 };
     readonly Label _status = new() { Text = "Ready to start", TextColor = Colors.LightGray };
@@ -33,7 +25,6 @@ public sealed class MainPage : ContentPage
     readonly Label _lanAddress = new() { TextColor = Color.FromArgb("#93C5FD"), FontSize = 13 };
     readonly WebView _browser = new() { IsVisible = false };
     readonly ScrollView _startup = new();
-    readonly VerticalStackLayout _config = new() { Spacing = 14 };
     readonly SemaphoreSlim _gate = new(1, 1);
     HubRuntime? _runtime;
 
@@ -57,23 +48,6 @@ public sealed class MainPage : ContentPage
         }
     };
 
-    static Grid TwoColumns(View left, View right)
-    {
-        var grid = new Grid
-        {
-            ColumnSpacing = 14,
-            ColumnDefinitions =
-            {
-                new ColumnDefinition { Width = GridLength.Star },
-                new ColumnDefinition { Width = new GridLength(160) }
-            }
-        };
-        grid.Children.Add(left);
-        grid.Children.Add(right);
-        Grid.SetColumn(right, 1);
-        return grid;
-    }
-
     public MainPage()
     {
         BackgroundColor = Color.FromArgb("#0F172A");
@@ -81,7 +55,7 @@ public sealed class MainPage : ContentPage
         // of the page background, making Picker/Entry/Button text unreadable.
         var inputBackground = Color.FromArgb("#1E293B");
         var foreground = Colors.White;
-        foreach (var entry in new[] { _host, _port, _serial, _baud, _rbus, _loconetOffset, _httpPort, _workspace })
+        foreach (var entry in new[] { _host, _port, _serial, _baud, _rbus, _loconetOffset, _httpPort })
         {
             entry.TextColor = foreground;
             entry.PlaceholderColor = Color.FromArgb("#94A3B8");
@@ -102,17 +76,15 @@ public sealed class MainPage : ContentPage
         _rbus.Text = _settings.RBusOffset.ToString();
         _loconetOffset.Text = _settings.LocoNetSensorOffset.ToString();
         _httpPort.Text = _settings.HttpPort.ToString();
-        _workspace.Text = _settings.WorkspaceDirectory;
         _lan.IsToggled = _settings.AllowLan;
 
-        _tcpFields.Children.Add(TwoColumns(
-            Field("Host / IP", _host), Field("Command center port", _port)));
-        _serialFields.Children.Add(TwoColumns(
-            Field("Serial port", _serial), Field("Baud rate", _baud)));
+        _tcpFields.Children.Add(Field("Host / IP", _host));
+        _tcpFields.Children.Add(Field("Command center port", _port));
+        _serialFields.Children.Add(Field("Serial port", _serial));
+        _serialFields.Children.Add(Field("Baud rate", _baud));
 
         _protocol.SelectedIndexChanged += (_, _) =>
         {
-            if (_protocol.SelectedIndex < 0) return;
             var option = Protocols[_protocol.SelectedIndex];
             // When switching transports update the default port, but preserve custom values on load.
             if (_settings.Protocol != option.Id) _port.Text = option.Port.ToString();
@@ -125,91 +97,36 @@ public sealed class MainPage : ContentPage
         _httpPort.TextChanged += (_, _) => RefreshLanAddress();
         RefreshLanAddress();
 
-        _start.HorizontalOptions = LayoutOptions.Start;
-        _start.MinimumWidthRequest = 154;
-        _start.HeightRequest = 42;
-        _start.BackgroundColor = Color.FromArgb("#0369A1");
-        _browser.BackgroundColor = Color.FromArgb("#111827");
-
-        // WPF-inspired desktop layout: centered, capped form instead of
-        // full-window text entries; the same layout can shrink on tablets.
-        _config.Children.Add(new Label
+        var config = new VerticalStackLayout
         {
-            Text = "DCCEXPRESSHUB",
-            TextColor = Color.FromArgb("#F8FAFC"),
-            FontAttributes = FontAttributes.Bold,
-            FontSize = 26
-        });
-        _config.Children.Add(new Label
-        {
-            Text = "Command center and HUB startup",
-            TextColor = Color.FromArgb("#94A3B8"),
-            FontSize = 13
-        });
-        _config.Children.Add(new BoxView
-        {
-            HeightRequest = 1,
-            Color = Color.FromArgb("#334155"),
-            Margin = new Thickness(0, 7)
-        });
-        _config.Children.Add(_status);
-        _config.Children.Add(Field("Connection protocol", _protocol));
-        _config.Children.Add(_tcpFields);
-        _config.Children.Add(_serialFields);
-        _config.Children.Add(TwoColumns(
-            Field("R-BUS sensor offset", _rbus),
-            Field("LocoNet sensor offset", _loconetOffset)));
-        _config.Children.Add(Field("HUB HTTP port", _httpPort));
-#if WINDOWS
-        _config.Children.Add(Field("Workspace directory", _workspace));
-#endif
-        _config.Children.Add(new HorizontalStackLayout
-        {
-            Spacing = 12,
+            Padding = new Thickness(22, 26),
+            Spacing = 16,
             Children =
             {
-                new Label
+                Field("Connection protocol", _protocol),
+                _tcpFields,
+                _serialFields,
+                Field("R-BUS sensor offset", _rbus),
+                Field("LocoNet sensor offset", _loconetOffset),
+                Field("HUB HTTP port", _httpPort),
+                new HorizontalStackLayout { Spacing = 12, Children =
                 {
-                    Text = "Allow other devices on LAN",
-                    TextColor = Colors.White,
-                    VerticalTextAlignment = TextAlignment.Center
-                },
-                _lan
+                    new Label { Text = "Allow other devices on LAN", TextColor = Colors.White,
+                        VerticalTextAlignment = TextAlignment.Center }, _lan
+                }},
+                new Label { Text = "Serial choices remain visible for compatibility, but Android USB serial access needs a native USB transport adapter.",
+                    TextColor = Color.FromArgb("#FBBF24"), FontSize = 12 },
+                _lanAddress,
+                _start
             }
-        });
-#if ANDROID
-        _config.Children.Add(new Label
-        {
-            Text = "Android USB serial needs a native transport adapter. Use TCP/UDP command stations.",
-            TextColor = Color.FromArgb("#FBBF24"),
-            FontSize = 12
-        });
-#endif
-        _config.Children.Add(_lanAddress);
-        _config.Children.Add(_start);
-
-        var panel = new Border
-        {
-            BackgroundColor = Color.FromArgb("#172033"),
-            Stroke = new SolidColorBrush(Color.FromArgb("#334155")),
-            StrokeThickness = 1,
-            Padding = new Thickness(24),
-            Content = _config
         };
-        // MaximumWidthRequest keeps the form comfortable at desktop sizes;
-        // a single scrollable view can narrow it for tablet/mobile widths.
-        panel.MaximumWidthRequest = 640;
-        panel.HorizontalOptions = LayoutOptions.Fill;
-        var centered = new VerticalStackLayout
-        {
-            Padding = new Thickness(18, 28),
-            Children = { panel }
-        };
-        _startup.Content = centered;
+        _startup.Content = config;
 
         var page = new Grid();
         page.Children.Add(_startup);
         page.Children.Add(_browser);
+        _startup.Content = config;
+        config.Children.Insert(0, _status);
         _browser.IsVisible = false;
         Content = page;
     }
@@ -292,10 +209,8 @@ public sealed class MainPage : ContentPage
         try
         {
             var protocol = Protocols[_protocol.SelectedIndex].Id;
-#if ANDROID
             if (protocol is "serial" or "loconet-serial")
                 throw new NotSupportedException("Android USB serial transport is not implemented yet. Select a TCP or UDP command center.");
-#endif
 
             _settings.Protocol = protocol;
             _settings.TcpHost = _host.Text?.Trim() ?? "";
@@ -308,26 +223,14 @@ public sealed class MainPage : ContentPage
             _settings.LocoNetSensorOffset = int.TryParse(_loconetOffset.Text, out var offset) ? Math.Clamp(offset, 0, 61439) : 0;
             _settings.HttpPort = ParsePort(_httpPort.Text, "HUB HTTP port");
             _settings.AllowLan = _lan.IsToggled;
-            var isSerial = protocol is "serial" or "loconet-serial";
-            if (isSerial && string.IsNullOrWhiteSpace(_settings.SerialPort))
-                throw new InvalidOperationException("Enter the serial port.");
-            if (!isSerial && string.IsNullOrWhiteSpace(_settings.TcpHost))
+            if (string.IsNullOrWhiteSpace(_settings.TcpHost))
                 throw new InvalidOperationException("Enter the command center IP address.");
-#if WINDOWS
-            if (string.IsNullOrWhiteSpace(_workspace.Text))
-                throw new InvalidOperationException("Enter a workspace directory.");
-            _settings.WorkspaceDirectory = Path.GetFullPath(
-                Environment.ExpandEnvironmentVariables(_workspace.Text.Trim()));
-#endif
             _settings.Save();
 
-#if WINDOWS
-            var root = _settings.WorkspaceDirectory;
-#else
             var root = Path.Combine(FileSystem.AppDataDirectory, "hub");
-#endif
-            Directory.CreateDirectory(root);
-            var webRoot = await WebAssets.PrepareAsync(root);
+            var webRoot = Path.Combine(root, "wwwroot");
+            Directory.CreateDirectory(webRoot);
+            await AndroidWebAssets.ExtractAsync(webRoot);
             var endpoint = $"http://127.0.0.1:{_settings.HttpPort}";
             Environment.SetEnvironmentVariable("DCCEXPRESS_CONTENT_ROOT", root);
             Environment.SetEnvironmentVariable("DCCEXPRESS_WEB_ROOT", webRoot);
@@ -348,17 +251,11 @@ public sealed class MainPage : ContentPage
             Environment.SetEnvironmentVariable("LocoNet__SerialPort", _settings.SerialPort);
             Environment.SetEnvironmentVariable("LocoNet__SerialBaudRate", _settings.SerialBaudRate.ToString());
             Environment.SetEnvironmentVariable("LocoNet__LbServerFeedback", "false");
-            Environment.SetEnvironmentVariable("LocoNet__SerialFeedback", (protocol == "loconet-serial").ToString());
-            Environment.SetEnvironmentVariable("LocoNet__BinaryFeedback", "false");
 
             _runtime = new HubRuntime();
             await _runtime.StartAsync();
             _status.Text = "HUB running · " + endpoint;
-#if ANDROID
             _browser.Source = new UrlWebViewSource { Url = endpoint + "/#tablet" };
-#else
-            _browser.Source = new UrlWebViewSource { Url = endpoint + "/" };
-#endif
             _startup.IsVisible = false;
             _browser.IsVisible = true;
         }
@@ -374,8 +271,6 @@ public sealed class MainPage : ContentPage
         }
         finally { _gate.Release(); }
     }
-
-    public Task ShutdownAsync() => StopHubAsync();
 
     async Task StopHubAsync()
     {

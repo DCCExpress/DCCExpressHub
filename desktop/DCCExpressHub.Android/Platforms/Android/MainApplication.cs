@@ -2,7 +2,7 @@ using Android.App;
 using Android.Runtime;
 using Microsoft.Maui;
 
-namespace DCCExpressHub.App;
+namespace DCCExpressHub.Android;
 
 [Application]
 public sealed class MainApplication : MauiApplication

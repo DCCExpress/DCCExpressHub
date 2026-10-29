@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace DCCExpressHub.App;
+namespace DCCExpressHub.Android;
 
 public static class MauiProgram
 {
