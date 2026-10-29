@@ -144,3 +144,23 @@ are inputs, which are outputs; rotary A/B; LCD SPI pins/controller.
 34 is input-only on the original ESP32; the other pins may be actively
 driven by the original keypad circuit. Extract and analyze the called
 functions above before implementing the keypad driver.
+
+
+### Recovered task/callback entry addresses (ota_1, version 1.3.0.0)
+
+The adjacent 32-bit literal addresses in the `ota1_xrefs.txt` report
+identify the task/callback entries passed to ESP-IDF task/timer creation:
+
+| Code path | Code address |
+|---|---|
+| Six-argument keypad setup | `0x400E3780` |
+| ReadKeysTask | `0x400E3004` |
+| Keypad interrupt handler task | `0x400E2DA0` |
+| Keypad timeout callback | `0x400E3704` |
+| STOP key callback | `0x400E351C` |
+| RotaryTask | `0x400E4D60` |
+| LCD task | `0x40105B60` |
+
+The `piko/tools/trace_peripherals.py` script generates longer
+disassembly windows at these locations from the offline flash backup;
+do not infer LCD or 74HC595 pins from the task names alone.
