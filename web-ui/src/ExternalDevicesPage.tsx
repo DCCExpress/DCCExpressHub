@@ -5,6 +5,7 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { S88SensorIndicator } from "./components/S88SensorIndicator";
 import AppModal from "./components/common/AppModal";
+import { useGamepad } from "./context/GamepadContext";
 
 type ExternalDevice = {
   id: string;
@@ -78,10 +79,13 @@ const newZ21 = (): Z21Device => ({
 export default function ExternalDevicesPage({
   onBack,
   onDiagnostics,
+  onGamepadConfig,
 }: {
   onBack: () => void;
   onDiagnostics: () => void;
+  onGamepadConfig: () => void;
 }) {
+  const { gamepads, selectedGamepadIndex } = useGamepad();
   const [devices, setDevices] = useState<ExternalDevice[]>([]);
   const [status, setStatus] = useState<DeviceStatus[]>([]);
   const [ports, setPorts] = useState<string[]>([]);
@@ -247,6 +251,7 @@ export default function ExternalDevicesPage({
     <AppModal opened={addTypeOpen} onClose={() => setAddTypeOpen(false)} title="Add external device" centered>
       <Stack>
         <Button variant="light" onClick={() => { startNew(); setZ21Draft(null); setAddTypeOpen(false); }}>DCCExpress S88 adapter</Button>
+        <Button variant="light" onClick={() => { setAddTypeOpen(false); onGamepadConfig(); }}>Gamepad (configure existing controller)</Button>
         <Button variant="light" onClick={() => { setZ21Draft({ ...newZ21(), udpPort: Array.from({ length: 100 }, (_, i) => 21105 + i).find(port => !z21Devices.some(x => x.udpPort === port)) ?? 21105 }); setEditing(false); setMonitorId(null); setAddTypeOpen(false); }}>Z21 handheld controller (WLANMAUS)</Button>
         <Text size="xs" c="dimmed">Multiple Z21 listeners require distinct UDP ports.</Text>
       </Stack>
@@ -289,9 +294,16 @@ export default function ExternalDevicesPage({
                 <Button size="xs" color="red" variant="subtle" onClick={() => void deleteZ21(device.id)}>Delete</Button>
               </Group></Table.Td>
             </Table.Tr>)}
-            {devices.length === 0 && z21Devices.length === 0 && <Table.Tr><Table.Td colSpan={5}>
-              <Text ta="center" c="dimmed" py="md">No external devices configured. Use Add device to get started.</Text>
-            </Table.Td></Table.Tr>}
+            <Table.Tr>
+              <Table.Td><Text fw={600}>{gamepads.find(x => x.index === selectedGamepadIndex)?.id ?? "Gamepad"}</Text></Table.Td>
+              <Table.Td>Gamepad</Table.Td>
+              <Table.Td>Browser Gamepad API · {gamepads.length} detected · {selectedGamepadIndex === null ? "None selected" : `Index ${selectedGamepadIndex}`}</Table.Td>
+              <Table.Td><Badge color={gamepads.some(x => x.index === selectedGamepadIndex) ? "teal" : "gray"}>
+                {gamepads.some(x => x.index === selectedGamepadIndex) ? "Connected" : "Disconnected"}
+              </Badge></Table.Td>
+              <Table.Td><Button size="xs" variant="light" onClick={onGamepadConfig}>Config</Button></Table.Td>
+            </Table.Tr>
+}
           </Table.Tbody>
         </Table>
       </Table.ScrollContainer>
