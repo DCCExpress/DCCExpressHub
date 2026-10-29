@@ -8,13 +8,20 @@
 #include "freertos/task.h"
 
 static const char *TAG = "piko_hw";
-/* No boot straps, flash bus or UART0. Never drive an unknown pin. */
+/*
+ * PIKO 1.3.0.0 factory firmware verified these INPUTS:
+ *   32/33/34 keypad inputs, 2/15 rotary A/B, 12 rotary switch candidate,
+ *   13 dedicated STOP input candidate.
+ *
+ * GPIO26/14/27 are OUTPUTS in the factory keypad driver and MUST NOT be
+ * reconfigured as generic inputs. The old all-input probe broke scanning.
+ *
+ * GPIO2/12/15 are ESP32 boot strapping pins. Read only after startup.
+ * Do not change their pulls or drive them.
+ */
 static const gpio_num_t pins[] = {
-    GPIO_NUM_13, GPIO_NUM_14, GPIO_NUM_16, GPIO_NUM_17,
-    GPIO_NUM_18, GPIO_NUM_19, GPIO_NUM_21, GPIO_NUM_22,
-    GPIO_NUM_23, GPIO_NUM_25, GPIO_NUM_26, GPIO_NUM_27,
-    GPIO_NUM_32, GPIO_NUM_33, GPIO_NUM_34, GPIO_NUM_35,
-    GPIO_NUM_36, GPIO_NUM_39
+    GPIO_NUM_2, GPIO_NUM_12, GPIO_NUM_13, GPIO_NUM_15,
+    GPIO_NUM_32, GPIO_NUM_33, GPIO_NUM_34
 };
 #define COUNT (sizeof(pins) / sizeof(pins[0]))
 
@@ -36,7 +43,7 @@ static void log_task(void *arg)
     uint32_t changes[COUNT] = {0};
     uint32_t shown[COUNT] = {0};
     uint32_t start = (uint32_t)(esp_timer_get_time() / 1000);
-    ESP_LOGW(TAG, "GPIO edge interrupts enabled on %u candidate inputs; no pulls or outputs",
+    ESP_LOGW(TAG, "Watching %u firmware-derived GPIO inputs (rotary 2/15, switch 12, STOP 13, keypad 32/33/34)",
              (unsigned)COUNT);
     for (;;) {
         edge_t e;
@@ -72,7 +79,7 @@ void hardware_probe_start(void)
     }
     for (unsigned i = 0; i < COUNT; ++i) {
         gpio_set_direction(pins[i], GPIO_MODE_INPUT);
-        gpio_set_pull_mode(pins[i], GPIO_FLOATING);
+        /* Do not alter the electrical pull state of the strapping pins. */
         gpio_set_intr_type(pins[i], GPIO_INTR_ANYEDGE);
         err = gpio_isr_handler_add(pins[i], edge_isr, (void *)(uintptr_t)i);
         if (err != ESP_OK)
