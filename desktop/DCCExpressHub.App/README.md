@@ -17,7 +17,9 @@ dotnet workload install maui-windows
 Then launch or debug `desktop/DCCExpressHub.App/DCCExpressHub.App.csproj`
 using **Windows Machine** and the `net10.0-windows10.0.19041.0` target.
 On Windows, the MAUI project defaults to the Windows target so an Android workload
-is **not** required for Windows builds or solution restore.
+is **not** required for Windows builds or solution restore. The Windows build
+script restores dependencies for both the Windows MAUI host and the net10.0
+shared runtime without overriding their target frameworks.
 
 The unpackaged Windows app opens the normal Layout Page and runs the full shared
 HUB in-process. Its default workspace is `%LOCALAPPDATA%\DCCExpressHub\workspace`
@@ -36,7 +38,7 @@ Requires .NET 10 Android/MAUI workload and Android SDK. On Windows, explicitly
 select the Android target to opt in to the Android workload:
 
 ```powershell
-dotnet build desktop/DCCExpressHub.App/DCCExpressHub.App.csproj -f net10.0-android -p:TargetFrameworks=net10.0-android
+dotnet build desktop/DCCExpressHub.App/DCCExpressHub.App.csproj -f net10.0-android -p:DCCExpressTarget=Android
 ```
 
 On non-Windows development hosts, Android remains the default target.

@@ -1,10 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <!-- Restore only the native platform available on this development host.
-         On Windows this avoids NETSDK1147 (Android workload) when building Windows MAUI.
-         To build Android on Windows, opt in explicitly:
-         dotnet build -f net10.0-android -p:TargetFrameworks=net10.0-android
-         (requires the Android workload). -->
+    <!-- Keep Windows restores independent of the Android workload.
+         For Android builds on Windows, use -p:DCCExpressTarget=Android.
+         Do NOT override TargetFrameworks on the command line: that global
+         property also propagates to the net10.0 shared runtime project. -->
+    <TargetFrameworks Condition="'$(TargetFrameworks)' == '' and '$(DCCExpressTarget)' == 'Android'">net10.0-android</TargetFrameworks>
     <TargetFrameworks Condition="'$(TargetFrameworks)' == '' and $([MSBuild]::IsOSPlatform('Windows'))">net10.0-windows10.0.19041.0</TargetFrameworks>
     <TargetFrameworks Condition="'$(TargetFrameworks)' == ''">net10.0-android</TargetFrameworks>
     <OutputType>Exe</OutputType>
@@ -24,7 +24,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../DCCExpressHub.Runtime/DCCExpressHub.Runtime.csproj" />
-    <PackageReference Include="Microsoft.Maui.Controls" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Maui.Controls" Version="10.0.20" />
     <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.12" />
     <MauiIcon Include="Resources/AppIcon/appicon.png" />
   </ItemGroup>
