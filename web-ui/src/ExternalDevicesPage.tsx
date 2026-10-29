@@ -1,6 +1,6 @@
 import {
   Alert, Badge, Button, Card, Group, NumberInput, Select, Stack,
-  Switch, Text, TextInput, Title, SimpleGrid, Divider, Table, Modal
+  Switch, Text, TextInput, Title, SimpleGrid, Table, Modal
 } from "@mantine/core";
 import { useCallback, useEffect, useState } from "react";
 import { S88SensorIndicator } from "./components/S88SensorIndicator";
