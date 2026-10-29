@@ -362,6 +362,40 @@ public sealed class WsHub
         };
     }
 
+    public byte[] GetZ21LocoInfo(int address)
+    {
+        var loco = HubState.Locos.GetValueOrDefault(address, new(address, 0, true, 0));
+        uint functions = loco.FunctionsMask;
+        byte first = (byte)((functions & 1) != 0 ? 0x10 : 0);
+        for (var fn = 1; fn <= 4; fn++)
+            if ((functions & (1u << fn)) != 0) first |= (byte)(1 << (fn - 1));
+        byte[] frame = [14, 0, 0x40, 0, 0xEF,
+            (byte)((address >> 8) | (address >= 128 ? 0xC0 : 0)),
+            (byte)address, 0x04,
+            (byte)((loco.Forward ? 0x80 : 0) | (loco.Speed == 0 ? 0 : Math.Min(127, loco.Speed + 1))),
+            first,
+            (byte)((functions >> 5) & 0xFF), (byte)((functions >> 13) & 0xFF),
+            (byte)((functions >> 21) & 0xFF), 0];
+        byte xor = 0;
+        for (var i = 4; i < frame.Length - 1; i++) xor ^= frame[i];
+        frame[^1] = xor;
+        return frame;
+    }
+
+    public byte[]? GetZ21TurnoutInfo(int address)
+    {
+        if (address is < 1 or > ushort.MaxValue ||
+            !LayoutRuntime.TryGetTurnoutClosed((ushort)address, out var closed))
+            return null;
+        var zeroBased = address - 1;
+        byte[] frame = [9, 0, 0x40, 0, 0x43, (byte)(zeroBased >> 8),
+            (byte)zeroBased, (byte)(closed ? 0x01 : 0x02), 0];
+        byte xor = 0;
+        for (var i = 4; i < frame.Length - 1; i++) xor ^= frame[i];
+        frame[^1] = xor;
+        return frame;
+    }
+
     // Shared command path for external Z21 throttles. Never bypass turnout locks.
     public async Task<bool> ApplyZ21LocoAsync(int address, int speed, bool forward, CancellationToken ct)
     {
