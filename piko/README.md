@@ -54,6 +54,16 @@ are PCB photos and factory firmware pin tracing, not random GPIO driving.
 
 ## Reverse-engineering the factory firmware (offline, no flashing)
 
+For your full 16 MB factory backup, run:
+
+```powershell
+python piko/tools/trace_handheld.py .\\piko\\PIKO-Handheld-Original-16MB.bin
+```
+
+The script reads the ESP-IDF partition table and selects a valid `factory` app by default (if present), otherwise the first valid app. For OTA images, use `--partition ota_0` or `--partition ota_1`. You can also specify `--app-offset 0x10000` if the partition table is missing. It never modifies the input.
+
+
+
 A confirmed `Firmware-Handheld.bin` image contains keypad, rotary
 and LCD string references but **not a known pin map**.
 
@@ -63,7 +73,7 @@ On Windows with PlatformIO installed, run:
 python piko/tools/trace_handheld.py "C:\\path\\to\\2025-12-11_Update_PSCW_1_3_0_0.zip"
 ```
 
-The script accepts the original PIKO update ZIP directly (or the extracted\nFirmware-Handheld.bin). It detects the PlatformIO Xtensa objdump, disassembles the ESP32 image
+The script accepts the original PIKO update ZIP, an extracted Firmware-Handheld.bin,\nor a complete 16 MB ESP32 flash dump. It detects the PlatformIO Xtensa objdump, disassembles the ESP32 image
 code segments, and writes candidate `l32r` callers to
 `piko/analysis/handheld_xrefs.txt`. Share the relevant report excerpts
 for further GPIO/SPI tracing. This is a heuristic: disassembly of raw
