@@ -67,4 +67,29 @@ if ($Publish) {
   & dotnet build $project -f $tfm -c $Configuration -p:WindowsPackageType=None
   Assert-Exit "MAUI Windows build"
 }
+# The SDK output must stay intact: WinUI/Windows App SDK loads native DLLs
+# from their expected deployment locations. Provide an easy launcher instead
+# of relocating runtime dependencies and breaking the application.
+$desktopBuildRoot = Join-Path $root "desktop/DCCExpressHub.App/bin"
+$exeRoot = if ($Publish) { Join-Path $root "dist/maui-win-x64" } else {
+  Join-Path $desktopBuildRoot $Configuration
+}
+$exe = Get-ChildItem $exeRoot -Filter "DCCExpressHub.App.exe" -File -Recurse |
+  Sort-Object LastWriteTimeUtc -Descending |
+  Select-Object -First 1
+if (-not $exe) { throw "MAUI Windows executable not found under: $exeRoot" }
+
+$launcherFolder = Join-Path $root "dist"
+New-Item $launcherFolder -ItemType Directory -Force | Out-Null
+$shortcutPath = Join-Path $launcherFolder "DCCExpressHub MAUI.lnk"
+$wsh = New-Object -ComObject WScript.Shell
+$shortcut = $wsh.CreateShortcut($shortcutPath)
+$shortcut.TargetPath = $exe.FullName
+$shortcut.WorkingDirectory = $exe.DirectoryName
+$shortcut.Description = "DCCExpressHub MAUI Windows"
+$shortcut.Save()
+
 Write-Host "MAUI Windows build successful" -ForegroundColor Green
+Write-Host "EXE      : $($exe.FullName)"
+Write-Host "Shortcut : $shortcutPath"
+Write-Host "Tip: Launch from the shortcut; do not move DLLs out of the build folder."
