@@ -8,10 +8,13 @@ Example:
     python piko/tools/trace_handheld.py C:\\path\\Firmware-Handheld.bin
 """
 import argparse
+import io
 from pathlib import Path
 import re
 import shutil
 import struct
+import tarfile
+import zipfile
 import subprocess
 import sys
 import tempfile
@@ -23,6 +26,27 @@ TARGETS = (
     b"LCD-Task", b"LCD first DAh respond",
     b"keypad_BackLight_init", b"Failed to spi_bus_initialize",
 )
+
+def read_factory_image(path):
+    """Accept extracted .bin, Firmware.tar, or the original PSCW update .zip."""
+    if zipfile.is_zipfile(path):
+        with zipfile.ZipFile(path) as zf:
+            tar_names = [n for n in zf.namelist() if n.endswith("/Firmware.tar") or n == "Firmware.tar"]
+            if not tar_names:
+                raise ValueError("Update ZIP does not include Firmware.tar")
+            archive = zf.read(tar_names[0])
+        with tarfile.open(fileobj=io.BytesIO(archive), mode="r:*") as tf:
+            entry = tf.extractfile("Firmware-Handheld.bin")
+            if entry is None:
+                raise ValueError("Firmware.tar lacks Firmware-Handheld.bin")
+            return entry.read()
+    if tarfile.is_tarfile(path):
+        with tarfile.open(path, "r:*") as tf:
+            entry = tf.extractfile("Firmware-Handheld.bin")
+            if entry is None:
+                raise ValueError("Archive lacks Firmware-Handheld.bin")
+            return entry.read()
+    return path.read_bytes()
 
 def segments_of(image):
     if len(image) < 24 or image[0] != 0xE9:
@@ -108,12 +132,12 @@ def disassemble(objdump, seg, folder):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("firmware", type=Path, help="Original Firmware-Handheld.bin")
+    p.add_argument("firmware", type=Path, help="Firmware-Handheld.bin or official PSCW update ZIP")
     p.add_argument("--objdump", help="Path to Xtensa objdump.exe (auto-detected by default)")
     p.add_argument("--out", type=Path,
                    default=Path("piko/analysis/handheld_xrefs.txt"))
     args = p.parse_args()
-    data = args.firmware.read_bytes()
+    data = read_factory_image(args.firmware)
     segments = segments_of(data)
     objdump = find_objdump(args.objdump)
     literals = find_literals(data, segments)
