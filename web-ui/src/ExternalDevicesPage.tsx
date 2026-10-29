@@ -1,6 +1,6 @@
 import {
   Alert, Badge, Button, Card, Group, NumberInput, Select, Stack,
-  Switch, Text, TextInput, Title, SimpleGrid, Divider
+  Switch, Text, TextInput, Title, SimpleGrid, Divider, Table, Modal
 } from "@mantine/core";
 import { useCallback, useEffect, useState } from "react";
 import { S88SensorIndicator } from "./components/S88SensorIndicator";
@@ -53,6 +53,21 @@ async function postForm(path: string, payload: Record<string, string>): Promise<
   return result;
 }
 
+type Z21Device = { id: string; name: string; enabled: boolean; udpPort: number };
+const Z21_KEY = "dccexpress.external-devices.z21.v1";
+function loadZ21(): Z21Device[] {
+  try {
+    const parsed: unknown = JSON.parse(window.localStorage.getItem(Z21_KEY) ?? "[]");
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((x): x is Z21Device => x && typeof x.id === "string" &&
+      typeof x.name === "string" && typeof x.enabled === "boolean" &&
+      Number.isInteger(x.udpPort) && x.udpPort > 0 && x.udpPort <= 65535);
+  } catch { return []; }
+}
+const newZ21 = (): Z21Device => ({
+  id: "z21-" + Date.now(), name: "ROCO WLANMAUS", enabled: false, udpPort: 21105,
+});
+
 export default function ExternalDevicesPage({
   onBack,
   onDiagnostics,
@@ -68,6 +83,29 @@ export default function ExternalDevicesPage({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [monitorId, setMonitorId] = useState<string | null>(null);
+  const [addTypeOpen, setAddTypeOpen] = useState(false);
+  const [z21Devices, setZ21Devices] = useState<Z21Device[]>(loadZ21);
+  const [z21Draft, setZ21Draft] = useState<Z21Device | null>(null);
+  const saveZ21 = () => {
+    if (!z21Draft || !z21Draft.name.trim() || !Number.isInteger(z21Draft.udpPort) ||
+        z21Draft.udpPort < 1 || z21Draft.udpPort > 65535) return;
+    const next = [...z21Devices.filter(x => x.id !== z21Draft.id), z21Draft];
+    try {
+      window.localStorage.setItem(Z21_KEY, JSON.stringify(next));
+      setZ21Devices(next);
+      setZ21Draft(null);
+      setMessage("Z21 settings saved in this browser only. Server support is not implemented yet.");
+    } catch (error) { setMessage("NOK: " + String(error)); }
+  };
+  const deleteZ21 = (id: string) => {
+    if (!window.confirm("Delete this Z21 handheld configuration?")) return;
+    const next = z21Devices.filter(x => x.id !== id);
+    try {
+      window.localStorage.setItem(Z21_KEY, JSON.stringify(next));
+      setZ21Devices(next);
+      if (z21Draft?.id === id) setZ21Draft(null);
+    } catch (error) { setMessage("NOK: " + String(error)); }
+  };
 
   const refresh = useCallback(async () => {
     const response = await fetch("/api/external-devices", { cache: "no-store" });
@@ -166,91 +204,79 @@ export default function ExternalDevicesPage({
       </div>
       <Group>
         <Button variant="light" onClick={() => { void refreshPorts().catch(e => setMessage(String(e))); }}>Refresh ports</Button>
-        <Button variant="light" onClick={startNew}>Add device</Button>
+        <Button variant="light" onClick={() => setAddTypeOpen(true)}>Add device</Button>
         <Button variant="subtle" onClick={onBack}>Back to Home</Button>
       </Group>
     </Group>
 
-    <Card withBorder radius="md" p="md">
-      <Stack gap="sm">
-        <Group justify="space-between">
-          <div>
-            <Title order={4}>Z21 Handheld Controller</Title>
-            <Text size="sm" c="dimmed">ROCO WLANMAUS · Z21 LAN protocol</Text>
-          </div>
-          <Badge color="yellow" variant="light">Planned</Badge>
-        </Group>
-        <Text size="sm">
-          The HUB will accept WLANMAUS commands on the Z21 UDP interface
-          and route locomotive, turnout and emergency-stop commands through
-          the shared runtime, regardless of the selected command center.
-        </Text>
-        <Text size="sm" c="dimmed">
-          Default Z21 UDP port: 21105. Server configuration and runtime
-          integration are not available yet; no listener is started from this page.
-        </Text>
+    <Modal opened={addTypeOpen} onClose={() => setAddTypeOpen(false)} title="Add external device" centered>
+      <Stack>
+        <Button variant="light" onClick={() => { startNew(); setZ21Draft(null); setAddTypeOpen(false); }}>DCCExpress S88 adapter</Button>
+        <Button variant="light" onClick={() => { setZ21Draft(newZ21()); setEditing(false); setMonitorId(null); setAddTypeOpen(false); }}>Z21 handheld controller (WLANMAUS)</Button>
       </Stack>
-    </Card>
-    <Divider label="S88 feedback adapters" labelPosition="left" />
+    </Modal>
 
     {message && <Alert color={message.startsWith("NOK") ? "red" : "blue"} onClose={() => setMessage("")} withCloseButton>{message}</Alert>}
 
-    {devices.length === 0 && !editing &&
-      <Text c="dimmed">No external devices configured. Select Add device to connect an S88 adapter.</Text>}
-    {devices.length > 0 && <Stack gap="sm">
-      {devices.map(device => {
-        const live = status.find(x => x.id === device.id);
-        const online = !!(device.enabled && live?.connected);
-        return <Card key={device.id} withBorder radius="md" p="md">
-          <Stack gap="md">
-            <Group justify="space-between" align="flex-start" gap="sm" wrap="wrap">
-              <Stack gap={3} style={{ minWidth: 0, flex: "1 1 220px" }}>
-                <Text fw={700} size="md" style={{ overflowWrap: "anywhere" }}>{device.name}</Text>
-                <Text size="xs" c="dimmed">DCCExpressS88Adapter</Text>
-              </Stack>
-              <Stack gap={3} align="flex-end" style={{ minWidth: 0, flex: "0 1 220px" }}>
-                <Badge size="sm" color={online ? "green" : device.enabled ? "yellow" : "gray"}>
-                  {online ? "Connected" : device.enabled ? "Disconnected" : "Disabled"}
-                </Badge>
-                <Text size="xs" c="dimmed" ta="right" style={{ overflowWrap: "anywhere" }}>
-                  {live?.message ?? "Not started"}
-                </Text>
-              </Stack>
-            </Group>
+    <Card withBorder padding={0}>
+      <Table.ScrollContainer minWidth={740}>
+        <Table striped highlightOnHover verticalSpacing="sm">
+          <Table.Thead><Table.Tr>
+            <Table.Th>Device</Table.Th><Table.Th>Type</Table.Th><Table.Th>Configuration</Table.Th>
+            <Table.Th>Status</Table.Th><Table.Th>Actions</Table.Th>
+          </Table.Tr></Table.Thead>
+          <Table.Tbody>
+            {devices.map(device => {
+              const live = status.find(x => x.id === device.id);
+              const online = !!(device.enabled && live?.connected);
+              return <Table.Tr key={device.id}>
+                <Table.Td><Text fw={600}>{device.name}</Text></Table.Td>
+                <Table.Td>S88 adapter</Table.Td>
+                <Table.Td><Text size="sm">{device.serialPort || "No serial port"} · {device.sensorCount} inputs · Sensors {device.sensorOffset + 1}–{device.sensorOffset + device.sensorCount}</Text></Table.Td>
+                <Table.Td><Badge color={online ? "green" : device.enabled ? "yellow" : "gray"}>
+                  {online ? "Connected" : device.enabled ? "Disconnected" : "Disabled"}</Badge></Table.Td>
+                <Table.Td><Group gap="xs" wrap="nowrap">
+                  <Button size="xs" variant="light" onClick={() => { setDraft({ ...device }); setEditing(true); setZ21Draft(null); setMonitorId(null); }}>Config</Button>
+                  <Button size="xs" color="red" variant="subtle" disabled={busy} onClick={() => void remove(device.id)}>Delete</Button>
+                </Group></Table.Td>
+              </Table.Tr>;
+            })}
+            {z21Devices.map(device => <Table.Tr key={device.id}>
+              <Table.Td><Text fw={600}>{device.name}</Text></Table.Td>
+              <Table.Td>Z21 WLANMAUS</Table.Td>
+              <Table.Td>UDP {device.udpPort} · Z21 LAN</Table.Td>
+              <Table.Td><Badge color="gray">Planned</Badge></Table.Td>
+              <Table.Td><Group gap="xs" wrap="nowrap">
+                <Button size="xs" variant="light" onClick={() => { setZ21Draft({ ...device }); setEditing(false); setMonitorId(null); }}>Config</Button>
+                <Button size="xs" color="red" variant="subtle" onClick={() => deleteZ21(device.id)}>Delete</Button>
+              </Group></Table.Td>
+            </Table.Tr>)}
+            {devices.length === 0 && z21Devices.length === 0 && <Table.Tr><Table.Td colSpan={5}>
+              <Text ta="center" c="dimmed" py="md">No external devices configured. Use Add device to get started.</Text>
+            </Table.Td></Table.Tr>}
+          </Table.Tbody>
+        </Table>
+      </Table.ScrollContainer>
+    </Card>
 
-            <SimpleGrid cols={{ base: 1, xs: 2, md: 3 }} spacing="md">
-              <Stack gap={2} style={{ minWidth: 0 }}>
-                <Text size="xs" c="dimmed">Serial port</Text>
-                <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>{device.serialPort || "—"}</Text>
-              </Stack>
-              <Stack gap={2} style={{ minWidth: 0 }}>
-                <Text size="xs" c="dimmed">Groups / inputs</Text>
-                <Text size="sm" fw={600}>{device.s88Bytes} bytes / {device.sensorCount} inputs</Text>
-              </Stack>
-              <Stack gap={2} style={{ minWidth: 0 }}>
-                <Text size="xs" c="dimmed">Sensor addresses</Text>
-                <Text size="sm" fw={600}>{device.sensorOffset + 1}–{device.sensorOffset + device.sensorCount}</Text>
-              </Stack>
-            </SimpleGrid>
+    {z21Draft && <Card withBorder radius="md" p="lg">
+      <Stack gap="md">
+        <Group justify="space-between"><Title order={4}>Z21 handheld configuration</Title><Badge color="yellow">Planned</Badge></Group>
+        <Alert color="blue">Configuration is saved in this browser only. The Z21 UDP server is not implemented yet.</Alert>
+        <TextInput label="Name" value={z21Draft.name} onChange={event => setZ21Draft(old => old && ({ ...old, name: event.currentTarget.value }))} />
+        <NumberInput label="Z21 server UDP port" min={1} max={65535} value={z21Draft.udpPort}
+          description="Default: 21105. The handset connects to the HUB's IP address."
+          onChange={value => setZ21Draft(old => old && ({ ...old, udpPort: typeof value === "number" ? value : 0 }))} />
+        <Switch label="Enable handheld support (when available)" checked={z21Draft.enabled}
+          onChange={event => setZ21Draft(old => old && ({ ...old, enabled: event.currentTarget.checked }))} />
+        <Group justify="flex-end">
+          <Button variant="light" onClick={() => setZ21Draft(null)}>Cancel</Button>
+          <Button onClick={saveZ21} disabled={!z21Draft.name.trim() || z21Draft.udpPort < 1 || z21Draft.udpPort > 65535}>Save</Button>
+        </Group>
+      </Stack>
+    </Card>}
 
-            <Divider />
 
-            <Group gap="xs" wrap="wrap">
-              <Button size="xs" variant="light"
-                onClick={() => { setMonitorId(device.id); setEditing(false); }}>Monitor</Button>
-              <Button size="xs" variant="light" disabled={!device.enabled || busy}
-                onClick={() => void test(device.id)}>Test</Button>
-              <Button size="xs" variant="light" disabled={busy}
-                onClick={() => { setDraft({ ...device }); setEditing(true); setMessage(""); }}>Edit</Button>
-              <Button size="xs" variant="light" color={device.enabled ? "orange" : "teal"} disabled={busy}
-                onClick={() => void setEnabled(device, !device.enabled)}>{device.enabled ? "Stop" : "Start"}</Button>
-              <Button size="xs" variant="light" color="red" disabled={busy}
-                onClick={() => void remove(device.id)}>Delete</Button>
-            </Group>
-          </Stack>
-        </Card>;
-      })}
-    </Stack>}
 
     {selected && <Card withBorder radius="md" p="lg">
       <Stack gap="sm">
@@ -294,7 +320,12 @@ export default function ExternalDevicesPage({
 
     {editing && <Card withBorder radius="md" p="lg">
       <Stack gap="md">
-        <Title order={4}>{draft.id ? "Edit external device" : "Add external device"}</Title>
+        <Title order={4}>{draft.id ? "Configure S88 adapter" : "Add S88 adapter"}</Title>
+        {draft.id && <Group gap="xs">
+          <Button variant="light" size="xs" disabled={busy} onClick={() => { setMonitorId(draft.id); setEditing(false); }}>Monitor</Button>
+          <Button variant="light" size="xs" disabled={busy || !draft.enabled} onClick={() => void test(draft.id)}>Test</Button>
+          <Button variant="light" size="xs" disabled={busy} onClick={() => void setEnabled(draft, !draft.enabled)}>{draft.enabled ? "Stop" : "Start"}</Button>
+        </Group>
         <Select
           label="Device"
           data={[{ value: "dcc-express-s88-adapter", label: "DCCExpressS88Adapter" }]}
