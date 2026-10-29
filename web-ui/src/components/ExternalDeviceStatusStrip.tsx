@@ -86,7 +86,7 @@ export default function ExternalDeviceStatusStrip() {
     })}
     {enabledHandhelds.map(device =>
       <li key={device.id}>{device.name} · <Text span c={z21Status?.listeners?.some(x => x.port === device.udpPort && x.clients > 0) ? "teal" : "dimmed"}>
-        {z21Status?.enabled && z21Status.clients > 0 ? "Client detected" : z21Status?.listeners?.find(x => x.port === device.udpPort)?.state ?? "Offline"}
+        {z21Status?.listeners?.some(x => x.port === device.udpPort && x.clients > 0) ? "Client detected" : z21Status?.listeners?.find(x => x.port === device.udpPort)?.state ?? "Offline"}
       </Text></li>
     )}
   </ul>;
