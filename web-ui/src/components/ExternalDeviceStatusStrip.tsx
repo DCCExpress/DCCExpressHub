@@ -1,5 +1,6 @@
 import { Text } from "@mantine/core";
 import { useEffect, useState } from "react";
+import { useGamepad } from "../context/GamepadContext";
 
 type Adapter = { id: string; name: string; enabled: boolean };
 type AdapterStatus = { id: string; connected: boolean; message?: string };
@@ -25,6 +26,7 @@ function loadHandhelds(): Z21Draft[] {
 }
 
 export default function ExternalDeviceStatusStrip() {
+  const { gamepads, selectedGamepadIndex } = useGamepad();
   const [adapters, setAdapters] = useState<Adapter[]>([]);
   const [statuses, setStatuses] = useState<AdapterStatus[]>([]);
   const [handhelds, setHandhelds] = useState<Z21Draft[]>(loadHandhelds);
@@ -85,6 +87,9 @@ export default function ExternalDeviceStatusStrip() {
       const online = available && !!state?.connected;
       return <li key={device.id} title={state?.message ?? ""}>{device.name} · <Text span c={online ? "teal" : "dimmed"}>{online ? "Online" : available ? "Offline" : "Unknown"}</Text></li>;
     })}
+    <li>Gamepad · <Text span c={gamepads.some(x => x.index === selectedGamepadIndex) ? "teal" : "dimmed"}>
+      {gamepads.some(x => x.index === selectedGamepadIndex) ? "Connected" : "Disconnected"}
+    </Text></li>
     {enabledHandhelds.map(device =>
       <li key={device.id}>{device.name} · <Text span c={z21Status?.listeners?.some(x => x.port === device.udpPort && x.clients > 0) ? "teal" : "dimmed"}>
         {z21Status?.listeners?.some(x => x.port === device.udpPort && x.clients > 0) ? "Client detected" : z21Status?.listeners?.find(x => x.port === device.udpPort)?.state ?? "Offline"}
