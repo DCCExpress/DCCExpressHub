@@ -1,0 +1,1 @@
+import{t as e}from"./c-BmonrgTA.js";function t(n,r){return Array.isArray(n)?[...n].reduce((n,i)=>e(e({},n),t(i,r)),{}):typeof n==`function`?n(r):n==null?{}:n}export{t};
