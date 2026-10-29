@@ -26,6 +26,19 @@ export default function ExternalDeviceStatusStrip() {
   const [z21Status, setZ21Status] = useState<Z21Status | null>(null);
 
   useEffect(() => {
+    // Restore the opt-in listener after HUB restart when this browser has a
+    // saved enabled handheld. Backend-side persistence will follow.
+    const device = loadHandhelds().find(item => item.enabled && Number.isInteger(item.udpPort));
+    if (device) {
+      void fetch("/api/z21-handheld/configure", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ enabled: "true", port: String(device.udpPort) }),
+      }).catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => {
     let active = true;
     const refresh = async () => {
       try {
