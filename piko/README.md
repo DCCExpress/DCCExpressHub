@@ -42,11 +42,12 @@ Flashing this skeleton would replace the factory handheld application.
 
 The main application currently runs **hardware-discovery-only**: no Wi-Fi,
 no Z21 network operations. It prints a heartbeat every second and watches
-18 candidate input pins for transitions at 10 ms intervals. It deliberately
-excludes flash, UART0 and boot strapping pins. No display driver is present:
+7 firmware-derived input pins using GPIO interrupts. It deliberately excludes flash and UART0, and reads boot strapping pins
+2/12/15 only after boot without driving them or modifying their pulls. No display driver is present:
 the screen is expected to stay dark until its controller/bus/power lines
-are identified. The physical controls might use an I2C/SPI GPIO expander or
-keyboard matrix, so **no GPIO transitions does not prove broken controls**.
+are identified. The keypad is now strongly indicated to be a 3-output/3-input matrix;
+this read-only probe deliberately does not drive its rows, so it cannot
+report all keypresses yet. The row-to-key map remains unknown.
 
 When testing, keep the serial monitor open, press keys, rotate the encoder
 slowly and copy any `piko_hw: GPIO ...` lines. No changes means next steps
