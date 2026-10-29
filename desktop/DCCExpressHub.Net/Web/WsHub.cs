@@ -362,6 +362,72 @@ public sealed class WsHub
         };
     }
 
+    // Shared command path for external Z21 throttles. Never bypass turnout locks.
+    public async Task<bool> ApplyZ21LocoAsync(int address, int speed, bool forward, CancellationToken ct)
+    {
+        if (address is < 1 or > 10239 || speed is < 0 or > 126 || !CommandCenter.Connected)
+            return false;
+        var ok = await CommandCenter.SetLocoAsync(address, speed, forward, ct);
+        if (ok)
+        {
+            var old = HubState.Locos.GetValueOrDefault(address, new(address, 0, true, 0));
+            var loco = old with { Speed = speed, Forward = forward };
+            HubState.Locos[address] = loco;
+            await BroadcastLoco(loco);
+        }
+        return ok;
+    }
+
+    public async Task<bool> ApplyZ21FunctionAsync(int address, int function, bool active, CancellationToken ct)
+    {
+        if (address is < 1 or > 10239 || function is < 0 or > 28 || !CommandCenter.Connected)
+            return false;
+        var ok = await CommandCenter.SetLocoFunctionAsync(address, function, active, ct);
+        if (ok)
+        {
+            var old = HubState.Locos.GetValueOrDefault(address, new(address, 0, true, 0));
+            uint bit = 1u << function;
+            var loco = old with { FunctionsMask = active ? old.FunctionsMask | bit : old.FunctionsMask & ~bit };
+            HubState.Locos[address] = loco;
+            await BroadcastLoco(loco);
+        }
+        return ok;
+    }
+
+    public async Task<bool> ApplyZ21TurnoutAsync(ushort address, bool closed, CancellationToken ct)
+    {
+        if (address == 0 || !CommandCenter.Connected || !SwitchMan.CanOperate(address, null, out _))
+            return false;
+        var turnout = LayoutRuntime.FindAccessory(RuntimeAccessoryKind.Turnout, address);
+        if (turnout is null || turnout.TurnoutExtended || turnout.TurnoutVPin)
+            return false;
+        var physical = closed ? turnout.ClosedValue : !turnout.ClosedValue;
+        if (!await CommandCenter.SetTurnoutAsync(address, physical, ct)) return false;
+        LayoutRuntime.SetTurnout(address, closed);
+        return true;
+    }
+
+    public async Task<bool> ApplyZ21PowerAsync(bool on, CancellationToken ct)
+    {
+        if (!CommandCenter.Connected) return false;
+        var ok = await CommandCenter.SetTrackPowerAsync(on, CommandCenterConfigStore.Current.PowerIncludesProgramming, ct);
+        if (ok && !on) await RuntimeStateStore.SaveAsync();
+        return ok;
+    }
+
+    public async Task<bool> ApplyZ21StopAsync(CancellationToken ct)
+    {
+        if (!CommandCenter.Connected) return false;
+        var ok = await CommandCenter.EmergencyStopAsync(ct);
+        if (ok)
+        {
+            HubState.EmergencyStop = true;
+            await BroadcastPower();
+            await ZeroKnownLocoSpeedsAfterEmergencyAsync();
+        }
+        return ok;
+    }
+
     public void PublishZ21Packet(string direction, string remote, byte[] payload, string detail)
     {
         QueueStateBroadcast("z21Packet", new
