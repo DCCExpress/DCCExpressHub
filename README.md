@@ -4,6 +4,7 @@
 [![Last Commit](https://img.shields.io/github/last-commit/DCCExpress/DCCExpressHub/main)](https://github.com/DCCExpress/DCCExpressHub/commits/main)
 ![Windows](https://img.shields.io/badge/Platform-Windows-0078D4?logo=windows)
 ![Linux](https://img.shields.io/badge/Platform-Linux-FCC624?logo=linux&logoColor=black)
+![Android](https://img.shields.io/badge/Platform-Android-3DDC84?logo=android&logoColor=white)
 ![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-blue?logo=typescript&logoColor=white)
@@ -18,6 +19,9 @@ Available for:
 
 - **Windows** — desktop application powered by .NET 10.
 - **Linux** — runs as a server, with the interface available in a web browser.
+- **Android** — standalone app with its own .NET 10 Hub and tablet-optimized interface; it can also serve other devices over the local network. **Tablet recommended.**
+
+On Android, enable **Allow other devices on LAN** to access the Hub from browsers on the same network. Android support is experimental; network command-station connections are available, but USB/serial connections are not yet supported.
 
 You can also control your railway from a computer, tablet, or phone on the same local network.
 
@@ -49,7 +53,7 @@ Configure button assignments on the **Gamepad** page. Settings are saved for the
 
 ## Supported protocols
 
-DCCExpressHub supports DCC-EX, Z21, and LocoNet communication protocols on **Windows** and **Linux**, with transport-specific connection options. Select the protocol supported by your command station and connect the corresponding interface.
+DCCExpressHub supports DCC-EX, Z21, and LocoNet communication protocols on **Windows**, **Linux**, and **Android** (network connections only on Android), with transport-specific connection options. Select the protocol supported by your command station and connect the corresponding interface.
 
 | Protocol / connection | Tested on (command stations) | Feedback | CV programming |
 | --- | --- | --- | --- |
