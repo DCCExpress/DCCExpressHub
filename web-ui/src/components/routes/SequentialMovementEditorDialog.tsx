@@ -12,7 +12,6 @@ type Props = {
   error: string | null;
   routeTableReady: boolean;
   validationIssue: string | null;
-  segmentsOutdated: boolean;
   blocks: BlockOption[];
   availableBlocks: (index: number) => BlockOption[];
   onModify: (patch: Partial<SequentialMovementDefinition>) => void;
@@ -27,7 +26,7 @@ type Props = {
 
 /** New/Edit editor opened by the Sequential Movement collection. */
 export default function SequentialMovementEditorDialog({
-  draft, busy, error, routeTableReady, validationIssue, segmentsOutdated, blocks, availableBlocks,
+  draft, busy, error, routeTableReady, validationIssue, blocks, availableBlocks,
   onModify, onChangeStep, onRemoveStep, onAddStep, onAddRestart, onRemoveRestart, onClose, onSave,
 }: Props) {
   const mt = useMovementTranslation();
@@ -58,9 +57,6 @@ export default function SequentialMovementEditorDialog({
         <Text size="xs" c="dimmed">Direction = departure from this block. Fixed 0 s is a valid complete stop with immediate departure; it is not Pass. The next block list comes from the saved route graph. The final block always stops.</Text>
         {validationIssue && <Alert color="orange" variant="light" title="Sequence needs attention" icon={<IconAlertTriangle size={17}/>}>
           <Text size="sm">{validationIssue}</Text>
-        </Alert>}
-        {!validationIssue && segmentsOutdated && <Alert color="yellow" variant="light" title="Saved route segments need updating" icon={<IconAlertTriangle size={17}/>}>
-          <Text size="sm">The stored route segments no longer match the selected blocks, directions or stops. Save this sequence to rebuild the segments before starting it. Fixed 0 s is allowed.</Text>
         </Alert>}
         {!routeTableReady &&
           <Text size="xs" c="orange">Route topology is missing. Generate and save the route graph to enable block filtering.</Text>}
