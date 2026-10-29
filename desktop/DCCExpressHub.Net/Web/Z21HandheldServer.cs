@@ -74,6 +74,19 @@ public sealed class Z21HandheldServer : BackgroundService
                     };
                     if (header == 0x0040 && data.Length >= 7 && CheckXor(data))
                     {
+                        if (data[4] == 0xE3 && data.Length == 9 && data[5] == 0xF0)
+                        {
+                            var address = ((data[6] & 0x3F) << 8) | data[7];
+                            if (address > 0) reply = _ws.GetZ21LocoInfo(address);
+                        }
+                        else if (data[4] == 0x43 && data.Length == 8)
+                        {
+                            var address = ((data[5] & 0x3F) << 8) | data[6];
+                            reply = _ws.GetZ21TurnoutInfo(address + 1);
+                        }
+                    }
+                    if (header == 0x0040 && data.Length >= 7 && CheckXor(data))
+                    {
                         var x = data[4];
                         var db = data[5];
                         var handled = false;
