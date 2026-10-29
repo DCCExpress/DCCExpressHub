@@ -73,34 +73,32 @@ if ($Publish) {
     throw "Published Web UI was not included"
   }
 
-  # Windows Script Host executes .vbs without a console. Use the launcher's
-  # own directory so the extracted package is relocatable. The script exits
-  # immediately after launching the native MAUI EXE: no background shell.
-  $launcher = Join-Path $packageRoot "DCCExpressHub.vbs"
-  $launcherText = @'
-Option Explicit
-Dim fso, shell, root, exe, command
-Set fso = CreateObject("Scripting.FileSystemObject")
-Set shell = CreateObject("WScript.Shell")
-root = fso.GetParentFolderName(WScript.ScriptFullName)
-exe = fso.BuildPath(fso.BuildPath(root, "app"), "DCCExpressHub.App.exe")
-If Not fso.FileExists(exe) Then
-    MsgBox "DCCExpressHub executable not found:" & vbCrLf & exe, vbCritical, "DCCExpressHub"
-    WScript.Quit 1
-End If
-shell.CurrentDirectory = fso.GetParentFolderName(exe)
-command = Chr(34) & exe & Chr(34)
-shell.Run command, 1, False
-'@
-  [System.IO.File]::WriteAllText(
-    $launcher, ($launcherText.TrimStart() + "`r`n"),
-    (New-Object System.Text.UTF8Encoding($false))
-  )
+  # Publish a real Windows GUI launcher as a self-contained single-file EXE.
+  # The WinExe process starts the MAUI app and immediately exits. It never
+  # opens a console or rearranges the MAUI Windows App SDK dependency layout.
+  $launcherProject = Join-Path $root "desktop/DCCExpressHub.Launcher/DCCExpressHub.Launcher.csproj"
+  $launcherOutput = Join-Path $root "dist/.maui-launcher-publish"
+  if (Test-Path $launcherOutput) { Remove-Item $launcherOutput -Recurse -Force }
+  & dotnet publish $launcherProject -c Release -r win-x64 `
+    --self-contained true `
+    -p:PublishSingleFile=true `
+    -p:IncludeNativeLibrariesForSelfExtract=true `
+    -p:PublishTrimmed=false `
+    -p:DebugSymbols=false `
+    -p:DebugType=None `
+    -o $launcherOutput
+  Assert-Exit "Native Windows launcher publish"
+  $launcherExe = Join-Path $launcherOutput "DCCExpressHub.exe"
+  if (-not (Test-Path $launcherExe)) {
+    throw "Native Windows launcher missing from publish output"
+  }
+  Copy-Item $launcherExe (Join-Path $packageRoot "DCCExpressHub.exe") -Force
+  Remove-Item $launcherOutput -Recurse -Force
 
   $releaseNotes = @(
     "DCCExpressHub $version - Windows MAUI",
     "",
-    "Run: DCCExpressHub.vbs (double-click; no console window)",
+    "Run: DCCExpressHub.exe (native Windows launcher; no console window)",
     "",
     "The app folder contains the necessary WinUI/MAUI files and the Web UI.",
     "Keep the app folder intact; it must remain next to the launcher.",
@@ -117,7 +115,7 @@ shell.Run command, 1, False
   Compress-Archive -Path $packageRoot -DestinationPath $zip -CompressionLevel Optimal
   Write-Host "Release folder : $packageRoot" -ForegroundColor Green
   Write-Host "Release ZIP    : $zip" -ForegroundColor Green
-  Write-Host "Start with     : DCCExpressHub.vbs (no console window)" -ForegroundColor Green
+  Write-Host "Start with     : DCCExpressHub.exe (no console window)" -ForegroundColor Green
 } else {
   & dotnet build $project -f $tfm -c $Configuration -p:WindowsPackageType=None
   Assert-Exit "MAUI Windows build"
@@ -147,4 +145,4 @@ $shortcut.Save()
 Write-Host "MAUI Windows build successful" -ForegroundColor Green
 Write-Host "EXE      : $($exe.FullName)"
 Write-Host "Shortcut : $shortcutPath"
-Write-Host "Release: unzip the archive and double-click DCCExpressHub.vbs (no console window)."
+Write-Host "Release: unzip the archive and start DCCExpressHub.exe (native GUI launcher)."
