@@ -102,7 +102,7 @@ export default function ExternalDevicesPage({
   const saveZ21 = async () => {
     if (!z21Draft || !z21Draft.name.trim() || !Number.isInteger(z21Draft.udpPort) ||
         z21Draft.udpPort < 1 || z21Draft.udpPort > 65535) return;
-    const next = [...z21Devices.filter(x => x.id !== z21Draft.id), z21Draft];
+    const next = [...z21Devices.filter(x => x.id !== z21Draft.id).map(x => ({ ...x, enabled: false })), z21Draft];
     try {
       const chosen = next.find(x => x.enabled);
       await postForm("/api/z21-handheld/configure", {
@@ -281,7 +281,7 @@ export default function ExternalDevicesPage({
 
     <AppModal opened={z21Draft !== null} onClose={() => setZ21Draft(null)} title="Z21 handheld configuration" centered size="lg">
       <Stack gap="md">
-        <Group justify="space-between"><Title order={4}>Z21 handheld configuration</Title><Badge color="yellow">Planned</Badge></Group>
+        <Group justify="space-between"><Title order={4}>Z21 handheld configuration</Title><Badge color="cyan">Z21 UDP</Badge></Group>
         <Alert color="blue">The Z21 UDP listener supports initial protocol handshake. Loco, turnout and power commands are not yet connected to the runtime.</Alert>
         <TextInput label="Name" value={z21Draft?.name ?? ""} onChange={event => setZ21Draft(old => old && ({ ...old, name: event.currentTarget.value }))} />
         <NumberInput label="Z21 server UDP port" min={1} max={65535} value={z21Draft?.udpPort ?? 21105}
