@@ -42,7 +42,6 @@ import {
   IconUpload,
   IconWifi,
   IconX,
-  IconDeviceGamepad2,
   IconCpu,
   IconPower,
   IconTerminal2,
@@ -383,42 +382,6 @@ function HomePage({
             {t("homeHub.cards.devices.description")}
           </Text>
         </Card> */}
-
-        <Card
-          className="action-card"
-          withBorder
-          radius={5}
-          p="lg"
-          onClick={() =>
-            onNavigate("gamepad")
-          }
-        >
-          <ThemeIcon
-            size={48}
-            radius="lg"
-            color="grape"
-            variant="light"
-          >
-            <IconDeviceGamepad2
-              size={27}
-            />
-          </ThemeIcon>
-
-          <Title
-            order={4}
-            mt="md"
-          >
-            {t("homeHub.cards.gamepad.title")}
-          </Title>
-
-          <Text
-            size="sm"
-            c="dimmed"
-            mt={4}
-          >
-            {t("homeHub.cards.gamepad.description")}
-          </Text>
-        </Card>
 
         <Card
           className="action-card"
@@ -1248,7 +1211,7 @@ export default function App() {
 
     if (page === "s88-adapter") return <S88AdapterPage onBack={() => navigate("external-devices")} />;
 
-    if (page === "external-devices") return <ExternalDevicesPage onBack={() => navigate("home")} onDiagnostics={() => navigate("s88-adapter")} />;
+    if (page === "external-devices") return <ExternalDevicesPage onBack={() => navigate("home")} onDiagnostics={() => navigate("s88-adapter")} onGamepadConfig={() => navigate("gamepad")} />;
 
     if (page === "device-config") return <DeviceConfigurationPage onBack={() => navigate("home")} />;
 
@@ -1322,7 +1285,7 @@ export default function App() {
     if (page === "gamepad") {
       return (
         <GamepadPage
-          onBack={() => navigate("home")}
+          onBack={() => navigate("external-devices")}
         />
       );
     }
