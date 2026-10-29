@@ -48,6 +48,10 @@ ENTRIES = {
         ("StopKeyInterrupt", 0x400E351C),
         ("RotaryTask", 0x400E4D60),
         ("LCD_Task", 0x40105B60),
+        ("RotaryInputISR", 0x400E4C60),
+        ("RotaryWorkTask", 0x400E5220),
+        ("KeypadHelper1", 0x400E3664),
+        ("KeypadHelper2", 0x400E36AC),
     ],
 }
 
@@ -80,7 +84,7 @@ def main():
         "Partition: " + source,
         "Metadata: " + metadata,
         "CAUTION: firmware disassembly, not verified wiring.",
-        "Known keypad setup args: GPIO 26,14,27,32,33,34 (roles unknown).",
+        "Recovered keypad: GPIO26/14/27 outputs; GPIO32/33/34 inputs.",
         "",
     ]
     targets = ENTRIES[version]
