@@ -99,7 +99,7 @@ def main():
             relative = addr - seg["addr"]
             tail = seg["data"][relative:relative + 0x3000]
             rebased = dict(seg)
-            rebased["number"] = "%s_%08X" % (name, addr)
+            rebased["number"] = addr
             rebased["addr"] = addr
             rebased["data"] = tail
             listing = disassemble(objdump, rebased, Path(tmp))
