@@ -66,8 +66,8 @@ export class EmergencyButtonElement extends BaseElement {
       ctx.shadowOffsetX = 2;
       ctx.shadowOffsetY = 2;
     }
-    // Reuse the canvas 225 ms animation heartbeat; blink only the red button face.
-    ctx.fillStyle = active && Math.floor(Date.now() / 450) % 2 === 0 ? "#d90000" : "#ff5266";
+    // Reuse the canvas 500 ms animation heartbeat; blink only the red button face.
+    ctx.fillStyle = active && Math.floor(Date.now() / 500) % 2 === 0 ? "#d90000" : "#ff5266";
     ctx.beginPath();
     ctx.arc(x + w / 2, y + h / 2, r, 0, Math.PI * 2);
     ctx.fill();
