@@ -73,50 +73,34 @@ if ($Publish) {
     throw "Published Web UI was not included"
   }
 
-  # The launcher uses paths relative to its own folder: the user can
-  # extract the ZIP anywhere and move the whole folder afterwards.
-  $launcher = Join-Path $packageRoot "Start DCCExpressHub.cmd"
-  $launcherText = @(
-    "@echo off",
-    "setlocal",
-    'set "APP_DIR=%~dp0app"',
-    'set "APP_EXE=%APP_DIR%\DCCExpressHub.App.exe"',
-    'if not exist "%APP_EXE%" (',
-    '  echo ERROR: Executable not found:',
-    '  echo "%APP_EXE%"',
-    '  echo.',
-    '  dir "%~dp0" /b',
-    '  pause',
-    '  exit /b 1',
-    ')',
-    'pushd "%APP_DIR%"',
-    'if errorlevel 1 (',
-    '  echo ERROR: Cannot enter the application directory.',
-    '  pause',
-    '  exit /b 1',
-    ')',
-    'echo Starting DCCExpressHub MAUI from:',
-    'echo "%CD%"',
-    '"%APP_EXE%" %*',
-    'set "EXIT_CODE=%ERRORLEVEL%"',
-    'popd',
-    'if not "%EXIT_CODE%"=="0" (',
-    '  echo.',
-    '  echo Application exited with code %EXIT_CODE%.',
-    '  echo The EXE exists; this is an application startup error, not a missing file.',
-    '  pause',
-    ')',
-    'exit /b %EXIT_CODE%'
-  ) -join "`r`n"
+  # Windows Script Host executes .vbs without a console. Use the launcher's
+  # own directory so the extracted package is relocatable. The script exits
+  # immediately after launching the native MAUI EXE: no background shell.
+  $launcher = Join-Path $packageRoot "DCCExpressHub.vbs"
+  $launcherText = @'
+Option Explicit
+Dim fso, shell, root, exe, command
+Set fso = CreateObject("Scripting.FileSystemObject")
+Set shell = CreateObject("WScript.Shell")
+root = fso.GetParentFolderName(WScript.ScriptFullName)
+exe = fso.BuildPath(fso.BuildPath(root, "app"), "DCCExpressHub.App.exe")
+If Not fso.FileExists(exe) Then
+    MsgBox "DCCExpressHub executable not found:" & vbCrLf & exe, vbCritical, "DCCExpressHub"
+    WScript.Quit 1
+End If
+shell.CurrentDirectory = fso.GetParentFolderName(exe)
+command = Chr(34) & exe & Chr(34)
+shell.Run command, 1, False
+'@
   [System.IO.File]::WriteAllText(
-    $launcher, $launcherText + "`r`n",
-    (New-Object System.Text.ASCIIEncoding)
+    $launcher, ($launcherText.TrimStart() + "`r`n"),
+    (New-Object System.Text.UTF8Encoding($false))
   )
 
   $releaseNotes = @(
     "DCCExpressHub $version - Windows MAUI",
     "",
-    "Run: Start DCCExpressHub.cmd",
+    "Run: DCCExpressHub.vbs (double-click; no console window)",
     "",
     "The app folder contains the necessary WinUI/MAUI files and the Web UI.",
     "Keep the app folder intact; it must remain next to the launcher.",
@@ -133,7 +117,7 @@ if ($Publish) {
   Compress-Archive -Path $packageRoot -DestinationPath $zip -CompressionLevel Optimal
   Write-Host "Release folder : $packageRoot" -ForegroundColor Green
   Write-Host "Release ZIP    : $zip" -ForegroundColor Green
-  Write-Host "Start with     : Start DCCExpressHub.cmd" -ForegroundColor Green
+  Write-Host "Start with     : DCCExpressHub.vbs (no console window)" -ForegroundColor Green
 } else {
   & dotnet build $project -f $tfm -c $Configuration -p:WindowsPackageType=None
   Assert-Exit "MAUI Windows build"
@@ -163,4 +147,4 @@ $shortcut.Save()
 Write-Host "MAUI Windows build successful" -ForegroundColor Green
 Write-Host "EXE      : $($exe.FullName)"
 Write-Host "Shortcut : $shortcutPath"
-Write-Host "Release: unzip the archive and use Start DCCExpressHub.cmd (no scattered DLLs at ZIP root)."
+Write-Host "Release: unzip the archive and double-click DCCExpressHub.vbs (no console window)."
