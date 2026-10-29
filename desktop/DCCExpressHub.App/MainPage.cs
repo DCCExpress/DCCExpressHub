@@ -25,7 +25,7 @@ public sealed class MainPage : ContentPage
     readonly Entry _loconetOffset = new() { Keyboard = Keyboard.Numeric };
     readonly Entry _httpPort = new() { Keyboard = Keyboard.Numeric };
     readonly Entry _workspace = new() { Placeholder = "Workspace directory" };
-    readonly Switch _lan = new();
+    readonly Switch _lan = new() { OnColor = Color.FromArgb("#0284C7"), ThumbColor = Colors.White };
     readonly VerticalStackLayout _tcpFields = new() { Spacing = 8 };
     readonly VerticalStackLayout _serialFields = new() { Spacing = 8 };
     readonly Label _status = new() { Text = "Ready to start", TextColor = Colors.LightGray };
