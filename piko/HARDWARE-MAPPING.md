@@ -164,3 +164,25 @@ identify the task/callback entries passed to ESP-IDF task/timer creation:
 The `piko/tools/trace_peripherals.py` script generates longer
 disassembly windows at these locations from the offline flash backup;
 do not infer LCD or 74HC595 pins from the task names alone.
+
+## Confirmed firmware-based mappings (PIKO 1.3.0.0)
+
+Keypad initializer at 0x400E3780 receives GPIOs 26,14,27,32,33,34.
+Its call pattern configures **26/14/27 as outputs** (ESP-IDF direction
+mode 2), and **32/33/34 as inputs** (mode 1). GPIO34 is special-cased
+because it has no internal pull resistors. This supports a three-row,
+three-column keypad; individual key identities remain unverified.
+
+Rotary task at 0x400E4D60 reads **GPIO2 and GPIO15** as the two
+quadrature channels, and GPIO12 has a separately configured interrupt
+input, likely the encoder's button. All three are ESP32 boot strapping
+pins: never drive them in hardware experiments.
+
+These facts were recovered from the user's peripheral_calls.txt generated
+from ota_1 version 1.3.0.0. The mapping of 74HC595 and LCD is still
+unknown. The original broad GPIO scanner incorrectly changed the keypad
+output pins to inputs and deliberately excluded rotary pins.
+
+The updated trace_peripherals.py rebases objdump on every function entry
+to recover disassembly of ReadKeysTask and the LCD task, which were
+previously lost to Xtensa decode alignment.
