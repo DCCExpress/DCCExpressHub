@@ -60,7 +60,7 @@ public sealed class Z21HandheldServer : BackgroundService
                     {
                         0x0010 when data.Length == 4 => [8, 0, 0x10, 0, 0x45, 0x58, 0x43, 0x44],
                         0x0040 when data.Length >= 7 && data[4] == 0x21 && data[5] == 0x21
-                            => [9, 0, 0x40, 0, 0x63, 0x21, 0x40, 0x12, 0x00],
+                            => [9, 0, 0x40, 0, 0x63, 0x21, 0x40, 0x12, 0x10],
                         _ => null
                     };
                     if (header == 0x0030) { clients.Remove(packet.RemoteEndPoint); lock (_gate) _clients = clients.Count; }
