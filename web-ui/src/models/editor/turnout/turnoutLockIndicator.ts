@@ -11,11 +11,11 @@ export function drawTurnoutLockIndicator(
 
   ctx.save();
 
-  // The Layout page already redraws every 225 ms while a SwitchMan lock is
+  // The Layout page already redraws every 500 ms while a SwitchMan lock is
   // active (same animation tick used by level-crossing lamps). Keep the blink
   // phase time-based so unrelated redraws cannot change its cadence.
   const blinkOn =
-    Math.floor(Date.now() / 450) % 2 === 0;
+    Math.floor(Date.now() / 500) % 2 === 0;
 
   if (blinkOn) {
     ctx.beginPath();
