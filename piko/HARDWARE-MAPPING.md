@@ -2,7 +2,7 @@
 
 Known: ESP32-WROOM-32E (ESP32-D0WD-V3), 16 MB SPI flash,
 ESP-IDF 4.4.1 factory application; USB UART diagnostics work.
-**No verified GPIO-to-peripheral assignment yet.**
+**Firmware-derived GPIO assignments now available for keypad and rotary. LCD/74HC595 still unknown.**
 
 ## Evidence first (no flashing)
 1. Inspect both PCB sides and photograph silk labels, display flex,
@@ -19,7 +19,7 @@ ESP-IDF 4.4.1 factory application; USB UART diagnostics work.
 ## GPIO probe (optional, custom-firmware only)
 The read-only candidate monitor is controlled by
 `CONFIG_PIKO_HW_INPUT_PROBE` (default **off**).
-It samples GPIO 32, 33, 34, 35, 36 and 39, prints only changes
+It currently watches GPIO 2, 12, 13, 15, 32, 33 and 34 via interrupts and prints changes
 to the ESP-IDF serial console. It applies no internal pull resistors,
 but input-enable still alters pad configuration; it is not a substitute
 for schematics or a GPIO map. Floating pins may change spontaneously.
@@ -31,8 +31,8 @@ flash backup, security configuration and restore process.
 | Device part | Chip or connector | ESP32 pins | Verified? |
 |---|---|---|---|
 | LCD and backlight | Unknown | Unknown | No |
-| Rotary A/B/button | Unknown | Unknown | No |
-| Keypad | Unknown (direct or expander) | Unknown | No |
+| Rotary A/B and likely switch | Encoder GPIO2/15; likely press GPIO12 | 2,15,12 | Firmware-derived |
+| Keypad | Matrix candidate | 26/14/27 outputs; 32/33/34 inputs | Firmware-derived, key map pending |
 | Battery / charging | Unknown | Unknown | No |
 | USB console | UART0 likely (verify) | Unknown | No |
 
@@ -137,9 +137,7 @@ within the keypad initialization sequence immediately after
 This precisely overlaps the experimentally observed button-press activity
 on GPIO 26/27/14, validating that these six pins are keypad-related.
 
-**Still unresolved:** meaning of each of these six arguments; whether
-74HC595 directly selects keypad rows or other peripherals; which signals
-are inputs, which are outputs; rotary A/B; LCD SPI pins/controller.
+**Now resolved in the peripheral disassembly:** 26/14/27 are configured as outputs, 32/33/34 as inputs; rotary channels are GPIO2/15, with GPIO12 as a likely switch. **Still unresolved:** which matrix position means which key, HC595 function, LCD SPI pins/controller.
 **Do not indiscriminately configure these pins as inputs or outputs:** GPIO
 34 is input-only on the original ESP32; the other pins may be actively
 driven by the original keypad circuit. Extract and analyze the called
