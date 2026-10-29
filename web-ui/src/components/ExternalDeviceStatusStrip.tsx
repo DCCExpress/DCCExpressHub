@@ -1,4 +1,4 @@
-import { Badge, Group, Text } from "@mantine/core";
+import { Text } from "@mantine/core";
 import { useEffect, useState } from "react";
 
 type Adapter = { id: string; name: string; enabled: boolean };
@@ -51,22 +51,15 @@ export default function ExternalDeviceStatusStrip() {
   const enabledHandhelds = handhelds.filter(item => item.enabled);
   if (!enabledAdapters.length && !enabledHandhelds.length) return null;
 
-  return <Group justify="flex-end" gap="xs" wrap="wrap" aria-label="External device status">
-    <Text size="xs" c="dimmed">External devices:</Text>
+  return <ul aria-label="External devices" style={{ margin: 0, paddingLeft: 22, alignSelf: "flex-end", fontSize: 12 }}>
+    <li><Text span size="xs" fw={600}>External devices</Text></li>
     {enabledAdapters.map(device => {
       const state = statuses.find(item => item.id === device.id);
       const online = available && !!state?.connected;
-      return <Badge key={device.id} size="md" variant="light"
-        color={!available ? "gray" : online ? "teal" : "yellow"}
-        title={state?.message ?? (online ? "Connected" : "Not connected")}>
-        {device.name} · {online ? "Online" : available ? "Offline" : "Unknown"}
-      </Badge>;
+      return <li key={device.id} title={state?.message ?? ""}>{device.name} · <Text span c={online ? "teal" : "dimmed"}>{online ? "Online" : available ? "Offline" : "Unknown"}</Text></li>;
     })}
     {enabledHandhelds.map(device =>
-      <Badge key={device.id} size="md" color="gray" variant="light"
-        title="Z21 server is not implemented; browser-only configuration">
-        {device.name} · Planned
-      </Badge>
+      <li key={device.id}>{device.name} · <Text span c="dimmed">Not connected</Text></li>
     )}
-  </Group>;
+  </ul>;
 }
