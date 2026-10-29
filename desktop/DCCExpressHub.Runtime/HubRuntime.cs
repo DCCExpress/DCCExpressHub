@@ -96,6 +96,8 @@ public sealed class HubRuntime : IAsyncDisposable
     builder.Services.AddSingleton<CommandCenterConfigStore>();
     builder.Services.AddSingleton<ExternalDeviceStore>();
     builder.Services.AddSingleton<ExternalDevicesRuntime>();
+    builder.Services.AddSingleton<Z21HandheldServer>();
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<Z21HandheldServer>());
     builder.Services.AddSingleton<CommandCenterApi>();
     builder.Services.AddSingleton<LocomotiveConfigApi>();
     builder.Services.AddSingleton<LayoutConfigApi>();
