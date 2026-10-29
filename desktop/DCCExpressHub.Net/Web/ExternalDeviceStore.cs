@@ -163,9 +163,8 @@ public sealed class ExternalDeviceStore
             return "Unsupported external device type.";
         if (string.IsNullOrWhiteSpace(d.Name) || d.Name.Length > 80)
             return "Device name must be 1–80 characters.";
-        if (string.IsNullOrWhiteSpace(d.SerialPort) ||
-            !SerialPortName.IsValidForCurrentPlatform(d.SerialPort))
-            return "Invalid serial port for this operating system.";
+        if (string.IsNullOrWhiteSpace(d.SerialPort))
+            return "Serial port is required.";
         if (d.S88Bytes is < 1 or > 32 || d.SensorCount != d.S88Bytes * 8)
             return "S88 bytes/groups must be 1–32 (8 inputs per byte).";
         if (d.SensorOffset < 0 || d.SensorOffset + d.SensorCount > ushort.MaxValue)
