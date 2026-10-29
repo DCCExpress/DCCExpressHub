@@ -11,7 +11,7 @@ static const char *TAG = "piko_hw";
 /*
  * Diagnostic candidates; deliberately OMIT UART0 1/3, SPI flash 6..11,
  * ESP32 boot/strapping pins 0/2/4/5/12/15, and all output driving.
- * Input enable is not a fully passive hardware operation: do not assume
+ * Setting input mode is not a fully passive hardware operation: do not assume
  * any candidate is a button until the physical schematic is known.
  */
 static const gpio_num_t pins[] = {
@@ -58,9 +58,9 @@ static void scan(void *ignored)
 void hardware_probe_start(void)
 {
     for (unsigned i = 0; i < PIN_COUNT; ++i) {
-        esp_err_t err = gpio_input_enable(pins[i]);
+        esp_err_t err = gpio_set_direction(pins[i], GPIO_MODE_INPUT);
         if (err != ESP_OK)
-            ESP_LOGW(TAG, "GPIO %u input-enable error: %d", (unsigned)pins[i], (int)err);
+            ESP_LOGW(TAG, "GPIO %u input-mode error: %d", (unsigned)pins[i], (int)err);
     }
     if (xTaskCreate(scan, "hw_probe", 4096, NULL, 3, NULL) != pdPASS)
         ESP_LOGE(TAG, "GPIO probe task creation failed");
