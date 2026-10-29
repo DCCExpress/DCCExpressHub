@@ -37,3 +37,17 @@ pio run -d piko -t menuconfig
 **Do not upload yet.** First complete the factory 16 MB flash backup,
 check security/eFuse settings and restoration, and map the actual hardware.
 Flashing this skeleton would replace the factory handheld application.
+
+## Current firmware mode: hardware discovery
+
+The main application currently runs **hardware-discovery-only**: no Wi-Fi,
+no Z21 network operations. It prints a heartbeat every second and watches
+18 candidate input pins for transitions at 10 ms intervals. It deliberately
+excludes flash, UART0 and boot strapping pins. No display driver is present:
+the screen is expected to stay dark until its controller/bus/power lines
+are identified. The physical controls might use an I2C/SPI GPIO expander or
+keyboard matrix, so **no GPIO transitions does not prove broken controls**.
+
+When testing, keep the serial monitor open, press keys, rotate the encoder
+slowly and copy any `piko_hw: GPIO ...` lines. No changes means next steps
+are PCB photos and factory firmware pin tracing, not random GPIO driving.
