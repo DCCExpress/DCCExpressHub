@@ -22,11 +22,11 @@ def app_image(marker):
 
 def table_entry(kind, subtype, offset, size, name):
     return struct.pack("<HBBII16sI", 0x50AA, kind, subtype,
-                       offset, size, name.encode("ascii").ljust(16, b"\\x00"), 0)
+                       offset, size, name.encode("ascii").ljust(16, b"\x00"), 0)
 
 
 def dump():
-    data = bytearray(b"\\xff" * 0x60000)
+    data = bytearray(b"\xff" * 0x60000)
     entries = [
         table_entry(1, 2, 0x9000, 0x6000, "nvs"),
         table_entry(0, 0, 0x10000, 0x20000, "factory"),
