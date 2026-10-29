@@ -292,12 +292,12 @@ export default function ExternalDevicesPage({
       <Stack gap="md">
         <Group justify="space-between"><Title order={4}>Z21 handheld configuration</Title><Badge color="cyan">Z21 UDP</Badge></Group>
         <Alert color="blue">The Z21 UDP listener supports initial protocol handshake. Loco, turnout and power commands are not yet connected to the runtime.</Alert>
-        <TextInput label="Name" value={z21Draft?.name ?? ""} onChange={event => setZ21Draft(old => old && ({ ...old, name: event.currentTarget.value }))} />
+        <TextInput label="Name" value={z21Draft?.name ?? ""} onChange={event => { const value = event.currentTarget.value; setZ21Draft(old => old && ({ ...old, name: value })); }} />
         <NumberInput label="Z21 server UDP port" min={1} max={65535} value={z21Draft?.udpPort ?? 21105}
           description="Default: 21105. The handset connects to the HUB's IP address."
           onChange={value => setZ21Draft(old => old && ({ ...old, udpPort: typeof value === "number" ? value : 0 }))} />
         <Switch label="Enable handheld support (when available)" checked={z21Draft?.enabled ?? false}
-          onChange={event => setZ21Draft(old => old && ({ ...old, enabled: event.currentTarget.checked }))} />
+          onChange={event => { const checked = event.currentTarget.checked; setZ21Draft(old => old && ({ ...old, enabled: checked })); }} />
         <Group justify="flex-end">
           <Button variant="light" onClick={() => setZ21Draft(null)}>Cancel</Button>
           <Button onClick={saveZ21} disabled={!z21Draft?.name.trim() || !z21Draft || z21Draft.udpPort < 1 || z21Draft.udpPort > 65535 || busy}>Save</Button>
@@ -362,7 +362,7 @@ export default function ExternalDevicesPage({
           onChange={() => {}}
           allowDeselect={false}
         />
-        <TextInput label="Name" value={draft.name} onChange={event => setDraft(old => ({ ...old, name: event.currentTarget.value }))} />
+        <TextInput label="Name" value={draft.name} onChange={event => { const value = event.currentTarget.value; setDraft(old => ({ ...old, name: value })); }} />
         <Autocomplete
           label="Serial port"
           placeholder="Select or type COM9 / tty path"
@@ -384,7 +384,7 @@ export default function ExternalDevicesPage({
             })} />
         </Group>
         <Switch label="Enabled – connect automatically at backend startup" checked={draft.enabled}
-          onChange={event => setDraft(old => ({ ...old, enabled: event.currentTarget.checked }))} />
+          onChange={event => { const checked = event.currentTarget.checked; setDraft(old => ({ ...old, enabled: checked })); }} />
         <Text size="xs" c="dimmed">
           The backend reads STATUS and only sends SET BYTES / SAVE if the adapter needs an update.
           Replacing the COM/tty port closes the old connection before opening the new one.
