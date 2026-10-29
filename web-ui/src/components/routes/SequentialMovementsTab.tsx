@@ -229,22 +229,15 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
     steps: [createStep(Number(blocks[0]?.value ?? 0)), createStep(Number(blocks[1]?.value ?? 0))],
     repeat: false, segments: [],
   });
-  // Check the exact segment data that Save will persist. When a previously
-  // saved sequence has stale route segments, explain why Edit + Save can fix
-  // a start-time invalid_sequence_segment without changing wait duration.
+  // Validate that the sequence has a unique route for each movement leg.
   const draftReview = useMemo(() => {
-    if (!draft) return { issue: null as string | null, needsResave: false };
+    if (!draft) return { issue: null as string | null };
     try {
-      const rebuilt = compileSegments(editorRouteTable, draft.steps, blockName);
-      return {
-        issue: null,
-        needsResave: draft.segments.length > 0 &&
-          JSON.stringify(rebuilt) !== JSON.stringify(draft.segments),
-      };
+      compileSegments(editorRouteTable, draft.steps, blockName);
+      return { issue: null };
     } catch (error) {
       return {
         issue: error instanceof Error ? error.message : String(error),
-        needsResave: false,
       };
     }
   }, [draft, editorRouteTable]);
@@ -640,7 +633,6 @@ export default function SequentialMovementsTab({ layout, movements, locos, onMov
       error={error ? formatRuntimeMessage(error) : null}
       routeTableReady={editorRouteTable.length > 0}
       validationIssue={draftReview.issue}
-      segmentsOutdated={draftReview.needsResave}
       blocks={blocks}
       availableBlocks={index => blocks.filter(block =>
         draft && reachableNextBlocks(draft.steps, index, editorRouteTable).has(Number(block.value)))}
