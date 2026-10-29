@@ -78,12 +78,35 @@ if ($Publish) {
   $launcher = Join-Path $packageRoot "Start DCCExpressHub.cmd"
   $launcherText = @(
     "@echo off",
-    'if not exist "%~dp0app\DCCExpressHub.App.exe" (',
-    '  echo ERROR: Missing app\DCCExpressHub.App.exe',
+    "setlocal",
+    'set "APP_DIR=%~dp0app"',
+    'set "APP_EXE=%APP_DIR%\DCCExpressHub.App.exe"',
+    'if not exist "%APP_EXE%" (',
+    '  echo ERROR: Executable not found:',
+    '  echo "%APP_EXE%"',
+    '  echo.',
+    '  dir "%~dp0" /b',
     '  pause',
     '  exit /b 1',
     ')',
-    'start "" /D "%~dp0app" "%~dp0app\DCCExpressHub.App.exe" %*'
+    'pushd "%APP_DIR%"',
+    'if errorlevel 1 (',
+    '  echo ERROR: Cannot enter the application directory.',
+    '  pause',
+    '  exit /b 1',
+    ')',
+    'echo Starting DCCExpressHub MAUI from:',
+    'echo "%CD%"',
+    '"%APP_EXE%" %*',
+    'set "EXIT_CODE=%ERRORLEVEL%"',
+    'popd',
+    'if not "%EXIT_CODE%"=="0" (',
+    '  echo.',
+    '  echo Application exited with code %EXIT_CODE%.',
+    '  echo The EXE exists; this is an application startup error, not a missing file.',
+    '  pause',
+    ')',
+    'exit /b %EXIT_CODE%'
   ) -join "`r`n"
   [System.IO.File]::WriteAllText(
     $launcher, $launcherText + "`r`n",
