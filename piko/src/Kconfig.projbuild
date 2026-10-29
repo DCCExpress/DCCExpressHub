@@ -1,4 +1,10 @@
 menu "DCCExpress PIKO handheld"
+    config PIKO_HW_INPUT_PROBE
+        bool "Enable conservative read-only GPIO input diagnostics"
+        default n
+        help
+            Prints changes on GPIO 32/33/34/35/36/39 to serial console.
+            Does not drive outputs or enable pull resistors.
     config PIKO_WIFI_SSID
         string "Wi-Fi SSID (stored in local sdkconfig, do not commit)"
         default ""
