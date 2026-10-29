@@ -72,7 +72,7 @@ public sealed class Z21HandheldServer : BackgroundService
                             => [9, 0, 0x40, 0, 0x63, 0x21, 0x40, 0x12, 0x10],
                         _ => null
                     };
-                    if (header == 0x0040 && data.Length >= 7 && CheckXor(data))
+                    if (header == 0x0040 && data.Length >= 6 && CheckXor(data))
                     {
                         if (data[4] == 0xE3 && data.Length == 9 && data[5] == 0xF0)
                         {
@@ -85,7 +85,7 @@ public sealed class Z21HandheldServer : BackgroundService
                             reply = _ws.GetZ21TurnoutInfo(address + 1);
                         }
                     }
-                    if (header == 0x0040 && data.Length >= 7 && CheckXor(data))
+                    if (header == 0x0040 && data.Length >= 6 && CheckXor(data))
                     {
                         var x = data[4];
                         var db = data[5];
