@@ -544,6 +544,7 @@ export type ServerWsPayloadMap = {
   "ws:welcome": { message: string };
   heartbeatAck: Record<string, never>;
   rawInfo: { raw: string };
+  z21Packet: { direction: "RX" | "TX"; remote: string; detail: string; raw: string };
   railComStateChanged: {
     entries: Array<{
       sensorAddress: number;
