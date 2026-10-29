@@ -60,10 +60,10 @@ and LCD string references but **not a known pin map**.
 On Windows with PlatformIO installed, run:
 
 ```powershell
-python piko/tools/trace_handheld.py "C:\\path\\to\\Firmware-Handheld.bin"
+python piko/tools/trace_handheld.py "C:\\path\\to\\2025-12-11_Update_PSCW_1_3_0_0.zip"
 ```
 
-This detects the PlatformIO Xtensa objdump, disassembles the ESP32 image
+The script accepts the original PIKO update ZIP directly (or the extracted\nFirmware-Handheld.bin). It detects the PlatformIO Xtensa objdump, disassembles the ESP32 image
 code segments, and writes candidate `l32r` callers to
 `piko/analysis/handheld_xrefs.txt`. Share the relevant report excerpts
 for further GPIO/SPI tracing. This is a heuristic: disassembly of raw
