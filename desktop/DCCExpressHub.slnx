@@ -1,6 +1,6 @@
 <Solution>
   <Project Path="DCCExpressHub.Runtime/DCCExpressHub.Runtime.csproj" />
   <Project Path="DCCExpressHub.Net/DCCExpressHub.Net.csproj" />
-  <Project Path="DCCExpressHub.Android/DCCExpressHub.Android.csproj" />
+  <Project Path="DCCExpressHub.App/DCCExpressHub.App.csproj" />
   <Project Path="DCCExpressHub.Desktop/DCCExpressHub.Desktop.csproj" />
 </Solution>

@@ -4,19 +4,27 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using Microsoft.Maui.Controls;
 
-namespace DCCExpressHub.Android;
+namespace DCCExpressHub.App;
 
 public sealed class MainPage : ContentPage
 {
-    readonly AndroidStartupSettings _settings = AndroidStartupSettings.Load();
+    readonly HubStartupSettings _settings = HubStartupSettings.Load();
     readonly Picker _protocol = new() { Title = "Command center" };
     readonly Entry _host = new() { Placeholder = "IP address or hostname" };
     readonly Entry _port = new() { Keyboard = Keyboard.Numeric };
-    readonly Entry _serial = new() { Placeholder = "Serial device path (USB requires Android adapter)" };
+    readonly Entry _serial = new()
+    {
+#if ANDROID
+        Placeholder = "Serial device path (USB requires Android adapter)"
+#else
+        Placeholder = "COM port (e.g. COM3)"
+#endif
+    };
     readonly Entry _baud = new() { Keyboard = Keyboard.Numeric };
     readonly Entry _rbus = new() { Keyboard = Keyboard.Numeric };
     readonly Entry _loconetOffset = new() { Keyboard = Keyboard.Numeric };
     readonly Entry _httpPort = new() { Keyboard = Keyboard.Numeric };
+    readonly Entry _workspace = new() { Placeholder = "Workspace directory" };
     readonly Switch _lan = new();
     readonly VerticalStackLayout _tcpFields = new() { Spacing = 8 };
     readonly VerticalStackLayout _serialFields = new() { Spacing = 8 };
@@ -55,7 +63,7 @@ public sealed class MainPage : ContentPage
         // of the page background, making Picker/Entry/Button text unreadable.
         var inputBackground = Color.FromArgb("#1E293B");
         var foreground = Colors.White;
-        foreach (var entry in new[] { _host, _port, _serial, _baud, _rbus, _loconetOffset, _httpPort })
+        foreach (var entry in new[] { _host, _port, _serial, _baud, _rbus, _loconetOffset, _httpPort, _workspace })
         {
             entry.TextColor = foreground;
             entry.PlaceholderColor = Color.FromArgb("#94A3B8");
@@ -76,6 +84,7 @@ public sealed class MainPage : ContentPage
         _rbus.Text = _settings.RBusOffset.ToString();
         _loconetOffset.Text = _settings.LocoNetSensorOffset.ToString();
         _httpPort.Text = _settings.HttpPort.ToString();
+        _workspace.Text = _settings.WorkspaceDirectory;
         _lan.IsToggled = _settings.AllowLan;
 
         _tcpFields.Children.Add(Field("Host / IP", _host));
@@ -109,13 +118,18 @@ public sealed class MainPage : ContentPage
                 Field("R-BUS sensor offset", _rbus),
                 Field("LocoNet sensor offset", _loconetOffset),
                 Field("HUB HTTP port", _httpPort),
+#if WINDOWS
+                Field("Workspace directory", _workspace),
+#endif
                 new HorizontalStackLayout { Spacing = 12, Children =
                 {
                     new Label { Text = "Allow other devices on LAN", TextColor = Colors.White,
                         VerticalTextAlignment = TextAlignment.Center }, _lan
                 }},
-                new Label { Text = "Serial choices remain visible for compatibility, but Android USB serial access needs a native USB transport adapter.",
+#if ANDROID
+                new Label { Text = "Android USB serial needs a native transport adapter. Use TCP/UDP command stations.",
                     TextColor = Color.FromArgb("#FBBF24"), FontSize = 12 },
+#endif
                 _lanAddress,
                 _start
             }
@@ -209,8 +223,10 @@ public sealed class MainPage : ContentPage
         try
         {
             var protocol = Protocols[_protocol.SelectedIndex].Id;
+#if ANDROID
             if (protocol is "serial" or "loconet-serial")
                 throw new NotSupportedException("Android USB serial transport is not implemented yet. Select a TCP or UDP command center.");
+#endif
 
             _settings.Protocol = protocol;
             _settings.TcpHost = _host.Text?.Trim() ?? "";
@@ -223,14 +239,26 @@ public sealed class MainPage : ContentPage
             _settings.LocoNetSensorOffset = int.TryParse(_loconetOffset.Text, out var offset) ? Math.Clamp(offset, 0, 61439) : 0;
             _settings.HttpPort = ParsePort(_httpPort.Text, "HUB HTTP port");
             _settings.AllowLan = _lan.IsToggled;
-            if (string.IsNullOrWhiteSpace(_settings.TcpHost))
+            var isSerial = protocol is "serial" or "loconet-serial";
+            if (isSerial && string.IsNullOrWhiteSpace(_settings.SerialPort))
+                throw new InvalidOperationException("Enter the serial port.");
+            if (!isSerial && string.IsNullOrWhiteSpace(_settings.TcpHost))
                 throw new InvalidOperationException("Enter the command center IP address.");
+#if WINDOWS
+            if (string.IsNullOrWhiteSpace(_workspace.Text))
+                throw new InvalidOperationException("Enter a workspace directory.");
+            _settings.WorkspaceDirectory = Path.GetFullPath(
+                Environment.ExpandEnvironmentVariables(_workspace.Text.Trim()));
+#endif
             _settings.Save();
 
+#if WINDOWS
+            var root = _settings.WorkspaceDirectory;
+#else
             var root = Path.Combine(FileSystem.AppDataDirectory, "hub");
-            var webRoot = Path.Combine(root, "wwwroot");
-            Directory.CreateDirectory(webRoot);
-            await AndroidWebAssets.ExtractAsync(webRoot);
+#endif
+            Directory.CreateDirectory(root);
+            var webRoot = await WebAssets.PrepareAsync(root);
             var endpoint = $"http://127.0.0.1:{_settings.HttpPort}";
             Environment.SetEnvironmentVariable("DCCEXPRESS_CONTENT_ROOT", root);
             Environment.SetEnvironmentVariable("DCCEXPRESS_WEB_ROOT", webRoot);
@@ -251,11 +279,17 @@ public sealed class MainPage : ContentPage
             Environment.SetEnvironmentVariable("LocoNet__SerialPort", _settings.SerialPort);
             Environment.SetEnvironmentVariable("LocoNet__SerialBaudRate", _settings.SerialBaudRate.ToString());
             Environment.SetEnvironmentVariable("LocoNet__LbServerFeedback", "false");
+            Environment.SetEnvironmentVariable("LocoNet__SerialFeedback", (protocol == "loconet-serial").ToString());
+            Environment.SetEnvironmentVariable("LocoNet__BinaryFeedback", "false");
 
             _runtime = new HubRuntime();
             await _runtime.StartAsync();
             _status.Text = "HUB running · " + endpoint;
+#if ANDROID
             _browser.Source = new UrlWebViewSource { Url = endpoint + "/#tablet" };
+#else
+            _browser.Source = new UrlWebViewSource { Url = endpoint + "/" };
+#endif
             _startup.IsVisible = false;
             _browser.IsVisible = true;
         }
@@ -271,6 +305,8 @@ public sealed class MainPage : ContentPage
         }
         finally { _gate.Release(); }
     }
+
+    public Task ShutdownAsync() => StopHubAsync();
 
     async Task StopHubAsync()
     {

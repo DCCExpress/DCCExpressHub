@@ -1,9 +1,9 @@
 using System.Text.Json;
 
-namespace DCCExpressHub.Android;
+namespace DCCExpressHub.App;
 
-/// <summary>Android launcher preferences. Kept separate from runtime-owned command-center configuration.</summary>
-public sealed class AndroidStartupSettings
+/// <summary>Platform launcher preferences, separate from runtime-owned command-center configuration.</summary>
+public sealed class HubStartupSettings
 {
     public string Protocol { get; set; } = "tcp";
     public string TcpHost { get; set; } = "192.168.1.100";
@@ -14,18 +14,25 @@ public sealed class AndroidStartupSettings
     public int LocoNetSensorOffset { get; set; }
     public int HttpPort { get; set; } = 5174;
     public bool AllowLan { get; set; }
-    public static string FilePath => Path.Combine(FileSystem.AppDataDirectory, "android-startup.json");
+    public string WorkspaceDirectory { get; set; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DCCExpressHub", "workspace");
+    public static string FilePath => Path.Combine(FileSystem.AppDataDirectory,
+#if WINDOWS
+        "windows-startup.json");
+#else
+        "android-startup.json");
+#endif
 
-    public static AndroidStartupSettings Load()
+    public static HubStartupSettings Load()
     {
         try
         {
             if (File.Exists(FilePath))
-                return JsonSerializer.Deserialize<AndroidStartupSettings>(File.ReadAllText(FilePath))
-                    ?? new AndroidStartupSettings();
+                return JsonSerializer.Deserialize<HubStartupSettings>(File.ReadAllText(FilePath))
+                    ?? new HubStartupSettings();
         }
         catch { /* Fall back to defaults if previous preferences are corrupt. */ }
-        return new AndroidStartupSettings();
+        return new HubStartupSettings();
     }
 
     public void Save()

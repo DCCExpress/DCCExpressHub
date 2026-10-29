@@ -2,7 +2,7 @@ using Android.App;
 using Android.Content.PM;
 using Microsoft.Maui;
 
-namespace DCCExpressHub.Android;
+namespace DCCExpressHub.App;
 
 [Activity(Theme = "@style/Maui.SplashTheme",
     MainLauncher = true,
