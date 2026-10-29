@@ -77,7 +77,6 @@ export default function ExternalDeviceStatusStrip() {
 
   const enabledAdapters = adapters.filter(item => item.enabled);
   const enabledHandhelds = handhelds.filter(item => item.enabled);
-  if (!enabledAdapters.length && !enabledHandhelds.length) return null;
 
   return <div style={{ alignSelf: "flex-start" }}>
     <Text size="xs" fw={600}>External devices</Text>
