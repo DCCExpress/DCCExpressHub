@@ -12,9 +12,11 @@ function loadHandhelds(): Z21Draft[] {
   try {
     const value: unknown = JSON.parse(window.localStorage.getItem(Z21_KEY) ?? "[]");
     if (!Array.isArray(value)) return [];
-    return value.filter((item): item is Z21Draft =>
+    const devices = value.filter((item): item is Z21Draft =>
       !!item && typeof item.id === "string" && typeof item.name === "string"
       && typeof item.enabled === "boolean");
+    const selected = devices.find(item => item.enabled) ?? devices[0];
+    return selected ? [selected] : [];
   } catch { return []; }
 }
 
