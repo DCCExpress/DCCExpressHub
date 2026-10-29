@@ -87,15 +87,32 @@ export default function ExternalDevicesPage({
   const [addTypeOpen, setAddTypeOpen] = useState(false);
   const [z21Devices, setZ21Devices] = useState<Z21Device[]>(loadZ21);
   const [z21Draft, setZ21Draft] = useState<Z21Device | null>(null);
-  const saveZ21 = () => {
+  const [z21Status, setZ21Status] = useState<{ enabled: boolean; clients: number; state: string; port: number } | null>(null);
+  const refreshZ21 = useCallback(async () => {
+    const response = await fetch("/api/z21-handheld/status", { cache: "no-store" });
+    if (!response.ok) throw new Error("Z21 status unavailable");
+    const result = await response.json() as { ok: boolean; status: { enabled: boolean; clients: number; state: string; port: number } };
+    if (result.ok) setZ21Status(result.status);
+  }, []);
+  useEffect(() => {
+    void refreshZ21().catch(() => {});
+    const interval = window.setInterval(() => void refreshZ21().catch(() => {}), 4000);
+    return () => window.clearInterval(interval);
+  }, [refreshZ21]);
+  const saveZ21 = async () => {
     if (!z21Draft || !z21Draft.name.trim() || !Number.isInteger(z21Draft.udpPort) ||
         z21Draft.udpPort < 1 || z21Draft.udpPort > 65535) return;
     const next = [...z21Devices.filter(x => x.id !== z21Draft.id), z21Draft];
     try {
+      const chosen = next.find(x => x.enabled);
+      await postForm("/api/z21-handheld/configure", {
+        enabled: String(!!chosen), port: String(chosen?.udpPort ?? z21Draft.udpPort),
+      });
       window.localStorage.setItem(Z21_KEY, JSON.stringify(next));
       setZ21Devices(next);
       setZ21Draft(null);
-      setMessage("Z21 settings saved in this browser only. Server support is not implemented yet.");
+      await refreshZ21();
+      setMessage("Z21 UDP listener configured. Initial handshake is supported; locomotive/turnout routing is not yet connected.");
     } catch (error) { setMessage("NOK: " + String(error)); }
   };
   const deleteZ21 = (id: string) => {
@@ -246,7 +263,9 @@ export default function ExternalDevicesPage({
               <Table.Td><Text fw={600}>{device.name}</Text></Table.Td>
               <Table.Td>Z21 WLANMAUS</Table.Td>
               <Table.Td>UDP {device.udpPort} · Z21 LAN</Table.Td>
-              <Table.Td><Badge color="gray">Planned</Badge></Table.Td>
+              <Table.Td><Badge color={z21Status?.enabled && z21Status.clients > 0 ? "teal" : "gray"}>
+                {z21Status?.enabled && z21Status.clients > 0 ? "Client detected" : z21Status?.enabled ? z21Status.state : "Disabled"}
+              </Badge></Table.Td>
               <Table.Td><Group gap="xs" wrap="nowrap">
                 <Button size="xs" variant="light" onClick={() => { setZ21Draft({ ...device }); setEditing(false); setMonitorId(null); }}>Config</Button>
                 <Button size="xs" color="red" variant="subtle" onClick={() => deleteZ21(device.id)}>Delete</Button>
@@ -263,7 +282,7 @@ export default function ExternalDevicesPage({
     <AppModal opened={z21Draft !== null} onClose={() => setZ21Draft(null)} title="Z21 handheld configuration" centered size="lg">
       <Stack gap="md">
         <Group justify="space-between"><Title order={4}>Z21 handheld configuration</Title><Badge color="yellow">Planned</Badge></Group>
-        <Alert color="blue">Configuration is saved in this browser only. The Z21 UDP server is not implemented yet.</Alert>
+        <Alert color="blue">The Z21 UDP listener supports initial protocol handshake. Loco, turnout and power commands are not yet connected to the runtime.</Alert>
         <TextInput label="Name" value={z21Draft?.name ?? ""} onChange={event => setZ21Draft(old => old && ({ ...old, name: event.currentTarget.value }))} />
         <NumberInput label="Z21 server UDP port" min={1} max={65535} value={z21Draft?.udpPort ?? 21105}
           description="Default: 21105. The handset connects to the HUB's IP address."
@@ -272,7 +291,7 @@ export default function ExternalDevicesPage({
           onChange={event => setZ21Draft(old => old && ({ ...old, enabled: event.currentTarget.checked }))} />
         <Group justify="flex-end">
           <Button variant="light" onClick={() => setZ21Draft(null)}>Cancel</Button>
-          <Button onClick={saveZ21} disabled={!z21Draft?.name.trim() || !z21Draft || z21Draft.udpPort < 1 || z21Draft.udpPort > 65535}>Save</Button>
+          <Button onClick={saveZ21} disabled={!z21Draft?.name.trim() || !z21Draft || z21Draft.udpPort < 1 || z21Draft.udpPort > 65535 || busy}>Save</Button>
         </Group>
       </Stack>
     </AppModal>
