@@ -303,7 +303,6 @@ export default function ExternalDevicesPage({
               </Badge></Table.Td>
               <Table.Td><Button size="xs" variant="light" onClick={onGamepadConfig}>Config</Button></Table.Td>
             </Table.Tr>
-}
           </Table.Tbody>
         </Table>
       </Table.ScrollContainer>
