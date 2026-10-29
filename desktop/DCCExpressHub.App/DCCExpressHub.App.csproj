@@ -1,6 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net10.0-android;net10.0-windows10.0.19041.0</TargetFrameworks>
+    <!-- Restore only the native platform available on this development host.
+         On Windows this avoids NETSDK1147 (Android workload) when building Windows MAUI.
+         To build Android on Windows, opt in explicitly:
+         dotnet build -f net10.0-android -p:TargetFrameworks=net10.0-android
+         (requires the Android workload). -->
+    <TargetFrameworks Condition="'$(TargetFrameworks)' == '' and $([MSBuild]::IsOSPlatform('Windows'))">net10.0-windows10.0.19041.0</TargetFrameworks>
+    <TargetFrameworks Condition="'$(TargetFrameworks)' == ''">net10.0-android</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <UseMaui>true</UseMaui>
     <SingleProject>true</SingleProject>

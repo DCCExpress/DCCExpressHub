@@ -45,6 +45,7 @@ if ($Publish) {
   $out = Join-Path $root "dist/maui-win-x64"
   if (Test-Path $out) { Remove-Item $out -Recurse -Force }
   & dotnet publish $project -f $tfm -c Release -r win-x64 `
+    -p:TargetFrameworks=$tfm `
     -p:WindowsPackageType=None `
     -p:SelfContained=true `
     -p:WindowsAppSDKSelfContained=true `
@@ -58,7 +59,7 @@ if ($Publish) {
   Compress-Archive (Join-Path $out "*") $zip -CompressionLevel Optimal
   Write-Host "MAUI Windows ZIP: $zip"
 } else {
-  & dotnet build $project -f $tfm -c $Configuration -p:WindowsPackageType=None
+  & dotnet build $project -f $tfm -c $Configuration -p:TargetFrameworks=$tfm -p:WindowsPackageType=None
   Assert-Exit "MAUI Windows build"
 }
 Write-Host "MAUI Windows build successful" -ForegroundColor Green
