@@ -10,6 +10,28 @@ public sealed partial class WatsonWebServerService
 {
     private void RegisterExternalDeviceRoutes(Webserver server)
     {
+        Add(server, WatsonHttpMethod.GET, "/api/piko-handheld/status", async ctx =>
+        {
+            await SendAsync(ctx, HubApiResponse.Ok(new { ok = true, status = Service<PikoHandheldServer>().Status() }));
+        });
+        Add(server, WatsonHttpMethod.POST, "/api/piko-handheld/configure", async ctx =>
+        {
+            if (!IsUrlEncodedForm(ctx))
+            {
+                await SendAsync(ctx, HubApiResponse.Error(400, new { ok = false, message = "Form data required." }));
+                return;
+            }
+            var form = await ReadUrlEncodedFormAsync(ctx);
+            if (!int.TryParse(Get(form, "port"), out var port) || port is < 1 or > 65535)
+            {
+                await SendAsync(ctx, HubApiResponse.Error(400, new { ok = false, message = "Invalid PIKO TCP port." }));
+                return;
+            }
+            Service<PikoHandheldServer>().Configure(
+                string.Equals(Get(form, "enabled"), "true", StringComparison.OrdinalIgnoreCase), port);
+            await SendAsync(ctx, HubApiResponse.Ok(new { ok = true }));
+        });
+
         Add(server, WatsonHttpMethod.GET, "/api/z21-handheld/status", async ctx =>
         {
             await SendAsync(ctx, HubApiResponse.Ok(new { ok = true, status = Service<Z21HandheldServer>().Status() }));
