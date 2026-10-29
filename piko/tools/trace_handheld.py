@@ -86,6 +86,16 @@ def plausible_app(image):
     return len(segs) >= 2 and any(
         0x40000000 <= seg["addr"] < 0x40400000 for seg in segs)
 
+def app_description(image):
+    """Extract public ESP-IDF esp_app_desc_t metadata from an app image."""
+    if len(image) < 0xA0 or struct.unpack_from("<I", image, 0x20)[0] != 0xABCD5432:
+        return ""
+    def field(start, length):
+        return image[start:start+length].split(b"\\x00", 1)[0].decode("ascii", "replace")
+    return "project=%s version=%s built=%s %s idf=%s" % (
+        field(0x50, 32), field(0x30, 32), field(0x80, 16),
+        field(0x70, 16), field(0x90, 32))
+
 def select_application(data, partition="auto", app_offset=None):
     """Select an application from either a standalone image or full flash."""
     if app_offset is not None:
@@ -96,6 +106,7 @@ def select_application(data, partition="auto", app_offset=None):
             raise ValueError("No valid ESP32 app image at offset 0x%X" % app_offset)
         return image, "explicit flash offset 0x%X" % app_offset
     if plausible_app(data):
+        print("Standalone app:", app_description(data) or "metadata unavailable")
         if partition != "auto":
             raise ValueError("--partition requires a full flash dump")
         return data, "standalone ESP32 application"
@@ -107,9 +118,12 @@ def select_application(data, partition="auto", app_offset=None):
     if entries:
         print("Partition table at flash offset 0x%X:" % table_offset)
         for e in entries:
-            print("  %-16s type=0x%02X subtype=0x%02X offset=0x%06X size=0x%X" %
-                  (e["name"], e["kind"], e["subtype"], e["off"], e["size"]))
-            if e["kind"] == 0 and plausible_app(data[e["off"]:e["off"]+e["size"]]):
+            is_app = e["kind"] == 0 and plausible_app(data[e["off"]:e["off"]+e["size"]])
+            meta = app_description(data[e["off"]:e["off"]+e["size"]]) if is_app else ""
+            print("  %-16s type=0x%02X subtype=0x%02X offset=0x%06X size=0x%X%s" %
+                  (e["name"], e["kind"], e["subtype"], e["off"], e["size"],
+                   (" | " + meta) if meta else ""))
+            if is_app:
                 candidates.append(e)
         if not candidates:
             raise ValueError("Partition table found but no valid ESP32 app partitions")
