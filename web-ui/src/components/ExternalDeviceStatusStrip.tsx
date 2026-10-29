@@ -72,7 +72,7 @@ export default function ExternalDeviceStatusStrip() {
   const enabledHandhelds = handhelds.filter(item => item.enabled);
   if (!enabledAdapters.length && !enabledHandhelds.length) return null;
 
-  return <ul aria-label="External devices" style={{ margin: 0, paddingLeft: 22, alignSelf: "flex-end", fontSize: 12 }}>
+  return <ul aria-label="External devices" style={{ margin: 0, paddingLeft: 22, alignSelf: "flex-start", fontSize: 12 }}>
     <li><Text span size="xs" fw={600}>External devices</Text></li>
     {enabledAdapters.map(device => {
       const state = statuses.find(item => item.id === device.id);
