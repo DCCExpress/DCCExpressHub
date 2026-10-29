@@ -12,6 +12,17 @@
 
 static const char *TAG = "piko";
 static EventGroupHandle_t wifi_events;
+
+static void heartbeat_task(void *arg)
+{
+    unsigned long count = 0;
+    while (true) {
+        ESP_LOGI(TAG, "HEARTBEAT #%lu uptime=%lu ms", ++count,
+                 (unsigned long)esp_log_timestamp());
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
 #define WIFI_READY BIT0
 
 static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
@@ -48,6 +59,8 @@ static esp_err_t wifi_start(void)
 void app_main(void)
 {
     ESP_LOGW(TAG, "Experimental DCCExpress Z21 handheld; GPIO, display and battery are NOT mapped.");
+    if (xTaskCreate(heartbeat_task, "heartbeat", 2048, NULL, 1, NULL) != pdPASS)
+        ESP_LOGE(TAG, "Failed to create heartbeat task");
 #if CONFIG_PIKO_HW_INPUT_PROBE
     hardware_probe_start();
 #endif
