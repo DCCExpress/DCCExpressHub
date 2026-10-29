@@ -109,3 +109,38 @@ These are **addresses of pointer literals**, not necessarily function
 entry points or GPIO register references. Follow Xtensa `L32R` references
 to these locations when disassembling. This supports locating the
 hardware-initialization code but does not by itself expose pin constants.
+
+
+## Keypad GPIO arguments recovered from all three factory images (2026-10-29)
+
+**Strongly confirmed by Xtensa disassembly of the user's reports.** The
+factory, ota_0 and ota_1 firmware all load six numeric constants into
+Xtensa windowed-ABI argument registers a10..a15, then call a function
+within the keypad initialization sequence immediately after
+`ReadKeysTask` is created:
+
+| Argument | ESP32 GPIO number |
+|---|---:|
+| a10 | **26** |
+| a11 | **14** |
+| a12 | **27** |
+| a13 | **32** |
+| a14 | **33** |
+| a15 | **34** |
+
+**ota_1 / version 1.3.0.0**: `0x400E3953..0x400E395F` calls
+`0x400E3780`.
+
+**factory/ota_0**: `0x400D9987..0x400D9993` calls
+`0x400D97B0`.
+
+This precisely overlaps the experimentally observed button-press activity
+on GPIO 26/27/14, validating that these six pins are keypad-related.
+
+**Still unresolved:** meaning of each of these six arguments; whether
+74HC595 directly selects keypad rows or other peripherals; which signals
+are inputs, which are outputs; rotary A/B; LCD SPI pins/controller.
+**Do not indiscriminately configure these pins as inputs or outputs:** GPIO
+34 is input-only on the original ESP32; the other pins may be actively
+driven by the original keypad circuit. Extract and analyze the called
+functions above before implementing the keypad driver.
