@@ -128,7 +128,7 @@ export default function ExternalDevicesPage({
       setZ21Devices(next);
       setZ21Draft(null);
       await refreshZ21();
-      setMessage("Z21 UDP listener configured. Initial handshake is supported; locomotive/turnout routing is not yet connected.");
+      setMessage("Z21 UDP listener configuration saved.");
     } catch (error) { setMessage("NOK: " + String(error)); }
   };
   const deleteZ21 = async (id: string) => {
@@ -300,7 +300,7 @@ export default function ExternalDevicesPage({
     <AppModal opened={z21Draft !== null} onClose={() => setZ21Draft(null)} title="Z21 handheld configuration" centered size="lg">
       <Stack gap="md">
         <Group justify="space-between"><Title order={4}>Z21 handheld configuration</Title><Badge color="cyan">Z21 UDP</Badge></Group>
-        <Alert color="blue">The Z21 UDP listener supports initial protocol handshake. Loco, turnout and power commands are not yet connected to the runtime.</Alert>
+        <Alert color="blue">Z21 UDP supports locomotive drive, functions, turnouts, track power and emergency stop. Full WLANMAUS compatibility is still under test.</Alert>
         <TextInput label="Name" value={z21Draft?.name ?? ""} onChange={event => { const value = event.currentTarget.value; setZ21Draft(old => old && ({ ...old, name: value })); }} />
         <NumberInput label="Z21 server UDP port" min={1} max={65535} value={z21Draft?.udpPort ?? 21105}
           description="Default: 21105. The handset connects to the HUB's IP address."
