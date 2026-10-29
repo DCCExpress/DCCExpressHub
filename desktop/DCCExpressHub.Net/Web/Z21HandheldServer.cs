@@ -98,10 +98,12 @@ public sealed class Z21HandheldServer : BackgroundService
                             {
                                 int fn = data[8] & 0x3F;
                                 int mode = data[8] >> 6;
-                                if (mode is 0 or 1)
+                                if (mode is 0 or 1 or 2)
                                 {
                                     handled = true;
-                                    ok = await _ws.ApplyZ21FunctionAsync(address, fn, mode == 1, stoppingToken);
+                                    bool active = mode == 1 ||
+                                        (mode == 2 && !_ws.GetZ21FunctionState(address, fn));
+                                    ok = await _ws.ApplyZ21FunctionAsync(address, fn, active, stoppingToken);
                                 }
                             }
                             else if ((db & 0xF0) == 0x10)
