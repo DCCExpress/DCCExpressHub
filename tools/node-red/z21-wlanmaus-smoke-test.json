@@ -4,7 +4,7 @@
     "type": "tab",
     "label": "DCCExpressHub Z21 UDP tests",
     "disabled": false,
-    "info": "Set target IP in UDP out node. Start Z21 handheld in External Devices first. Inspect RX/TX in DCCExpressHub Protocol Monitor. This flow sends safe discovery requests only; it does not send train commands."
+    "info": "Node-RED Z21 local tests. UDP OUT IP 127.0.0.1 port 21105, edit IP as needed. WARNING: power, locomotive and turnout nodes will change real layout state. Test only on safely isolated layout. The HUB protocol monitor shows UDP RX/TX and accepted/rejected SYS events."
   },
   {
     "id": "dccex0000000002",
@@ -125,10 +125,190 @@
     "id": "dccex0000000008",
     "type": "comment",
     "z": "dccex0000000001",
-    "name": "Enable Z21 on External Devices; inspect Debug → Protocol Monitor (Z21 WLAN filter).",
+    "name": "Use only on test layout; power, throttle, function and turnout commands operate REAL hardware. Set UDP target IP.",
     "info": "Node-RED sends the datagrams to localhost:21105. If Node-RED runs on another computer, edit the target IP of the udp out node. The HUB will reply to the source UDP port, which this basic one-way flow does not listen on.",
     "x": 410,
     "y": 35,
     "wires": []
+  },
+  {
+    "id": "dccextest00000100",
+    "type": "inject",
+    "z": "dccex0000000001",
+    "name": "Track power OFF",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "payload": "[7,0,64,0,33,128,161]",
+    "payloadType": "json",
+    "x": 200,
+    "y": 270,
+    "wires": [
+      [
+        "dccex0000000005"
+      ]
+    ]
+  },
+  {
+    "id": "dccextest00000101",
+    "type": "inject",
+    "z": "dccex0000000001",
+    "name": "Track power ON",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "payload": "[7,0,64,0,33,129,160]",
+    "payloadType": "json",
+    "x": 200,
+    "y": 318,
+    "wires": [
+      [
+        "dccex0000000005"
+      ]
+    ]
+  },
+  {
+    "id": "dccextest00000102",
+    "type": "inject",
+    "z": "dccex0000000001",
+    "name": "Emergency stop",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "payload": "[6,0,64,0,128,128]",
+    "payloadType": "json",
+    "x": 200,
+    "y": 366,
+    "wires": [
+      [
+        "dccex0000000005"
+      ]
+    ]
+  },
+  {
+    "id": "dccextest00000103",
+    "type": "inject",
+    "z": "dccex0000000001",
+    "name": "Loco #10 stop (128 steps)",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "payload": "[10,0,64,0,228,19,0,10,128,125]",
+    "payloadType": "json",
+    "x": 200,
+    "y": 414,
+    "wires": [
+      [
+        "dccex0000000005"
+      ]
+    ]
+  },
+  {
+    "id": "dccextest00000104",
+    "type": "inject",
+    "z": "dccex0000000001",
+    "name": "Loco #10 forward step 10",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "payload": "[10,0,64,0,228,19,0,10,139,118]",
+    "payloadType": "json",
+    "x": 200,
+    "y": 462,
+    "wires": [
+      [
+        "dccex0000000005"
+      ]
+    ]
+  },
+  {
+    "id": "dccextest00000105",
+    "type": "inject",
+    "z": "dccex0000000001",
+    "name": "Loco #10 F0 ON",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "payload": "[10,0,64,0,228,248,0,10,64,86]",
+    "payloadType": "json",
+    "x": 200,
+    "y": 510,
+    "wires": [
+      [
+        "dccex0000000005"
+      ]
+    ]
+  },
+  {
+    "id": "dccextest00000106",
+    "type": "inject",
+    "z": "dccex0000000001",
+    "name": "Loco #10 F0 OFF",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "payload": "[10,0,64,0,228,248,0,10,0,22]",
+    "payloadType": "json",
+    "x": 200,
+    "y": 558,
+    "wires": [
+      [
+        "dccex0000000005"
+      ]
+    ]
+  },
+  {
+    "id": "dccextest00000107",
+    "type": "inject",
+    "z": "dccex0000000001",
+    "name": "Turnout #25 CLOSED",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "payload": "[9,0,64,0,83,0,24,8,67]",
+    "payloadType": "json",
+    "x": 200,
+    "y": 606,
+    "wires": [
+      [
+        "dccex0000000005"
+      ]
+    ]
+  },
+  {
+    "id": "dccextest00000108",
+    "type": "inject",
+    "z": "dccex0000000001",
+    "name": "Turnout #25 THROWN",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "payload": "[9,0,64,0,83,0,24,9,66]",
+    "payloadType": "json",
+    "x": 200,
+    "y": 654,
+    "wires": [
+      [
+        "dccex0000000005"
+      ]
+    ]
   }
 ]
