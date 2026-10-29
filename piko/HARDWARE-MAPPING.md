@@ -80,3 +80,32 @@ multiple display controllers and does not identify one uniquely.
   any output drive.
 - Keep the firmware's SPIFFS dependency in mind; the current minimal
   experimental partition table has no SPIFFS partition.
+
+
+### ESP32 image segment and literal-reference mapping
+
+Parsed original `Firmware-Handheld.bin` as an ESP32 image (magic `0xE9`,
+7 loadable segments), without modifying it. Two relevant segments:
+
+- DROM `0x3F400020`, file offset `0x20`, size `0x4BED8`
+- IROM `0x400D0020`, file offset `0x50020`, size `0xDE998`
+
+The following four-byte little-endian string-address literals occur in
+the program's IROM region (verified by direct byte search):
+
+| Identifier | String virtual address | Pointer literal IROM address |
+|---|---|---|
+| `keypad_BackLight_init` | `0x3F41CFA4` | `0x400D101C` |
+| `ReadKeysTask` | `0x3F406050` | `0x400D1028` |
+| `INTERRUPT KEYPAD` | `0x3F406060` | `0x400D1030` |
+| `TIMEOUT KEYPAD` | `0x3F406074` | `0x400D1038` |
+| `INTERRUPT STOPKEY` | `0x3F406084` | `0x400D1044` |
+| `RotaryTask` | `0x3F4062D4` | `0x400D1150` |
+| `RotaryKnob` | `0x3F4063DC` | `0x400D1240` |
+| `RotaryEncoder` | `0x3F40643C` | `0x400D1258` |
+| `LCD-Task` | `0x3F407260` | `0x400D1F5C` |
+
+These are **addresses of pointer literals**, not necessarily function
+entry points or GPIO register references. Follow Xtensa `L32R` references
+to these locations when disassembling. This supports locating the
+hardware-initialization code but does not by itself expose pin constants.
