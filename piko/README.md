@@ -12,6 +12,10 @@ It does not use the repository-root firmware source tree.
 - Thread-safe locomotive snapshot API, to be consumed by the display/UI
 - No automatic drive commands at startup
 
+## Hardware identification
+
+See [HARDWARE-MAPPING.md](HARDWARE-MAPPING.md). An opt-in read-only GPIO candidate monitor logs changes to serial console; it is **off by default** and must not be used as a reason to flash over the factory firmware.
+
 ## Not implemented yet
 - Physical display, rotary encoder, keys, battery and power GPIO mappings
 - On-device configuration UI and address selection
