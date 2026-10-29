@@ -8,6 +8,7 @@
 #include "freertos/event_groups.h"
 #include "freertos/task.h"
 #include "z21_client.h"
+#include "hardware_probe.h"
 
 static const char *TAG = "piko";
 static EventGroupHandle_t wifi_events;
@@ -47,6 +48,9 @@ static esp_err_t wifi_start(void)
 void app_main(void)
 {
     ESP_LOGW(TAG, "Experimental DCCExpress Z21 handheld; GPIO, display and battery are NOT mapped.");
+#if CONFIG_PIKO_HW_INPUT_PROBE
+    hardware_probe_start();
+#endif
     esp_err_t nvs = nvs_flash_init();
     if (nvs == ESP_ERR_NVS_NO_FREE_PAGES || nvs == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_LOGE(TAG, "NVS unavailable; refusing automatic erase of calibration/settings");
