@@ -23,7 +23,8 @@ public sealed class PikoHandheldServer : BackgroundService
         if (port is < 1 or > 65535) throw new ArgumentOutOfRangeException(nameof(port));
         lock (_gate)
         {
-            if (_enabled != enabled || _port != port) _listenerStop?.Cancel();
+            if (_enabled == enabled && _port == port) return;
+            _listenerStop?.Cancel();
             _enabled = enabled;
             _port = port;
             _state = enabled ? "Starting" : "Disabled";
@@ -66,7 +67,16 @@ public sealed class PikoHandheldServer : BackgroundService
                 lock (_gate) _state = "Error: " + ex.Message;
                 await Task.Delay(1500, stoppingToken);
             }
-            finally { lock (_gate) { if (ReferenceEquals(_listenerStop, stop)) _listenerStop = null; } }
+            finally
+            {
+                lock (_gate)
+                {
+                    if (ReferenceEquals(_listenerStop, stop)) _listenerStop = null;
+                    _clients = 0;
+                    // Preserve Error status; only a pending reconfiguration may show Starting.
+                    if (!_enabled) _state = "Disabled";
+                }
+            }
         }
     }
 
