@@ -30,6 +30,13 @@ public sealed class Z21HandheldServer : BackgroundService
         lock (_gate) { _enabled = enabled; _port = port; _state = enabled ? "Starting" : "Disabled"; }
     }
 
+    static bool CheckXor(byte[] frame)
+    {
+        byte xor = 0;
+        for (int i = 4; i < frame.Length - 1; i++) xor ^= frame[i];
+        return xor == frame[^1];
+    }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)
@@ -65,6 +72,66 @@ public sealed class Z21HandheldServer : BackgroundService
                             => [9, 0, 0x40, 0, 0x63, 0x21, 0x40, 0x12, 0x10],
                         _ => null
                     };
+                    if (header == 0x0040 && data.Length >= 7 && CheckXor(data))
+                    {
+                        var x = data[4];
+                        var db = data[5];
+                        var handled = false;
+                        bool ok = false;
+                        if (x == 0xE4 && data.Length == 10)
+                        {
+                            int address = ((data[6] & 0x3F) << 8) | data[7];
+                            if (db == 0xF8)
+                            {
+                                int fn = data[8] & 0x3F;
+                                int mode = data[8] >> 6;
+                                if (mode is 0 or 1)
+                                {
+                                    handled = true;
+                                    ok = await _ws.ApplyZ21FunctionAsync(address, fn, mode == 1, stoppingToken);
+                                }
+                            }
+                            else if ((db & 0xF0) == 0x10)
+                            {
+                                // 128-step DCC: 1 is emergency stop, 2..127 means 1..126 speed.
+                                int rawSpeed = data[8] & 0x7F;
+                                bool forward = (data[8] & 0x80) != 0;
+                                if ((db & 0x0F) == 3 && rawSpeed != 1)
+                                {
+                                    handled = true;
+                                    ok = await _ws.ApplyZ21LocoAsync(address,
+                                        rawSpeed == 0 ? 0 : rawSpeed - 1, forward, stoppingToken);
+                                }
+                            }
+                        }
+                        else if (x == 0x53 && data.Length == 9)
+                        {
+                            // Z21 turnout address is zero-based, HUB address is one-based.
+                            int address = ((data[5] & 0x3F) << 8) | data[6];
+                            bool activate = (data[7] & 0x08) != 0;
+                            if (activate && address < ushort.MaxValue)
+                            {
+                                handled = true;
+                                ok = await _ws.ApplyZ21TurnoutAsync((ushort)(address + 1),
+                                    (data[7] & 1) == 0, stoppingToken);
+                            }
+                        }
+                        else if (x == 0x21 && data.Length == 7 && db is 0x80 or 0x81)
+                        {
+                            handled = true;
+                            ok = await _ws.ApplyZ21PowerAsync(db == 0x81, stoppingToken);
+                        }
+                        else if (x == 0x80 && data.Length == 6)
+                        {
+                            handled = true;
+                            ok = await _ws.ApplyZ21StopAsync(stoppingToken);
+                        }
+                        if (handled)
+                        {
+                            _ws.PublishZ21Packet("SYS", packet.RemoteEndPoint.ToString(), data,
+                                ok ? "Z21 command applied" : "Z21 command rejected");
+                        }
+                    }
                     if (header == 0x0030) { clients.Remove(packet.RemoteEndPoint); lock (_gate) _clients = clients.Count; }
                     if (reply is not null)
                     {
