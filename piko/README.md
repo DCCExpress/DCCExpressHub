@@ -82,3 +82,23 @@ Do **not** put the vendor firmware or flash dump into Git.
 
 For deeper analysis use Ghidra's ESP32 flash-image loader, which
 supports application images and maps the ESP32 memory segments.
+
+
+### Verified keypad pin candidates from original firmware
+
+All three versions in the user's full flash backup call the keypad setup
+routine with six GPIO arguments: **26, 14, 27, 32, 33, 34**.
+This is strong evidence of a six-wire keypad interface, **not yet
+a confirmed row/column, HC595 or encoder pin map**.
+Details and code addresses: [HARDWARE-MAPPING.md](HARDWARE-MAPPING.md).
+
+To extract full Xtensa disassembly near the keypad, rotary and LCD
+handlers from the original 16 MB backup, run:
+
+```powershell
+python piko/tools/trace_peripherals.py .\\piko\\PIKO-Handheld-Original-16MB.bin --partition ota_1
+```
+
+Output: `piko/analysis/peripheral_calls.txt`. This performs offline
+read-only analysis. The output contains code and pointers, not personal
+configuration secrets from NVS.
