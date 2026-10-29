@@ -4,88 +4,96 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
-#include "freertos/queue.h"
 #include "freertos/task.h"
 
-static const char *TAG = "piko_hw";
 /*
- * PIKO 1.3.0.0 factory firmware verified these INPUTS:
- *   32/33/34 keypad inputs, 2/15 rotary A/B, 12 rotary switch candidate,
- *   13 dedicated STOP input candidate.
+ * Offline firmware evidence (PIKO handheld 1.3.0.0):
+ * keypad outputs: GPIO 26/14/27; inputs: 32/33/34.
+ * rotary quadrature: GPIO 2/15; probable rotary switch: GPIO 12;
+ * dedicated STOP: GPIO 13.
  *
- * GPIO26/14/27 are OUTPUTS in the factory keypad driver and MUST NOT be
- * reconfigured as generic inputs. The old all-input probe broke scanning.
- *
- * GPIO2/12/15 are ESP32 boot strapping pins. Read only after startup.
- * Do not change their pulls or drive them.
+ * This diagnostic does NOT drive keypad rows or change pull resistors.
+ * GPIO 2/12/15 are ESP32 boot straps; read only after startup.
+ * Rotary polarity, stop polarity and key identity require hardware tests.
  */
-static const gpio_num_t pins[] = {
-    GPIO_NUM_2, GPIO_NUM_12, GPIO_NUM_13, GPIO_NUM_15,
+static const char *TAG = "piko_hw";
+static const gpio_num_t watched[] = {
+    GPIO_NUM_2, GPIO_NUM_15, GPIO_NUM_12, GPIO_NUM_13,
     GPIO_NUM_32, GPIO_NUM_33, GPIO_NUM_34
 };
-#define COUNT (sizeof(pins) / sizeof(pins[0]))
+#define COUNT (sizeof(watched) / sizeof(watched[0]))
 
-typedef struct { uint8_t index; uint8_t level; uint32_t ms; } edge_t;
-static QueueHandle_t edges;
+/* Gray-code quadrature transition table; invalid jumps count as zero. */
+static const int8_t quadrature[16] = {
+     0, -1,  1, 0,
+     1,  0,  0,-1,
+    -1,  0,  0, 1,
+     0,  1, -1, 0
+};
 
-static void IRAM_ATTR edge_isr(void *arg)
+static void input_task(void *arg)
 {
-    unsigned i = (unsigned)(uintptr_t)arg;
-    edge_t e = { (uint8_t)i, (uint8_t)gpio_get_level(pins[i]),
-                 (uint32_t)(esp_timer_get_time() / 1000) };
-    BaseType_t woken = pdFALSE;
-    if (edges) xQueueSendFromISR(edges, &e, &woken);
-    if (woken) portYIELD_FROM_ISR();
-}
+    (void)arg;
+    uint8_t previous[COUNT];
+    uint8_t stable[COUNT];
+    uint8_t candidate[COUNT];
+    uint8_t counts[COUNT] = {0};
+    for (size_t i = 0; i < COUNT; ++i)
+        previous[i] = stable[i] = candidate[i] = gpio_get_level(watched[i]);
 
-static void log_task(void *arg)
-{
-    uint32_t changes[COUNT] = {0};
-    uint32_t shown[COUNT] = {0};
-    uint32_t start = (uint32_t)(esp_timer_get_time() / 1000);
-    ESP_LOGW(TAG, "Watching %u firmware-derived GPIO inputs (rotary 2/15, switch 12, STOP 13, keypad 32/33/34)",
-             (unsigned)COUNT);
+    uint8_t last_ab = (stable[0] << 1) | stable[1];
+    int rotary_accumulator = 0;
+    int32_t rotary_position = 0;
+    int64_t last_report_us = esp_timer_get_time();
+    ESP_LOGW(TAG, "Input diagnostics: rotary GPIO2/15, switch GPIO12, STOP GPIO13, keypad input GPIO32/33/34");
+    ESP_LOGW(TAG, "Keypad rows GPIO26/14/27 are NOT driven; no complete key detection yet");
     for (;;) {
-        edge_t e;
-        if (xQueueReceive(edges, &e, pdMS_TO_TICKS(100)) == pdTRUE && e.index < COUNT) {
-            changes[e.index]++;
-            /* Show first few edges each second; summarize rapid signals instead. */
-            if (shown[e.index]++ < 6)
-                ESP_LOGI(TAG, "GPIO %u: edge level=%u at %lu ms",
-                         (unsigned)pins[e.index], (unsigned)e.level, (unsigned long)e.ms);
-        }
-        uint32_t now = (uint32_t)(esp_timer_get_time() / 1000);
-        if (now - start >= 1000) {
-            for (unsigned i = 0; i < COUNT; ++i) {
-                if (changes[i] > 6)
-                    ESP_LOGI(TAG, "GPIO %u: %lu edges / second (last level %d)",
-                             (unsigned)pins[i], (unsigned long)changes[i],
-                             gpio_get_level(pins[i]));
-                changes[i] = shown[i] = 0;
+        /* 2 ms sampling; no electrical pulls or outputs configured. */
+        vTaskDelay(pdMS_TO_TICKS(2) ? pdMS_TO_TICKS(2) : 1);
+        uint8_t ab = (gpio_get_level(GPIO_NUM_2) << 1) | gpio_get_level(GPIO_NUM_15);
+        if (ab != last_ab) {
+            rotary_accumulator += quadrature[(last_ab << 2) | ab];
+            last_ab = ab;
+            if (rotary_accumulator >= 4 || rotary_accumulator <= -4) {
+                int direction = rotary_accumulator > 0 ? 1 : -1;
+                rotary_position += direction;
+                ESP_LOGI(TAG, "ROTARY step=%+d position=%ld (direction is uncalibrated)",
+                         direction, (long)rotary_position);
+                rotary_accumulator = 0;
             }
-            start = now;
+        }
+
+        for (size_t i = 2; i < COUNT; ++i) {
+            uint8_t level = gpio_get_level(watched[i]);
+            if (level != candidate[i]) {
+                candidate[i] = level;
+                counts[i] = 0;
+            } else if (counts[i] < 10) {
+                ++counts[i];
+            }
+            if (counts[i] == 10 && stable[i] != candidate[i]) {
+                stable[i] = candidate[i];
+                const char *name = i == 2 ? "ROTARY_SWITCH_CANDIDATE" :
+                                   i == 3 ? "STOP" : "KEYPAD_COLUMN";
+                ESP_LOGI(TAG, "%s GPIO%d level=%u (active polarity unverified)",
+                         name, (int)watched[i], (unsigned)stable[i]);
+            }
+        }
+        if (esp_timer_get_time() - last_report_us >= 10000000) {
+            ESP_LOGI(TAG, "Input monitor running; rotary position=%ld", (long)rotary_position);
+            last_report_us = esp_timer_get_time();
         }
     }
 }
 
 void hardware_probe_start(void)
 {
-    edges = xQueueCreate(256, sizeof(edge_t));
-    if (!edges) { ESP_LOGE(TAG, "GPIO event queue allocation failed"); return; }
-    esp_err_t err = gpio_install_isr_service(0);
-    if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
-        ESP_LOGE(TAG, "GPIO ISR service failed: %s", esp_err_to_name(err));
-        return;
-    }
-    for (unsigned i = 0; i < COUNT; ++i) {
-        gpio_set_direction(pins[i], GPIO_MODE_INPUT);
-        /* Do not alter the electrical pull state of the strapping pins. */
-        gpio_set_intr_type(pins[i], GPIO_INTR_ANYEDGE);
-        err = gpio_isr_handler_add(pins[i], edge_isr, (void *)(uintptr_t)i);
+    /* GPIO outputs used by original firmware are deliberately untouched. */
+    for (size_t i = 0; i < COUNT; ++i) {
+        esp_err_t err = gpio_set_direction(watched[i], GPIO_MODE_INPUT);
         if (err != ESP_OK)
-            ESP_LOGW(TAG, "GPIO %u interrupt setup failed: %s",
-                     (unsigned)pins[i], esp_err_to_name(err));
+            ESP_LOGE(TAG, "GPIO%d setup failed: %s", (int)watched[i], esp_err_to_name(err));
     }
-    if (xTaskCreate(log_task, "hw_probe", 4096, NULL, 3, NULL) != pdPASS)
-        ESP_LOGE(TAG, "Could not start GPIO log task");
+    if (xTaskCreate(input_task, "piko_inputs", 4096, NULL, 3, NULL) != pdPASS)
+        ESP_LOGE(TAG, "Input task creation failed");
 }
