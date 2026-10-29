@@ -412,6 +412,13 @@ public sealed class WsHub
         return ok;
     }
 
+    public bool GetZ21FunctionState(int address, int function)
+    {
+        if (function is < 0 or > 28) return false;
+        return HubState.Locos.TryGetValue(address, out var loco) &&
+            (loco.FunctionsMask & (1u << function)) != 0;
+    }
+
     public async Task<bool> ApplyZ21FunctionAsync(int address, int function, bool active, CancellationToken ct)
     {
         if (address is < 1 or > 10239 || function is < 0 or > 28 || !CommandCenter.Connected)
