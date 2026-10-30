@@ -362,6 +362,8 @@ public sealed class WsHub
         };
     }
 
+    public event Action<int>? Z21LocoStateChanged;
+
     public byte[] GetZ21LocoInfo(int address)
     {
         var loco = HubState.Locos.GetValueOrDefault(address, new(address, 0, true, 0));
@@ -532,8 +534,9 @@ public sealed class WsHub
                     HubState.ProgrammingJoined
             });
 
-    private void QueueLocoBroadcast(
-        LocoFeedback loco) =>
+    private void QueueLocoBroadcast(LocoFeedback loco)
+    {
+        Z21LocoStateChanged?.Invoke(loco.Address);
         QueueStateBroadcast(
             "locoState",
             new
@@ -553,6 +556,7 @@ public sealed class WsHub
                             loco.FunctionsMask
                     }
             });
+    }
 
     private async Task StateBroadcastLoop(
         CancellationToken cancellationToken)
@@ -3774,7 +3778,10 @@ public sealed class WsHub
         }
     }
 
-    private Task BroadcastLoco(LocoFeedback l) => Broadcast("locoState", new
+    private Task BroadcastLoco(LocoFeedback l)
+    {
+        Z21LocoStateChanged?.Invoke(l.Address);
+        return Broadcast("locoState", new
     {
         loco = new
         {
@@ -3784,6 +3791,7 @@ public sealed class WsHub
             functionsMask = l.FunctionsMask
         }
     });
+    }
 
     private async Task SendSnapshot(IHubWebSocketClient ws)
     {
