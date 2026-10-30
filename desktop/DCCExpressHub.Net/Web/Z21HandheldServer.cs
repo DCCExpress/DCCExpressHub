@@ -199,11 +199,19 @@ public sealed class Z21HandheldServer : BackgroundService
                             $"Z21 broadcast flags: 0x{flags:X8}");
                         continue;
                     }
+                    // LAN_X_GET_STATUS must receive the current central-state bitmask
+                    // (not just a broadcast). WLANMAUS polls this regularly.
+                    var powerState = _ws.GetZ21PowerState();
+                    byte centralState = (byte)((powerState.EmergencyStop ? 0x01 : 0)
+                        | (!powerState.PowerOn ? 0x02 : 0));
                     byte[]? reply = header switch
                     {
                         0x0010 when data.Length == 4 => [8, 0, 0x10, 0, 0x45, 0x58, 0x43, 0x44],
                         0x0040 when data.Length >= 7 && data[4] == 0x21 && data[5] == 0x21
                             => [9, 0, 0x40, 0, 0x63, 0x21, 0x40, 0x12, 0x10],
+                        0x0040 when data.Length == 7 && data[4] == 0x21 && data[5] == 0x24
+                            && CheckXor(data)
+                            => [8, 0, 0x40, 0, 0x62, 0x22, centralState, (byte)(0x40 ^ centralState)],
                         _ => null
                     };
                     if (reply is not null) handledPacket = true;
