@@ -2286,7 +2286,7 @@ export default function LiteLayoutPage({
       <div className={`lite-layout-workspace${tabletMode ? (tabletLocoPosition === "floating" ? " tablet-floating-layout" : " tablet-sidebar-layout") : ""}`} style={workspaceStyle}>
         {!locoPanelCollapsed && (
           <div className="lite-loco-panel" inert={blockSelectionActive} style={{ opacity: blockSelectionActive ? 0.55 : 1 }}>
-            <LocoPanel locos={locos} tabletMode={tabletMode} />
+            <LocoPanel key={tabletMode ? tabletLocoPosition : "desktop"} locos={locos} tabletMode={tabletMode} />
           </div>
         )}
 
