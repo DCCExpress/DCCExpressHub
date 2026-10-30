@@ -714,7 +714,7 @@ button,
   z-index: 15;
   left: 50%;
   bottom: max(14px, env(safe-area-inset-bottom));
-  width: min(980px, calc(100% - 32px));
+  width: min(850px, calc(100% - 32px));
   height: clamp(210px, 33dvh, 305px);
   transform: translateX(-50%);
   overflow: visible;
@@ -853,4 +853,20 @@ button,
   .tablet-shell .tablet-sidebar-layout {
     grid-template-columns: var(--lite-loco-width) 5px minmax(0, 1fr) 5px var(--lite-property-width);
   }
+}
+
+/* Floating tablet controls: make inactive function keys readable against
+   the dark overlay without changing their active color semantics. */
+.tablet-shell .tablet-floating-layout .mobile-throttle-functions .mantine-Button-root {
+  border: 1px solid rgba(150, 179, 205, 0.52);
+  background-color: rgba(48, 63, 82, 0.72);
+  color: var(--mantine-color-gray-0);
+}
+.tablet-shell .tablet-floating-layout .mobile-throttle-functions .mantine-Button-root[data-active],
+.tablet-shell .tablet-floating-layout .mobile-throttle-functions .mantine-Button-root[data-variant="filled"] {
+  background-color: var(--mantine-primary-color-filled);
+  border-color: var(--mantine-primary-color-filled);
+}
+.tablet-shell .tablet-floating-layout .mobile-throttle-functions .mantine-Button-root:hover {
+  border-color: rgba(131, 216, 255, 0.9);
 }
