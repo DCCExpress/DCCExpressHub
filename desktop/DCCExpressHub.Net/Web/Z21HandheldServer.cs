@@ -135,9 +135,12 @@ public sealed class Z21HandheldServer : BackgroundService
                             var frame = _ws.GetZ21LocoInfo(address);
                             foreach (var (endpoint, addresses) in subscribedLocos)
                             {
-                                if (!broadcastFlags.TryGetValue(endpoint, out var flags) ||
-                                    (flags & 1) == 0 ||
-                                    (!addresses.Contains(address) && (flags & 0x00010000) == 0)) continue;
+                                // A client controlling/requesting this loco needs its state
+                                // even when it did not register general broadcast flags.
+                                // LAN_SET_BROADCASTFLAGS 0x00010000 also requests all loco info.
+                                var flags = broadcastFlags.GetValueOrDefault(endpoint);
+                                if (!addresses.Contains(address) && (flags & 0x00010000) == 0)
+                                    continue;
                                 await udp.SendAsync(frame, endpoint, stoppingToken);
                                 _ws.PublishZ21Packet("TX", endpoint.ToString(), frame, $"Z21 loco sync #{address}");
                             }
@@ -313,6 +316,11 @@ public sealed class Z21HandheldServer : BackgroundService
                             if (ok && x == 0xE4 && data.Length == 10)
                             {
                                 int locoAddress = ((data[6] & 0x3F) << 8) | data[7];
+                                // Record the active locomotive as soon as a handheld
+                                // drives it. NewGen may not issue an explicit GET_LOCO_INFO.
+                                if (!subscribedLocos.TryGetValue(packet.RemoteEndPoint, out var addresses))
+                                    subscribedLocos[packet.RemoteEndPoint] = addresses = new HashSet<int>();
+                                addresses.Add(locoAddress);
                                 reply = _ws.GetZ21LocoInfo(locoAddress);
                             }
                             _ws.PublishZ21Packet("SYS", packet.RemoteEndPoint.ToString(), data,
