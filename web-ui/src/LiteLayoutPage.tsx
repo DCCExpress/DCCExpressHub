@@ -42,6 +42,7 @@ import {
   IconUpload,
   IconSeparator,
   IconBrandGithub,
+  IconGripHorizontal,
   IconBug,
   IconLockOpen,
   IconListCheck,
@@ -1181,6 +1182,63 @@ export default function LiteLayoutPage({
   const [locoPanelCollapsed, setLocoPanelCollapsed] = useState(() => readStoredBoolean(tabletMode ? tabletStorageKey(LOCO_COLLAPSED_KEY) : LOCO_COLLAPSED_KEY));
   const [tabletLocoPosition, setTabletLocoPosition] = useState<"floating" | "sidebar">(() =>
     localStorage.getItem("dccexpress.tablet-loco-position") === "sidebar" ? "sidebar" : "floating");
+  const floatingPanelRef = useRef<HTMLDivElement>(null);
+  const floatingDragRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
+  const [floatingCoords, setFloatingCoords] = useState<{ x: number; y: number } | null>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("dccexpress.tablet-floating-coords") ?? "null");
+      return saved && Number.isFinite(saved.x) && Number.isFinite(saved.y) ? saved : null;
+    } catch { return null; }
+  });
+  const clampFloatingPanel = useCallback((x: number, y: number) => {
+    const panel = floatingPanelRef.current;
+    const parent = panel?.parentElement;
+    if (!panel || !parent) return { x, y };
+    return {
+      x: Math.max(0, Math.min(x, parent.clientWidth - panel.offsetWidth)),
+      y: Math.max(0, Math.min(y, parent.clientHeight - panel.offsetHeight)),
+    };
+  }, []);
+  const beginFloatingDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || !floatingPanelRef.current) return;
+    event.preventDefault();
+    const panel = floatingPanelRef.current;
+    const parentRect = panel.parentElement?.getBoundingClientRect();
+    if (!parentRect) return;
+    const panelRect = panel.getBoundingClientRect();
+    const left = panelRect.left - parentRect.left;
+    const top = panelRect.top - parentRect.top;
+    floatingDragRef.current = { x: event.clientX, y: event.clientY, left, top };
+    panel.setPointerCapture(event.pointerId);
+    setFloatingCoords({ x: left, y: top });
+  };
+  const moveFloatingDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = floatingDragRef.current;
+    if (!drag) return;
+    const next = clampFloatingPanel(drag.left + event.clientX - drag.x, drag.top + event.clientY - drag.y);
+    setFloatingCoords(next);
+  };
+  const endFloatingDrag = () => {
+    if (!floatingDragRef.current) return;
+    floatingDragRef.current = null;
+    setFloatingCoords(current => {
+      if (current) localStorage.setItem("dccexpress.tablet-floating-coords", JSON.stringify(current));
+      return current;
+    });
+  };
+  useEffect(() => {
+    if (!tabletMode || tabletLocoPosition !== "floating") return;
+    const panel = floatingPanelRef.current;
+    const parent = panel?.parentElement;
+    if (!panel || !parent) return;
+    const observer = new ResizeObserver(() => {
+      setFloatingCoords(current => current ? clampFloatingPanel(current.x, current.y) : null);
+    });
+    observer.observe(parent);
+    observer.observe(panel);
+    return () => observer.disconnect();
+  }, [tabletMode, tabletLocoPosition, clampFloatingPanel]);
+
   const [propertyPanelCollapsed, setPropertyPanelCollapsed] = useState(() => readStoredBoolean(tabletMode ? tabletStorageKey(PROPERTY_COLLAPSED_KEY) : PROPERTY_COLLAPSED_KEY));
   const [rightPanelMode, setRightPanelMode] = useState<RightPanelMode>(() => tabletMode ? (localStorage.getItem(tabletStorageKey(RIGHT_PANEL_MODE_KEY)) === "loco" ? "loco" : "property") : readStoredRightPanelMode());
   const [runtimeTab, setRuntimeTab] = useState<RuntimeTab>(() => readStoredRuntimeTab(tabletMode));
@@ -2289,7 +2347,28 @@ export default function LiteLayoutPage({
 
       <div className={`lite-layout-workspace${tabletMode ? (tabletLocoPosition === "floating" ? " tablet-floating-layout" : " tablet-sidebar-layout") : ""}`} style={workspaceStyle}>
         {!locoPanelCollapsed && (
-          <div className="lite-loco-panel" inert={blockSelectionActive} style={{ opacity: blockSelectionActive ? 0.55 : 1 }}>
+          <div
+            ref={floatingPanelRef}
+            className="lite-loco-panel"
+            inert={blockSelectionActive}
+            style={{
+              opacity: blockSelectionActive ? 0.55 : 1,
+              ...(tabletMode && tabletLocoPosition === "floating" && floatingCoords
+                ? { left: floatingCoords.x, top: floatingCoords.y, bottom: "auto", transform: "none" }
+                : {}),
+            }}
+          >
+            {tabletMode && tabletLocoPosition === "floating" && (
+              <div className="tablet-floating-grip"
+                role="button" tabIndex={0} aria-label="Move locomotive controller"
+                title="Drag to move the locomotive controller"
+                onPointerDown={beginFloatingDrag}
+                onPointerMove={moveFloatingDrag}
+                onPointerUp={endFloatingDrag}
+                onPointerCancel={endFloatingDrag}>
+                <IconGripHorizontal size={22} stroke={2} />
+              </div>
+            )}
             <LocoPanel key={tabletMode ? tabletLocoPosition : "desktop"} locos={locos} tabletMode={tabletMode} />
           </div>
         )}
