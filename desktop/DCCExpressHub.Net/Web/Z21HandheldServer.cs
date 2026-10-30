@@ -228,10 +228,22 @@ public sealed class Z21HandheldServer : BackgroundService
                                 addresses.Add(address);
                             }
                         }
-                        else if (data[4] == 0x43 && data.Length == 8)
+                        else if (data[4] == 0x43 &&
+                            (data.Length == 8 || (data.Length == 9 && data[7] == 0)))
                         {
+                            // WLANMAUS newGen also polls turnout info with an extra
+                            // zero data byte. Both forms carry the same zero-based address.
                             var address = ((data[5] & 0x3F) << 8) | data[6];
                             reply = _ws.GetZ21TurnoutInfo(address + 1);
+                            if (reply is null)
+                            {
+                                // The Z21 replies 00 when the turnout state is unknown.
+                                // Keep the real lookup authoritative; do not invent a position.
+                                byte msb = (byte)(address >> 8);
+                                byte lsb = (byte)address;
+                                reply = [9, 0, 0x40, 0, 0x43, msb, lsb, 0,
+                                    (byte)(0x43 ^ msb ^ lsb)];
+                            }
                         }
                     }
                     if (reply is not null) handledPacket = true;
