@@ -472,9 +472,21 @@ public sealed class WsHub
         var ok = await CommandCenter.EmergencyStopAsync(ct);
         if (ok)
         {
-            HubState.EmergencyStop = true;
+            // Use the same authoritative emergency-state handling as the WebSocket
+            // emergencyStop command; some command stations toggle PAUSE on STOP.
+            HubState.EmergencyStop = CommandCenter.EmergencyPauseStateKnown
+                ? CommandCenter.EmergencyPaused : true;
             await BroadcastPower();
-            await ZeroKnownLocoSpeedsAfterEmergencyAsync();
+            if (HubState.EmergencyStop)
+            {
+                QueueStateBroadcast("hubNotification", new
+                {
+                    title = "Emergency stop",
+                    message = "Emergency stop activated from Z21 WLANMAUS.",
+                    level = "error"
+                }, resyncOnDrop: false);
+                await ZeroKnownLocoSpeedsAfterEmergencyAsync();
+            }
         }
         return ok;
     }
