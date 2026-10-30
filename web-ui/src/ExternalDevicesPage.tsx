@@ -1,5 +1,5 @@
 import {
-  Alert, Badge, Button, Card, Group, NumberInput, Select, Stack,
+  Accordion, Alert, Badge, Button, Card, Code, Group, NumberInput, Select, Stack,
   Switch, Text, TextInput, Title, SimpleGrid, Table, Autocomplete
 } from "@mantine/core";
 import { useCallback, useEffect, useState } from "react";
@@ -422,6 +422,31 @@ export default function ExternalDevicesPage({
           onChange={value => setZ21Draft(old => old && ({ ...old, udpPort: typeof value === "number" ? value : 0 }))} />
         <Switch label="Enable handheld support (when available)" checked={z21Draft?.enabled ?? false}
           onChange={event => { const checked = event.currentTarget.checked; setZ21Draft(old => old && ({ ...old, enabled: checked })); }} />
+        <Accordion variant="contained" radius="sm">
+          <Accordion.Item value="quick-help">
+            <Accordion.Control>Quick Help — WLANMAUS connection &amp; firewall</Accordion.Control>
+            <Accordion.Panel>
+              <Stack gap="xs">
+                <Text size="sm" fw={600}>1. Configure the WLANMAUS</Text>
+                <Text size="sm">Connect the handheld and the Hub computer to the same local network (no guest Wi-Fi/client isolation). Set the handheld's Z21 IP address to the Hub computer's LAN IPv4 address, not the router's address. Use UDP port 21105 unless you changed it here.</Text>
+                <Text size="sm" fw={600}>2. Enable the UDP listener</Text>
+                <Text size="sm">Turn on handheld support and select Save. Open this configuration again and press Quick test. “Listening” means the UDP port opened; “Client detected” means a valid Z21 packet arrived. These do not yet prove that train commands work.</Text>
+                <Text size="sm" fw={600}>3. Windows PowerShell — check the listening port</Text>
+                <Code block>{'Get-NetUDPEndpoint -LocalPort 21105'}</Code>
+                <Text size="sm">If the output shows 0.0.0.0:21105, the Hub is listening on all IPv4 interfaces. To find the Hub's LAN IP address, run:</Text>
+                <Code block>{'ipconfig'}</Code>
+                <Text size="sm" fw={600}>4. Windows Firewall (Administrator PowerShell)</Text>
+                <Text size="sm">On a trusted Private network, allow inbound UDP 21105:</Text>
+                <Code block>{'New-NetFirewallRule -DisplayName "DCCExpress Z21 WLANMAUS" -Direction Inbound -Protocol UDP -LocalPort 21105 -Action Allow -Profile Private'}</Code>
+                <Text size="sm">Check the rule and the active network profile:</Text>
+                <Code block>{'Get-NetFirewallRule -DisplayName "DCCExpress Z21 WLANMAUS"\nGet-NetConnectionProfile'}</Code>
+                <Text size="sm">Use a matching UDP port if you changed the configuration. Do not configure internet router port forwarding.</Text>
+                <Text size="sm" fw={600}>5. Verify real packets</Text>
+                <Text size="sm">Turn on the WLANMAUS, run Quick test again, then inspect Z21 RX/TX traffic in Protocol Monitor. If the port is Listening but no client appears, check the IP address, Wi-Fi isolation and firewall. Windows Test-NetConnection -Port tests TCP, not this UDP listener.</Text>
+              </Stack>
+            </Accordion.Panel>
+          </Accordion.Item>
+        </Accordion>
         {z21QuickTest && <Alert color={z21QuickTest.ok ? "teal" : "red"}>{z21QuickTest.message}</Alert>}
         <Text size="xs" c="dimmed">Quick test checks the saved backend listener and detected Z21 clients; it does not send train commands.</Text>
         <Group justify="flex-end">
