@@ -13,6 +13,8 @@ public sealed class Z21HandheldServer : BackgroundService
     readonly ILogger<Z21HandheldServer> _log;
     readonly WsHub _ws;
     readonly object _gate = new();
+    // A WLANMAUS receives unsolicited loco updates for addresses it has requested.
+    readonly System.Collections.Concurrent.ConcurrentDictionary<int, byte> _pendingLocoUpdates = new();
     sealed class ListenerState
     {
         public required int Port { get; init; }
@@ -23,7 +25,12 @@ public sealed class Z21HandheldServer : BackgroundService
     }
     readonly Dictionary<int, ListenerState> _listeners = new();
 
-    public Z21HandheldServer(ILogger<Z21HandheldServer> log, WsHub ws) { _log = log; _ws = ws; }
+    public Z21HandheldServer(ILogger<Z21HandheldServer> log, WsHub ws)
+    {
+        _log = log;
+        _ws = ws;
+        _ws.Z21LocoStateChanged += address => _pendingLocoUpdates[address] = 0;
+    }
 
     public object Status()
     {
@@ -105,6 +112,7 @@ public sealed class Z21HandheldServer : BackgroundService
                 lock (_gate) listener.State = "Listening";
                 _log.LogInformation("Z21 handheld UDP listener active on {Port}", port);
                 var clients = new HashSet<IPEndPoint>();
+                var subscribedLocos = new Dictionary<IPEndPoint, HashSet<int>>();
                 while (!stoppingToken.IsCancellationRequested)
                 {
 
@@ -112,14 +120,32 @@ public sealed class Z21HandheldServer : BackgroundService
                     shortWait.CancelAfter(500);
                     UdpReceiveResult packet;
                     try { packet = await udp.ReceiveAsync(shortWait.Token); }
-                    catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested) { continue; }
+                    catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
+                    {
+                        foreach (var address in _pendingLocoUpdates.Keys)
+                        {
+                            if (!_pendingLocoUpdates.TryRemove(address, out _)) continue;
+                            var frame = _ws.GetZ21LocoInfo(address);
+                            foreach (var (endpoint, addresses) in subscribedLocos)
+                            {
+                                if (!addresses.Contains(address)) continue;
+                                await udp.SendAsync(frame, endpoint, stoppingToken);
+                                _ws.PublishZ21Packet("TX", endpoint.ToString(), frame, $"Z21 loco sync #{address}");
+                            }
+                        }
+                        continue;
+                    }
                     var data = packet.Buffer;
                     _ws.PublishZ21Packet("RX", packet.RemoteEndPoint.ToString(), data, "Z21 UDP inbound");
                     if (data.Length < 4 || BinaryPrimitives.ReadUInt16LittleEndian(data) != data.Length)
+                    {
+                        _ws.PublishZ21Packet("SYS", packet.RemoteEndPoint.ToString(), data, "[UNHANDLED] Invalid Z21 packet length");
                         continue;
+                    }
                     clients.Add(packet.RemoteEndPoint);
                     lock (_gate) listener.Clients = clients.Count;
                     var header = BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(2));
+                    bool handledPacket = false;
                     byte[]? reply = header switch
                     {
                         0x0010 when data.Length == 4 => [8, 0, 0x10, 0, 0x45, 0x58, 0x43, 0x44],
@@ -127,12 +153,19 @@ public sealed class Z21HandheldServer : BackgroundService
                             => [9, 0, 0x40, 0, 0x63, 0x21, 0x40, 0x12, 0x10],
                         _ => null
                     };
+                    if (reply is not null) handledPacket = true;
                     if (header == 0x0040 && data.Length >= 6 && CheckXor(data))
                     {
                         if (data[4] == 0xE3 && data.Length == 9 && data[5] == 0xF0)
                         {
                             var address = ((data[6] & 0x3F) << 8) | data[7];
-                            if (address > 0) reply = _ws.GetZ21LocoInfo(address);
+                            if (address > 0)
+                            {
+                                reply = _ws.GetZ21LocoInfo(address);
+                                if (!subscribedLocos.TryGetValue(packet.RemoteEndPoint, out var addresses))
+                                    subscribedLocos[packet.RemoteEndPoint] = addresses = new HashSet<int>();
+                                addresses.Add(address);
+                            }
                         }
                         else if (data[4] == 0x43 && data.Length == 8)
                         {
@@ -140,6 +173,7 @@ public sealed class Z21HandheldServer : BackgroundService
                             reply = _ws.GetZ21TurnoutInfo(address + 1);
                         }
                     }
+                    if (reply is not null) handledPacket = true;
                     if (header == 0x0040 && data.Length >= 6 && CheckXor(data))
                     {
                         var x = data[4];
@@ -198,11 +232,22 @@ public sealed class Z21HandheldServer : BackgroundService
                         }
                         if (handled)
                         {
+                            handledPacket = true;
                             _ws.PublishZ21Packet("SYS", packet.RemoteEndPoint.ToString(), data,
                                 ok ? "Z21 command applied" : "Z21 command rejected");
                         }
                     }
-                    if (header == 0x0030) { clients.Remove(packet.RemoteEndPoint); lock (_gate) listener.Clients = clients.Count; }
+                    if (header == 0x0030)
+                    {
+                        handledPacket = true;
+                        clients.Remove(packet.RemoteEndPoint);
+                        subscribedLocos.Remove(packet.RemoteEndPoint);
+                        lock (_gate) listener.Clients = clients.Count;
+                    }
+                    if (!handledPacket)
+                        _ws.PublishZ21Packet("SYS", packet.RemoteEndPoint.ToString(), data,
+                            $"[UNHANDLED] Z21 header=0x{header:X4}" +
+                            (data.Length >= 6 ? $" X=0x{data[4]:X2} DB=0x{data[5]:X2}" : ""));
                     if (reply is not null)
                     {
                         await udp.SendAsync(reply, packet.RemoteEndPoint, stoppingToken);
