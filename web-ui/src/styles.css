@@ -685,3 +685,98 @@ button,
   min-height: 0;
   padding: 0 2px;
 }
+
+
+/* Tablet floating throttle: the railway canvas keeps its width while the
+   existing locomotive controller floats above its lower center. */
+.tablet-shell .lite-layout-workspace {
+  position: relative;
+  grid-template-columns: minmax(0, 1fr) 6px var(--lite-property-width);
+  overflow: hidden;
+}
+.tablet-shell .lite-panel-resizer-left {
+  display: none;
+}
+.tablet-shell .lite-track-card {
+  grid-column: 1;
+  grid-row: 1;
+}
+.tablet-shell .lite-panel-resizer-right {
+  grid-column: 2;
+  grid-row: 1;
+}
+.tablet-shell .lite-property-panel {
+  grid-column: 3;
+  grid-row: 1;
+}
+.tablet-shell .lite-loco-panel {
+  position: absolute;
+  z-index: 15;
+  left: 50%;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  width: min(980px, calc(100% - 32px));
+  height: clamp(230px, 39dvh, 370px);
+  transform: translateX(-50%);
+  overflow: visible;
+  border: 1px solid rgba(92, 194, 245, 0.38);
+  border-radius: 16px;
+  background: rgba(12, 18, 29, 0.94);
+  box-shadow: 0 18px 55px rgba(0, 0, 0, 0.65), 0 0 28px rgba(63, 179, 226, 0.12);
+  backdrop-filter: blur(16px);
+}
+.tablet-shell .lite-loco-panel > .mantine-Card-root {
+  height: 100%;
+  border: 0;
+  border-radius: 15px;
+  background: transparent;
+}
+.tablet-shell .lite-loco-panel .tablet-throttle-layout {
+  flex-direction: row;
+  align-items: stretch;
+  gap: 12px;
+  padding: 4px;
+}
+.tablet-shell .lite-loco-panel .tablet-throttle-layout .mobile-throttle-controls {
+  flex: 0 0 40%;
+  min-width: 0;
+  overflow: auto;
+}
+.tablet-shell .lite-loco-panel .tablet-throttle-layout .mobile-throttle-functions {
+  flex: 1 1 60%;
+  min-width: 0;
+  border-left: 1px solid rgba(148, 184, 210, 0.2);
+  padding-left: 12px;
+}
+.tablet-shell .lite-loco-panel .tablet-throttle-layout .mobile-throttle-functions > .mantine-Card-root {
+  background: transparent;
+}
+.tablet-shell .lite-loco-panel .tablet-throttle-layout .mobile-throttle-functions .mantine-SimpleGrid-root {
+  grid-template-rows: repeat(6, minmax(0, 1fr));
+  gap: 5px;
+}
+.tablet-shell .lite-loco-panel .tablet-throttle-layout .mobile-throttle-functions .mantine-Button-root {
+  border-radius: 7px;
+  min-height: 32px;
+}
+@media (max-width: 760px) {
+  .tablet-shell .lite-layout-workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 5px var(--lite-property-width);
+    height: auto;
+    overflow: hidden;
+  }
+  .tablet-shell .lite-loco-panel {
+    width: calc(100% - 16px);
+    height: clamp(210px, 43dvh, 340px);
+    bottom: 8px;
+  }
+  .tablet-shell .lite-loco-panel .tablet-throttle-layout {
+    gap: 6px;
+  }
+  .tablet-shell .lite-loco-panel .tablet-throttle-layout .mobile-throttle-controls {
+    flex-basis: 42%;
+  }
+  .tablet-shell .lite-loco-panel .tablet-throttle-layout .mobile-throttle-functions {
+    padding-left: 6px;
+  }
+}
