@@ -15,7 +15,7 @@
 ![Z21](https://img.shields.io/badge/Z21-Supported-0077B6)
 ![LocoNet](https://img.shields.io/badge/LocoNet-Supported-7952B3)
 
-**Version: 0.1.0-alpha.8**
+**Version: 0.1.0-alpha.9**
 
 **DCCExpressHub** is a model railway control and automation application supporting the **DCC-EX**, **Z21 + R-BUS**, and **LocoNet** protocols.
 
