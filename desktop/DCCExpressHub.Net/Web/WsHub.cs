@@ -461,7 +461,14 @@ public sealed class WsHub
     public async Task<bool> ApplyZ21PowerAsync(bool on, CancellationToken ct)
     {
         if (!CommandCenter.Connected) return false;
-        var ok = await CommandCenter.SetTrackPowerAsync(on, CommandCenterConfigStore.Current.PowerIncludesProgramming, ct);
+        // Z21 POWER ON is also the resume command after a central emergency stop.
+        // DCC-EX must receive its actual pause-release sequence (<!>, <!R>);
+        // merely sending <1> and clearing the UI flag causes feedback to re-latch STOP.
+        var resumingEmergency = on && CommandCenter.EmergencyPauseStateKnown &&
+            CommandCenter.EmergencyPaused;
+        var ok = resumingEmergency
+            ? await CommandCenter.EmergencyStopAsync(ct)
+            : await CommandCenter.SetTrackPowerAsync(on, CommandCenterConfigStore.Current.PowerIncludesProgramming, ct);
         if (ok)
         {
             // Some command centers acknowledge a power command without producing an
@@ -473,7 +480,8 @@ public sealed class WsHub
             // Z21 LAN_X_SET_TRACK_POWER_ON (21 81 A0) also releases E-STOP.
             // Do not leave the UI and the Z21 status poll latched in STOP.
             if (on)
-                HubState.EmergencyStop = false;
+                HubState.EmergencyStop = CommandCenter.EmergencyPauseStateKnown
+                    ? CommandCenter.EmergencyPaused : false;
             if (wasOn != on)
             {
                 LocoCounters.SetTrackPower(on);
