@@ -474,7 +474,6 @@ public sealed class WsHub
         {
             HubState.EmergencyStop = true;
             await BroadcastPower();
-            Z21PowerStateChanged?.Invoke();
             await ZeroKnownLocoSpeedsAfterEmergencyAsync();
         }
         return ok;
@@ -3756,7 +3755,10 @@ public sealed class WsHub
 
     public Task BroadcastPowerState() => BroadcastPower();
 
-    private Task BroadcastPower() => Broadcast("powerInfo", new
+    private Task BroadcastPower()
+    {
+        Z21PowerStateChanged?.Invoke();
+        return Broadcast("powerInfo", new
     {
         emergencyStop = HubState.EmergencyStop,
         trackVoltageOn = HubState.TrackPower,
@@ -3765,6 +3767,7 @@ public sealed class WsHub
         programmingModeActive = HubState.ProgrammingPower,
         programmingJoined = HubState.ProgrammingJoined
     });
+    }
 
     public async Task ZeroKnownLocoSpeedsAfterEmergencyAsync()
     {
