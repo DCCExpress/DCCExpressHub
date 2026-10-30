@@ -2129,10 +2129,14 @@ export default function LiteLayoutPage({
             <Button size="xs" variant="light" onClick={() => setTabletLocoPosition(current => {
               const next = current === "floating" ? "sidebar" : "floating";
               localStorage.setItem("dccexpress.tablet-loco-position", next);
+              if (next === "sidebar") setLocoPanelCollapsed(false);
               return next;
             })} title="Switch locomotive panel between bottom overlay and left sidebar">
               {tabletLocoPosition === "floating" ? "Left panel" : "Floating panel"}
             </Button>
+            <ActionIcon variant={locoPanelCollapsed ? "light" : "filled"} onClick={() => setLocoPanelCollapsed(value => !value)} title={i18next.t("ui.toggleLocomotivePanel")} aria-label={i18next.t("ui.toggleLocomotivePanel")}>
+              <IconTrain size={19} />
+            </ActionIcon>
             <ActionIcon variant="light" onClick={() => setFitCounter(value => value + 1)} title={i18next.t("ui.fitLayout")} aria-label={i18next.t("ui.fitLayout")}>
               <IconFocusCentered size={19} />
             </ActionIcon>
