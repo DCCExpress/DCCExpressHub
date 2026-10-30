@@ -67,6 +67,16 @@ The handheld can control locomotive speed, direction and functions, operate turn
 
 The rotary knob increases speed when turned right, decreases it when turned left, and can change direction when pressed. The STOP button supports the WLANMAUS's configured **track power off** or **emergency stop** mode. This integration has been tested with a physical WLANMAUS newGen and DCC-EX command station; behavior with other hardware may vary.
 
+### DCCExpress S88 Adapter
+
+The [DCCExpress S88 Adapter](https://github.com/DCCExpress/DCCExpress-S88Adapter) adds **S88 / s88-N occupancy feedback** to a DCC-EX CommandStation-EX setup. An Arduino Uno-based adapter reads S88 feedback modules and makes their states available to DCC-EX through an I2C HAL driver. The command station then reports ordinary DCC-EX sensor events (`<Q>` / `<q>`), which DCCExpressHub can use for occupancy monitoring and automation. Direct USB serial feedback is also supported.
+
+The adapter supports **up to 256 feedback inputs** (32 S88 bytes), with configurable I2C address and input count. It has been tested with **YaMoRC YD6016ES-CS** modules, including two chained 16-input modules.
+
+**Important — 3.3 V ↔ 5 V level conversion:** The Arduino Uno adapter uses **5 V logic**, while many modern DCC-EX controllers use **3.3 V I2C logic**. Use a suitable **bidirectional I2C level shifter** between SDA/SCL (with a shared ground) unless the controller is explicitly 5 V tolerant. **Do not connect 5 V I2C signals directly to a non-5 V-tolerant 3.3 V controller.** Also check the s88-N bus supply: the tested YD6016ES-CS must not receive more than **5 V**, even though other s88-N devices may support different voltages.
+
+For wiring, firmware and DCC-EX HAL installation, see the [S88 Adapter repository](https://github.com/DCCExpress/DCCExpress-S88Adapter). A hardware photo can be added here later.
+
 ## Supported protocols
 
 DCCExpressHub supports DCC-EX, Z21, and LocoNet communication protocols on **Windows**, **Linux**, and **Android** (network connections only on Android), with transport-specific connection options. Select the protocol supported by your command station and connect the corresponding interface.
