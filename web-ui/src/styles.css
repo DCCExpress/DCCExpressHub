@@ -715,7 +715,7 @@ button,
   left: 50%;
   bottom: max(14px, env(safe-area-inset-bottom));
   width: min(980px, calc(100% - 32px));
-  height: clamp(230px, 39dvh, 370px);
+  height: clamp(210px, 33dvh, 305px);
   transform: translateX(-50%);
   overflow: visible;
   border: 1px solid rgba(92, 194, 245, 0.38);
@@ -739,7 +739,9 @@ button,
 .tablet-shell .lite-loco-panel .tablet-throttle-layout .mobile-throttle-controls {
   flex: 0 0 40%;
   min-width: 0;
-  overflow: auto;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
 }
 .tablet-shell .lite-loco-panel .tablet-throttle-layout .mobile-throttle-functions {
   flex: 1 1 60%;
@@ -767,7 +769,7 @@ button,
   }
   .tablet-shell .lite-loco-panel {
     width: calc(100% - 16px);
-    height: clamp(210px, 43dvh, 340px);
+    height: clamp(195px, 36dvh, 280px);
     bottom: 8px;
   }
   .tablet-shell .lite-loco-panel .tablet-throttle-layout {
@@ -779,4 +781,10 @@ button,
   .tablet-shell .lite-loco-panel .tablet-throttle-layout .mobile-throttle-functions {
     padding-left: 6px;
   }
+}
+
+.tablet-shell .tablet-throttle-control-inner {
+  display: block;
+  min-width: 0;
+  will-change: transform;
 }
