@@ -57,6 +57,14 @@ Use a compatible Bluetooth or USB gamepad with the mobile control interface to d
 
 Configure button assignments on the **Gamepad** page. Settings are saved for the browser/device you use. Gamepad availability depends on your browser and controller.
 
+### ROCO Z21 WLANMAUS newGen
+
+DCCExpressHub can act as a **Z21-compatible UDP server** for the **ROCO WLANMAUS newGen** handheld controller. Connect the WLANMAUS to the same Wi-Fi network as the Hub and configure its Z21 IP address to the computer running DCCExpressHub. Enable the **Z21 WLANMAUS** external device in the Hub (default UDP port **21105**).
+
+The handheld can control locomotive speed, direction and functions, operate turnouts, and send track power and emergency-stop commands. Locomotive speed, direction, function states and turnout states are synchronized between the handheld and DCCExpressHub, so changes made from either interface can be reflected on the other.
+
+The rotary knob increases speed when turned right, decreases it when turned left, and can change direction when pressed. The STOP button supports the WLANMAUS's configured **track power off** or **emergency stop** mode. This integration has been tested with a physical WLANMAUS newGen and DCC-EX command station; behavior with other hardware may vary.
+
 ## Supported protocols
 
 DCCExpressHub supports DCC-EX, Z21, and LocoNet communication protocols on **Windows**, **Linux**, and **Android** (network connections only on Android), with transport-specific connection options. Select the protocol supported by your command station and connect the corresponding interface.
