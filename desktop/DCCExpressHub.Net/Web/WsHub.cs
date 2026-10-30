@@ -462,7 +462,30 @@ public sealed class WsHub
     {
         if (!CommandCenter.Connected) return false;
         var ok = await CommandCenter.SetTrackPowerAsync(on, CommandCenterConfigStore.Current.PowerIncludesProgramming, ct);
-        if (ok && !on) await RuntimeStateStore.SaveAsync();
+        if (ok)
+        {
+            // Some command centers acknowledge a power command without producing an
+            // immediate PowerFeedbackChanged event. Update the shared Hub state so
+            // the Web UI responds to WLANMAUS commands immediately; later feedback
+            // still remains authoritative and may correct this optimistic state.
+            var wasOn = HubState.TrackPower;
+            HubState.TrackPower = on;
+            if (wasOn != on)
+            {
+                LocoCounters.SetTrackPower(on);
+                Scripts.NotifyTrackPowerChanged(on);
+                if (!on)
+                {
+                    ClearRailComPresence();
+                    SequentialMovement.StopAll(false);
+                    Movement.StopAll(false);
+                    Scripts.AbortManualOnPowerOff();
+                    Timetable.StopScheduler();
+                }
+            }
+            await BroadcastPower();
+            if (!on) await RuntimeStateStore.SaveAsync();
+        }
         return ok;
     }
 
