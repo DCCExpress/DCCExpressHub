@@ -117,6 +117,9 @@ public sealed class Z21HandheldServer : BackgroundService
                 _log.LogInformation("Z21 handheld UDP listener active on {Port}", port);
                 var clients = new HashSet<IPEndPoint>();
                 var subscribedLocos = new Dictionary<IPEndPoint, HashSet<int>>();
+                var broadcastFlags = new Dictionary<IPEndPoint, uint>();
+                bool ReceivesGeneral(IPEndPoint endpoint) =>
+                    broadcastFlags.TryGetValue(endpoint, out var flags) && (flags & 1) != 0;
                 while (!stoppingToken.IsCancellationRequested)
                 {
 
@@ -132,7 +135,9 @@ public sealed class Z21HandheldServer : BackgroundService
                             var frame = _ws.GetZ21LocoInfo(address);
                             foreach (var (endpoint, addresses) in subscribedLocos)
                             {
-                                if (!addresses.Contains(address)) continue;
+                                if (!broadcastFlags.TryGetValue(endpoint, out var flags) ||
+                                    (flags & 1) == 0 ||
+                                    (!addresses.Contains(address) && (flags & 0x00010000) == 0)) continue;
                                 await udp.SendAsync(frame, endpoint, stoppingToken);
                                 _ws.PublishZ21Packet("TX", endpoint.ToString(), frame, $"Z21 loco sync #{address}");
                             }
@@ -142,7 +147,7 @@ public sealed class Z21HandheldServer : BackgroundService
                             if (!_pendingTurnoutUpdates.TryRemove(address, out _)) continue;
                             var frame = _ws.GetZ21TurnoutInfo(address);
                             if (frame is null) continue;
-                            foreach (var endpoint in clients)
+                            foreach (var endpoint in clients.Where(ReceivesGeneral))
                             {
                                 await udp.SendAsync(frame, endpoint, stoppingToken);
                                 _ws.PublishZ21Packet("TX", endpoint.ToString(), frame, $"Z21 turnout sync #{address}");
@@ -156,7 +161,7 @@ public sealed class Z21HandheldServer : BackgroundService
                                 : state.PowerOn
                                     ? [7, 0, 0x40, 0, 0x61, 1, 0x60]
                                     : [7, 0, 0x40, 0, 0x61, 0, 0x61];
-                            foreach (var endpoint in clients)
+                            foreach (var endpoint in clients.Where(ReceivesGeneral))
                             {
                                 await udp.SendAsync(frame, endpoint, stoppingToken);
                                 _ws.PublishZ21Packet("TX", endpoint.ToString(), frame, "Z21 power / emergency sync");
@@ -175,6 +180,25 @@ public sealed class Z21HandheldServer : BackgroundService
                     lock (_gate) listener.Clients = clients.Count;
                     var header = BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(2));
                     bool handledPacket = false;
+                    if (header == 0x0050 && data.Length == 8)
+                    {
+                        broadcastFlags[packet.RemoteEndPoint] = BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(4));
+                        _ws.PublishZ21Packet("SYS", packet.RemoteEndPoint.ToString(), data,
+                            $"Z21 broadcast subscription: 0x{broadcastFlags[packet.RemoteEndPoint]:X8}");
+                        continue;
+                    }
+                    if (header == 0x0051 && data.Length == 4)
+                    {
+                        var flags = broadcastFlags.GetValueOrDefault(packet.RemoteEndPoint);
+                        byte[] flagsReply = new byte[8];
+                        BinaryPrimitives.WriteUInt16LittleEndian(flagsReply, 8);
+                        BinaryPrimitives.WriteUInt16LittleEndian(flagsReply.AsSpan(2), 0x0051);
+                        BinaryPrimitives.WriteUInt32LittleEndian(flagsReply.AsSpan(4), flags);
+                        await udp.SendAsync(flagsReply, packet.RemoteEndPoint, stoppingToken);
+                        _ws.PublishZ21Packet("TX", packet.RemoteEndPoint.ToString(), flagsReply,
+                            $"Z21 broadcast flags: 0x{flags:X8}");
+                        continue;
+                    }
                     byte[]? reply = header switch
                     {
                         0x0010 when data.Length == 4 => [8, 0, 0x10, 0, 0x45, 0x58, 0x43, 0x44],
@@ -271,6 +295,7 @@ public sealed class Z21HandheldServer : BackgroundService
                         handledPacket = true;
                         clients.Remove(packet.RemoteEndPoint);
                         subscribedLocos.Remove(packet.RemoteEndPoint);
+                        broadcastFlags.Remove(packet.RemoteEndPoint);
                         lock (_gate) listener.Clients = clients.Count;
                     }
                     if (!handledPacket)
