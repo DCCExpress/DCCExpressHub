@@ -1183,7 +1183,8 @@ export default function LiteLayoutPage({
   const [tabletLocoPosition, setTabletLocoPosition] = useState<"floating" | "sidebar">(() =>
     localStorage.getItem("dccexpress.tablet-loco-position") === "sidebar" ? "sidebar" : "floating");
   const floatingPanelRef = useRef<HTMLDivElement>(null);
-  const floatingDragRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
+  const floatingDragRef = useRef<{ pointerId: number; x: number; y: number; left: number; top: number } | null>(null);
+  const floatingCoordsRef = useRef<{ x: number; y: number } | null>(null);
   const [floatingCoords, setFloatingCoords] = useState<{ x: number; y: number } | null>(() => {
     try {
       const saved = JSON.parse(localStorage.getItem("dccexpress.tablet-floating-coords") ?? "null");
@@ -1195,37 +1196,69 @@ export default function LiteLayoutPage({
     const parent = panel?.parentElement;
     if (!panel || !parent) return { x, y };
     return {
-      x: Math.max(0, Math.min(x, parent.clientWidth - panel.offsetWidth)),
-      y: Math.max(Math.min(26, Math.max(0, parent.clientHeight - panel.offsetHeight)), Math.min(y, Math.max(0, parent.clientHeight - panel.offsetHeight))),
+      x: Math.max(0, Math.min(x, Math.max(0, parent.clientWidth - panel.offsetWidth))),
+      y: Math.max(Math.min(26, Math.max(0, parent.clientHeight - panel.offsetHeight)),
+        Math.min(y, Math.max(0, parent.clientHeight - panel.offsetHeight))),
     };
   }, []);
+  const setFloatingPosition = useCallback((position: { x: number; y: number }) => {
+    floatingCoordsRef.current = position;
+    setFloatingCoords(position);
+  }, []);
+  const floatingCleanupRef = useRef<(() => void) | null>(null);
   const beginFloatingDrag = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0 || !floatingPanelRef.current) return;
+    if (!event.isPrimary || event.button !== 0 || !floatingPanelRef.current || floatingDragRef.current) return;
     event.preventDefault();
+    event.stopPropagation();
     const panel = floatingPanelRef.current;
     const parentRect = panel.parentElement?.getBoundingClientRect();
     if (!parentRect) return;
     const panelRect = panel.getBoundingClientRect();
     const left = panelRect.left - parentRect.left;
     const top = panelRect.top - parentRect.top;
-    floatingDragRef.current = { x: event.clientX, y: event.clientY, left, top };
-    panel.setPointerCapture(event.pointerId);
-    setFloatingCoords({ x: left, y: top });
+    floatingDragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, left, top };
+    setFloatingPosition({ x: left, y: top });
+
+    // Follow the gesture on window, not on the moving handle. Pointer capture
+    // on the panel caused the grip to stop receiving its own move/up events.
+    const move = (pointer: PointerEvent) => {
+      const drag = floatingDragRef.current;
+      if (!drag || pointer.pointerId !== drag.pointerId) return;
+      setFloatingPosition(clampFloatingPanel(
+        drag.left + pointer.clientX - drag.x,
+        drag.top + pointer.clientY - drag.y
+      ));
+    };
+    const finish = (pointer: PointerEvent) => {
+      if (pointer.pointerId !== floatingDragRef.current?.pointerId) return;
+      floatingCleanupRef.current?.();
+      floatingCleanupRef.current = null;
+      floatingDragRef.current = null;
+      if (floatingCoordsRef.current) {
+        localStorage.setItem("dccexpress.tablet-floating-coords", JSON.stringify(floatingCoordsRef.current));
+      }
+    };
+    const cleanup = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", finish);
+      window.removeEventListener("blur", cancel);
+    };
+    const cancel = () => {
+      cleanup();
+      floatingCleanupRef.current = null;
+      floatingDragRef.current = null;
+      if (floatingCoordsRef.current) {
+        localStorage.setItem("dccexpress.tablet-floating-coords", JSON.stringify(floatingCoordsRef.current));
+      }
+    };
+    floatingCleanupRef.current = cleanup;
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", finish);
+    window.addEventListener("blur", cancel);
   };
-  const moveFloatingDrag = (event: React.PointerEvent<HTMLDivElement>) => {
-    const drag = floatingDragRef.current;
-    if (!drag) return;
-    const next = clampFloatingPanel(drag.left + event.clientX - drag.x, drag.top + event.clientY - drag.y);
-    setFloatingCoords(next);
-  };
-  const endFloatingDrag = () => {
-    if (!floatingDragRef.current) return;
-    floatingDragRef.current = null;
-    setFloatingCoords(current => {
-      if (current) localStorage.setItem("dccexpress.tablet-floating-coords", JSON.stringify(current));
-      return current;
-    });
-  };
+  useEffect(() => () => { floatingCleanupRef.current?.(); floatingCleanupRef.current = null; }, []);
   useEffect(() => {
     if (!tabletMode || tabletLocoPosition !== "floating") return;
     const panel = floatingPanelRef.current;
@@ -2362,10 +2395,7 @@ export default function LiteLayoutPage({
               <div className="tablet-floating-grip"
                 role="button" tabIndex={0} aria-label="Move locomotive controller"
                 title="Drag to move the locomotive controller"
-                onPointerDown={beginFloatingDrag}
-                onPointerMove={moveFloatingDrag}
-                onPointerUp={endFloatingDrag}
-                onPointerCancel={endFloatingDrag}>
+                onPointerDown={beginFloatingDrag}>
                 <IconGripHorizontal size={22} stroke={2} />
               </div>
             )}
