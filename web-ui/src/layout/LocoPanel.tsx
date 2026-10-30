@@ -729,7 +729,7 @@ export default function LocoPanel({
   // The floating tablet throttle has less vertical space than the normal side panel.
   // Fit only its control half; keep the function keys at full touch size.
   useEffect(() => {
-    if (!tabletMode) return;
+    if (!tabletMode || !fitContainerRef.current?.closest(".tablet-floating-layout")) return;
     const viewport = tabletControlRef.current;
     const content = tabletControlContentRef.current;
     if (!viewport || !content) return;
