@@ -1196,7 +1196,7 @@ export default function LiteLayoutPage({
     if (!panel || !parent) return { x, y };
     return {
       x: Math.max(0, Math.min(x, parent.clientWidth - panel.offsetWidth)),
-      y: Math.max(0, Math.min(y, parent.clientHeight - panel.offsetHeight)),
+      y: Math.max(Math.min(26, Math.max(0, parent.clientHeight - panel.offsetHeight)), Math.min(y, Math.max(0, parent.clientHeight - panel.offsetHeight))),
     };
   }, []);
   const beginFloatingDrag = (event: React.PointerEvent<HTMLDivElement>) => {
