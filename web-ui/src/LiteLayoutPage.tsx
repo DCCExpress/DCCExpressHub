@@ -2331,7 +2331,7 @@ export default function LiteLayoutPage({
         {!propertyPanelCollapsed && (
           rightPanelMode === "loco" ? (
             <div className="lite-property-panel lite-right-loco-panel" inert={blockSelectionActive} style={{ opacity: blockSelectionActive ? 0.55 : 1 }}>
-              <LocoPanel locos={locos} selectedLocoStorageKey={RIGHT_LOCO_STORAGE_KEY} />
+              <LocoPanel locos={locos} tabletMode={tabletMode} selectedLocoStorageKey={RIGHT_LOCO_STORAGE_KEY} />
             </div>
           ) : (
             <Card withBorder p="sm" className="lite-property-panel" inert={blockSelectionActive} style={{ opacity: blockSelectionActive ? 0.55 : 1 }}>
