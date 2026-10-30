@@ -340,7 +340,7 @@ export default function ExternalDevicesPage({
       <Table.ScrollContainer minWidth={740}>
         <Table striped highlightOnHover verticalSpacing="sm">
           <Table.Thead><Table.Tr>
-            <Table.Th>Device</Table.Th><Table.Th>Type</Table.Th><Table.Th>Configuration</Table.Th>
+            <Table.Th>Device</Table.Th><Table.Th>Type</Table.Th>
             <Table.Th>Status</Table.Th><Table.Th>Actions</Table.Th>
           </Table.Tr></Table.Thead>
           <Table.Tbody>
@@ -348,9 +348,8 @@ export default function ExternalDevicesPage({
               const live = status.find(x => x.id === device.id);
               const online = !!(device.enabled && live?.connected);
               return <Table.Tr key={device.id}>
-                <Table.Td><Text fw={600}>{device.name}</Text></Table.Td>
+                <Table.Td><Text fw={600}>{device.name}</Text><Text size="sm" c="dimmed">{device.serialPort || "No serial port"} · {device.sensorCount} inputs · Sensors {device.sensorOffset + 1}–{device.sensorOffset + device.sensorCount}</Text></Table.Td>
                 <Table.Td>S88 adapter</Table.Td>
-                <Table.Td><Text size="sm">{device.serialPort || "No serial port"} · {device.sensorCount} inputs · Sensors {device.sensorOffset + 1}–{device.sensorOffset + device.sensorCount}</Text></Table.Td>
                 <Table.Td><Badge color={online ? "green" : device.enabled ? "yellow" : "gray"}>
                   {online ? "Connected" : device.enabled ? "Disconnected" : "Disabled"}</Badge></Table.Td>
                 <Table.Td><Group gap="xs" wrap="nowrap">
@@ -360,9 +359,8 @@ export default function ExternalDevicesPage({
               </Table.Tr>;
             })}
             {z21Devices.map(device => <Table.Tr key={device.id}>
-              <Table.Td><Text fw={600}>{device.name}</Text></Table.Td>
+              <Table.Td><Text fw={600}>{device.name}</Text><Text size="sm" c="dimmed">UDP {device.udpPort} · Z21 LAN</Text></Table.Td>
               <Table.Td>Z21 WLANMAUS</Table.Td>
-              <Table.Td>UDP {device.udpPort} · Z21 LAN</Table.Td>
               <Table.Td><Badge color={z21Status?.listeners?.find(x => x.port === device.udpPort)?.clients ? "teal" : "gray"}>
                 {z21Status?.listeners?.find(x => x.port === device.udpPort)?.clients ? "Client detected" : z21Status?.listeners?.find(x => x.port === device.udpPort)?.state ?? "Disabled"}
               </Badge></Table.Td>
@@ -372,9 +370,8 @@ export default function ExternalDevicesPage({
               </Group></Table.Td>
             </Table.Tr>)}
             {piko && <Table.Tr>
-              <Table.Td><Text fw={600}>{piko.name}</Text></Table.Td>
+              <Table.Td><Text fw={600}>{piko.name}</Text><Text size="sm" c="dimmed">TCP {piko.tcpPort} · experimental</Text></Table.Td>
               <Table.Td>PIKO SmartControl WLAN</Table.Td>
-              <Table.Td>TCP {piko.tcpPort} · experimental</Table.Td>
               <Table.Td><Badge color={pikoStatus?.clients ? "teal" : "gray"}>
                 {piko.enabled ? pikoStatus?.clients ? "Connected" : pikoStatus?.state ?? "Starting" : "Disabled"}
               </Badge></Table.Td>
@@ -384,9 +381,8 @@ export default function ExternalDevicesPage({
               </Group></Table.Td>
             </Table.Tr>}
             <Table.Tr>
-              <Table.Td><Text fw={600}>{gamepads.find(x => x.index === selectedGamepadIndex)?.id ?? "Gamepad"}</Text></Table.Td>
+              <Table.Td><Text fw={600}>{gamepads.find(x => x.index === selectedGamepadIndex)?.id ?? "Gamepad"}</Text><Text size="sm" c="dimmed">Browser Gamepad API · {gamepads.length} detected · {selectedGamepadIndex === null ? "None selected" : `Index ${selectedGamepadIndex}`}</Text></Table.Td>
               <Table.Td>Gamepad</Table.Td>
-              <Table.Td>Browser Gamepad API · {gamepads.length} detected · {selectedGamepadIndex === null ? "None selected" : `Index ${selectedGamepadIndex}`}</Table.Td>
               <Table.Td><Badge color={gamepads.some(x => x.index === selectedGamepadIndex) ? "teal" : "gray"}>
                 {gamepads.some(x => x.index === selectedGamepadIndex) ? "Connected" : "Disconnected"}
               </Badge></Table.Td>
