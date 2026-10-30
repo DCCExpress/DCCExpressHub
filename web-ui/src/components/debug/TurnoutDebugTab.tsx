@@ -128,6 +128,8 @@ export default function TurnoutDebugTab({
                         ? "violet"
                         : value.outputMode === "vpin"
                           ? "cyan"
+                          : value.outputMode === "dccex-turnout"
+                            ? "teal"
                           : "blue"
                     }
                   >
@@ -135,6 +137,8 @@ export default function TurnoutDebugTab({
                       ? "EXTENDED"
                       : value.outputMode === "vpin"
                         ? "VPIN"
+                        : value.outputMode === "dccex-turnout"
+                          ? "DCC-EX TURNOUT"
                         : "BASIC"}
                   </Badge>
                 </Table.Td>
@@ -186,6 +190,8 @@ export default function TurnoutDebugTab({
                           const next = event.currentTarget.checked;
                           if (value.outputMode === "vpin") {
                             wsApi.setVpin(address, next);
+                          } else if (value.outputMode === "dccex-turnout") {
+                            wsApi.setDccExTurnout(address, next);
                           } else {
                             wsApi.setTurnout(address, next);
                           }
