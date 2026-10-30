@@ -870,3 +870,18 @@ button,
 .tablet-shell .tablet-floating-layout .mobile-throttle-functions .mantine-Button-root:hover {
   border-color: rgba(131, 216, 255, 0.9);
 }
+
+/* Use the same function-key palette in both tablet locomotive layouts. */
+.tablet-shell .tablet-sidebar-layout .mobile-throttle-functions .mantine-Button-root {
+  border: 1px solid rgba(150, 179, 205, 0.52);
+  background-color: rgba(48, 63, 82, 0.72);
+  color: var(--mantine-color-gray-0);
+}
+.tablet-shell .tablet-sidebar-layout .mobile-throttle-functions .mantine-Button-root[data-active],
+.tablet-shell .tablet-sidebar-layout .mobile-throttle-functions .mantine-Button-root[data-variant="filled"] {
+  background-color: var(--mantine-primary-color-filled);
+  border-color: var(--mantine-primary-color-filled);
+}
+.tablet-shell .tablet-sidebar-layout .mobile-throttle-functions .mantine-Button-root:hover {
+  border-color: rgba(131, 216, 255, 0.9);
+}
