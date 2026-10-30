@@ -1179,6 +1179,8 @@ export default function LiteLayoutPage({
   const [locoPanelWidth, setLocoPanelWidth] = useState(() => readStoredNumber(tabletMode ? tabletStorageKey(LOCO_WIDTH_KEY) : LOCO_WIDTH_KEY, tabletMode ? 240 : 380));
   const [propertyPanelWidth, setPropertyPanelWidth] = useState(() => readStoredNumber(tabletMode ? tabletStorageKey(PROPERTY_WIDTH_KEY) : PROPERTY_WIDTH_KEY, tabletMode ? 260 : 380));
   const [locoPanelCollapsed, setLocoPanelCollapsed] = useState(() => readStoredBoolean(tabletMode ? tabletStorageKey(LOCO_COLLAPSED_KEY) : LOCO_COLLAPSED_KEY));
+  const [tabletLocoPosition, setTabletLocoPosition] = useState<"floating" | "sidebar">(() =>
+    localStorage.getItem("dccexpress.tablet-loco-position") === "sidebar" ? "sidebar" : "floating");
   const [propertyPanelCollapsed, setPropertyPanelCollapsed] = useState(() => readStoredBoolean(tabletMode ? tabletStorageKey(PROPERTY_COLLAPSED_KEY) : PROPERTY_COLLAPSED_KEY));
   const [rightPanelMode, setRightPanelMode] = useState<RightPanelMode>(() => tabletMode ? (localStorage.getItem(tabletStorageKey(RIGHT_PANEL_MODE_KEY)) === "loco" ? "loco" : "property") : readStoredRightPanelMode());
   const [runtimeTab, setRuntimeTab] = useState<RuntimeTab>(() => readStoredRuntimeTab(tabletMode));
@@ -2124,6 +2126,13 @@ export default function LiteLayoutPage({
             >
               {i18next.t("ui.power")} {commandCenter.powerInfo?.trackVoltageOn ? i18next.t("ui.on") : i18next.t("ui.off")}
             </Button>
+            <Button size="xs" variant="light" onClick={() => setTabletLocoPosition(current => {
+              const next = current === "floating" ? "sidebar" : "floating";
+              localStorage.setItem("dccexpress.tablet-loco-position", next);
+              return next;
+            })} title="Switch locomotive panel between bottom overlay and left sidebar">
+              {tabletLocoPosition === "floating" ? "Left panel" : "Floating panel"}
+            </Button>
             <ActionIcon variant="light" onClick={() => setFitCounter(value => value + 1)} title={i18next.t("ui.fitLayout")} aria-label={i18next.t("ui.fitLayout")}>
               <IconFocusCentered size={19} />
             </ActionIcon>
@@ -2274,7 +2283,7 @@ export default function LiteLayoutPage({
 
       {error && <Alert color="red">{error}</Alert>}
 
-      <div className="lite-layout-workspace" style={workspaceStyle}>
+      <div className={`lite-layout-workspace${tabletMode ? (tabletLocoPosition === "floating" ? " tablet-floating-layout" : " tablet-sidebar-layout") : ""}`} style={workspaceStyle}>
         {!locoPanelCollapsed && (
           <div className="lite-loco-panel" inert={blockSelectionActive} style={{ opacity: blockSelectionActive ? 0.55 : 1 }}>
             <LocoPanel locos={locos} tabletMode={tabletMode} />
