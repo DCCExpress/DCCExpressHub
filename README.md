@@ -59,7 +59,7 @@ Configure button assignments on the **Gamepad** page. Settings are saved for the
 
 ### ROCO Z21 WLANMAUS newGen
 
-![DCCExpressHub Gamepad](doc/images/20261030_165356.jpg)
+![Roco Z21 wlanMAUS](doc/images/20261030_165356.jpg)
 
 DCCExpressHub can act as a **Z21-compatible UDP server** for the **ROCO WLANMAUS newGen** handheld controller. Connect the WLANMAUS to the same Wi-Fi network as the Hub and configure its Z21 IP address to the computer running DCCExpressHub. Enable the **Z21 WLANMAUS** external device in the Hub (default UDP port **21105**).
 
@@ -68,6 +68,8 @@ The handheld can control locomotive speed, direction and functions, operate turn
 The rotary knob increases speed when turned right, decreases it when turned left, and can change direction when pressed. The STOP button supports the WLANMAUS's configured **track power off** or **emergency stop** mode. This integration has been tested with a physical WLANMAUS newGen and DCC-EX command station; behavior with other hardware may vary.
 
 ### DCCExpress S88 Adapter
+
+![DCCExpressHub Gamepad](doc/images/20261030_182549.jpg)
 
 The [DCCExpress S88 Adapter](https://github.com/DCCExpress/DCCExpress-S88Adapter) adds **S88 / s88-N occupancy feedback** to a DCC-EX CommandStation-EX setup. An Arduino Uno-based adapter reads S88 feedback modules and makes their states available to DCC-EX through an I2C HAL driver. The command station then reports ordinary DCC-EX sensor events (`<Q>` / `<q>`), which DCCExpressHub can use for occupancy monitoring and automation. Direct USB serial feedback is also supported.
 

@@ -1,0 +1,438 @@
+PIKO factory handheld - targeted Xtensa literal xrefs
+Source: piko\PIKO-Handheld-Original-16MB.bin (16777216 input bytes)
+Selected: flash partition ota_1 @ 0x590000 (2097152 app/partition bytes)
+Disassembler: C:\Users\junge\.platformio\packages\toolchain-xtensa-esp-elf\bin\xtensa-esp-elf-objdump.exe
+NOTE: raw literal pointers and disassembler guesses are not confirmed GPIO mappings.
+
+SEGMENTS:
+  0: file 0x20, memory 0x3F400020, size 0x4BED8
+  1: file 0x4BF00, memory 0x3FF80068, size 0x1C
+  2: file 0x4BF24, memory 0x3FFB0000, size 0x40F4
+  3: file 0x50020, memory 0x400D0020, size 0xDE998
+  4: file 0x12E9C0, memory 0x3FFB40F4, size 0x6A4
+  5: file 0x12F06C, memory 0x40080000, size 0x1BB00
+  6: file 0x14AB74, memory 0x400C0000, size 0x68
+
+LITERAL POOLS (string -> string address -> pointer location):
+  ./main/src/keypad.c                0x3F40601C -> 0x400D1020
+  ReadKeysTask                       0x3F406050 -> 0x400D1028
+  INTERRUPT KEYPAD                   0x3F406060 -> 0x400D1030
+  TIMEOUT KEYPAD                     0x3F406074 -> 0x400D1038
+  INTERRUPT STOPKEY                  0x3F406084 -> 0x400D1044
+  RotaryTask                         0x3F4062D4 -> 0x400D1150
+  RotaryKnob                         0x3F4063DC -> 0x400D1240
+  RotaryEncoder                      0x3F40643C -> 0x400D1258
+  LCD-Task                           0x3F407260 -> 0x400D1F5C
+  keypad_BackLight_init              0x3F41CFA4 -> 0x400D101C
+
+L32R REFERENCES (instruction context):
+
+  TARGET: keypad_BackLight_init
+  l32r @ 0x400E38D5 reads literal @ 0x400D101C
+400e38be:	0c28                	movi.n	a8, 2
+400e38c0:	8921                	s32i.n	a8, a1, 8
+400e38c2:	0c18                	movi.n	a8, 1
+400e38c4:	8941                	s32i.n	a8, a1, 16
+400e38c6:	82a0ff               	movi	a8, 255
+400e38c9:	8951                	s32i.n	a8, a1, 20
+400e38cb:	ad01                	mov.n	a10, a1
+400e38cd:	a5ea45               	call8	0x40129778
+400e38d0:	8cda                	beqz.n	a10, 0x400e38e1
+400e38d2:	e1d1b5               	l32r	a14, 0x400d1018 (0x3f405ff8)
+400e38d5:	d1d1b5               	l32r	a13, 0x400d101c (0x3f41cfa4)
+400e38d8:	c2a248               	movi	a12, 0x248
+400e38db:	b1d1b5               	l32r	a11, 0x400d1020 (0x3f40601c)
+400e38de:	65d2a8               	call8	0x4008c604
+400e38e1:	22c124               	addi	a2, a1, 36
+400e38e4:	1c8c                	movi.n	a12, 24
+400e38e6:	0c0b                	movi.n	a11, 0
+400e38e8:	ad02                	mov.n	a10, a2
+400e38ea:	81ebb1               	l32r	a8, 0x400d0098 (0x4000c44c)
+400e38ed:	e00800               	callx8	a8
+400e38f0:	0c88                	movi.n	a8, 8
+400e38f2:	89a1                	s32i.n	a8, a1, 40
+400e38f4:	0c38                	movi.n	a8, 3
+400e38f6:	89b1                	s32i.n	a8, a1, 44
+400e38f8:	82a1f4               	movi	a8, 0x1f4
+400e38fb:	89c1                	s32i.n	a8, a1, 48
+400e38fd:	8841                	l32i.n	a8, a1, 16
+400e38ff:	89b1                	s32i.n	a8, a1, 44
+400e3901:	ad02                	mov.n	a10, a2
+400e3903:	e5ab45               	call8	0x401293c0
+400e3906:	8cda                	beqz.n	a10, 0x400e3917
+
+  TARGET: ./main/src/keypad.c
+  l32r @ 0x400E38DB reads literal @ 0x400D1020
+400e38c2:	0c18                	movi.n	a8, 1
+400e38c4:	8941                	s32i.n	a8, a1, 16
+400e38c6:	82a0ff               	movi	a8, 255
+400e38c9:	8951                	s32i.n	a8, a1, 20
+400e38cb:	ad01                	mov.n	a10, a1
+400e38cd:	a5ea45               	call8	0x40129778
+400e38d0:	8cda                	beqz.n	a10, 0x400e38e1
+400e38d2:	e1d1b5               	l32r	a14, 0x400d1018 (0x3f405ff8)
+400e38d5:	d1d1b5               	l32r	a13, 0x400d101c (0x3f41cfa4)
+400e38d8:	c2a248               	movi	a12, 0x248
+400e38db:	b1d1b5               	l32r	a11, 0x400d1020 (0x3f40601c)
+400e38de:	65d2a8               	call8	0x4008c604
+400e38e1:	22c124               	addi	a2, a1, 36
+400e38e4:	1c8c                	movi.n	a12, 24
+400e38e6:	0c0b                	movi.n	a11, 0
+400e38e8:	ad02                	mov.n	a10, a2
+400e38ea:	81ebb1               	l32r	a8, 0x400d0098 (0x4000c44c)
+400e38ed:	e00800               	callx8	a8
+400e38f0:	0c88                	movi.n	a8, 8
+400e38f2:	89a1                	s32i.n	a8, a1, 40
+400e38f4:	0c38                	movi.n	a8, 3
+400e38f6:	89b1                	s32i.n	a8, a1, 44
+400e38f8:	82a1f4               	movi	a8, 0x1f4
+400e38fb:	89c1                	s32i.n	a8, a1, 48
+400e38fd:	8841                	l32i.n	a8, a1, 16
+400e38ff:	89b1                	s32i.n	a8, a1, 44
+400e3901:	ad02                	mov.n	a10, a2
+400e3903:	e5ab45               	call8	0x401293c0
+400e3906:	8cda                	beqz.n	a10, 0x400e3917
+400e3908:	e1c7b5               	l32r	a14, 0x400d1024 (0x3f406030)
+400e390b:	d1c4b5               	l32r	a13, 0x400d101c (0x3f41cfa4)
+
+  TARGET: keypad_BackLight_init
+  l32r @ 0x400E390B reads literal @ 0x400D101C
+400e38f4:	0c38                	movi.n	a8, 3
+400e38f6:	89b1                	s32i.n	a8, a1, 44
+400e38f8:	82a1f4               	movi	a8, 0x1f4
+400e38fb:	89c1                	s32i.n	a8, a1, 48
+400e38fd:	8841                	l32i.n	a8, a1, 16
+400e38ff:	89b1                	s32i.n	a8, a1, 44
+400e3901:	ad02                	mov.n	a10, a2
+400e3903:	e5ab45               	call8	0x401293c0
+400e3906:	8cda                	beqz.n	a10, 0x400e3917
+400e3908:	e1c7b5               	l32r	a14, 0x400d1024 (0x3f406030)
+400e390b:	d1c4b5               	l32r	a13, 0x400d101c (0x3f41cfa4)
+400e390e:	c2a252               	movi	a12, 0x252
+400e3911:	b1c3b5               	l32r	a11, 0x400d1020 (0x3f40601c)
+400e3914:	e5cea8               	call8	0x4008c604
+400e3917:	0c2a                	movi.n	a10, 2
+400e3919:	250bac               	call8	0x4008f9cc
+400e391c:	ad03                	mov.n	a10, a3
+400e391e:	25f2ff               	call8	0x400e3840
+400e3921:	1df0                	retw.n
+400e3923:	003661               	excw
+400e3926:	000c0c               	excw
+400e3929:	0c4b                	movi.n	a11, 4
+400e392b:	0c1a                	movi.n	a10, 1
+400e392d:	a504a9               	call8	0x4008c978
+400e3930:	814eb4               	l32r	a8, 0x400d0a68 (0x3ffb4fcc)
+400e3933:	a908                	s32i.n	a10, a8, 0
+400e3935:	71d1b2               	l32r	a7, 0x400d047c (0x7fffffff)
+400e3938:	7901                	s32i.n	a7, a1, 0
+400e393a:	f148b4               	l32r	a15, 0x400d0a5c (0x3ffb4fd0)
+400e393d:	0c1e                	movi.n	a14, 1
+400e393f:	0c0d                	movi.n	a13, 0
+
+  TARGET: ./main/src/keypad.c
+  l32r @ 0x400E3911 reads literal @ 0x400D1020
+400e38f8:	82a1f4               	movi	a8, 0x1f4
+400e38fb:	89c1                	s32i.n	a8, a1, 48
+400e38fd:	8841                	l32i.n	a8, a1, 16
+400e38ff:	89b1                	s32i.n	a8, a1, 44
+400e3901:	ad02                	mov.n	a10, a2
+400e3903:	e5ab45               	call8	0x401293c0
+400e3906:	8cda                	beqz.n	a10, 0x400e3917
+400e3908:	e1c7b5               	l32r	a14, 0x400d1024 (0x3f406030)
+400e390b:	d1c4b5               	l32r	a13, 0x400d101c (0x3f41cfa4)
+400e390e:	c2a252               	movi	a12, 0x252
+400e3911:	b1c3b5               	l32r	a11, 0x400d1020 (0x3f40601c)
+400e3914:	e5cea8               	call8	0x4008c604
+400e3917:	0c2a                	movi.n	a10, 2
+400e3919:	250bac               	call8	0x4008f9cc
+400e391c:	ad03                	mov.n	a10, a3
+400e391e:	25f2ff               	call8	0x400e3840
+400e3921:	1df0                	retw.n
+400e3923:	003661               	excw
+400e3926:	000c0c               	excw
+400e3929:	0c4b                	movi.n	a11, 4
+400e392b:	0c1a                	movi.n	a10, 1
+400e392d:	a504a9               	call8	0x4008c978
+400e3930:	814eb4               	l32r	a8, 0x400d0a68 (0x3ffb4fcc)
+400e3933:	a908                	s32i.n	a10, a8, 0
+400e3935:	71d1b2               	l32r	a7, 0x400d047c (0x7fffffff)
+400e3938:	7901                	s32i.n	a7, a1, 0
+400e393a:	f148b4               	l32r	a15, 0x400d0a5c (0x3ffb4fd0)
+400e393d:	0c1e                	movi.n	a14, 1
+400e393f:	0c0d                	movi.n	a13, 0
+400e3941:	c17ab3               	l32r	a12, 0x400d072c (0x1000)
+400e3944:	b1b9b5               	l32r	a11, 0x400d1028 (0x3f406050)
+
+  TARGET: ReadKeysTask
+  l32r @ 0x400E3944 reads literal @ 0x400D1028
+400e392b:	0c1a                	movi.n	a10, 1
+400e392d:	a504a9               	call8	0x4008c978
+400e3930:	814eb4               	l32r	a8, 0x400d0a68 (0x3ffb4fcc)
+400e3933:	a908                	s32i.n	a10, a8, 0
+400e3935:	71d1b2               	l32r	a7, 0x400d047c (0x7fffffff)
+400e3938:	7901                	s32i.n	a7, a1, 0
+400e393a:	f148b4               	l32r	a15, 0x400d0a5c (0x3ffb4fd0)
+400e393d:	0c1e                	movi.n	a14, 1
+400e393f:	0c0d                	movi.n	a13, 0
+400e3941:	c17ab3               	l32r	a12, 0x400d072c (0x1000)
+400e3944:	b1b9b5               	l32r	a11, 0x400d1028 (0x3f406050)
+400e3947:	a1b9b5               	l32r	a10, 0x400d102c (0x400e3004)
+400e394a:	25c5ac               	call8	0x4009059c
+400e394d:	e5d4fc               	call8	0x400e069c
+400e3950:	e5eeff               	call8	0x400e3840
+400e3953:	2c2f                	movi.n	a15, 34
+400e3955:	2c1e                	movi.n	a14, 33
+400e3957:	2c0d                	movi.n	a13, 32
+400e3959:	1cbc                	movi.n	a12, 27
+400e395b:	0ceb                	movi.n	a11, 14
+400e395d:	1caa                	movi.n	a10, 26
+400e395f:	25e2ff               	call8	0x400e3780
+400e3962:	a5fda9               	call8	0x4008d93c
+400e3965:	8194b5               	l32r	a8, 0x400d0fb8 (0x3ffb61f4)
+400e3968:	a908                	s32i.n	a10, a8, 0
+400e396a:	0c0c                	movi.n	a12, 0
+400e396c:	0c4b                	movi.n	a11, 4
+400e396e:	0c1a                	movi.n	a10, 1
+400e3970:	6500a9               	call8	0x4008c978
+400e3973:	8190b5               	l32r	a8, 0x400d0fb4 (0x3ffb61ec)
+400e3976:	a908                	s32i.n	a10, a8, 0
+
+  TARGET: INTERRUPT KEYPAD
+  l32r @ 0x400E3986 reads literal @ 0x400D1030
+400e396e:	0c1a                	movi.n	a10, 1
+400e3970:	6500a9               	call8	0x4008c978
+400e3973:	8190b5               	l32r	a8, 0x400d0fb4 (0x3ffb61ec)
+400e3976:	a908                	s32i.n	a10, a8, 0
+400e3978:	61d4b4               	l32r	a6, 0x400d0cc8 (0x800)
+400e397b:	7901                	s32i.n	a7, a1, 0
+400e397d:	f1a3b5               	l32r	a15, 0x400d100c (0x3ffb61f0)
+400e3980:	0c2e                	movi.n	a14, 2
+400e3982:	0c0d                	movi.n	a13, 0
+400e3984:	cd06                	mov.n	a12, a6
+400e3986:	b1aab5               	l32r	a11, 0x400d1030 (0x3f406060)
+400e3989:	a1aab5               	l32r	a10, 0x400d1034 (0x400e2da0)
+400e398c:	e5c0ac               	call8	0x4009059c
+400e398f:	7901                	s32i.n	a7, a1, 0
+400e3991:	0c0f                	movi.n	a15, 0
+400e3993:	0c1e                	movi.n	a14, 1
+400e3995:	dd0f                	mov.n	a13, a15
+400e3997:	60c620               	or	a12, a6, a6
+400e399a:	b1a7b5               	l32r	a11, 0x400d1038 (0x3f406074)
+400e399d:	a1a7b5               	l32r	a10, 0x400d103c (0x400e3704)
+400e39a0:	a5bfac               	call8	0x4009059c
+400e39a3:	0c0a                	movi.n	a10, 0
+400e39a5:	658d3e               	call8	0x4012227c
+400e39a8:	718bb5               	l32r	a7, 0x400d0fd4 (0x400839d8)
+400e39ab:	2c0c                	movi.n	a12, 32
+400e39ad:	bd07                	mov.n	a11, a7
+400e39af:	ad0c                	mov.n	a10, a12
+400e39b1:	65603e               	call8	0x40121fb8
+400e39b4:	2c1c                	movi.n	a12, 33
+400e39b6:	bd07                	mov.n	a11, a7
+400e39b8:	ad0c                	mov.n	a10, a12
+
+  TARGET: TIMEOUT KEYPAD
+  l32r @ 0x400E399A reads literal @ 0x400D1038
+400e3982:	0c0d                	movi.n	a13, 0
+400e3984:	cd06                	mov.n	a12, a6
+400e3986:	b1aab5               	l32r	a11, 0x400d1030 (0x3f406060)
+400e3989:	a1aab5               	l32r	a10, 0x400d1034 (0x400e2da0)
+400e398c:	e5c0ac               	call8	0x4009059c
+400e398f:	7901                	s32i.n	a7, a1, 0
+400e3991:	0c0f                	movi.n	a15, 0
+400e3993:	0c1e                	movi.n	a14, 1
+400e3995:	dd0f                	mov.n	a13, a15
+400e3997:	60c620               	or	a12, a6, a6
+400e399a:	b1a7b5               	l32r	a11, 0x400d1038 (0x3f406074)
+400e399d:	a1a7b5               	l32r	a10, 0x400d103c (0x400e3704)
+400e39a0:	a5bfac               	call8	0x4009059c
+400e39a3:	0c0a                	movi.n	a10, 0
+400e39a5:	658d3e               	call8	0x4012227c
+400e39a8:	718bb5               	l32r	a7, 0x400d0fd4 (0x400839d8)
+400e39ab:	2c0c                	movi.n	a12, 32
+400e39ad:	bd07                	mov.n	a11, a7
+400e39af:	ad0c                	mov.n	a10, a12
+400e39b1:	65603e               	call8	0x40121fb8
+400e39b4:	2c1c                	movi.n	a12, 33
+400e39b6:	bd07                	mov.n	a11, a7
+400e39b8:	ad0c                	mov.n	a10, a12
+400e39ba:	e55f3e               	call8	0x40121fb8
+400e39bd:	2c2c                	movi.n	a12, 34
+400e39bf:	bd07                	mov.n	a11, a7
+400e39c1:	ad0c                	mov.n	a10, a12
+400e39c3:	655f3e               	call8	0x40121fb8
+400e39c6:	0c09                	movi.n	a9, 0
+400e39c8:	8180b5               	l32r	a8, 0x400d0fc8 (0x3ffb61e3)
+400e39cb:	924800               	s8i	a9, a8, 0
+
+  TARGET: INTERRUPT STOPKEY
+  l32r @ 0x400E3A3B reads literal @ 0x400D1044
+400e3a21:	65593e               	call8	0x40121fb8
+400e3a24:	8187b5               	l32r	a8, 0x400d1040 (0x3ffb61e4)
+400e3a27:	8808                	l32i.n	a8, a8, 0
+400e3a29:	dc78                	bnez.n	a8, 0x400e3a44
+400e3a2b:	8194b2               	l32r	a8, 0x400d047c (0x7fffffff)
+400e3a2e:	8901                	s32i.n	a8, a1, 0
+400e3a30:	f184b5               	l32r	a15, 0x400d1040 (0x3ffb61e4)
+400e3a33:	0c8e                	movi.n	a14, 8
+400e3a35:	d2a000               	movi	a13, 0
+400e3a38:	c1a4b4               	l32r	a12, 0x400d0cc8 (0x800)
+400e3a3b:	b182b5               	l32r	a11, 0x400d1044 (0x3f406084)
+400e3a3e:	a182b5               	l32r	a10, 0x400d1048 (0x400e351c)
+400e3a41:	a5b5ac               	call8	0x4009059c
+400e3a44:	1df0                	retw.n
+400e3a46:	000036               	excw
+400e3a49:	410081               	l32r	a4, 0x400c3e4c
+400e3a4c:	80b522               	orb	b11, b5, b8
+400e3a4f:	0800                	l32i.n	a0, a0, 0
+400e3a51:	1df0                	retw.n
+400e3a53:	003641               	srli	a3, a0, 6
+400e3a56:	00817d               	excw
+400e3a59:	b52248               	call12	0x4012bc84
+400e3a5c:	001df0               	subx8	a1, a13, a0
+400e3a5f:	003641               	srli	a3, a0, 6
+400e3a62:	00817b               	ule.s	b8, f1, f0
+400e3a65:	b52208               	call12	0x400ebc90
+400e3a68:	001df0               	subx8	a1, a13, a0
+400e3a6b:	003641               	srli	a3, a0, 6
+400e3a6e:	002020               	or	a2, a0, a0
+400e3a71:	748162               	excw
+400e3a74:	b48208               	excw
+
+  TARGET: RotaryTask
+  l32r @ 0x400E4EB3 reads literal @ 0x400D1150
+400e4e99:	0c0d                	movi.n	a13, 0
+400e4e9b:	c18baf               	l32r	a12, 0x400d0cc8 (0x800)
+400e4e9e:	b1a9b0               	l32r	a11, 0x400d1144 (0x3f4062c4)
+400e4ea1:	a1a9b0               	l32r	a10, 0x400d1148 (0x400e4c60)
+400e4ea4:	656fab               	call8	0x4009059c
+400e4ea7:	7901                	s32i.n	a7, a1, 0
+400e4ea9:	f1eaae               	l32r	a15, 0x400d0a54 (0x3ffb4fd8)
+400e4eac:	0c2e                	movi.n	a14, 2
+400e4eae:	0c0d                	movi.n	a13, 0
+400e4eb0:	c1a7b0               	l32r	a12, 0x400d114c (0xc00)
+400e4eb3:	b1a7b0               	l32r	a11, 0x400d1150 (0x3f4062d4)
+400e4eb6:	a1a7b0               	l32r	a10, 0x400d1154 (0x400e4d60)
+400e4eb9:	256eab               	call8	0x4009059c
+400e4ebc:	1df0                	retw.n
+400e4ebe:	000036               	excw
+400e4ec1:	410065               	l32r	a4, 0x400be2c4
+400e4ec4:	0d01                	mov.n	a0, a1
+400e4ec6:	a2a006               	movi	a10, 6
+400e4ec9:	e50e01               	call8	0x400e5fb8
+400e4ecc:	168a00               	beqz	a10, 0x400e4ed8
+400e4ecf:	0c8a                	movi.n	a10, 8
+400e4ed1:	a55f01               	call8	0x400e64cc
+400e4ed4:	860100               	j	0x400e4ede
+400e4ed7:	00a2a0               	addx4	a10, a2, a0
+400e4eda:	06255f               	j	0x400fcb72
+400e4edd:	01819e               	l32r	a0, 0x400cc8e4
+400e4ee0:	b092a0               	addx4	a9, a2, a11
+400e4ee3:	019248               	l32r	a0, 0x400b712c
+400e4ee6:	009000               	all4	b0, b0:b1:b2:b3
+400e4ee9:	000000               	ill
+400e4eec:	364100               	entry	a1, 32
+
+  TARGET: RotaryKnob
+  l32r @ 0x400E5D53 reads literal @ 0x400D1240
+400e5d36:	25fbff               	call8	0x400e5ce8
+400e5d39:	c60900               	j	0x400e5d64
+400e5d3c:	65fbff               	call8	0x400e5cf4
+400e5d3f:	460800               	j	0x400e5d64
+400e5d42:	000000               	ill
+400e5d45:	ad02                	mov.n	a10, a2
+400e5d47:	25d2ff               	call8	0x400e5a68
+400e5d4a:	860500               	j	0x400e5d64
+400e5d4d:	000000               	ill
+400e5d50:	e521ae               	call8	0x40093f70
+400e5d53:	b13bad               	l32r	a11, 0x400d1240 (0x3f4063dc)
+400e5d56:	b0eb20               	or	a14, a11, a11
+400e5d59:	a0da20               	or	a13, a10, a10
+400e5d5c:	c13aad               	l32r	a12, 0x400d1244 (0x3f4063e8)
+400e5d5f:	0c1a                	movi.n	a10, 1
+400e5d61:	6525ae               	call8	0x40093fb8
+400e5d64:	1df0                	retw.n
+400e5d66:	000036               	excw
+400e5d69:	410080               	l32r	a4, 0x400c5d6c
+400e5d6c:	222381               	l32i	a2, a3, 0x204
+400e5d6f:	1fab820800276821 	{ excw; excw }
+400e5d77:	a6120a               	blti	a2, 1, 0x400e5d85
+400e5d7a:	81ceab               	l32r	a8, 0x400d0cb4 (0x3ffb60ea)
+400e5d7d:	0c29                	movi.n	a9, 2
+400e5d7f:	924800               	s8i	a9, a8, 0
+400e5d82:	c60100               	j	0x400e5d8d
+400e5d85:	81cbab               	l32r	a8, 0x400d0cb4 (0x3ffb60ea)
+400e5d88:	0c19                	movi.n	a9, 1
+400e5d8a:	924800               	s8i	a9, a8, 0
+400e5d8d:	8117ab               	l32r	a8, 0x400d09ec (0x3ffb60eb)
+400e5d90:	0c09                	movi.n	a9, 0
+
+  TARGET: RotaryEncoder
+  l32r @ 0x400E5F47 reads literal @ 0x400D1258
+400e5f2d:	925800               	s16i	a9, a8, 0
+400e5f30:	060900               	j	0x400e5f58
+400e5f33:	0081c5               	extui	a8, a0, 17, 13
+400e5f36:	ac0c                	beqz.n	a12, 0x400e5f5a
+400e5f38:	0992                	s32i.n	a0, a2, 36
+400e5f3a:	5800                	l32i.n	a5, a0, 0
+400e5f3c:	ad02                	mov.n	a10, a2
+400e5f3e:	25c4ff               	call8	0x400e5b80
+400e5f41:	c60400               	j	0x400e5f58
+400e5f44:	a502ae               	call8	0x40093f70
+400e5f47:	b1c4ac               	l32r	a11, 0x400d1258 (0x3f40643c)
+400e5f4a:	b0eb20               	or	a14, a11, a11
+400e5f4d:	a0da20               	or	a13, a10, a10
+400e5f50:	c1bdac               	l32r	a12, 0x400d1244 (0x3f4063e8)
+400e5f53:	0c1a                	movi.n	a10, 1
+400e5f55:	2506ae               	call8	0x40093fb8
+400e5f58:	1df0                	retw.n
+400e5f5a:	000036               	excw
+400e5f5d:	4100a1               	l32r	a4, 0x400ce360
+400e5f60:	bf                      	.byte	0xbf
+400e5f61:	aca5                	beqz.n	a5, 0x400e5f8f
+400e5f63:	a6a9a5               	blti	a9, 12, 0x400e5f0c
+400e5f66:	aef8a2a06425a6a9 	{ excw; excw; sub	a10, a9, a6 }
+400e5f6e:	a5d1fc               	call8	0x400e2c88
+400e5f71:	0c0a                	movi.n	a10, 0
+400e5f73:	6596a9               	call8	0x4008f8d8
+400e5f76:	1df0                	retw.n
+400e5f78:	364100               	entry	a1, 32
+400e5f7b:	8185ac               	l32r	a8, 0x400d1190 (0x3ffb62b4)
+400e5f7e:	a808                	l32i.n	a10, a8, 0
+400e5f80:	2571a9               	call8	0x4008f694
+
+  TARGET: LCD-Task
+  l32r @ 0x40104894 reads literal @ 0x400D1F5C
+4010487b:	bb35                	addi.n	a3, a5, 11
+4010487d:	e00800               	callx8	a8
+40104880:	817c35               	l32r	a8, 0x400d1e70 (0x3ffb7488)
+40104883:	a908                	s32i.n	a10, a8, 0
+40104885:	81b735               	l32r	a8, 0x400d1f64 (0x7fffffff)
+40104888:	8901                	s32i.n	a8, a1, 0
+4010488a:	f1b235               	l32r	a15, 0x400d1f54 (0x3ffb7484)
+4010488d:	0c6e                	movi.n	a14, 6
+4010488f:	0c0d                	movi.n	a13, 0
+40104891:	c1b135               	l32r	a12, 0x400d1f58 (0x1400)
+40104894:	b1b235               	l32r	a11, 0x400d1f5c (0x3f407260)
+40104897:	a1b235               	l32r	a10, 0x400d1f60 (0x40105b60)
+4010489a:	81f834               	l32r	a8, 0x400d1c7c (0x4009059c)
+4010489d:	e00800               	callx8	a8
+401048a0:	1df0                	retw.n
+401048a2:	000036               	excw
+401048a5:	410071               	l32r	a4, 0x400e0ca8 (0xed0af8c0)
+401048a8:	4b35                	addi.n	a3, a5, 4
+401048aa:	a817                	l32i.n	a10, a7, 4
+401048ac:	880a                	l32i.n	a8, a10, 0
+401048ae:	82280a               	l32i	a8, a8, 40
+401048b1:	c2a001               	movi	a12, 1
+401048b4:	20b074               	extui	a11, a2, 0, 8
+401048b7:	e00800               	callx8	a8
+401048ba:	a817                	l32i.n	a10, a7, 4
+401048bc:	880a                	l32i.n	a8, a10, 0
+401048be:	82281c               	l32i	a8, a8, 112
+401048c1:	0c1c                	movi.n	a12, 1
+401048c3:	0c0b                	movi.n	a11, 0
+401048c5:	e00800               	callx8	a8
+401048c8:	a02074               	extui	a2, a10, 0, 8
+
+Matched L32R instructions: 12
