@@ -132,6 +132,26 @@ cd DCCExpressHub
 
 On first launch, choose your command station and enter its connection details when prompted.
 
+To change the saved Linux configuration later (command station, connection settings, HTTP port, or workspace), run:
+
+```bash
+./run-linux.sh --configure
+```
+
+This opens the interactive configuration menu and starts the backend after saving. To open **only the configuration menu**, without launching the backend, use:
+
+```bash
+./run-linux-config.sh
+```
+
+The configuration is saved locally in `desktop/DCCExpressHub.Net/.env.linux`. To display the current configuration without starting the backend:
+
+```bash
+./run-linux.sh --show
+```
+
+The interactive menu uses the `dialog` utility and requires a terminal.
+
 To update:
 
 ```bash
