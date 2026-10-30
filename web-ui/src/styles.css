@@ -788,3 +788,69 @@ button,
   min-width: 0;
   will-change: transform;
 }
+
+
+/* Classic tablet sidebar remains available alongside the floating layout. */
+.tablet-shell .tablet-sidebar-layout {
+  display: grid;
+  grid-template-columns: var(--lite-loco-width) 6px minmax(0, 1fr) 6px var(--lite-property-width);
+  overflow: hidden;
+}
+.tablet-shell .tablet-sidebar-layout .lite-panel-resizer-left {
+  display: flex;
+  grid-column: 2;
+  grid-row: 1;
+}
+.tablet-shell .tablet-sidebar-layout .lite-track-card {
+  grid-column: 3;
+  grid-row: 1;
+}
+.tablet-shell .tablet-sidebar-layout .lite-panel-resizer-right {
+  grid-column: 4;
+  grid-row: 1;
+}
+.tablet-shell .tablet-sidebar-layout .lite-property-panel {
+  grid-column: 5;
+  grid-row: 1;
+}
+.tablet-shell .tablet-sidebar-layout .lite-loco-panel {
+  position: static;
+  grid-column: 1;
+  grid-row: 1;
+  z-index: auto;
+  width: auto;
+  height: 100%;
+  min-height: 0;
+  transform: none;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.tablet-shell .tablet-sidebar-layout .lite-loco-panel > .mantine-Card-root {
+  border: 1px solid var(--mantine-color-dark-4);
+  border-radius: var(--mantine-radius-sm);
+}
+.tablet-shell .tablet-sidebar-layout .tablet-throttle-layout {
+  flex-direction: column;
+  gap: 4px;
+  padding: 0;
+}
+.tablet-shell .tablet-sidebar-layout .tablet-throttle-layout .mobile-throttle-controls {
+  flex: 0 0 auto;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.tablet-shell .tablet-sidebar-layout .tablet-throttle-layout .mobile-throttle-functions {
+  flex: 1 1 0;
+  border-left: 0;
+  padding-left: 0;
+}
+@media (max-width: 760px) {
+  .tablet-shell .tablet-sidebar-layout {
+    grid-template-columns: var(--lite-loco-width) 5px minmax(0, 1fr) 5px var(--lite-property-width);
+  }
+}
