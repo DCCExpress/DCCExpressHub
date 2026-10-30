@@ -15,6 +15,8 @@ public sealed class Z21HandheldServer : BackgroundService
     readonly object _gate = new();
     // A WLANMAUS receives unsolicited loco updates for addresses it has requested.
     readonly System.Collections.Concurrent.ConcurrentDictionary<int, byte> _pendingLocoUpdates = new();
+    readonly System.Collections.Concurrent.ConcurrentDictionary<int, byte> _pendingTurnoutUpdates = new();
+    int _pendingPowerUpdate;
     sealed class ListenerState
     {
         public required int Port { get; init; }
@@ -30,6 +32,8 @@ public sealed class Z21HandheldServer : BackgroundService
         _log = log;
         _ws = ws;
         _ws.Z21LocoStateChanged += address => _pendingLocoUpdates[address] = 0;
+        _ws.Z21TurnoutStateChanged += address => _pendingTurnoutUpdates[address] = 0;
+        _ws.Z21PowerStateChanged += () => Interlocked.Exchange(ref _pendingPowerUpdate, 1);
     }
 
     public object Status()
@@ -131,6 +135,31 @@ public sealed class Z21HandheldServer : BackgroundService
                                 if (!addresses.Contains(address)) continue;
                                 await udp.SendAsync(frame, endpoint, stoppingToken);
                                 _ws.PublishZ21Packet("TX", endpoint.ToString(), frame, $"Z21 loco sync #{address}");
+                            }
+                        }
+                        foreach (var address in _pendingTurnoutUpdates.Keys)
+                        {
+                            if (!_pendingTurnoutUpdates.TryRemove(address, out _)) continue;
+                            var frame = _ws.GetZ21TurnoutInfo(address);
+                            if (frame is null) continue;
+                            foreach (var endpoint in clients)
+                            {
+                                await udp.SendAsync(frame, endpoint, stoppingToken);
+                                _ws.PublishZ21Packet("TX", endpoint.ToString(), frame, $"Z21 turnout sync #{address}");
+                            }
+                        }
+                        if (Interlocked.Exchange(ref _pendingPowerUpdate, 0) == 1)
+                        {
+                            var state = _ws.GetZ21PowerState();
+                            byte[] frame = state.EmergencyStop
+                                ? [7, 0, 0x40, 0, 0x81, 0, 0x81]
+                                : state.PowerOn
+                                    ? [7, 0, 0x40, 0, 0x61, 1, 0x60]
+                                    : [7, 0, 0x40, 0, 0x61, 0, 0x61];
+                            foreach (var endpoint in clients)
+                            {
+                                await udp.SendAsync(frame, endpoint, stoppingToken);
+                                _ws.PublishZ21Packet("TX", endpoint.ToString(), frame, "Z21 power / emergency sync");
                             }
                         }
                         continue;
