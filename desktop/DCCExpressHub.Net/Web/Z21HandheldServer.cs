@@ -306,6 +306,15 @@ public sealed class Z21HandheldServer : BackgroundService
                         if (handled)
                         {
                             handledPacket = true;
+                            // A driving WLANMAUS expects current loco state on the
+                            // same UDP endpoint even without broadcast subscription.
+                            // Send authoritative state after a successful drive/function
+                            // command so its speed and direction display can refresh.
+                            if (ok && x == 0xE4 && data.Length == 10)
+                            {
+                                int locoAddress = ((data[6] & 0x3F) << 8) | data[7];
+                                reply = _ws.GetZ21LocoInfo(locoAddress);
+                            }
                             _ws.PublishZ21Packet("SYS", packet.RemoteEndPoint.ToString(), data,
                                 ok ? "Z21 command applied" : "Z21 command rejected");
                         }
