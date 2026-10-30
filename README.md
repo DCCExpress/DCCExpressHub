@@ -77,7 +77,7 @@ The adapter supports **up to 256 feedback inputs** (32 S88 bytes), with configur
 
 **Important — 3.3 V ↔ 5 V level conversion:** The Arduino Uno adapter uses **5 V logic**, while many modern DCC-EX controllers use **3.3 V I2C logic**. Use a suitable **bidirectional I2C level shifter** between SDA/SCL (with a shared ground) unless the controller is explicitly 5 V tolerant. **Do not connect 5 V I2C signals directly to a non-5 V-tolerant 3.3 V controller.** Also check the s88-N bus supply: the tested YD6016ES-CS must not receive more than **5 V**, even though other s88-N devices may support different voltages.
 
-For wiring, firmware and DCC-EX HAL installation, see the [S88 Adapter repository](https://github.com/DCCExpress/DCCExpress-S88Adapter). A hardware photo can be added here later.
+For wiring, firmware and DCC-EX HAL installation, see the [S88 Adapter repository](https://github.com/DCCExpress/DCCExpress-S88Adapter).
 
 ## Supported protocols
 
