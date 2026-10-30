@@ -126,11 +126,16 @@ public sealed class WsHub
         Flows = flows;
         Timetable = timetable;
         CommandCenterConfigStore = ccConfig;
-        LayoutRuntime.Changed +=
-            (type, data) =>
-                QueueStateBroadcast(
-                    type,
-                    data);
+        LayoutRuntime.Changed += (type, data) =>
+        {
+            QueueStateBroadcast(type, data);
+            if (type == "turnoutChanged")
+            {
+                var json = JsonSerializer.SerializeToElement(data, Json);
+                if (json.TryGetProperty("address", out var address) && address.TryGetInt32(out var turnoutAddress))
+                    Z21TurnoutStateChanged?.Invoke(turnoutAddress);
+            }
+        };
         SwitchMan.Changed +=
             snapshot =>
                 QueueStateBroadcast(
@@ -363,6 +368,9 @@ public sealed class WsHub
     }
 
     public event Action<int>? Z21LocoStateChanged;
+    public event Action? Z21PowerStateChanged;
+    public event Action<int>? Z21TurnoutStateChanged;
+    public (bool PowerOn, bool EmergencyStop) GetZ21PowerState() => (HubState.TrackPower, HubState.EmergencyStop);
 
     public byte[] GetZ21LocoInfo(int address)
     {
@@ -466,6 +474,7 @@ public sealed class WsHub
         {
             HubState.EmergencyStop = true;
             await BroadcastPower();
+            Z21PowerStateChanged?.Invoke();
             await ZeroKnownLocoSpeedsAfterEmergencyAsync();
         }
         return ok;
@@ -515,7 +524,9 @@ public sealed class WsHub
         }
     }
 
-    private void QueuePowerBroadcast() =>
+    private void QueuePowerBroadcast()
+    {
+        Z21PowerStateChanged?.Invoke();
         QueueStateBroadcast(
             "powerInfo",
             new
@@ -533,6 +544,7 @@ public sealed class WsHub
                 programmingJoined =
                     HubState.ProgrammingJoined
             });
+    }
 
     private void QueueLocoBroadcast(LocoFeedback loco)
     {
