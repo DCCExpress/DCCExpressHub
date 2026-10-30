@@ -16,6 +16,7 @@ import type {
 
 type Props = {
   accessories: BasicAccessoryDebugState;
+  vpinAccessories: BasicAccessoryDebugState;
   layoutOwners: BasicAccessoryLayoutOwners;
   connected: boolean;
   turnoutLocks: Map<number, string>;
@@ -27,11 +28,15 @@ function formatTime(timestamp: number): string {
 
 export default function BasicAccessoryDebugTab({
   accessories,
+  vpinAccessories,
   layoutOwners,
   connected,
   turnoutLocks,
 }: Props) {
-  const rows = [...accessories.entries()].sort(([a], [b]) => a - b);
+  const rows = [
+    ...[...accessories.entries()].map(([address, state]) => ({ address, state, mode: "accessory" as const })),
+    ...[...vpinAccessories.entries()].map(([address, state]) => ({ address, state, mode: "vpin" as const })),
+  ].sort((a, b) => a.address - b.address || a.mode.localeCompare(b.mode));
 
   if (!rows.length) {
     return <Text c="dimmed" ta="center" py="xl">No basic accessory state received yet.</Text>;
@@ -45,6 +50,7 @@ export default function BasicAccessoryDebugTab({
             <Table.Th>Address</Table.Th>
             <Table.Th>Type</Table.Th>
             <Table.Th>Name</Table.Th>
+            <Table.Th>Mode</Table.Th>
             <Table.Th>State</Table.Th>
             <Table.Th w={100}>Lock</Table.Th>
             <Table.Th>Control</Table.Th>
@@ -52,14 +58,15 @@ export default function BasicAccessoryDebugTab({
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
-          {rows.map(([address, state]) => {
+          {rows.map(({ address, state, mode }) => {
             const lockOwner = turnoutLocks.get(address);
             const owners = layoutOwners.get(address) ?? [];
 
             return (
-            <Table.Tr key={address}>
+            <Table.Tr key={`${mode}:${address}`}>
               <Table.Td><Badge variant="light" color="gray">{address}</Badge></Table.Td>
               <DebugLayoutOwnerCells owners={owners} />
+              <Table.Td><Badge color={mode === "vpin" ? "cyan" : "blue"} variant="light">{mode === "vpin" ? "DCC-EX VPIN" : "BASIC"}</Badge></Table.Td>
               <Table.Td>
                 <Badge color={state.value ? "green" : "gray"} variant={state.value ? "filled" : "light"}>
                   {state.value ? "1 / ON" : "0 / OFF"}
@@ -71,7 +78,11 @@ export default function BasicAccessoryDebugTab({
                   <Switch
                     checked={state.value}
                     disabled={!connected || Boolean(lockOwner)}
-                    onChange={event => wsApi.setBasicAccessory(address, event.currentTarget.checked)}
+                    onChange={event => {
+                      const checked = event.currentTarget.checked;
+                      if (mode === "vpin") wsApi.setVpin(address, checked);
+                      else wsApi.setBasicAccessory(address, checked);
+                    }}
                     aria-label={`Basic accessory ${address}`}
                   />
                   <Text size="xs" c="dimmed">{state.value ? "ON" : "OFF"}</Text>
