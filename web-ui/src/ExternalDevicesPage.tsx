@@ -173,7 +173,7 @@ export default function ExternalDevicesPage({
       const payload = await response.json() as { ok: boolean; status: { listeners?: { port: number; clients: number; state: string }[] } };
       if (!payload.ok) throw new Error("Backend status unavailable");
       const listener = payload.status.listeners?.find(x => x.port === z21Draft.udpPort);
-      setZ21Status(old => old ? { ...old, listeners: payload.status.listeners } : old);
+      setZ21Status(old => old ? { ...old, ...(payload.status.listeners ? { listeners: payload.status.listeners } : {}) } : old);
       if (!listener) {
         setZ21QuickTest({ ok: false, message: `No active listener on UDP ${z21Draft.udpPort}. Save an enabled configuration first.` });
       } else if (listener.state !== "Listening") {
