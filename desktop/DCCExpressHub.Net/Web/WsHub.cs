@@ -470,6 +470,10 @@ public sealed class WsHub
             // still remains authoritative and may correct this optimistic state.
             var wasOn = HubState.TrackPower;
             HubState.TrackPower = on;
+            // Z21 LAN_X_SET_TRACK_POWER_ON (21 81 A0) also releases E-STOP.
+            // Do not leave the UI and the Z21 status poll latched in STOP.
+            if (on)
+                HubState.EmergencyStop = false;
             if (wasOn != on)
             {
                 LocoCounters.SetTrackPower(on);
