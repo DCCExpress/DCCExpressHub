@@ -149,6 +149,8 @@ export default function ExternalDevicesPage({
     try { window.localStorage.setItem(Z21_KEY, JSON.stringify(loadZ21())); } catch { /* storage unavailable */ }
   }, []);
   const [z21Draft, setZ21Draft] = useState<Z21Device | null>(null);
+  const [z21QuickTest, setZ21QuickTest] = useState<{ ok: boolean; message: string } | null>(null);
+  const [z21Testing, setZ21Testing] = useState(false);
   const [z21Status, setZ21Status] = useState<{ enabled: boolean; clients: number; state: string; port: number; listeners?: { port: number; clients: number; state: string }[] } | null>(null);
   const refreshZ21 = useCallback(async () => {
     const response = await fetch("/api/z21-handheld/status", { cache: "no-store" });
@@ -161,6 +163,32 @@ export default function ExternalDevicesPage({
     const interval = window.setInterval(() => void refreshZ21().catch(() => {}), 4000);
     return () => window.clearInterval(interval);
   }, [refreshZ21]);
+  const quickTestZ21 = async () => {
+    if (!z21Draft) return;
+    setZ21Testing(true);
+    setZ21QuickTest(null);
+    try {
+      const response = await fetch("/api/z21-handheld/status", { cache: "no-store" });
+      if (!response.ok) throw new Error("Backend status unavailable");
+      const payload = await response.json() as { ok: boolean; status: { listeners?: { port: number; clients: number; state: string }[] } };
+      if (!payload.ok) throw new Error("Backend status unavailable");
+      const listener = payload.status.listeners?.find(x => x.port === z21Draft.udpPort);
+      setZ21Status(old => old ? { ...old, listeners: payload.status.listeners } : old);
+      if (!listener) {
+        setZ21QuickTest({ ok: false, message: `No active listener on UDP ${z21Draft.udpPort}. Save an enabled configuration first.` });
+      } else if (listener.state !== "Listening") {
+        setZ21QuickTest({ ok: false, message: `UDP ${listener.port}: ${listener.state}. The listener is not ready.` });
+      } else if (listener.clients > 0) {
+        setZ21QuickTest({ ok: true, message: `Listening on UDP ${listener.port}. ${listener.clients} Z21 client(s) detected. Check Protocol Monitor for RX/TX packets.` });
+      } else {
+        setZ21QuickTest({ ok: true, message: `Listening on UDP ${listener.port}. No client detected yet. Set the WLANMAUS Z21 IP to this computer\u0027s LAN IP, then try again.` });
+      }
+    } catch (error) {
+      setZ21QuickTest({ ok: false, message: `Quick test failed: ${String(error)}` });
+    } finally {
+      setZ21Testing(false);
+    }
+  };
   const saveZ21 = async () => {
     if (!z21Draft || !z21Draft.name.trim() || !Number.isInteger(z21Draft.udpPort) ||
         z21Draft.udpPort < 1 || z21Draft.udpPort > 65535) return;
@@ -384,7 +412,7 @@ export default function ExternalDevicesPage({
       </Stack>
     </AppModal>
 
-    <AppModal opened={z21Draft !== null} onClose={() => setZ21Draft(null)} title="Z21 handheld configuration" centered size="lg">
+    <AppModal opened={z21Draft !== null} onClose={() => { setZ21Draft(null); setZ21QuickTest(null); }} title="Z21 handheld configuration" centered size="lg">
       <Stack gap="md">
         <Group justify="space-between"><Title order={4}>Z21 handheld configuration</Title><Badge color="cyan">Z21 UDP</Badge></Group>
         <Alert color="blue">Z21 UDP supports locomotive drive, functions, turnouts, track power and emergency stop. Full WLANMAUS compatibility is still under test.</Alert>
@@ -394,8 +422,11 @@ export default function ExternalDevicesPage({
           onChange={value => setZ21Draft(old => old && ({ ...old, udpPort: typeof value === "number" ? value : 0 }))} />
         <Switch label="Enable handheld support (when available)" checked={z21Draft?.enabled ?? false}
           onChange={event => { const checked = event.currentTarget.checked; setZ21Draft(old => old && ({ ...old, enabled: checked })); }} />
+        {z21QuickTest && <Alert color={z21QuickTest.ok ? "teal" : "red"}>{z21QuickTest.message}</Alert>}
+        <Text size="xs" c="dimmed">Quick test checks the saved backend listener and detected Z21 clients; it does not send train commands.</Text>
         <Group justify="flex-end">
-          <Button variant="light" onClick={() => setZ21Draft(null)}>Cancel</Button>
+          <Button variant="light" loading={z21Testing} onClick={() => void quickTestZ21()}>Quick test</Button>
+          <Button variant="light" onClick={() => { setZ21Draft(null); setZ21QuickTest(null); }}>Cancel</Button>
           <Button onClick={saveZ21} disabled={!z21Draft?.name.trim() || !z21Draft || z21Draft.udpPort < 1 || z21Draft.udpPort > 65535 || busy}>Save</Button>
         </Group>
       </Stack>
