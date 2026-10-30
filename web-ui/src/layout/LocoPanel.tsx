@@ -139,6 +139,8 @@ export default function LocoPanel({
 
   const fitContainerRef = useRef<HTMLDivElement>(null);
   const fitContentRef = useRef<HTMLDivElement>(null);
+  const tabletControlRef = useRef<HTMLDivElement>(null);
+  const tabletControlContentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     aliveRef.current = alive;
@@ -724,6 +726,42 @@ export default function LocoPanel({
   }, [currentLoco, mobileViewport]);
 
 
+  // The floating tablet throttle has less vertical space than the normal side panel.
+  // Fit only its control half; keep the function keys at full touch size.
+  useEffect(() => {
+    if (!tabletMode) return;
+    const viewport = tabletControlRef.current;
+    const content = tabletControlContentRef.current;
+    if (!viewport || !content) return;
+    let frame = 0;
+    const fit = () => {
+      content.style.transform = "none";
+      content.style.width = "100%";
+      const width = viewport.clientWidth;
+      const height = viewport.clientHeight;
+      if (!width || !height) return;
+      const naturalHeight = content.scrollHeight;
+      const naturalWidth = content.scrollWidth;
+      const scale = Math.min(1, height / Math.max(1, naturalHeight), width / Math.max(1, naturalWidth));
+      content.style.transformOrigin = "top left";
+      content.style.transform = `scale(${scale})`;
+      content.style.width = `${100 / scale}%`;
+    };
+    const schedule = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(fit);
+    };
+    const observer = new ResizeObserver(schedule);
+    observer.observe(viewport);
+    window.addEventListener("resize", schedule);
+    schedule();
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      window.removeEventListener("resize", schedule);
+    };
+  }, [tabletMode, currentLoco]);
+
   useGamepadAction(
     "speedUp",
     () => {
@@ -962,7 +1000,8 @@ export default function LocoPanel({
               </Text>
             ) : (
               <>
-                <div className="mobile-throttle-controls">
+                <div className="mobile-throttle-controls" ref={tabletControlRef}>
+                  <div ref={tabletControlContentRef} className="tablet-throttle-control-inner">
                   <LocoControlCard
                     loco={currentLoco}
                     speed={speed}
@@ -995,6 +1034,7 @@ export default function LocoPanel({
                       counterDisplaySettings
                     }
                   />
+                  </div>
                 </div>
 
                 {!mobileViewport && <div className="mobile-throttle-functions">
