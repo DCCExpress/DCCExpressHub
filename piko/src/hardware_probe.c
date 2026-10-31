@@ -37,9 +37,12 @@ static int record_count;
    source AND the current selector index. Count those rising edges separately
    from the old held-state readings; no key names are inferred yet. */
 static volatile uint8_t irq_selected_row = 0xff;
-static volatile uint32_t irq_row_edges[KEYPAD_KEYS];
+static volatile bool irq_switching;
+static volatile uint32_t irq_row_edges[KEYPAD_KEYS]; // edges with a stable selector
+static volatile uint32_t irq_switch_edges[KEYPAD_KEYS]; // edges during selector updates
 static volatile uint32_t irq_unassigned[3];
 static uint32_t capture_irq_baseline[KEYPAD_KEYS];
+static uint32_t capture_switch_irq_baseline[KEYPAD_KEYS];
 static uint32_t capture_irq_unassigned_baseline[3];
 
 static void column_rising_irq(void *ctx)
@@ -47,8 +50,10 @@ static void column_rising_irq(void *ctx)
     const unsigned c=(unsigned)(uintptr_t)ctx;
     const uint8_t row=irq_selected_row;
     if (c>=3) return;
-    if (row<KEYPAD_ROWS) ++irq_row_edges[row*3+c];
-    else ++irq_unassigned[c];
+    if (row<KEYPAD_ROWS) {
+        if (irq_switching) ++irq_switch_edges[row*3+c];
+        else ++irq_row_edges[row*3+c];
+    } else ++irq_unassigned[c];
 }
 
 
@@ -85,7 +90,10 @@ void hardware_probe_capture_begin(void)
     memset(capture_raw_transitions,0,sizeof(capture_raw_transitions));
     memset(capture_pin_transitions,0,sizeof(capture_pin_transitions));
     capture_last_raw=matrix_raw; capture_last_pins=capture_base_pins;
-    for(int i=0;i<KEYPAD_KEYS;i++) capture_irq_baseline[i]=irq_row_edges[i];
+    for(int i=0;i<KEYPAD_KEYS;i++) {
+        capture_irq_baseline[i]=irq_row_edges[i];
+        capture_switch_irq_baseline[i]=irq_switch_edges[i];
+    }
     for(int i=0;i<3;i++) capture_irq_unassigned_baseline[i]=irq_unassigned[i];
     capture_on=true;
     taskEXIT_CRITICAL(&lock);
@@ -140,6 +148,9 @@ void hardware_probe_capture_json(char *out, size_t size)
     pos=put_array(out,size,pos,capture_pin_transitions,4);
     if(pos<size) pos+=(size_t)snprintf(out+pos,size-pos,",\"irqEdges\":");
     for(int i=0;i<KEYPAD_KEYS;i++) array[i]=(uint16_t)((irq_row_edges[i]-capture_irq_baseline[i])>65535u?65535u:(irq_row_edges[i]-capture_irq_baseline[i]));
+    pos=put_array(out,size,pos,array,KEYPAD_KEYS);
+    if(pos<size) pos+=(size_t)snprintf(out+pos,size-pos,",\"irqSwitchEdges\":");
+    for(int i=0;i<KEYPAD_KEYS;i++) array[i]=(uint16_t)((irq_switch_edges[i]-capture_switch_irq_baseline[i])>65535u?65535u:(irq_switch_edges[i]-capture_switch_irq_baseline[i]));
     pos=put_array(out,size,pos,array,KEYPAD_KEYS);
     if(pos<size) pos+=(size_t)snprintf(out+pos,size-pos,",\"irqUnassigned\":[%lu,%lu,%lu]",
       (unsigned long)(irq_unassigned[0]-capture_irq_unassigned_baseline[0]),
@@ -228,23 +239,34 @@ static uint8_t read_columns(void)
    experiment, not a proven physical row mapping. */
 static uint32_t sample_matrix(void)
 {
+    irq_selected_row = 0xff;
+    irq_switching = true;
     shift_rows(KEYPAD_OEM_BIT6);
+    irq_switching = false;
+    esp_rom_delay_us(1000);
     const uint8_t neutral=read_columns();
     uint32_t key_bits=0;
     uint8_t row_levels[KEYPAD_ROWS];
     for (int r=0;r<KEYPAD_ROWS;r++) {
-        irq_selected_row = 0xff;
-        shift_rows((uint8_t)(KEYPAD_OEM_BIT6 | (1u<<r)));
+        /* Set the next selector BEFORE clock/latch update. Edges from the
+           switching period must be attributed to that transition, not to
+           a bogus "unassigned" row. */
         irq_selected_row = (uint8_t)r;
-        /* Keep each selected row stable long enough to observe its GPIO
-           rising edges. This is slower than the OEM timeout and diagnostic. */
-        esp_rom_delay_us(600);
+        irq_switching = true;
+        shift_rows((uint8_t)(KEYPAD_OEM_BIT6 | (1u<<r)));
+        esp_rom_delay_us(80);
+        irq_switching = false;
+        /* Factory timeout advances about every 1ms; allow settling. */
+        esp_rom_delay_us(1000);
         const uint8_t level=read_columns();
         row_levels[r]=level;
         key_bits |= ((uint32_t)(level ^ neutral)) << (3*r);
     }
-    irq_selected_row = 0xff;
+    /* Finish with the first selected row and track the switching edge. */
+    irq_selected_row = 0;
+    irq_switching = true;
     shift_rows(KEYPAD_OEM_BIT6 | 0x01);
+    irq_switching = false;
     taskENTER_CRITICAL(&lock);
     matrix_raw=key_bits;
     columns_idle=neutral;
