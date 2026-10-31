@@ -31,6 +31,10 @@ static uint8_t capture_base_rows[3], capture_seen_rows[3];
 static uint8_t capture_base_pins, capture_seen_pins;
 static int32_t capture_base_rotary;
 static uint32_t capture_samples;
+static uint16_t capture_raw_transitions[9];
+static uint16_t capture_pin_transitions[4];
+static uint16_t capture_last_raw;
+static uint8_t capture_last_pins;
 static uint8_t probe_special_bits(void)
 {
     return (gpio_get_level(GPIO_NUM_2) ? 1 : 0) |
@@ -48,7 +52,11 @@ void hardware_probe_capture_begin(void)
     capture_base_rotary=rotary_position;
     capture_seen_raw=0; capture_seen_matrix=0; capture_seen_idle=0;
     for(int i=0;i<3;i++) capture_seen_rows[i]=0;
-    capture_seen_pins=0; capture_samples=0; capture_on=true;
+    capture_seen_pins=0; capture_samples=0;
+    memset(capture_raw_transitions,0,sizeof(capture_raw_transitions));
+    memset(capture_pin_transitions,0,sizeof(capture_pin_transitions));
+    capture_last_raw=matrix_raw; capture_last_pins=capture_base_pins;
+    capture_on=true;
     taskEXIT_CRITICAL(&lock);
 }
 void hardware_probe_capture_end(void)
@@ -60,14 +68,30 @@ void hardware_probe_capture_end(void)
 void hardware_probe_capture_json(char *out, size_t size)
 {
     taskENTER_CRITICAL(&lock);
-    snprintf(out,size,"{\"active\":%s,\"samples\":%lu,\"rawChanged\":%u,\"matrixChanged\":%u,\"idleChanged\":%u,\"rowsChanged\":[%u,%u,%u],\"pinsChanged\":%u,\"rotaryDelta\":%ld}",
+    snprintf(out,size,
+      "{\"active\":%s,\"samples\":%lu,\"rawChanged\":%u,\"matrixChanged\":%u,\"idleChanged\":%u,"
+      "\"rowsChanged\":[%u,%u,%u],\"pinsChanged\":%u,\"rotaryDelta\":%ld,"
+      "\"baseRaw\":%u,\"currentRaw\":%u,\"baseIdle\":%u,\"currentIdle\":%u,"
+      "\"baseRows\":[%u,%u,%u],\"currentRows\":[%u,%u,%u],"
+      "\"basePins\":%u,\"currentPins\":%u,"
+      "\"rawTransitions\":[%u,%u,%u,%u,%u,%u,%u,%u,%u],"
+      "\"pinTransitions\":[%u,%u,%u,%u]}",
       capture_on?"true":"false",(unsigned long)capture_samples,
       (unsigned)capture_seen_raw,(unsigned)capture_seen_matrix,(unsigned)capture_seen_idle,
       (unsigned)capture_seen_rows[0],(unsigned)capture_seen_rows[1],(unsigned)capture_seen_rows[2],
-      (unsigned)capture_seen_pins,(long)(rotary_position-capture_base_rotary));
+      (unsigned)capture_seen_pins,(long)(rotary_position-capture_base_rotary),
+      (unsigned)capture_base_raw,(unsigned)matrix_raw,
+      (unsigned)capture_base_idle,(unsigned)columns_idle,
+      (unsigned)capture_base_rows[0],(unsigned)capture_base_rows[1],(unsigned)capture_base_rows[2],
+      (unsigned)columns_per_row[0],(unsigned)columns_per_row[1],(unsigned)columns_per_row[2],
+      (unsigned)capture_base_pins,(unsigned)probe_special_bits(),
+      (unsigned)capture_raw_transitions[0],(unsigned)capture_raw_transitions[1],(unsigned)capture_raw_transitions[2],
+      (unsigned)capture_raw_transitions[3],(unsigned)capture_raw_transitions[4],(unsigned)capture_raw_transitions[5],
+      (unsigned)capture_raw_transitions[6],(unsigned)capture_raw_transitions[7],(unsigned)capture_raw_transitions[8],
+      (unsigned)capture_pin_transitions[0],(unsigned)capture_pin_transitions[1],
+      (unsigned)capture_pin_transitions[2],(unsigned)capture_pin_transitions[3]);
     taskEXIT_CRITICAL(&lock);
 }
-
 
 static void add_event(const char *description)
 {
@@ -191,7 +215,13 @@ static void input_task(void *arg)
             capture_seen_matrix |= matrix ^ capture_base_matrix;
             capture_seen_idle |= columns_idle ^ capture_base_idle;
             for(int i=0;i<3;i++) capture_seen_rows[i] |= columns_per_row[i] ^ capture_base_rows[i];
-            capture_seen_pins |= probe_special_bits() ^ capture_base_pins;
+            const uint8_t pins=probe_special_bits();
+            const uint16_t raw_edges=matrix_raw ^ capture_last_raw;
+            const uint8_t pin_edges=pins ^ capture_last_pins;
+            for(int i=0;i<9;i++) if((raw_edges & (1u<<i)) && capture_raw_transitions[i]<65535) capture_raw_transitions[i]++;
+            for(int i=0;i<4;i++) if((pin_edges & (1u<<i)) && capture_pin_transitions[i]<65535) capture_pin_transitions[i]++;
+            capture_last_raw=matrix_raw; capture_last_pins=pins;
+            capture_seen_pins |= pins ^ capture_base_pins;
         }
         taskEXIT_CRITICAL(&lock);
         uint8_t next_ab = (gpio_get_level(GPIO_NUM_2) << 1) | gpio_get_level(GPIO_NUM_15);
