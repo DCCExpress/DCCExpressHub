@@ -3,6 +3,7 @@
 #include "freertos/task.h"
 #include "hardware_probe.h"
 #include "piko_wifi.h"
+#include "piko_display.h"
 
 static const char *TAG = "piko";
 
@@ -12,6 +13,7 @@ void app_main(void)
     ESP_LOGW(TAG, "Display is not initialized: LCD controller and pins unknown.");
     ESP_LOGW(TAG, "GPIO observations are not yet identified buttons/rotary signals.");
     hardware_probe_start();
+    piko_display_start();
     esp_err_t wifi = piko_wifi_start();
     if (wifi != ESP_OK)
         ESP_LOGW(TAG, "OTA Wi-Fi disabled: %s", esp_err_to_name(wifi));
