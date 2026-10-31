@@ -187,3 +187,21 @@ previously lost to Xtensa decode alignment.
 
 ## Display discovery (2026-10-31)
 The physical flex cable marking reported by the user is **FP-200H05B JY**. An ST7789-family controller is a candidate, not confirmed. A safe LCD discovery scaffold has been added, but **no LCD signals are driven** until SPI host, MOSI, SCLK, DC, reset, CS, backlight and supply are mapped against the original firmware or board. The fully active 3x3 matrix diagnostic was also corrected to compare each column with its all-rows-released baseline, preventing stuck-low inputs from registering as nine pressed keys.
+
+## Experimental LCD output driver
+
+An **opt-in** ST7789-style SPI RGB565 driver is available in `piko/src/piko_display.c`.
+It sends three solid bars (red/green/blue) on a nominal 240x320 panel.
+This is a preliminary signal test, **not verified display operation**.
+The display controller, interface and SPI/control pinout are still unknown, so
+`CONFIG_PIKO_LCD_TEST` defaults to **off** and no LCD outputs are driven.
+
+Before enabling it, extract the LCD SPI initializer and its GPIO assignments
+from `piko/PIKO-Handheld-Original-16MB.bin`, or trace the board. The six
+required Kconfig GPIO values (MOSI, CLK, CS, DC, RESET) must be verified;
+unconfigured, duplicated, flash, UART, keypad, rotary and STOP pins are rejected.
+Backlight GPIO is deliberately not touched. Do not interpret a black screen as
+proof of a bad LCD: the backlight may be disabled by a separate circuit.
+
+Once the correct bus and pins are known, implement a text renderer for
+"DCCExpress PIKO" and enable it through an explicit test profile.
