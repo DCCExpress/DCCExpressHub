@@ -319,3 +319,21 @@ Despite those counts, all six sampled rows change together for each key. These h
 **Corrected test design:** The `/keymap` browser page now records 800ms idle baseline with no key, then records a **separate, continuously-held 800ms interval** when the user clicks Capture held. It captures cumulative `irqEdges` and `irqSwitchEdges` before and after that held interval and reports the *excess positive-edge rate per 100 scan iterations* (held rate minus idle rate), separately for stable and switching phases. It also preserves the old full-session levels and counts, explicitly labeled as non-key-identifying. No new hardware drive pins, firmware ISR behavior, or experimental LCD pins are changed in this frontend-only patch. Local browser mapping storage key updated to `piko-keymap-v8` so old measurements are not presented as the new phase test.
 
 This is a **diagnostic discriminator**, not a finalized key map. A repeatable held-minus-idle peak for key 0 versus key 3 could support a selector hypothesis; if no stable difference exists, row selection in our firmware still does not match the real hardware or scan scheme. Repeat only 0 and 3 until a distinct pattern emerges. The test has been committed but not physically validated or PlatformIO built in this environment.
+
+## Key mapper v10: static-row level experiment (2026-10-31)
+
+The latest report collected ~87–100 input-task scans in each 800ms interval for keys 0/1/2/3. All four reported `Stable IRQ excess per 100 scans [none]` and `Switching IRQ excess per 100 scans [none]`, even though whole-session totals were nonzero. This does **not** establish a missing GPIO signal: a GPIO positive-edge interrupt is mainly generated on a transition, so comparing a continuously held key against an idle window was intrinsically unsuitable for this purpose.
+
+The reports continue to show that key 0 and key 3 raise GPIO34, key 1 GPIO32, key 2 GPIO33; each key remains HIGH under all six rapidly switched selection patterns. Physical row identity is **still unknown**. GPIO12 produces hundreds of edges while different keys are pressed and must not be treated as a stable STOP/rotary switch signal.
+
+**New v10 experiment:** During `/api/capture` the input task *does not* run its fast six-row sweep. It drives one static serial output pattern per ~10ms task iteration, waits 1ms, then counts HIGH readings on GPIO32/33/34 for the currently selected pattern. The 12 repeating patterns are:
+- `HOT bit0..5`: serial mask `0x40 | (1<<row)`
+- `COLD bit0..5`: serial mask `0x40 | (0x3f & ~(1<<row))`
+
+Thus the factory-observed bit6 is kept HIGH, the three known serial GPIOs remain 26(DATA)/27(CLOCK)/14(LATCH), and no other outputs are touched. Only one **physical key** should be pressed at a time because this wiring is not yet fully mapped.
+
+`hardware_probe_capture_json` now returns cumulative `sweepRowSamples[12]` and `sweepHigh[36]` counters, besides legacy IRQ/debug fields. The `/keymap` v10 frontend measures 800ms idle and 800ms held state and compares the fraction of samples HIGH *at each fixed serial state*; for example `HOT bit2 / GPIO34: 0% -> 100%`. Reports label a single difference as a **candidate**, multiple differences as **ambiguous**, and none as **unresolved**. The legacy IRQ histograms are no longer used as key identification. Data is stored separately in browser storage key `piko-keymap-v10`, and `/keymap` is sent with `Cache-Control: no-store`.
+
+Validation performed: source/API field matching and JS parse, plus synthetic report cases (one unique COLD selector and all-12-selector ambiguous). No ESP-IDF toolchain build or physical handheld verification was available here.
+
+If every selector still produces the same GPIO level under this *static* test, it is evidence that the attempted shift output patterns are not gating the input columns as hypothesized. Stop iterating on IRQ attribution and identify the real board-level switch/enable path from the OEM binary and/or measurement.
