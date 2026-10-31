@@ -1,9 +1,11 @@
 import {
-  Alert, Badge, Button, Card, Group, NumberInput, Select, Stack,
-  Switch, Text, TextInput, Title, SimpleGrid, Divider
+  Accordion, Alert, Badge, Button, Card, Code, Group, NumberInput, Select, Stack,
+  Switch, Text, TextInput, Title, SimpleGrid, Table, Autocomplete
 } from "@mantine/core";
 import { useCallback, useEffect, useState } from "react";
 import { S88SensorIndicator } from "./components/S88SensorIndicator";
+import AppModal from "./components/common/AppModal";
+import { useGamepad } from "./context/GamepadContext";
 
 type ExternalDevice = {
   id: string;
@@ -53,13 +55,85 @@ async function postForm(path: string, payload: Record<string, string>): Promise<
   return result;
 }
 
+type Z21Device = { id: string; name: string; enabled: boolean; udpPort: number };
+const Z21_KEY = "dccexpress.external-devices.z21.v1";
+function loadZ21(): Z21Device[] {
+  try {
+    const parsed: unknown = JSON.parse(window.localStorage.getItem(Z21_KEY) ?? "[]");
+    if (!Array.isArray(parsed)) return [];
+    const valid = parsed.filter((x): x is Z21Device => x && typeof x.id === "string" &&
+      typeof x.name === "string" && typeof x.enabled === "boolean" &&
+      Number.isInteger(x.udpPort) && x.udpPort > 0 && x.udpPort <= 65535);
+    // One listener per UDP port. Prefer the enabled entry for older duplicates.
+    const byPort = new Map<number, Z21Device>();
+    for (const device of valid)
+      if (!byPort.has(device.udpPort) || (device.enabled && !byPort.get(device.udpPort)!.enabled))
+        byPort.set(device.udpPort, device);
+    return [...byPort.values()];
+  } catch { return []; }
+}
+const newZ21 = (): Z21Device => ({
+  id: "z21-" + Date.now(), name: "ROCO WLANMAUS", enabled: false, udpPort: 21105,
+});
+
+type PikoDevice = { name: string; enabled: boolean; tcpPort: number };
+const PIKO_KEY = "dccexpress.external-devices.piko.v1";
+function loadPiko(): PikoDevice | null {
+  try {
+    const value = JSON.parse(window.localStorage.getItem(PIKO_KEY) ?? "null") as PikoDevice | null;
+    return value && typeof value.name === "string" && typeof value.enabled === "boolean" &&
+      Number.isInteger(value.tcpPort) && value.tcpPort > 0 && value.tcpPort <= 65535 ? value : null;
+  } catch { return null; }
+}
+
 export default function ExternalDevicesPage({
   onBack,
   onDiagnostics,
+  onGamepadConfig,
 }: {
   onBack: () => void;
   onDiagnostics: () => void;
+  onGamepadConfig: () => void;
 }) {
+  const { gamepads, selectedGamepadIndex } = useGamepad();
+  const [piko, setPiko] = useState<PikoDevice | null>(loadPiko);
+  const [pikoDraft, setPikoDraft] = useState<PikoDevice | null>(null);
+  const [pikoStatus, setPikoStatus] = useState<{ state: string; clients: number; port: number } | null>(null);
+  const refreshPiko = useCallback(async () => {
+    const response = await fetch("/api/piko-handheld/status", { cache: "no-store" });
+    if (!response.ok) return;
+    const result = await response.json() as { ok: boolean; status: { state: string; clients: number; port: number } };
+    if (result.ok) setPikoStatus(result.status);
+  }, []);
+  useEffect(() => {
+    void refreshPiko();
+    const timer = window.setInterval(() => void refreshPiko(), 4000);
+    return () => window.clearInterval(timer);
+  }, [refreshPiko]);
+  const savePiko = async () => {
+    if (!pikoDraft || !pikoDraft.name.trim() || !Number.isInteger(pikoDraft.tcpPort) ||
+        pikoDraft.tcpPort < 1 || pikoDraft.tcpPort > 65535) return;
+    try {
+      if (piko?.enabled && piko.tcpPort !== pikoDraft.tcpPort)
+        await postForm("/api/piko-handheld/configure", { enabled: "false", port: String(piko.tcpPort) });
+      await postForm("/api/piko-handheld/configure", { enabled: String(pikoDraft.enabled), port: String(pikoDraft.tcpPort) });
+      window.localStorage.setItem(PIKO_KEY, JSON.stringify(pikoDraft));
+      setPiko(pikoDraft);
+      setPikoDraft(null);
+      await refreshPiko();
+      setMessage("PIKO TCP diagnostics listener configured. Train operation is not enabled until handshake and validation are confirmed.");
+    } catch (error) { setMessage("NOK: " + String(error)); }
+  };
+  const deletePiko = async () => {
+    if (!piko || !window.confirm("Delete PIKO handheld configuration?")) return;
+    try {
+      await postForm("/api/piko-handheld/configure", { enabled: "false", port: String(piko.tcpPort) });
+      window.localStorage.removeItem(PIKO_KEY);
+      setPiko(null);
+      await refreshPiko();
+    } catch (error) { setMessage("NOK: " + String(error)); }
+  };
+
   const [devices, setDevices] = useState<ExternalDevice[]>([]);
   const [status, setStatus] = useState<DeviceStatus[]>([]);
   const [ports, setPorts] = useState<string[]>([]);
@@ -68,6 +142,85 @@ export default function ExternalDevicesPage({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [monitorId, setMonitorId] = useState<string | null>(null);
+  const [addTypeOpen, setAddTypeOpen] = useState(false);
+  const [z21Devices, setZ21Devices] = useState<Z21Device[]>(loadZ21);
+  useEffect(() => {
+    // Normalize older duplicate entries sharing the same UDP port.
+    try { window.localStorage.setItem(Z21_KEY, JSON.stringify(loadZ21())); } catch { /* storage unavailable */ }
+  }, []);
+  const [z21Draft, setZ21Draft] = useState<Z21Device | null>(null);
+  const [z21QuickTest, setZ21QuickTest] = useState<{ ok: boolean; message: string } | null>(null);
+  const [z21Testing, setZ21Testing] = useState(false);
+  const [z21Status, setZ21Status] = useState<{ enabled: boolean; clients: number; state: string; port: number; listeners?: { port: number; clients: number; state: string }[] } | null>(null);
+  const refreshZ21 = useCallback(async () => {
+    const response = await fetch("/api/z21-handheld/status", { cache: "no-store" });
+    if (!response.ok) throw new Error("Z21 status unavailable");
+    const result = await response.json() as { ok: boolean; status: { enabled: boolean; clients: number; state: string; port: number; listeners?: { port: number; clients: number; state: string }[] } };
+    if (result.ok) setZ21Status(result.status);
+  }, []);
+  useEffect(() => {
+    void refreshZ21().catch(() => {});
+    const interval = window.setInterval(() => void refreshZ21().catch(() => {}), 4000);
+    return () => window.clearInterval(interval);
+  }, [refreshZ21]);
+  const quickTestZ21 = async () => {
+    if (!z21Draft) return;
+    setZ21Testing(true);
+    setZ21QuickTest(null);
+    try {
+      const response = await fetch("/api/z21-handheld/status", { cache: "no-store" });
+      if (!response.ok) throw new Error("Backend status unavailable");
+      const payload = await response.json() as { ok: boolean; status: { listeners?: { port: number; clients: number; state: string }[] } };
+      if (!payload.ok) throw new Error("Backend status unavailable");
+      const listener = payload.status.listeners?.find(x => x.port === z21Draft.udpPort);
+      setZ21Status(old => old ? { ...old, ...(payload.status.listeners ? { listeners: payload.status.listeners } : {}) } : old);
+      if (!listener) {
+        setZ21QuickTest({ ok: false, message: `No active listener on UDP ${z21Draft.udpPort}. Save an enabled configuration first.` });
+      } else if (listener.state !== "Listening") {
+        setZ21QuickTest({ ok: false, message: `UDP ${listener.port}: ${listener.state}. The listener is not ready.` });
+      } else if (listener.clients > 0) {
+        setZ21QuickTest({ ok: true, message: `Listening on UDP ${listener.port}. ${listener.clients} Z21 client(s) detected. Check Protocol Monitor for RX/TX packets.` });
+      } else {
+        setZ21QuickTest({ ok: true, message: `Listening on UDP ${listener.port}. No client detected yet. Set the WLANMAUS Z21 IP to this computer\u0027s LAN IP, then try again.` });
+      }
+    } catch (error) {
+      setZ21QuickTest({ ok: false, message: `Quick test failed: ${String(error)}` });
+    } finally {
+      setZ21Testing(false);
+    }
+  };
+  const saveZ21 = async () => {
+    if (!z21Draft || !z21Draft.name.trim() || !Number.isInteger(z21Draft.udpPort) ||
+        z21Draft.udpPort < 1 || z21Draft.udpPort > 65535) return;
+    if (z21Devices.some(x => x.id !== z21Draft.id && x.udpPort === z21Draft.udpPort)) {
+      setMessage("NOK: Another Z21 listener already uses UDP port " + z21Draft.udpPort);
+      return;
+    }
+    const previous = z21Devices.find(x => x.id === z21Draft.id);
+    const next = [...z21Devices.filter(x => x.id !== z21Draft.id), z21Draft];
+    try {
+      if (previous?.enabled && previous.udpPort !== z21Draft.udpPort)
+        await postForm("/api/z21-handheld/configure", { enabled: "false", port: String(previous.udpPort) });
+      await postForm("/api/z21-handheld/configure", {
+        enabled: String(z21Draft.enabled), port: String(z21Draft.udpPort),
+      });
+      window.localStorage.setItem(Z21_KEY, JSON.stringify(next));
+      setZ21Devices(next);
+      setZ21Draft(null);
+      await refreshZ21();
+      setMessage("Z21 UDP listener configuration saved.");
+    } catch (error) { setMessage("NOK: " + String(error)); }
+  };
+  const deleteZ21 = async (id: string) => {
+    if (!window.confirm("Delete this Z21 handheld configuration?")) return;
+    const next = z21Devices.filter(x => x.id !== id);
+    try {
+      await postForm("/api/z21-handheld/configure", { enabled: "false", port: String(z21Devices.find(x => x.id === id)?.udpPort ?? 21105) });
+      window.localStorage.setItem(Z21_KEY, JSON.stringify(next));
+      setZ21Devices(next);
+      if (z21Draft?.id === id) setZ21Draft(null);
+    } catch (error) { setMessage("NOK: " + String(error)); }
+  };
 
   const refresh = useCallback(async () => {
     const response = await fetch("/api/external-devices", { cache: "no-store" });
@@ -161,74 +314,146 @@ export default function ExternalDevicesPage({
       <div>
         <Title order={2}>External Devices</Title>
         <Text c="dimmed" size="sm">
-          Additional feedback devices work alongside DCC-EX, Roco Z21 and YaMoRC.
+          Configure external feedback adapters and handheld controllers.
         </Text>
       </div>
       <Group>
         <Button variant="light" onClick={() => { void refreshPorts().catch(e => setMessage(String(e))); }}>Refresh ports</Button>
-        <Button variant="light" onClick={startNew}>Add device</Button>
+        <Button variant="light" onClick={() => setAddTypeOpen(true)}>Add device</Button>
         <Button variant="subtle" onClick={onBack}>Back to Home</Button>
       </Group>
     </Group>
 
+    <AppModal opened={addTypeOpen} onClose={() => setAddTypeOpen(false)} title="Add external device" centered>
+      <Stack>
+        <Button variant="light" onClick={() => { startNew(); setZ21Draft(null); setAddTypeOpen(false); }}>DCCExpress S88 adapter</Button>
+        <Button variant="light" onClick={() => { setAddTypeOpen(false); onGamepadConfig(); }}>Gamepad (configure existing controller)</Button>
+        <Button variant="light" disabled={!!piko} onClick={() => { setPikoDraft({ name: "PIKO SmartControl WLAN", enabled: false, tcpPort: 55566 }); setAddTypeOpen(false); }}>PIKO SmartControl WLAN (experimental)</Button>
+        <Button variant="light" onClick={() => { setZ21Draft({ ...newZ21(), udpPort: Array.from({ length: 100 }, (_, i) => 21105 + i).find(port => !z21Devices.some(x => x.udpPort === port)) ?? 21105 }); setEditing(false); setMonitorId(null); setAddTypeOpen(false); }}>Z21 handheld controller (WLANMAUS)</Button>
+        <Text size="xs" c="dimmed">Multiple Z21 listeners require distinct UDP ports.</Text>
+      </Stack>
+    </AppModal>
+
     {message && <Alert color={message.startsWith("NOK") ? "red" : "blue"} onClose={() => setMessage("")} withCloseButton>{message}</Alert>}
 
-    {devices.length === 0 && !editing &&
-      <Text c="dimmed">No external devices configured. Select Add device to connect an S88 adapter.</Text>}
-    {devices.length > 0 && <Stack gap="sm">
-      {devices.map(device => {
-        const live = status.find(x => x.id === device.id);
-        const online = !!(device.enabled && live?.connected);
-        return <Card key={device.id} withBorder radius="md" p="md">
-          <Stack gap="md">
-            <Group justify="space-between" align="flex-start" gap="sm" wrap="wrap">
-              <Stack gap={3} style={{ minWidth: 0, flex: "1 1 220px" }}>
-                <Text fw={700} size="md" style={{ overflowWrap: "anywhere" }}>{device.name}</Text>
-                <Text size="xs" c="dimmed">DCCExpressS88Adapter</Text>
-              </Stack>
-              <Stack gap={3} align="flex-end" style={{ minWidth: 0, flex: "0 1 220px" }}>
-                <Badge size="sm" color={online ? "green" : device.enabled ? "yellow" : "gray"}>
-                  {online ? "Connected" : device.enabled ? "Disconnected" : "Disabled"}
-                </Badge>
-                <Text size="xs" c="dimmed" ta="right" style={{ overflowWrap: "anywhere" }}>
-                  {live?.message ?? "Not started"}
-                </Text>
-              </Stack>
-            </Group>
+    <Card withBorder padding={0}>
+      <Table.ScrollContainer minWidth={740}>
+        <Table striped highlightOnHover verticalSpacing="sm">
+          <Table.Thead><Table.Tr>
+            <Table.Th>Device</Table.Th><Table.Th>Type</Table.Th>
+            <Table.Th>Status</Table.Th><Table.Th>Actions</Table.Th>
+          </Table.Tr></Table.Thead>
+          <Table.Tbody>
+            {devices.map(device => {
+              const live = status.find(x => x.id === device.id);
+              const online = !!(device.enabled && live?.connected);
+              return <Table.Tr key={device.id}>
+                <Table.Td><Text fw={600}>{device.name}</Text><Text size="sm" c="dimmed">{device.serialPort || "No serial port"} · {device.sensorCount} inputs · Sensors {device.sensorOffset + 1}–{device.sensorOffset + device.sensorCount}</Text></Table.Td>
+                <Table.Td>S88 adapter</Table.Td>
+                <Table.Td><Badge color={online ? "green" : device.enabled ? "yellow" : "gray"}>
+                  {online ? "Connected" : device.enabled ? "Disconnected" : "Disabled"}</Badge></Table.Td>
+                <Table.Td><Group gap="xs" wrap="nowrap">
+                  <Button size="xs" variant="light" onClick={() => { setDraft({ ...device }); setEditing(true); setZ21Draft(null); setMonitorId(null); }}>Config</Button>
+                  <Button size="xs" color="red" variant="subtle" disabled={busy} onClick={() => void remove(device.id)}>Delete</Button>
+                </Group></Table.Td>
+              </Table.Tr>;
+            })}
+            {z21Devices.map(device => <Table.Tr key={device.id}>
+              <Table.Td><Text fw={600}>{device.name}</Text><Text size="sm" c="dimmed">UDP {device.udpPort} · Z21 LAN</Text></Table.Td>
+              <Table.Td>Z21 WLANMAUS</Table.Td>
+              <Table.Td><Badge color={z21Status?.listeners?.find(x => x.port === device.udpPort)?.clients ? "teal" : "gray"}>
+                {z21Status?.listeners?.find(x => x.port === device.udpPort)?.clients ? "Client detected" : z21Status?.listeners?.find(x => x.port === device.udpPort)?.state ?? "Disabled"}
+              </Badge></Table.Td>
+              <Table.Td><Group gap="xs" wrap="nowrap">
+                <Button size="xs" variant="light" onClick={() => { setZ21Draft({ ...device }); setEditing(false); setMonitorId(null); }}>Config</Button>
+                <Button size="xs" color="red" variant="subtle" onClick={() => void deleteZ21(device.id)}>Delete</Button>
+              </Group></Table.Td>
+            </Table.Tr>)}
+            {piko && <Table.Tr>
+              <Table.Td><Text fw={600}>{piko.name}</Text><Text size="sm" c="dimmed">TCP {piko.tcpPort} · experimental</Text></Table.Td>
+              <Table.Td>PIKO SmartControl WLAN</Table.Td>
+              <Table.Td><Badge color={pikoStatus?.clients ? "teal" : "gray"}>
+                {piko.enabled ? pikoStatus?.clients ? "Connected" : pikoStatus?.state ?? "Starting" : "Disabled"}
+              </Badge></Table.Td>
+              <Table.Td><Group gap="xs" wrap="nowrap">
+                <Button size="xs" variant="light" onClick={() => setPikoDraft({ ...piko })}>Config</Button>
+                <Button size="xs" variant="subtle" color="red" onClick={() => void deletePiko()}>Delete</Button>
+              </Group></Table.Td>
+            </Table.Tr>}
+            <Table.Tr>
+              <Table.Td><Text fw={600}>{gamepads.find(x => x.index === selectedGamepadIndex)?.id ?? "Gamepad"}</Text><Text size="sm" c="dimmed">Browser Gamepad API · {gamepads.length} detected · {selectedGamepadIndex === null ? "None selected" : `Index ${selectedGamepadIndex}`}</Text></Table.Td>
+              <Table.Td>Gamepad</Table.Td>
+              <Table.Td><Badge color={gamepads.some(x => x.index === selectedGamepadIndex) ? "teal" : "gray"}>
+                {gamepads.some(x => x.index === selectedGamepadIndex) ? "Connected" : "Disconnected"}
+              </Badge></Table.Td>
+              <Table.Td><Button size="xs" variant="light" onClick={onGamepadConfig}>Config</Button></Table.Td>
+            </Table.Tr>
+          </Table.Tbody>
+        </Table>
+      </Table.ScrollContainer>
+    </Card>
 
-            <SimpleGrid cols={{ base: 1, xs: 2, md: 3 }} spacing="md">
-              <Stack gap={2} style={{ minWidth: 0 }}>
-                <Text size="xs" c="dimmed">Serial port</Text>
-                <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>{device.serialPort || "—"}</Text>
-              </Stack>
-              <Stack gap={2} style={{ minWidth: 0 }}>
-                <Text size="xs" c="dimmed">Groups / inputs</Text>
-                <Text size="sm" fw={600}>{device.s88Bytes} bytes / {device.sensorCount} inputs</Text>
-              </Stack>
-              <Stack gap={2} style={{ minWidth: 0 }}>
-                <Text size="xs" c="dimmed">Sensor addresses</Text>
-                <Text size="sm" fw={600}>{device.sensorOffset + 1}–{device.sensorOffset + device.sensorCount}</Text>
-              </Stack>
-            </SimpleGrid>
+    <AppModal opened={pikoDraft !== null} onClose={() => setPikoDraft(null)} title="PIKO SmartControl WLAN" centered>
+      <Stack gap="md">
+        <Alert color="yellow">Experimental TCP diagnostics only. The firmware handshake and checksum are not yet verified; locomotive commands are deliberately blocked.</Alert>
+        <TextInput label="Name" value={pikoDraft?.name ?? ""} onChange={event => { const value = event.currentTarget.value; setPikoDraft(old => old && ({ ...old, name: value })); }} />
+        <NumberInput label="PIKO SmartBox TCP port" value={pikoDraft?.tcpPort ?? 55566} min={1} max={65535}
+          onChange={value => setPikoDraft(old => old && ({ ...old, tcpPort: typeof value === "number" ? value : 0 }))} />
+        <Switch label="Enable PIKO listener" checked={pikoDraft?.enabled ?? false}
+          onChange={event => { const checked = event.currentTarget.checked; setPikoDraft(old => old && ({ ...old, enabled: checked })); }} />
+        <Group justify="flex-end">
+          <Button variant="subtle" onClick={() => setPikoDraft(null)}>Cancel</Button>
+          <Button onClick={() => void savePiko()}>Save</Button>
+        </Group>
+      </Stack>
+    </AppModal>
 
-            <Divider />
+    <AppModal opened={z21Draft !== null} onClose={() => { setZ21Draft(null); setZ21QuickTest(null); }} title="Z21 handheld configuration" centered size="lg">
+      <Stack gap="md">
+        <Group justify="space-between"><Title order={4}>Z21 handheld configuration</Title><Badge color="cyan">Z21 UDP</Badge></Group>
+        <Alert color="blue">Z21 UDP supports locomotive drive, functions, turnouts, track power and emergency stop. Full WLANMAUS compatibility is still under test.</Alert>
+        <TextInput label="Name" value={z21Draft?.name ?? ""} onChange={event => { const value = event.currentTarget.value; setZ21Draft(old => old && ({ ...old, name: value })); }} />
+        <NumberInput label="Z21 server UDP port" min={1} max={65535} value={z21Draft?.udpPort ?? 21105}
+          description="Default: 21105. The handset connects to the HUB's IP address."
+          onChange={value => setZ21Draft(old => old && ({ ...old, udpPort: typeof value === "number" ? value : 0 }))} />
+        <Switch label="Enable handheld support (when available)" checked={z21Draft?.enabled ?? false}
+          onChange={event => { const checked = event.currentTarget.checked; setZ21Draft(old => old && ({ ...old, enabled: checked })); }} />
+        <Accordion variant="contained" radius="sm">
+          <Accordion.Item value="quick-help">
+            <Accordion.Control>Quick Help — WLANMAUS connection &amp; firewall</Accordion.Control>
+            <Accordion.Panel>
+              <Stack gap="xs">
+                <Text size="sm" fw={600}>1. Configure the WLANMAUS</Text>
+                <Text size="sm">Connect the handheld and the Hub computer to the same local network (no guest Wi-Fi/client isolation). Set the handheld's Z21 IP address to the Hub computer's LAN IPv4 address, not the router's address. Use UDP port 21105 unless you changed it here.</Text>
+                <Text size="sm" fw={600}>2. Enable the UDP listener</Text>
+                <Text size="sm">Turn on handheld support and select Save. Open this configuration again and press Quick test. “Listening” means the UDP port opened; “Client detected” means a valid Z21 packet arrived. These do not yet prove that train commands work.</Text>
+                <Text size="sm" fw={600}>3. Windows PowerShell — check the listening port</Text>
+                <Code block>{'Get-NetUDPEndpoint -LocalPort 21105'}</Code>
+                <Text size="sm">If the output shows 0.0.0.0:21105, the Hub is listening on all IPv4 interfaces. To find the Hub's LAN IP address, run:</Text>
+                <Code block>{'ipconfig'}</Code>
+                <Text size="sm" fw={600}>4. Windows Firewall (Administrator PowerShell)</Text>
+                <Text size="sm">On a trusted Private network, allow inbound UDP 21105:</Text>
+                <Code block>{'New-NetFirewallRule -DisplayName "DCCExpress Z21 WLANMAUS" -Direction Inbound -Protocol UDP -LocalPort 21105 -Action Allow -Profile Private'}</Code>
+                <Text size="sm">Check the rule and the active network profile:</Text>
+                <Code block>{'Get-NetFirewallRule -DisplayName "DCCExpress Z21 WLANMAUS"\nGet-NetConnectionProfile'}</Code>
+                <Text size="sm">Use a matching UDP port if you changed the configuration. Do not configure internet router port forwarding.</Text>
+                <Text size="sm" fw={600}>5. Verify real packets</Text>
+                <Text size="sm">Turn on the WLANMAUS, run Quick test again, then inspect Z21 RX/TX traffic in Protocol Monitor. If the port is Listening but no client appears, check the IP address, Wi-Fi isolation and firewall. Windows Test-NetConnection -Port tests TCP, not this UDP listener.</Text>
+              </Stack>
+            </Accordion.Panel>
+          </Accordion.Item>
+        </Accordion>
+        {z21QuickTest && <Alert color={z21QuickTest.ok ? "teal" : "red"}>{z21QuickTest.message}</Alert>}
+        <Text size="xs" c="dimmed">Quick test checks the saved backend listener and detected Z21 clients; it does not send train commands.</Text>
+        <Group justify="flex-end">
+          <Button variant="light" loading={z21Testing} onClick={() => void quickTestZ21()}>Quick test</Button>
+          <Button variant="light" onClick={() => { setZ21Draft(null); setZ21QuickTest(null); }}>Cancel</Button>
+          <Button onClick={saveZ21} disabled={!z21Draft?.name.trim() || !z21Draft || z21Draft.udpPort < 1 || z21Draft.udpPort > 65535 || busy}>Save</Button>
+        </Group>
+      </Stack>
+    </AppModal>
 
-            <Group gap="xs" wrap="wrap">
-              <Button size="xs" variant="light"
-                onClick={() => { setMonitorId(device.id); setEditing(false); }}>Monitor</Button>
-              <Button size="xs" variant="light" disabled={!device.enabled || busy}
-                onClick={() => void test(device.id)}>Test</Button>
-              <Button size="xs" variant="light" disabled={busy}
-                onClick={() => { setDraft({ ...device }); setEditing(true); setMessage(""); }}>Edit</Button>
-              <Button size="xs" variant="light" color={device.enabled ? "orange" : "teal"} disabled={busy}
-                onClick={() => void setEnabled(device, !device.enabled)}>{device.enabled ? "Stop" : "Start"}</Button>
-              <Button size="xs" variant="light" color="red" disabled={busy}
-                onClick={() => void remove(device.id)}>Delete</Button>
-            </Group>
-          </Stack>
-        </Card>;
-      })}
-    </Stack>}
+
 
     {selected && <Card withBorder radius="md" p="lg">
       <Stack gap="sm">
@@ -270,9 +495,14 @@ export default function ExternalDevicesPage({
       </Stack>
     </Card>}
 
-    {editing && <Card withBorder radius="md" p="lg">
+    <AppModal opened={editing} onClose={() => setEditing(false)} title={draft.id ? "Configure S88 adapter" : "Add S88 adapter"} centered size="lg">
       <Stack gap="md">
-        <Title order={4}>{draft.id ? "Edit external device" : "Add external device"}</Title>
+        <Title order={4}>{draft.id ? "Configure S88 adapter" : "Add S88 adapter"}</Title>
+        {draft.id && <Group gap="xs">
+          <Button variant="light" size="xs" disabled={busy} onClick={() => { setMonitorId(draft.id); setEditing(false); }}>Monitor</Button>
+          <Button variant="light" size="xs" disabled={busy || !draft.enabled} onClick={() => void test(draft.id)}>Test</Button>
+          <Button variant="light" size="xs" disabled={busy} onClick={() => void setEnabled(draft, !draft.enabled)}>{draft.enabled ? "Stop" : "Start"}</Button>
+        </Group>}
         <Select
           label="Device"
           data={[{ value: "dcc-express-s88-adapter", label: "DCCExpressS88Adapter" }]}
@@ -280,15 +510,18 @@ export default function ExternalDevicesPage({
           onChange={() => {}}
           allowDeselect={false}
         />
-        <TextInput label="Name" value={draft.name} onChange={event => setDraft(old => ({ ...old, name: event.currentTarget.value }))} />
-        <Select
+        <TextInput label="Name" value={draft.name} onChange={event => { const value = event.currentTarget.value; setDraft(old => ({ ...old, name: value })); }} />
+        <Autocomplete
           label="Serial port"
-          placeholder="Select COM / tty port"
-          searchable
+          placeholder="Select or type COM9 / tty path"
           data={portOptions}
-          value={draft.serialPort || null}
-          onChange={value => setDraft(old => ({ ...old, serialPort: value ?? "" }))}
+          value={draft.serialPort}
+          onChange={value => setDraft(old => ({ ...old, serialPort: value }))}
+          description="Manual port names are allowed even when the device is disconnected."
         />
+        {draft.serialPort.trim() && ports.length > 0 &&
+          !ports.some(port => port.toLowerCase() === draft.serialPort.trim().toLowerCase()) &&
+          <Alert color="yellow">Port {draft.serialPort} is not currently detected. The configuration can still be saved; connection may fail until the device is available.</Alert>}
         <Group grow>
           <NumberInput label="Sensor offset" description="Input 1 = offset + 1" min={0} max={65527} value={draft.sensorOffset}
             onChange={value => setDraft(old => ({ ...old, sensorOffset: typeof value === "number" ? value : 0 }))} />
@@ -299,7 +532,7 @@ export default function ExternalDevicesPage({
             })} />
         </Group>
         <Switch label="Enabled – connect automatically at backend startup" checked={draft.enabled}
-          onChange={event => setDraft(old => ({ ...old, enabled: event.currentTarget.checked }))} />
+          onChange={event => { const checked = event.currentTarget.checked; setDraft(old => ({ ...old, enabled: checked })); }} />
         <Text size="xs" c="dimmed">
           The backend reads STATUS and only sends SET BYTES / SAVE if the adapter needs an update.
           Replacing the COM/tty port closes the old connection before opening the new one.
@@ -314,6 +547,6 @@ export default function ExternalDevicesPage({
           <Button loading={busy} onClick={() => void save()}>Save device</Button>
         </Group>
       </Stack>
-    </Card>}
+    </AppModal>
   </Stack>;
 }

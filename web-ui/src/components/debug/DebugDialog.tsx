@@ -99,7 +99,7 @@ export default function DebugDialog({ opened, onClose, standalone = false }: Pro
           </Tabs.Tab>
 
           <Tabs.Tab value="basic-accessories" leftSection={<IconToggleLeft size={16} />}>
-            Basic ({runtime.basicAccessories.size})
+            Basic ({runtime.basicAccessories.size + runtime.vpinAccessories.size})
           </Tabs.Tab>
 
           <Tabs.Tab value="extended-accessories" leftSection={<IconTrafficLights size={16} />}>
@@ -145,6 +145,7 @@ export default function DebugDialog({ opened, onClose, standalone = false }: Pro
           <BasicAccessoryDebugTab
             turnoutLocks={turnoutLocks}
             accessories={runtime.basicAccessories}
+            vpinAccessories={runtime.vpinAccessories}
             layoutOwners={runtime.basicAccessoryLayoutOwners}
             connected={runtime.connected}
           />

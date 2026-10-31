@@ -17,7 +17,7 @@ export type TurnoutChangedPayload = {
   address: number;
   closed: boolean;
   logicalClosed?: boolean | null;
-  outputMode?: "accessory" | "extended" | "vpin";
+  outputMode?: "accessory" | "extended" | "vpin" | "dccex-turnout";
   aspect?: number | null;
   closedAspect?: number;
   openedAspect?: number;

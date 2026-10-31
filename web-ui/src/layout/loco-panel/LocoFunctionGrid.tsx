@@ -35,7 +35,7 @@ export default function LocoFunctionGrid({
 
   if (fitHeight) return (
     <Card withBorder radius="xs" p={3} style={{ flex: "1 1 0", height: "100%", minHeight: 0, overflow: "hidden" }}>
-      <div style={{ display: "grid", height: "100%", minHeight: 0,
+      <div className="tablet-loco-functions-grid" style={{ display: "grid", height: "100%", minHeight: 0,
         gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
         gridTemplateRows: "repeat(6, minmax(0, 1fr))", gap: 3 }}>
         {buttons}

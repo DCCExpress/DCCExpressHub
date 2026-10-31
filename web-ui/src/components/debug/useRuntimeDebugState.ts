@@ -19,7 +19,7 @@ export type SensorDebugState =
 export type TurnoutDebugValue = {
   physicalValue: boolean;
   logicalClosed: boolean | null;
-  outputMode: "accessory" | "extended" | "vpin";
+  outputMode: "accessory" | "extended" | "vpin" | "dccex-turnout";
   aspect: number | null;
   closedAspect: number;
   openedAspect: number;
@@ -49,7 +49,7 @@ export type ExtendedAccessoryDebugState =
   Map<number, DebugStateValue<number>>;
 
 type TurnoutConfig = {
-  outputMode: "accessory" | "extended" | "vpin";
+  outputMode: TurnoutDebugValue["outputMode"];
   closedValue: boolean;
   closedAspect: number;
   openedAspect: number;
@@ -69,6 +69,7 @@ function integerValue(value: unknown, fallback = 0): number {
 function turnoutMode(value: unknown): TurnoutConfig["outputMode"] {
   if (value === "extended") return "extended";
   if (value === "vpin") return "vpin";
+  if (value === "dccex-turnout") return "dccex-turnout";
   return "accessory";
 }
 
@@ -540,6 +541,8 @@ export function useRuntimeDebugState(
 
   const [basicAccessories, setBasicAccessories] =
     useState<BasicAccessoryDebugState>(() => new Map());
+  const [vpinAccessories, setVpinAccessories] =
+    useState<BasicAccessoryDebugState>(() => new Map());
 
   const [
     basicAccessoryLayoutOwners,
@@ -703,6 +706,7 @@ export function useRuntimeDebugState(
           }
 
           setBasicAccessories(nextBasic);
+          setVpinAccessories(new Map());
           setExtendedAccessories(nextExtended);
           setTurnouts(new Map());
 
@@ -786,7 +790,9 @@ export function useRuntimeDebugState(
             ? "extended"
             : data.outputMode === "vpin"
               ? "vpin"
-              : "accessory");
+              : data.outputMode === "dccex-turnout"
+                ? "dccex-turnout"
+                : "accessory");
 
         const aspect =
           typeof data.aspect === "number"
@@ -893,6 +899,13 @@ export function useRuntimeDebugState(
         });
       });
 
+    const unsubscribeVpin =
+      wsClient.on("vpinChanged", data => {
+        setVpinAccessories(previous =>
+          updatedMap(previous, data.vpin, data.active)
+        );
+      });
+
     const unsubscribeExtendedAccessory =
       wsClient.on("signalAspectChanged", data => {
         setExtendedAccessories(previous =>
@@ -947,6 +960,7 @@ export function useRuntimeDebugState(
       unsubscribeSensorSnapshot();
       unsubscribeTurnout();
       unsubscribeBasicAccessory();
+      unsubscribeVpin();
       unsubscribeExtendedAccessory();
     };
   }, [active, refresh]);
@@ -957,6 +971,7 @@ export function useRuntimeDebugState(
       layoutMetadataStatus,
       turnouts,
       basicAccessories,
+      vpinAccessories,
       basicAccessoryLayoutOwners,
       sensorLayoutOwners,
       turnoutLayoutOwners,
@@ -970,6 +985,7 @@ export function useRuntimeDebugState(
       layoutMetadataStatus,
       turnouts,
       basicAccessories,
+      vpinAccessories,
       basicAccessoryLayoutOwners,
       sensorLayoutOwners,
       turnoutLayoutOwners,

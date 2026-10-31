@@ -1,0 +1,25 @@
+menu "DCCExpress PIKO handheld"
+    config PIKO_HW_INPUT_PROBE
+        bool "Enable conservative read-only GPIO input diagnostics"
+        default n
+        help
+            Prints changes on GPIO 32/33/34/35/36/39 to serial console.
+            Does not drive outputs or enable pull resistors.
+    config PIKO_WIFI_SSID
+        string "Wi-Fi SSID (stored in local sdkconfig, do not commit)"
+        default ""
+    config PIKO_WIFI_PASSWORD
+        string "Wi-Fi password (stored in local sdkconfig, do not commit)"
+        default ""
+    config PIKO_HUB_IP
+        string "DCCExpressHub IPv4 address"
+        default "192.168.1.204"
+    config PIKO_Z21_PORT
+        int "DCCExpressHub Z21 UDP port"
+        range 1 65535
+        default 21105
+    config PIKO_LOCO_ADDRESS
+        int "Initial locomotive address"
+        range 1 10239
+        default 10
+endmenu

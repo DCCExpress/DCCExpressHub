@@ -126,11 +126,16 @@ public sealed class WsHub
         Flows = flows;
         Timetable = timetable;
         CommandCenterConfigStore = ccConfig;
-        LayoutRuntime.Changed +=
-            (type, data) =>
-                QueueStateBroadcast(
-                    type,
-                    data);
+        LayoutRuntime.Changed += (type, data) =>
+        {
+            QueueStateBroadcast(type, data);
+            if (type == "turnoutChanged")
+            {
+                var json = JsonSerializer.SerializeToElement(data, Json);
+                if (json.TryGetProperty("address", out var address) && address.TryGetInt32(out var turnoutAddress))
+                    Z21TurnoutStateChanged?.Invoke(turnoutAddress);
+            }
+        };
         SwitchMan.Changed +=
             snapshot =>
                 QueueStateBroadcast(
@@ -362,6 +367,182 @@ public sealed class WsHub
         };
     }
 
+    public event Action<int>? Z21LocoStateChanged;
+    public event Action? Z21PowerStateChanged;
+    public event Action<int>? Z21TurnoutStateChanged;
+    public (bool PowerOn, bool EmergencyStop) GetZ21PowerState() => (HubState.TrackPower, HubState.EmergencyStop);
+
+    public byte[] GetZ21LocoInfo(int address)
+    {
+        var loco = HubState.Locos.GetValueOrDefault(address, new(address, 0, true, 0));
+        uint functions = loco.FunctionsMask;
+        byte first = (byte)((functions & 1) != 0 ? 0x10 : 0);
+        for (var fn = 1; fn <= 4; fn++)
+            if ((functions & (1u << fn)) != 0) first |= (byte)(1 << (fn - 1));
+        byte[] frame = [14, 0, 0x40, 0, 0xEF,
+            (byte)((address >> 8) | (address >= 128 ? 0xC0 : 0)),
+            (byte)address, 0x04,
+            (byte)((loco.Forward ? 0x80 : 0) | (loco.Speed == 0 ? 0 : Math.Min(127, loco.Speed + 1))),
+            first,
+            (byte)((functions >> 5) & 0xFF), (byte)((functions >> 13) & 0xFF),
+            (byte)((functions >> 21) & 0xFF), 0];
+        byte xor = 0;
+        for (var i = 4; i < frame.Length - 1; i++) xor ^= frame[i];
+        frame[^1] = xor;
+        return frame;
+    }
+
+    public byte[]? GetZ21TurnoutInfo(int address)
+    {
+        if (address is < 1 or > ushort.MaxValue ||
+            !LayoutRuntime.TryGetTurnoutClosed((ushort)address, out var closed))
+            return null;
+        var zeroBased = address - 1;
+        byte[] frame = [9, 0, 0x40, 0, 0x43, (byte)(zeroBased >> 8),
+            (byte)zeroBased, (byte)(closed ? 0x01 : 0x02), 0];
+        byte xor = 0;
+        for (var i = 4; i < frame.Length - 1; i++) xor ^= frame[i];
+        frame[^1] = xor;
+        return frame;
+    }
+
+    // Shared command path for external Z21 throttles. Never bypass turnout locks.
+    public async Task<bool> ApplyZ21LocoAsync(int address, int speed, bool forward, CancellationToken ct)
+    {
+        if (address is < 1 or > 10239 || speed is < 0 or > 126 || !CommandCenter.Connected)
+            return false;
+        var ok = await CommandCenter.SetLocoAsync(address, speed, forward, ct);
+        if (ok)
+        {
+            var old = HubState.Locos.GetValueOrDefault(address, new(address, 0, true, 0));
+            var loco = old with { Speed = speed, Forward = forward };
+            HubState.Locos[address] = loco;
+            await BroadcastLoco(loco);
+        }
+        return ok;
+    }
+
+    public bool GetZ21FunctionState(int address, int function)
+    {
+        if (function is < 0 or > 28) return false;
+        return HubState.Locos.TryGetValue(address, out var loco) &&
+            (loco.FunctionsMask & (1u << function)) != 0;
+    }
+
+    public async Task<bool> ApplyZ21FunctionAsync(int address, int function, bool active, CancellationToken ct)
+    {
+        if (address is < 1 or > 10239 || function is < 0 or > 28 || !CommandCenter.Connected)
+            return false;
+        var ok = await CommandCenter.SetLocoFunctionAsync(address, function, active, ct);
+        if (ok)
+        {
+            var old = HubState.Locos.GetValueOrDefault(address, new(address, 0, true, 0));
+            uint bit = 1u << function;
+            var loco = old with { FunctionsMask = active ? old.FunctionsMask | bit : old.FunctionsMask & ~bit };
+            HubState.Locos[address] = loco;
+            await BroadcastLoco(loco);
+        }
+        return ok;
+    }
+
+    public async Task<bool> ApplyZ21TurnoutAsync(ushort address, bool closed, CancellationToken ct)
+    {
+        if (address == 0 || !CommandCenter.Connected || !SwitchMan.CanOperate(address, null, out _))
+            return false;
+        var turnout = LayoutRuntime.FindAccessory(RuntimeAccessoryKind.Turnout, address);
+        if (turnout is null || turnout.TurnoutExtended || turnout.TurnoutVPin)
+            return false;
+        var physical = closed ? turnout.ClosedValue : !turnout.ClosedValue;
+        if (!await CommandCenter.SetTurnoutAsync(address, physical, ct)) return false;
+        LayoutRuntime.SetTurnout(address, closed);
+        return true;
+    }
+
+    public async Task<bool> ApplyZ21PowerAsync(bool on, CancellationToken ct)
+    {
+        if (!CommandCenter.Connected) return false;
+        // Z21 POWER ON is also the resume command after a central emergency stop.
+        // DCC-EX must receive its actual pause-release sequence (<!>, <!R>);
+        // merely sending <1> and clearing the UI flag causes feedback to re-latch STOP.
+        var resumingEmergency = on && CommandCenter.EmergencyPauseStateKnown &&
+            CommandCenter.EmergencyPaused;
+        var ok = resumingEmergency
+            ? await CommandCenter.EmergencyStopAsync(ct)
+            : await CommandCenter.SetTrackPowerAsync(on, CommandCenterConfigStore.Current.PowerIncludesProgramming, ct);
+        if (ok)
+        {
+            // Some command centers acknowledge a power command without producing an
+            // immediate PowerFeedbackChanged event. Update the shared Hub state so
+            // the Web UI responds to WLANMAUS commands immediately; later feedback
+            // still remains authoritative and may correct this optimistic state.
+            var wasOn = HubState.TrackPower;
+            HubState.TrackPower = on;
+            // Z21 LAN_X_SET_TRACK_POWER_ON (21 81 A0) also releases E-STOP.
+            // Do not leave the UI and the Z21 status poll latched in STOP.
+            if (on)
+                HubState.EmergencyStop = CommandCenter.EmergencyPauseStateKnown
+                    ? CommandCenter.EmergencyPaused : false;
+            if (wasOn != on)
+            {
+                LocoCounters.SetTrackPower(on);
+                Scripts.NotifyTrackPowerChanged(on);
+                if (!on)
+                {
+                    ClearRailComPresence();
+                    SequentialMovement.StopAll(false);
+                    Movement.StopAll(false);
+                    Scripts.AbortManualOnPowerOff();
+                    Timetable.StopScheduler();
+                }
+            }
+            await BroadcastPower();
+            if (!on) await RuntimeStateStore.SaveAsync();
+        }
+        return ok;
+    }
+
+    public async Task<bool> ApplyZ21StopAsync(CancellationToken ct)
+    {
+        if (!CommandCenter.Connected) return false;
+        var ok = await CommandCenter.EmergencyStopAsync(ct);
+        if (ok)
+        {
+            // Use the same authoritative emergency-state handling as the WebSocket
+            // emergencyStop command; some command stations toggle PAUSE on STOP.
+            HubState.EmergencyStop = CommandCenter.EmergencyPauseStateKnown
+                ? CommandCenter.EmergencyPaused : true;
+            await BroadcastPower();
+            if (HubState.EmergencyStop)
+            {
+                QueueStateBroadcast("hubNotification", new
+                {
+                    title = "Emergency stop",
+                    message = "Emergency stop activated from Z21 WLANMAUS.",
+                    level = "error"
+                }, resyncOnDrop: false);
+                await ZeroKnownLocoSpeedsAfterEmergencyAsync();
+            }
+        }
+        return ok;
+    }
+
+    public void PublishPikoPacket(string direction, string remote, byte[] payload, string detail)
+    {
+        _ = Broadcast("pikoPacket", new
+        {
+            direction, remote, detail, raw = Convert.ToHexString(payload)
+        });
+    }
+
+    public void PublishZ21Packet(string direction, string remote, byte[] payload, string detail)
+    {
+        QueueStateBroadcast("z21Packet", new
+        {
+            direction, remote, detail,
+            raw = Convert.ToHexString(payload)
+        }, resyncOnDrop: false);
+    }
+
     private void QueueStateBroadcast(
         string type,
         object data,
@@ -389,7 +570,9 @@ public sealed class WsHub
         }
     }
 
-    private void QueuePowerBroadcast() =>
+    private void QueuePowerBroadcast()
+    {
+        Z21PowerStateChanged?.Invoke();
         QueueStateBroadcast(
             "powerInfo",
             new
@@ -407,9 +590,11 @@ public sealed class WsHub
                 programmingJoined =
                     HubState.ProgrammingJoined
             });
+    }
 
-    private void QueueLocoBroadcast(
-        LocoFeedback loco) =>
+    private void QueueLocoBroadcast(LocoFeedback loco)
+    {
+        Z21LocoStateChanged?.Invoke(loco.Address);
         QueueStateBroadcast(
             "locoState",
             new
@@ -429,6 +614,7 @@ public sealed class WsHub
                             loco.FunctionsMask
                     }
             });
+    }
 
     private async Task StateBroadcastLoop(
         CancellationToken cancellationToken)
@@ -3616,7 +3802,10 @@ public sealed class WsHub
 
     public Task BroadcastPowerState() => BroadcastPower();
 
-    private Task BroadcastPower() => Broadcast("powerInfo", new
+    private Task BroadcastPower()
+    {
+        Z21PowerStateChanged?.Invoke();
+        return Broadcast("powerInfo", new
     {
         emergencyStop = HubState.EmergencyStop,
         trackVoltageOn = HubState.TrackPower,
@@ -3625,6 +3814,7 @@ public sealed class WsHub
         programmingModeActive = HubState.ProgrammingPower,
         programmingJoined = HubState.ProgrammingJoined
     });
+    }
 
     public async Task ZeroKnownLocoSpeedsAfterEmergencyAsync()
     {
@@ -3650,7 +3840,10 @@ public sealed class WsHub
         }
     }
 
-    private Task BroadcastLoco(LocoFeedback l) => Broadcast("locoState", new
+    private Task BroadcastLoco(LocoFeedback l)
+    {
+        Z21LocoStateChanged?.Invoke(l.Address);
+        return Broadcast("locoState", new
     {
         loco = new
         {
@@ -3660,6 +3853,7 @@ public sealed class WsHub
             functionsMask = l.FunctionsMask
         }
     });
+    }
 
     private async Task SendSnapshot(IHubWebSocketClient ws)
     {
