@@ -76,3 +76,66 @@ The vendor code uses **the same shared handle** (literal `0x400D0FB8` → `0x3FF
 - `0x400E2DC3..0x400E2DC5`: the event worker also passes the received GPIO number to `0x4012209C` immediately afterward.
 
 **Hypothesis (not yet a proven ESP-IDF symbol identification):** this handle synchronizes/suspends row advancement while a GPIO key event is being processed, and the worker temporarily changes the GPIO interrupt enable state. Our homemade scanner never implemented this event/row synchronization. Blindly increasing scan delay cannot substitute for it. The next reverse-engineering step is to resolve the actual functions `0x4008DAD0`, `0x4008DA78`, and `0x4012209C` (using the exact ESP-IDF build/function signatures where possible), before translating this into the replacement keyboard driver.
+
+## Original ReadKeysTask number-pad dispatch — recovered from OEM binary
+
+This data is **not a PIKO test-firmware measurement**. We extracted it from the original `ReadKeysTask` dispatch around `0x400E31EF–0x400E32C9`, and independently verified the exact comparator and handler instruction byte signatures against the original `ota_1` v1.3.0.0 image. It maps the OEM combined row/column codes into logical key actions:
+
+| Physical digit | OEM code (hex) | OEM selector index | GPIO input | OEM action |
+| --- | --- | --- | --- | --- |
+| 0 | `0x33` | 2 | GPIO34 | 0 |
+| 1 | `0x41` | 3 | GPIO32 | 1 |
+| 2 | `0x42` | 3 | GPIO33 | 2 |
+| 3 | `0x43` | 3 | GPIO34 | 3 |
+| 4 | `0x51` | 4 | GPIO32 | 4 |
+| 5 | `0x52` | 4 | GPIO33 | 5 |
+| 6 | `0x53` | 4 | GPIO34 | 6 |
+| 7 | `0x61` | 5 | GPIO32 | 7 |
+| 8 | `0x62` | 5 | GPIO33 | 8 |
+| 9 | `0x63` | 5 | GPIO34 | 9 |
+
+The GPIO columns agree with the earlier physical observations: key 0 and 3 both connect to GPIO34, key 1 to GPIO32, key 2 to GPIO33. The OEM **row index** is a software selector, and does not by itself prove the row-output electrical route.
+
+The same dispatch also recognizes six non-numeric action codes. Their *physical legends and actions* are not established:
+
+| OEM code | Selector | GPIO | OEM internal action ID |
+| --- | --- | --- | --- |
+| `0x12` | 0 | GPIO33 | 16 |
+| `0x32` | 2 | GPIO33 | 17 |
+| `0x21` | 1 | GPIO32 | 18 |
+| `0x23` | 1 | GPIO34 | 19 |
+| `0x31` | 2 | GPIO32 | 20 |
+| `0x22` | 1 | GPIO33 | 21 |
+
+All 16 cases are checked byte-for-byte by `python piko/tools/recover_oem_keypad.py PIKO-Handheld-Original-16MB.bin`. No vendor image is committed to GitHub.
+
+## FreeRTOS event-group synchronization — six call-sites byte-verified
+
+Analyzing the *real* input image and the FreeRTOS API reveals the likely purpose of two previously opaque functions:
+
+| Firmware address | High-confidence FreeRTOS API | Observed call |
+| --- | --- | --- |
+| `0x4008DAD0` | `xEventGroupSetBits()` | worker: `(handle, 1)` when key event dequeued |
+| `0x4008DA78` | `xEventGroupClearBits()` | worker: `(handle, 1)` when key processing finishes |
+| `0x4008DA78` | `xEventGroupGetBits()` macro expansion | row task: `(handle, 0)` before advancing |
+
+The documented FreeRTOS macro `xEventGroupGetBits(group)` expands to `xEventGroupClearBits(group, 0)`: this explains why the row task invokes the same binary function with `0` and checks whether the returned bits equal `1`. Its branch at `0x400E3713` bypasses the update at `0x400E3716–0x400E3749` if a key-event-processing flag is set.
+
+The worker explicitly invokes a GPIO interrupt API (likely `gpio_intr_disable`) for the received GPIO number immediately after setting the event bit. After processing, it registers/enables the callback again through the 3-argument `0x40121FB8` call and clears bit 0. The source binary validates these transitions at:
+- `0x400E2DB9`: worker sets bit 0 (`xEventGroupSetBits(group,1)`, inferred)
+- `0x400E2DC3`: worker handles GPIO interrupt disable
+- `0x400E2FAB`: worker restores GPIO callback
+- `0x400E2FB6`: worker clears bit 0
+- `0x400E3709`: row task reads current bits without changing them
+- `0x400E3749`: row task clocks new serial selection data
+
+These six instruction sequences are validated byte-for-byte by the read-only `recover_oem_keypad.py` tool. **Function names remain a high-confidence API inference**, because no ELF symbol table has been recovered. The event ordering and signatures are OEM evidence, while FreeRTOS function names come from API semantics.
+
+Documentation used:
+- https://docs.espressif.com/projects/esp-idf/en/v5.5/esp32/api-reference/system/freertos_idf.html
+- https://github.com/FreeRTOS/FreeRTOS-Kernel/blob/main/include/event_groups.h
+
+### Consequence for the future implementation
+
+A new driver must use a queued GPIO event and a shared row-freeze flag. The combined row/column code should be created using the OEM active row index **after** the worker takes ownership of the event. If the row timer advances between ISR enqueue and worker acknowledgement, decoding could race; reproducing the original timing/locking policy is necessary. We cannot yet claim that this solves the electrical selection problem, so no new runtime driver has been flashed or integrated.
+
