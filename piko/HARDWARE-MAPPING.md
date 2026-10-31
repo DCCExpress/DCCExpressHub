@@ -224,3 +224,7 @@ Binary literal cross-reference results (addresses are firmware virtual addresses
 - `Failed to spi_device_acquire_bus` string `0x3F40DE78` referenced at `0x4010FF28`.
 - Display `LCD first DAh respond` error text `0x3F407270` referenced at `0x400D1F88`.
 These are **literal reference positions**, not proven function entry points or pin definitions.
+
+## Experimental trial 1: guessed ESP32 VSPI pinout
+
+At user request, trial 1 defaults are **MOSI=23 SCLK=18 CS=5 DC=21 RESET=22**, enabled via `CONFIG_PIKO_LCD_TEST=y`. These are **guesses**, not derived from PIKO wiring! Boot flash/strapping and unrelated peripherals may be affected; stop using the trial if the handheld behaves unexpectedly. The LCD backlight is not driven, so a blank display cannot disprove this pinout. Trial sends an RGB test pattern, not text. The firmware retains Kconfig overrides, so a pre-existing local `sdkconfig` with `CONFIG_PIKO_LCD_TEST=n` stays disabled until changed. See `pio run -t menuconfig` to adjust or disable.
