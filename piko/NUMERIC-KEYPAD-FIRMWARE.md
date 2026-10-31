@@ -97,3 +97,59 @@ does not prove a successful build; check the Actions run before downloading.
 
 The software does NOT send any train commands. Do not rely on the unimplemented
 STOP button for a railway emergency stop.
+
+## Real handset report — incorrect numeric positions (October 31, 2026)
+
+After the first OEM-style queued keypad firmware, the user supplied these real
+device events:
+
+```text
+UNMAPPED 0x13 row=0 GPIO34
+DIGIT 7 CANDIDATE 0x61 row=5 GPIO32
+DIGIT 4 CANDIDATE 0x51 row=4 GPIO32
+UNMAPPED 0x12 row=0 GPIO33
+DIGIT 3 CANDIDATE 0x43 row=3 GPIO34
+DIGIT 7 CANDIDATE 0x61 row=5 GPIO32
+UNMAPPED 0x12 row=0 GPIO33
+UNMAPPED 0x23 row=1 GPIO34
+UNMAPPED 0x31 row=2 GPIO32
+UNMAPPED 0x12 row=0 GPIO33
+UNMAPPED 0x13 row=0 GPIO34
+```
+
+The user reports some buttons not detected and others with the wrong physical
+position. The console's digit numbers are only **logical codes generated using
+the selected row at the time of the interrupt**, **not** proof of which physical
+digit was pressed. From the original factory key table:
+- `0x12`, `0x23`, and `0x31` are known **nonnumeric OEM keys**, not necessarily
+  electrical errors.
+- `0x13` is outside the 16 verified button code cases. Whether it is a
+  ghost or a different physical path is unknown.
+- The log **does not include the physical pressed-key sequence**, so raw
+  codes cannot be unambiguously assigned to physical keys.
+
+### Corrected row/IRQ race (next build)
+
+Before this patch, the scanner checked only a FreeRTOS event-group flag set
+**after** a queued GPIO interrupt reached the worker. It could advance the
+physical output/row during the queue delay. The updated ISR increments a pending
+key counter while holding an ESP32 `portMUX_TYPE` spinlock; the row task checks
+this counter under the same lock **before it begins shifting**. The ISR captures
+`irqRow` and `irqMask`, and the worker reports the actual `workRow`. A
+`rowRaces` counter is included in `GET /api/diag`. The worker clears the
+pending count after processing/release. This is a real concurrency correction,
+**but it has not been demonstrated to repair the physical row gating**.
+
+Event labels are now differentiated:
+- `DIGIT N CANDIDATE`: a number inferred from the OEM logical row/column code
+- `OTHER OEM KEY`: one of the six verified original nonnumeric codes
+- `UNKNOWN CODE`: something outside the known 16-code table
+
+The `/keymap` Copy log action now selects the visible text and instructs
+Ctrl+C on HTTP-hosted pages where navigator.clipboard may be unavailable.
+
+**Do not reassign the digits based on the above log alone.** If a subsequent
+physical 0 versus 3 comparison still returns wrong or inconsistent OEM row
+codes, the next step is identifying the actual serialized output latch/driver
+on the PCB, including any enable line and clock timing, rather than performing
+yet another 6×3 scan. No train control or STOP functionality is enabled.
