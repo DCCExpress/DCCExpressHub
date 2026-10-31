@@ -30,6 +30,36 @@ menu "DCCExpress PIKO handheld"
         int "Local OTA HTTP web server port"
         range 1024 65535
         default 8080
+    config PIKO_LCD_TEST
+        bool "Enable experimental LCD RGB test (ONLY after verifying pinout)"
+        default n
+        help
+            Experimental ST7789 SPI test. Do not enable with guessed pins.
+    config PIKO_LCD_MOSI
+        int "LCD MOSI GPIO (verified only)"
+        range -1 39
+        default -1
+        depends on PIKO_LCD_TEST
+    config PIKO_LCD_CLK
+        int "LCD clock GPIO (verified only)"
+        range -1 39
+        default -1
+        depends on PIKO_LCD_TEST
+    config PIKO_LCD_CS
+        int "LCD chip-select GPIO (verified only)"
+        range -1 39
+        default -1
+        depends on PIKO_LCD_TEST
+    config PIKO_LCD_DC
+        int "LCD data/command GPIO (verified only)"
+        range -1 39
+        default -1
+        depends on PIKO_LCD_TEST
+    config PIKO_LCD_RESET
+        int "LCD reset GPIO (verified only)"
+        range -1 39
+        default -1
+        depends on PIKO_LCD_TEST
     config PIKO_HUB_IP
         string "DCCExpressHub IPv4 address"
         default "192.168.1.204"
