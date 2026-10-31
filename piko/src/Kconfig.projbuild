@@ -11,6 +11,16 @@ menu "DCCExpress PIKO handheld"
     config PIKO_WIFI_PASSWORD
         string "Wi-Fi password (stored in local sdkconfig, do not commit)"
         default ""
+    config PIKO_OTA_PASSWORD
+        string "OTA update password (stored in local sdkconfig, do not commit)"
+        default ""
+        help
+            Set a non-empty private password before using firmware updates.
+            Empty disables all update requests.
+    config PIKO_OTA_PORT
+        int "Local OTA HTTP web server port"
+        range 1024 65535
+        default 8080
     config PIKO_HUB_IP
         string "DCCExpressHub IPv4 address"
         default "192.168.1.204"
