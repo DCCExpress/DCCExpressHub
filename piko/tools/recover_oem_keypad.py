@@ -13,14 +13,15 @@ import sys
 
 APP_OFFSET = 0x590000
 SITES = {
-    "keypad_boot_and_pin_init": 0x400E3923,
+    "keypad_boot_and_pin_init": 0x400E3924,
     "six_pin_setup": 0x400E3780,
     "serial_write_7_bits": 0x400E3664,
     "serial_mask_modify": 0x400E36AC,
     "serial_bit6_set": 0x400E36DC,
     "serial_bit6_clear": 0x400E36F0,
     "row_advance_task": 0x400E3704,
-    "column_gpio_interrupt": 0x400E2DA0,
+    "column_event_worker": 0x400E2DA0,
+    "shared_gpio_callback": 0x400839D8,
     "read_key_events_task": 0x400E3004,
 }
 LITERALS = {
@@ -29,7 +30,8 @@ LITERALS = {
     "key_column_code": 0x400D0FBC,
     "keypad_scan_semaphore": 0x400D0FB8,
     "keypad_gpio_event_queue": 0x400D0FB4,
-    "column_interrupt_handler": 0x400D1034,
+    "column_event_worker_entry": 0x400D1034,
+    "shared_gpio_callback_entry": 0x400D0FD4,
     "row_advance_task_entry": 0x400D103C,
 }
 
@@ -80,18 +82,19 @@ def main():
     for name,location in LITERALS.items():
         value=struct.unpack("<I",at(segs,location,4))[0]
         print("  %-26s literal 0x%08X -> 0x%08X"%(name,location,value))
-    irq=struct.unpack("<I",at(segs,LITERALS["column_interrupt_handler"],4))[0]
+    worker=struct.unpack("<I",at(segs,LITERALS["column_event_worker_entry"],4))[0]
+    callback=struct.unpack("<I",at(segs,LITERALS["shared_gpio_callback_entry"],4))[0]
     tick=struct.unpack("<I",at(segs,LITERALS["row_advance_task_entry"],4))[0]
-    if irq!=SITES["column_gpio_interrupt"] or tick!=SITES["row_advance_task"]:
-        print("WARNING: OEM task/ISR literal targets do not match recovered symbols.")
+    if worker!=SITES["column_event_worker"] or callback!=SITES["shared_gpio_callback"] or tick!=SITES["row_advance_task"]:
+        print("WARNING: OEM event worker/callback/timer literal targets do not match recovered symbols.")
     print("""
 OEM logic confirmed by the disassembled functions above:
   GPIO26 -> serial DATA; GPIO27 -> CLOCK; GPIO14 -> LATCH.
   The serializer clocks seven bits from bit 6 down through bit 0.
   Initial mask 0x40, then set bit0 -> mask 0x41, then serialize.
   Timer rotates one selected bit among 0..5; separate code sets/clears bit6.
-  Rising interrupt source GPIO32/33/34 maps to column code 1/2/3.
-  ISR combines column code with currently selected row 0..5 in the high nibble,
+  GPIO32/33/34 use a shared GPIO callback at 0x400839D8.\n  A separate queue-consuming worker at 0x400E2DA0 maps the GPIO sources\n  to column code 1/2/3.
+  The worker combines column code with selected row 0..5 in the high nibble,
   yielding row/column code (row+1)*16 + column.
   A separate ReadKeysTask receives and interprets key events.
 
@@ -102,8 +105,8 @@ OEM logic confirmed by the disassembled functions above:
   This does not justify more blind GPIO scanning or assigning key names.
 
 Next engineering investigation:
-  1) Trace OEM GPIO ISR registration and pin pull configuration.
-  2) Trace serial bit6 state changes and their timing relative to interrupts.
+  1) Reconstruct GPIO callback 0x400839D8 and the event queue semantics.
+  2) Trace queue delay, selector state and the physical role of bit6.
   3) Only then produce an OEM-compatible event-driven implementation.
 No GPIO outputs, serial ports or Wi-Fi are accessed by this script.
 """)
