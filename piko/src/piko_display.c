@@ -16,6 +16,7 @@
 static const char *TAG = "piko_display";
 
 static spi_device_handle_t lcd;
+static bool bus_ready;
 static void pin(int gpio, int level)
 {
     if (gpio >= 0) gpio_set_level(gpio, level);
@@ -54,10 +55,15 @@ static esp_err_t fill_rect(uint16_t y0, uint16_t y1, uint16_t color)
     }
     return ESP_OK;
 }
-esp_err_t piko_display_start(void)
+esp_err_t piko_display_trial(int profile)
 {
+    if (profile < 1 || profile > 3) return ESP_ERR_INVALID_ARG;
+    if (lcd) { spi_bus_remove_device(lcd); lcd = NULL; }
+    if (bus_ready) { spi_bus_free(SPI2_HOST); bus_ready = false; }
+    const int mosi = profile == 3 ? 19 : PIKO_LCD_MOSI;
+    const int mode = profile == 2 ? 3 : 0;
     ESP_LOGW(TAG, "LCD trial compiled in: MOSI=23 CLK=18 CS=5 DC=21 RST=22 (unverified)");
-    const int outputs[] = {PIKO_LCD_MOSI, PIKO_LCD_CLK,
+    const int outputs[] = {mosi, PIKO_LCD_CLK,
                            PIKO_LCD_DC, PIKO_LCD_CS,
                            PIKO_LCD_RESET};
     for (size_t i = 0; i < sizeof(outputs) / sizeof(outputs[0]); ++i) {
@@ -75,14 +81,15 @@ esp_err_t piko_display_start(void)
     }
     /* Only a tentative 240x320 ST7789-like controller. Enable only after
        verifying each GPIO electrically and the display's voltage/interface. */
-    spi_bus_config_t bus = {.mosi_io_num = PIKO_LCD_MOSI,
+    spi_bus_config_t bus = {.mosi_io_num = mosi,
                             .miso_io_num = -1, .sclk_io_num = PIKO_LCD_CLK,
                             .quadwp_io_num = -1, .quadhd_io_num = -1,
                             .max_transfer_sz = 1024};
     esp_err_t err = spi_bus_initialize(SPI2_HOST, &bus, SPI_DMA_DISABLED);
     if (err != ESP_OK) return err;
+    bus_ready = true;
     spi_device_interface_config_t device = {.clock_speed_hz = 1000000,
-                                              .mode = 0, .spics_io_num = PIKO_LCD_CS,
+                                              .mode = mode, .spics_io_num = PIKO_LCD_CS,
                                               .queue_size = 1};
     err = spi_bus_add_device(SPI2_HOST, &device, &lcd);
     if (err != ESP_OK) return err;
@@ -106,6 +113,11 @@ esp_err_t piko_display_start(void)
     if ((err = fill_rect(0, 105, 0xF800)) != ESP_OK) return err;
     if ((err = fill_rect(106, 212, 0x07E0)) != ESP_OK) return err;
     if ((err = fill_rect(213, 319, 0x001F)) != ESP_OK) return err;
-    ESP_LOGI(TAG, "ST7789 candidate: RGB test pattern transmitted");
+    ESP_LOGI(TAG, "LCD profile %d MOSI=%d CLK=%d CS=%d DC=%d RESET=%d SPI mode=%d: RGB transmitted (visibility unverified)", profile, mosi, PIKO_LCD_CLK, PIKO_LCD_CS, PIKO_LCD_DC, PIKO_LCD_RESET, mode);
     return ESP_OK;
+}
+ 
+esp_err_t piko_display_start(void)
+{
+    return piko_display_trial(1);
 }
