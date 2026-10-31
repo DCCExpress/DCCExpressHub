@@ -6,3 +6,7 @@ void hardware_probe_start(void);
 uint16_t hardware_probe_matrix(void);
 void hardware_probe_json(char *out, size_t size);
 void hardware_probe_events_json(char *out, size_t size);
+
+void hardware_probe_capture_begin(void);
+void hardware_probe_capture_end(void);
+void hardware_probe_capture_json(char *out, size_t size);
