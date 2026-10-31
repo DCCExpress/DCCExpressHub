@@ -50,7 +50,7 @@ You can also control your railway from a computer, tablet, or phone on the same 
 - **Flows and scripts** — set up event-driven automation.
 - **Sound** — use audio announcements and other event-driven actions.
 - **Decoder programming** — read and write supported CVs.
-- **External devices** — connect the DCCExpress S88 Adapter (USB serial feedback), ROCO Z21 WLANMAUS newGen (Z21 UDP), and compatible Bluetooth/USB gamepads; experimental PIKO SmartControl WLAN TCP diagnostics are available, but PIKO locomotive control is not yet supported.
+- **External devices** — connect the DCCExpress S88 Adapter (USB serial feedback), ROCO Z21 WLANMAUS newGen (Z21 UDP), and compatible Bluetooth/USB gamepads.
 - **Gamepad control** — use compatible Bluetooth or USB controllers.
 - **Multiple devices** — access the same railway from PCs, tablets, and phones.
 
