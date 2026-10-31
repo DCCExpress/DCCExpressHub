@@ -15,6 +15,7 @@ static const char *TAG = "piko_hw";
    The stock timeout routine cycles selection bits 0..5; bit 6 is controlled separately. */
 #define KEYPAD_ROWS 6
 #define KEYPAD_KEYS (KEYPAD_ROWS * 3)
+#define SWEEP_STATES (KEYPAD_ROWS * 2) /* one-hot + one-cold */
 /* OEM 0x400E36DC sets serial bit 6 in normal operation; the old probe
    always held it LOW, unlike the factory key-scanning sequence. */
 #define KEYPAD_OEM_BIT6 0x40u
@@ -68,8 +69,8 @@ static uint32_t capture_samples;
 /* Slow static-row experiment: unlike the fast 6-row scan, hold each selector
    for a full input-task period (~10ms), count the actual HIGH levels on each
    GPIO input, and compare idle and held-key windows in the browser. */
-static uint32_t sweep_row_samples[KEYPAD_ROWS];
-static uint32_t sweep_row_high[KEYPAD_ROWS][3];
+static uint32_t sweep_row_samples[SWEEP_STATES];
+static uint32_t sweep_row_high[SWEEP_STATES][3];
 static uint8_t sweep_next_row;
 static uint16_t capture_raw_transitions[KEYPAD_KEYS];
 static uint16_t capture_pin_transitions[4];
@@ -166,10 +167,10 @@ void hardware_probe_capture_json(char *out, size_t size)
       (unsigned long)(irq_unassigned[1]-capture_irq_unassigned_baseline[1]),
       (unsigned long)(irq_unassigned[2]-capture_irq_unassigned_baseline[2]));
     if(pos<size) pos+=(size_t)snprintf(out+pos,size-pos,",\"sweepRowSamples\":[");
-    for(int row=0;row<KEYPAD_ROWS&&pos<size;row++)
+    for(int row=0;row<SWEEP_STATES&&pos<size;row++)
         pos+=(size_t)snprintf(out+pos,size-pos,"%s%lu",row?",":"",(unsigned long)sweep_row_samples[row]);
     if(pos<size) pos+=(size_t)snprintf(out+pos,size-pos,"],\"sweepHigh\":[");
-    for(int row=0;row<KEYPAD_ROWS&&pos<size;row++)
+    for(int row=0;row<SWEEP_STATES&&pos<size;row++)
         for(int c=0;c<3&&pos<size;c++)
             pos+=(size_t)snprintf(out+pos,size-pos,"%s%lu",(row||c)?",":"",(unsigned long)sweep_row_high[row][c]);
     if(pos<size) snprintf(out+pos,size-pos,"]}");
@@ -291,25 +292,30 @@ static uint32_t sample_matrix(void)
     return key_bits;
 }
 
-/* Dedicated captured-input scan. One selector is latched for the entire
-   ~10ms scheduling interval, so every row is given >1ms to settle before
-   measuring; no fast six-row sweep runs in parallel while capture is active.
-   The output patterns are the same six factory-derived selector candidates. */
+/* Dedicated captured-input scan: 12 states, six one-hot then six one-cold
+   serial selectors. One pattern stays latched for a full ~10ms task interval.
+   Bit6 remains at its OEM HIGH default. This diagnostic distinguishes polarity
+   without guessing more GPIOs; results are NOT physical key mappings yet. */
 static void sample_slow_capture(void)
 {
-    const int row=sweep_next_row;
+    const int state=sweep_next_row;
+    const int row=state%KEYPAD_ROWS;
+    const bool active_low=state>=KEYPAD_ROWS;
+    const uint8_t row_mask = active_low
+      ? (uint8_t)(0x3f & ~(1u<<row))
+      : (uint8_t)(1u<<row);
     irq_selected_row=(uint8_t)row;
     irq_switching=true;
-    shift_rows((uint8_t)(KEYPAD_OEM_BIT6 | (1u<<row)));
+    shift_rows((uint8_t)(KEYPAD_OEM_BIT6 | row_mask));
     esp_rom_delay_us(1000);
     irq_switching=false;
     const uint8_t columns=read_columns();
     taskENTER_CRITICAL(&lock);
-    sweep_row_samples[row]++;
+    sweep_row_samples[state]++;
     for(int c=0;c<3;c++)
-        if(columns & (1u<<c)) sweep_row_high[row][c]++;
+        if(columns & (1u<<c)) sweep_row_high[state][c]++;
     taskEXIT_CRITICAL(&lock);
-    sweep_next_row=(uint8_t)((row+1)%KEYPAD_ROWS);
+    sweep_next_row=(uint8_t)((state+1)%SWEEP_STATES);
 }
 
 static const int8_t quadrature[16] = {0,-1,1,0, 1,0,0,-1, -1,0,0,1, 0,1,-1,0};
