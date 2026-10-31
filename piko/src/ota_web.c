@@ -1,6 +1,7 @@
 #include "ota_web.h"
 #include "hardware_probe.h"
 #include "web_pages.h"
+#include "keymap_page.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -45,6 +46,12 @@ static const char page[] =
 "x.onload=()=>{status.textContent=x.responseText||('HTTP '+x.status);go.disabled=false;};"
 "x.onerror=()=>{status.textContent='Connection lost. Check the serial log; the device may be restarting.';go.disabled=false;};"
 "x.send(f);status.textContent='Uploading...';};</script></html>";
+
+static esp_err_t keymap_handler(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "text/html; charset=utf-8");
+    return httpd_resp_send(req, piko_keymap_html, HTTPD_RESP_USE_STRLEN);
+}
 
 static esp_err_t home_handler(httpd_req_t *req)
 {
@@ -167,10 +174,11 @@ esp_err_t piko_ota_web_start(void)
     config.server_port = CONFIG_PIKO_OTA_PORT;
     config.stack_size = 8192;
     config.recv_wait_timeout = 20;
-    config.max_uri_handlers = 10;
+    config.max_uri_handlers = 12;
     httpd_uri_t cap_begin_uri = {.uri = "/api/capture/start", .method = HTTP_POST, .handler = capture_begin_handler};
     httpd_uri_t cap_end_uri = {.uri = "/api/capture/stop", .method = HTTP_POST, .handler = capture_end_handler};
     httpd_uri_t cap_status_uri = {.uri = "/api/capture", .method = HTTP_GET, .handler = capture_status_handler};
+    httpd_uri_t keymap_uri = {.uri = "/keymap", .method = HTTP_GET, .handler = keymap_handler};
     httpd_uri_t index_uri = {.uri = "/", .method = HTTP_GET, .handler = home_handler};
     httpd_uri_t ota_uri = {.uri = "/ota", .method = HTTP_GET, .handler = index_handler};
     httpd_uri_t diag_uri = {.uri = "/api/diag", .method = HTTP_GET, .handler = diag_handler};
@@ -178,7 +186,8 @@ esp_err_t piko_ota_web_start(void)
     httpd_uri_t update_uri = {.uri = "/api/update", .method = HTTP_POST, .handler = update_handler};
     esp_err_t err = httpd_start(&server, &config);
     if (err != ESP_OK) return err;
-    if ((err = httpd_register_uri_handler(server, &index_uri)) != ESP_OK ||
+    if ((err = httpd_register_uri_handler(server, &keymap_uri)) != ESP_OK ||
+        (err = httpd_register_uri_handler(server, &index_uri)) != ESP_OK ||
         (err = httpd_register_uri_handler(server, &ota_uri)) != ESP_OK ||
         (err = httpd_register_uri_handler(server, &diag_uri)) != ESP_OK ||
         (err = httpd_register_uri_handler(server, &events_uri)) != ESP_OK ||
