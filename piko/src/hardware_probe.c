@@ -56,7 +56,7 @@ static portMUX_TYPE scan_lock = portMUX_INITIALIZER_UNLOCKED;
 static volatile uint32_t pending_key_events;
 static volatile uint8_t current_row = 0;
 static volatile bool shifting;
-static volatile uint32_t ignored_while_shifting;
+static volatile uint32_t edges_during_shift;
 static volatile uint32_t irq_queue_overflows;
 static uint8_t shadow_mask = OEM_BIT6 | 0x01u;
 static char events[LOG_CAPACITY][LOG_LEN];
@@ -117,7 +117,7 @@ static void IRAM_ATTR on_column(void *argument)
      * IRQs just because the seven serial bits are being latched. The row
      * task assigns next row before shifting, so it is the target selector. */
     event.during_shift=shifting;
-    if(shifting) ++ignored_while_shifting; /* legacy name: now COUNTED, not dropped */
+    if(shifting) ++edges_during_shift; /* valid candidates from latch transitions are retained */
     event.row_on_irq=current_row;
     event.serial_mask_on_irq=shadow_mask;
     ++pending_key_events;
@@ -289,7 +289,7 @@ void hardware_probe_json(char *out, size_t size)
         (unsigned)current_row,process_row,irq_mask,
         event_queue?(unsigned)uxQueueMessagesWaiting(event_queue):0u,
         (unsigned long)pending_key_events,(unsigned long)row_races,
-        (unsigned long)irq_queue_overflows,(unsigned long)ignored_while_shifting);
+        (unsigned long)irq_queue_overflows,(unsigned long)edges_during_shift);
     for (int i=0;i<10 && used<size;i++)
         used+=(size_t)snprintf(out+used,size-used,"%s%lu",i?",":"",
                                (unsigned long)counts[i]);
