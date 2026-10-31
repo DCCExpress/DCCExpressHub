@@ -31,34 +31,34 @@ menu "DCCExpress PIKO handheld"
         range 1024 65535
         default 8080
     config PIKO_LCD_TEST
-        bool "Enable experimental LCD RGB test (ONLY after verifying pinout)"
-        default n
+        bool "Enable experimental LCD RGB test (GUESS: VSPI candidate)"
+        default y
         help
-            Experimental ST7789 SPI test. Do not enable with guessed pins.
+            Experimental ST7789-compatible RGB stripe test. GPIOs below are guesses, not verified PIKO wiring. Disable this if required.
     config PIKO_LCD_MOSI
         int "LCD MOSI GPIO (verified only)"
         range -1 39
-        default -1
+        default 23
         depends on PIKO_LCD_TEST
     config PIKO_LCD_CLK
         int "LCD clock GPIO (verified only)"
         range -1 39
-        default -1
+        default 18
         depends on PIKO_LCD_TEST
     config PIKO_LCD_CS
         int "LCD chip-select GPIO (verified only)"
         range -1 39
-        default -1
+        default 5
         depends on PIKO_LCD_TEST
     config PIKO_LCD_DC
         int "LCD data/command GPIO (verified only)"
         range -1 39
-        default -1
+        default 21
         depends on PIKO_LCD_TEST
     config PIKO_LCD_RESET
         int "LCD reset GPIO (verified only)"
         range -1 39
-        default -1
+        default 22
         depends on PIKO_LCD_TEST
     config PIKO_HUB_IP
         string "DCCExpressHub IPv4 address"
