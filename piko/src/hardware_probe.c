@@ -38,11 +38,6 @@ uint16_t hardware_probe_matrix(void)
     taskENTER_CRITICAL(&lock);
     uint16_t result = matrix;
     taskEXIT_CRITICAL(&lock);
-    taskENTER_CRITICAL(&lock);
-    matrix_raw = raw;
-    columns_idle = (uint8_t)(idle[0] | (idle[1] << 1) | (idle[2] << 2));
-    for (int r = 0; r < 3; ++r) columns_per_row[r] = row_bits[r];
-    taskEXIT_CRITICAL(&lock);
     return result;
 }
 
@@ -105,6 +100,11 @@ static uint16_t sample_matrix(void)
         }
         gpio_set_level(rows[r], 1);
     }
+    taskENTER_CRITICAL(&lock);
+    matrix_raw = raw;
+    columns_idle = (uint8_t)(idle[0] | (idle[1] << 1) | (idle[2] << 2));
+    for (int r = 0; r < 3; ++r) columns_per_row[r] = row_bits[r];
+    taskEXIT_CRITICAL(&lock);
     return result;
 }
 
