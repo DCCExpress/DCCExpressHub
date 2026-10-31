@@ -70,6 +70,27 @@ static esp_err_t events_handler(httpd_req_t *req)
     return httpd_resp_sendstr(req, json);
 }
 
+static esp_err_t capture_begin_handler(httpd_req_t *req)
+{
+    hardware_probe_capture_begin();
+    return httpd_resp_sendstr(req, "OK");
+}
+static esp_err_t capture_end_handler(httpd_req_t *req)
+{
+    hardware_probe_capture_end();
+    char json[512];
+    hardware_probe_capture_json(json, sizeof(json));
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, json);
+}
+static esp_err_t capture_status_handler(httpd_req_t *req)
+{
+    char json[512];
+    hardware_probe_capture_json(json, sizeof(json));
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, json);
+}
+
 static esp_err_t index_handler(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "text/html; charset=utf-8");
@@ -146,6 +167,10 @@ esp_err_t piko_ota_web_start(void)
     config.server_port = CONFIG_PIKO_OTA_PORT;
     config.stack_size = 8192;
     config.recv_wait_timeout = 20;
+    config.max_uri_handlers = 10;
+    httpd_uri_t cap_begin_uri = {.uri = "/api/capture/start", .method = HTTP_POST, .handler = capture_begin_handler};
+    httpd_uri_t cap_end_uri = {.uri = "/api/capture/stop", .method = HTTP_POST, .handler = capture_end_handler};
+    httpd_uri_t cap_status_uri = {.uri = "/api/capture", .method = HTTP_GET, .handler = capture_status_handler};
     httpd_uri_t index_uri = {.uri = "/", .method = HTTP_GET, .handler = home_handler};
     httpd_uri_t ota_uri = {.uri = "/ota", .method = HTTP_GET, .handler = index_handler};
     httpd_uri_t diag_uri = {.uri = "/api/diag", .method = HTTP_GET, .handler = diag_handler};
@@ -157,6 +182,9 @@ esp_err_t piko_ota_web_start(void)
         (err = httpd_register_uri_handler(server, &ota_uri)) != ESP_OK ||
         (err = httpd_register_uri_handler(server, &diag_uri)) != ESP_OK ||
         (err = httpd_register_uri_handler(server, &events_uri)) != ESP_OK ||
+        (err = httpd_register_uri_handler(server, &cap_begin_uri)) != ESP_OK ||
+        (err = httpd_register_uri_handler(server, &cap_end_uri)) != ESP_OK ||
+        (err = httpd_register_uri_handler(server, &cap_status_uri)) != ESP_OK ||
         (err = httpd_register_uri_handler(server, &update_uri)) != ESP_OK) {
         httpd_stop(server);
         server = NULL;
