@@ -12,8 +12,8 @@
 static const char *TAG = "piko_hw";
 /* Verified from original 1.3.0.0: GPIO26 serial DATA, GPIO27 CLOCK, GPIO14 LATCH.
    The stock 0x400E3664 routine shifts seven bits MSB first, then raises latch.
-   Shift-register output bit 0..6 selects one of seven keypad rows. */
-#define KEYPAD_ROWS 7
+   The stock timeout routine cycles only selection bits 0..5, bit 6 stays zero. */
+#define KEYPAD_ROWS 6
 #define KEYPAD_KEYS (KEYPAD_ROWS * 3)
 #define SR_DATA GPIO_NUM_26
 #define SR_CLOCK GPIO_NUM_27
@@ -191,22 +191,22 @@ static uint8_t read_columns(void)
         if (gpio_get_level(cols[col])) result |= (uint8_t)(1u<<col);
     return result;
 }
-/* One shifted register output low at a time, the rest high.
-   Compare with all-high reference: detects either input polarity, and avoids
-   falsely interpreting all seven rows as one key. */
+/* Stock timeout 0x400E3704 clears previous selection bit and sets the next;
+   it cycles indices 0..5. Scan with one HOT output at a time and keep the
+   seventh shifted output bit cleared; compare against all-zero reference. */
 static uint32_t sample_matrix(void)
 {
-    shift_rows(0x7f);
+    shift_rows(0x00);
     const uint8_t neutral=read_columns();
     uint32_t key_bits=0;
     uint8_t row_levels[KEYPAD_ROWS];
     for (int r=0;r<KEYPAD_ROWS;r++) {
-        shift_rows((uint8_t)(0x7f & ~(1u<<r)));
+        shift_rows((uint8_t)(1u<<r));
         const uint8_t level=read_columns();
         row_levels[r]=level;
         key_bits |= ((uint32_t)(level ^ neutral)) << (3*r);
     }
-    shift_rows(0x7f);
+    shift_rows(0x01);
     taskENTER_CRITICAL(&lock);
     matrix_raw=key_bits;
     columns_idle=neutral;
@@ -225,7 +225,7 @@ static void input_task(void *arg)
     int previous_stop = gpio_get_level(GPIO_NUM_13);
     uint32_t candidate = sample_matrix(), stable = candidate;
     unsigned debounce = 0;
-    add_event("PIKO shift-register keyscan: DATA=26 CLOCK=27 LATCH=14; 7 shifted rows x GPIO32/33/34");
+    add_event("PIKO shift-register keyscan: DATA=26 CLOCK=27 LATCH=14; 6 selected rows x GPIO32/33/34");
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(10));
         uint32_t now = sample_matrix();
@@ -306,7 +306,7 @@ void hardware_probe_start(void)
     gpio_set_direction(SR_LATCH,GPIO_MODE_OUTPUT);
     gpio_set_direction(SR_CLOCK,GPIO_MODE_OUTPUT);
     gpio_set_direction(SR_DATA,GPIO_MODE_OUTPUT);
-    shift_rows(0x7f);
+    shift_rows(0x01);
     if (xTaskCreate(input_task, "piko_inputs", 4096, NULL, 3, NULL) != pdPASS)
         ESP_LOGE(TAG, "Input task creation failed");
 }
