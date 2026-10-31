@@ -139,3 +139,16 @@ Documentation used:
 
 A new driver must use a queued GPIO event and a shared row-freeze flag. The combined row/column code should be created using the OEM active row index **after** the worker takes ownership of the event. If the row timer advances between ISR enqueue and worker acknowledgement, decoding could race; reproducing the original timing/locking policy is necessary. We cannot yet claim that this solves the electrical selection problem, so no new runtime driver has been flashed or integrated.
 
+
+## Offline implementation model (not flashed)
+
+Added `piko/tools/oem_keypad_model.py`, a pure Python reference model of the **inferred** event group and queue protocol, without GPIO or ESP-IDF dependencies. `python piko/tools/oem_keypad_model.py` executes four deterministic tests:
+
+1. All ten recovered OEM digit codes produce the expected combined row/column values.
+2. After an event is dequeued, the event-group freeze bit inhibits any further row advance until the callback is rearmed and the bit is cleared; the same GPIO34 then decodes as 0x33 at selector 2 or 0x43 at selector 3.
+3. Exactly one selection bit in 0..5 stays selected as the timer advances; the independently controlled bit6 is preserved for both LOW and HIGH states.
+4. Queuing a GPIO event without a row snapshot permits a race if the selector advances before the worker claims it. The model explicitly demonstrates that risk rather than falsely assuming a row-index snapshot in the queue.
+
+This only tests the *software control flow and keycode calculation*, not the yet-unproven physical keypad driver. Firmware in `piko/src/` is unchanged by this offline reverse-engineering stage.
+
+**References:** actual OEM `ota_1` instructions and literal pointers validated against the 16MiB factory dump on 2026-10-31. External background: https://docs.espressif.com/projects/esp-idf/en/v5.5/esp32/api-reference/system/freertos_idf.html .
