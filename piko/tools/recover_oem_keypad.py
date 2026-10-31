@@ -58,6 +58,52 @@ def at(segs,virtual,n):
             return data[idx:idx+n]
     raise ValueError("Address 0x%08X is outside firmware segments"%virtual)
 
+# These bytes come from the original OTA_1 Xtensa disassembly, not from
+# naming guesses. If any signature differs we refuse to call the inferred
+# event-group protocol verified for the selected firmware image.
+OEM_EVENT_SIGNATURES = {
+    "worker_set_bit1": (0x400E2DB9, "0c1b 817fb8 a808 e5d0aa"),
+    "worker_disable_gpio_irq": (0x400E2DC3, "a801 652d3f"),
+    "worker_reinstall_callback": (0x400E2FAB, "a801 a0ca20 b109b8 65003f"),
+    "worker_clear_bit1": (0x400E2FB6, "0c1b 8100b8 a808 a5abaa"),
+    "timer_read_group_bits": (0x400E3709, "0c0b 812bb6 a808 6536aa 261a35"),
+    "timer_write_serial": (0x400E3749, "a5f1ff"),
+}
+
+def audit_event_protocol(segs):
+    print("\\nOEM queue / synchronization call-site signatures:")
+    failures=[]
+    for name,(address,hex_bytes) in OEM_EVENT_SIGNATURES.items():
+        expected=bytes.fromhex(hex_bytes)
+        observed=at(segs,address,len(expected))
+        match=expected==observed
+        print("  %-28s @0x%08X %s" %
+              (name,address,"MATCH" if match else "MISMATCH"))
+        if not match:
+            failures.append(name)
+    if failures:
+        raise ValueError("OEM event protocol signatures failed: " + ", ".join(failures))
+    print("""
+Verified OEM call ordering:
+  column worker receives GPIO identifier from queue
+  -> invokes 0x4008DAD0(handle, 1)
+  -> invokes 0x4012209C(gpio) (probable disable interrupt)
+  -> decodes current selector and column to a key code
+  -> invokes 0x40121FB8(gpio, callback, gpio) to re-install handler
+  -> invokes 0x4008DA78(handle, 1)
+  row task invokes 0x4008DA78(handle, 0);
+  when return value == 1 it skips selector update.
+High-confidence API interpretation, not a recovered ELF symbol table:
+  0x4008DAD0 ~= xEventGroupSetBits(group, 1)
+  0x4008DA78 ~= xEventGroupClearBits(group, bits)
+  a bits argument of ZERO reads the old event bits without changing them,
+  consistent with the timer's return-value comparison to 1.
+This supports temporarily FREEZING row stepping while a key event is handled,
+not continuously decoding the pressed key from sampled GPIO levels.
+""")
+    return True
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("flash",type=Path)
@@ -71,6 +117,7 @@ def main():
     if version!="1.3.0.0":
         parser.error("These symbol addresses apply only to OTA1 v1.3.0.0; found "+version)
     segs=segments(image)
+    audit_event_protocol(segs)
     print("PIKO original flash / OTA1 / firmware",version)
     print("OEM keyboard code anchors (entry bytes; disassemble these, not guessed LCD functions):")
     for name,address in SITES.items():
