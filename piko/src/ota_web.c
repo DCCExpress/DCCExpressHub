@@ -83,7 +83,7 @@ static esp_err_t home_handler(httpd_req_t *req)
 
 static esp_err_t diag_handler(httpd_req_t *req)
 {
-    char json[256];
+    char json[1024];
     hardware_probe_json(json, sizeof(json));
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
