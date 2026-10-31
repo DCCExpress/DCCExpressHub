@@ -153,3 +153,36 @@ physical 0 versus 3 comparison still returns wrong or inconsistent OEM row
 codes, the next step is identifying the actual serialized output latch/driver
 on the PCB, including any enable line and clock timing, rather than performing
 yet another 6×3 scan. No train control or STOP functionality is enabled.
+
+### Follow-up fix: latch-time interrupts must not be discarded
+
+Further inspection of the first real-device log and original serializer at
+`0x400E3664` identified a second software defect. The previous driver
+discarded all column GPIO edges while the row task was serializing/latching
+the next selection mask. In a matrix driven by a serial-output row selector,
+**activating the row may itself produce the rising edge** that identifies a
+held key. Dropping these events can make some keys appear nonresponsive.
+
+The driver now:
+1. Sets the upcoming logical row under a shared ISR/task lock *before*
+   serial output begins.
+2. Accepts column GPIO interrupts both while the output is shifting/latching
+   and during a stable row, instead of discarding transition-time edges.
+3. Snapshots row index, serialized mask and `shift` phase at the interrupt.
+4. Prevents any further row advance while an event is pending, even before
+   the queued worker receives it.
+5. Prints candidate key logs as `irq=<row> work=<row> GPIO<n> shift=0/1`.
+   The `rowRaces`, `shiftEdges` and `pending` fields appear in
+   `/api/diag`.
+6. Correctly distinguishes known six **non-numeric OEM keys** from a truly
+   unknown code such as `0x13`, instead of labeling all as unmapped.
+7. The copy button selects event text for Ctrl+C when `navigator.clipboard`
+   is unavailable on the local non-HTTPS PIKO page.
+
+These are source-level bugs and legitimate fixes, but **do not demonstrate a
+working physical number-pad** without a new press test. The v10 result
+showing no change across all row masks still suggests that the true physical
+row-driver electrical path needs investigation if the row codes remain random.
+No STOP/power functionality has been added. The source was checked for API/UI
+field consistency and browser JS syntax; ESP-IDF build and real hardware
+testing are outstanding.
