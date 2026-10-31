@@ -28,8 +28,9 @@ pio run -d piko -t menuconfig
 
 In **DCCExpress PIKO handheld**, configure:
 
-- Wi-Fi SSID
-- Wi-Fi password
+- PIKO standalone Wi-Fi SSID (default `PIKO-Update`)
+- PIKO standalone Wi-Fi password (**8–63 characters, required**)
+- Optional existing-router Wi-Fi SSID and password (blank SSID = access-point-only mode)
 - OTA update password (**must not be empty**)
 - OTA HTTP port (default `8080`)
 
@@ -39,13 +40,15 @@ Keep secrets in local, untracked `sdkconfig` files; do not commit credentials.
 pio run -d piko
 ```
 
-The serial log reports the assigned IP when Wi-Fi connects:
+After first flashing, connect your PC/phone to the PIKO standalone WLAN (default SSID `PIKO-Update`) using its configured AP password. Browse to **http://192.168.4.1:8080/**. The device also advertises **http://piko.local:8080/** via mDNS where supported. On Windows, `.local` resolution may depend on network configuration: the numeric IP is the reliable fallback.
+
+If optional router credentials are configured, the PIKO also joins that WLAN (AP+STA mode), and the serial log reports the assigned station IP:
 
 ```text
 piko_wifi: Connected; open http://192.168.x.x:8080/
 ```
 
-Visit that address on the same trusted LAN, enter the OTA password, select the
+Visit either the standalone AP address or that station address, enter the OTA password, select the
 built `firmware.bin` and click **Upload firmware**. The page shows upload
 progress; the handheld verifies the ESP application image and restarts only
 after successfully writing the inactive OTA partition and changing the boot
