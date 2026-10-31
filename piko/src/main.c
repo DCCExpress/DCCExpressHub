@@ -9,15 +9,15 @@ static const char *TAG = "piko";
 
 void app_main(void)
 {
-    ESP_LOGW(TAG, "PIKO HARDWARE DISCOVERY MODE: Z21 drive commands disabled.");
-    ESP_LOGW(TAG, "Experimental LCD RGB trial (candidate GPIOs; not verified PIKO wiring).");
-    ESP_LOGW(TAG, "GPIO observations are not yet identified buttons/rotary signals.");
+    ESP_LOGW(TAG, "PIKO OEM-style numeric keypad firmware. Z21 drive commands disabled.");
+    ESP_LOGW(TAG, "Keypad codes recovered from original firmware; verify physical behavior.");
+    ESP_LOGW(TAG, "STOP and other special buttons are not mapped.");
     hardware_probe_start();
     esp_err_t wifi = piko_wifi_start();
     if (wifi != ESP_OK)
         ESP_LOGW(TAG, "OTA Wi-Fi disabled: %s", esp_err_to_name(wifi));
-    esp_err_t display = piko_display_start();
-    ESP_LOGW(TAG, "LCD trial result: %s (SPI success does NOT confirm screen visibility)", esp_err_to_name(display));
+    /* No guessed LCD pins are driven on boot. /lcd remains manual diagnostic only. */
+    ESP_LOGI(TAG, "LCD trial disabled at boot; no confirmed PIKO LCD pinout");
     uint32_t seconds = 0;
     while (true) {
         ESP_LOGI(TAG, "HEARTBEAT #%lu uptime=%lu ms",
