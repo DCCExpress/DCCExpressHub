@@ -51,7 +51,6 @@ You can also control your railway from a computer, tablet, or phone on the same 
 - **Sound** — use audio announcements and other event-driven actions.
 - **Decoder programming** — read and write supported CVs.
 - **External devices** — DCCExpress S88 Adapter, ROCO Z21 WLANMAUS newGen and compatible Bluetooth gamepads.
-- **Gamepad control** — use compatible Bluetooth or USB controllers.
 - **Multiple devices** — access the same railway from PCs, tablets, and phones.
 
 ### Gamepad control
