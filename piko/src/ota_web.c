@@ -1,4 +1,6 @@
 #include "ota_web.h"
+#include "hardware_probe.h"
+#include "web_pages.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -43,6 +45,30 @@ static const char page[] =
 "x.onload=()=>{status.textContent=x.responseText||('HTTP '+x.status);go.disabled=false;};"
 "x.onerror=()=>{status.textContent='Connection lost. Check the serial log; the device may be restarting.';go.disabled=false;};"
 "x.send(f);status.textContent='Uploading...';};</script></html>";
+
+static esp_err_t home_handler(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "text/html; charset=utf-8");
+    return httpd_resp_send(req, piko_home_html, HTTPD_RESP_USE_STRLEN);
+}
+
+static esp_err_t diag_handler(httpd_req_t *req)
+{
+    char json[256];
+    hardware_probe_json(json, sizeof(json));
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    return httpd_resp_sendstr(req, json);
+}
+
+static esp_err_t events_handler(httpd_req_t *req)
+{
+    char json[6000];
+    hardware_probe_events_json(json, sizeof(json));
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    return httpd_resp_sendstr(req, json);
+}
 
 static esp_err_t index_handler(httpd_req_t *req)
 {
@@ -120,11 +146,17 @@ esp_err_t piko_ota_web_start(void)
     config.server_port = CONFIG_PIKO_OTA_PORT;
     config.stack_size = 8192;
     config.recv_wait_timeout = 20;
-    httpd_uri_t index_uri = {.uri = "/", .method = HTTP_GET, .handler = index_handler};
+    httpd_uri_t index_uri = {.uri = "/", .method = HTTP_GET, .handler = home_handler};
+    httpd_uri_t ota_uri = {.uri = "/ota", .method = HTTP_GET, .handler = index_handler};
+    httpd_uri_t diag_uri = {.uri = "/api/diag", .method = HTTP_GET, .handler = diag_handler};
+    httpd_uri_t events_uri = {.uri = "/api/events", .method = HTTP_GET, .handler = events_handler};
     httpd_uri_t update_uri = {.uri = "/api/update", .method = HTTP_POST, .handler = update_handler};
     esp_err_t err = httpd_start(&server, &config);
     if (err != ESP_OK) return err;
     if ((err = httpd_register_uri_handler(server, &index_uri)) != ESP_OK ||
+        (err = httpd_register_uri_handler(server, &ota_uri)) != ESP_OK ||
+        (err = httpd_register_uri_handler(server, &diag_uri)) != ESP_OK ||
+        (err = httpd_register_uri_handler(server, &events_uri)) != ESP_OK ||
         (err = httpd_register_uri_handler(server, &update_uri)) != ESP_OK) {
         httpd_stop(server);
         server = NULL;
