@@ -1,7 +1,12 @@
 #include "piko_display.h"
 #include <stdint.h>
 #include <string.h>
-#include "sdkconfig.h"
+/* Trial pinout is compiled in; no sdkconfig/menuconfig dependency. */
+#define PIKO_LCD_MOSI 23
+#define PIKO_LCD_CLK 18
+#define PIKO_LCD_CS 5
+#define PIKO_LCD_DC 21
+#define PIKO_LCD_RESET 22
 #include "driver/gpio.h"
 #include "driver/spi_master.h"
 #include "esp_log.h"
@@ -10,7 +15,6 @@
 
 static const char *TAG = "piko_display";
 
-#if CONFIG_PIKO_LCD_TEST
 static spi_device_handle_t lcd;
 static void pin(int gpio, int level)
 {
@@ -18,7 +22,7 @@ static void pin(int gpio, int level)
 }
 static esp_err_t send_bytes(bool data, const void *bytes, size_t size)
 {
-    pin(CONFIG_PIKO_LCD_DC, data ? 1 : 0);
+    pin(PIKO_LCD_DC, data ? 1 : 0);
     spi_transaction_t t = {.length = size * 8, .tx_buffer = bytes};
     return spi_device_polling_transmit(lcd, &t);
 }
@@ -50,17 +54,12 @@ static esp_err_t fill_rect(uint16_t y0, uint16_t y1, uint16_t color)
     }
     return ESP_OK;
 }
-#endif
-
 esp_err_t piko_display_start(void)
 {
-#if !CONFIG_PIKO_LCD_TEST
-    ESP_LOGW(TAG, "LCD test disabled until FP-200H05B SPI pinout is verified");
-    return ESP_ERR_NOT_SUPPORTED;
-#else
-    const int outputs[] = {CONFIG_PIKO_LCD_MOSI, CONFIG_PIKO_LCD_CLK,
-                           CONFIG_PIKO_LCD_DC, CONFIG_PIKO_LCD_CS,
-                           CONFIG_PIKO_LCD_RESET};
+    ESP_LOGW(TAG, "LCD trial compiled in: MOSI=23 CLK=18 CS=5 DC=21 RST=22 (unverified)");
+    const int outputs[] = {PIKO_LCD_MOSI, PIKO_LCD_CLK,
+                           PIKO_LCD_DC, PIKO_LCD_CS,
+                           PIKO_LCD_RESET};
     for (size_t i = 0; i < sizeof(outputs) / sizeof(outputs[0]); ++i) {
         if (outputs[i] < 0 || outputs[i] > 33 ||
             outputs[i] == 2 || outputs[i] == 12 || outputs[i] == 15 ||
@@ -76,23 +75,23 @@ esp_err_t piko_display_start(void)
     }
     /* Only a tentative 240x320 ST7789-like controller. Enable only after
        verifying each GPIO electrically and the display's voltage/interface. */
-    spi_bus_config_t bus = {.mosi_io_num = CONFIG_PIKO_LCD_MOSI,
-                            .miso_io_num = -1, .sclk_io_num = CONFIG_PIKO_LCD_CLK,
+    spi_bus_config_t bus = {.mosi_io_num = PIKO_LCD_MOSI,
+                            .miso_io_num = -1, .sclk_io_num = PIKO_LCD_CLK,
                             .quadwp_io_num = -1, .quadhd_io_num = -1,
                             .max_transfer_sz = 1024};
     esp_err_t err = spi_bus_initialize(SPI2_HOST, &bus, SPI_DMA_DISABLED);
     if (err != ESP_OK) return err;
     spi_device_interface_config_t device = {.clock_speed_hz = 1000000,
-                                              .mode = 0, .spics_io_num = CONFIG_PIKO_LCD_CS,
+                                              .mode = 0, .spics_io_num = PIKO_LCD_CS,
                                               .queue_size = 1};
     err = spi_bus_add_device(SPI2_HOST, &device, &lcd);
     if (err != ESP_OK) return err;
-    gpio_set_direction((gpio_num_t)CONFIG_PIKO_LCD_DC, GPIO_MODE_OUTPUT);
-    gpio_set_level((gpio_num_t)CONFIG_PIKO_LCD_DC, 1);
-    gpio_set_direction((gpio_num_t)CONFIG_PIKO_LCD_RESET, GPIO_MODE_OUTPUT);
-    pin(CONFIG_PIKO_LCD_RESET, 0);
+    gpio_set_direction((gpio_num_t)PIKO_LCD_DC, GPIO_MODE_OUTPUT);
+    gpio_set_level((gpio_num_t)PIKO_LCD_DC, 1);
+    gpio_set_direction((gpio_num_t)PIKO_LCD_RESET, GPIO_MODE_OUTPUT);
+    pin(PIKO_LCD_RESET, 0);
     vTaskDelay(pdMS_TO_TICKS(30));
-    pin(CONFIG_PIKO_LCD_RESET, 1);
+    pin(PIKO_LCD_RESET, 1);
     vTaskDelay(pdMS_TO_TICKS(150));
     if ((err = cmd(0x01)) != ESP_OK) return err; /* software reset */
     vTaskDelay(pdMS_TO_TICKS(150));
@@ -109,5 +108,4 @@ esp_err_t piko_display_start(void)
     if ((err = fill_rect(213, 319, 0x001F)) != ESP_OK) return err;
     ESP_LOGI(TAG, "ST7789 candidate: RGB test pattern transmitted");
     return ESP_OK;
-#endif
 }
