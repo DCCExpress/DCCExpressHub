@@ -104,6 +104,49 @@ not continuously decoding the pressed key from sampled GPIO levels.
     return True
 
 
+
+# ReadKeysTask in OEM firmware maps composed 0x(row+1)(column) codes to
+# application action identifiers. These comparator+action bytes were checked
+# against the exact original OTA_1 binary before adding the table.
+# Tuple: physical-label, composed-keycode, comparator-address, comparator-bytes,
+# action-address, action-bytes. The application actions 0..9 are DIGITS;
+# actions 16..21 are unlabelled until their UI behavior is verified.
+OEM_KEY_ACTIONS = (
+    ("0", 0x33, 0x400E3234, "3c39 979802", 0x400E32C4, "0c0a 257a02"),
+    ("1", 0x41, 0x400E323C, "4c19 97183a", 0x400E327C, "0c1a a57e02"),
+    ("2", 0x42, 0x400E31F2, "92a042 979802", 0x400E3284, "0c2a 257e02"),
+    ("3", 0x43, 0x400E325E, "4c39 971828", 0x400E328C, "0c3a a57d02"),
+    ("4", 0x51, 0x400E3254, "5c19 97183a", 0x400E3294, "0c4a 257d02"),
+    ("5", 0x52, 0x400E3259, "5c29 97183d", 0x400E329C, "0c5a a57c02"),
+    ("6", 0x53, 0x400E324C, "5c39 971852", 0x400E32A4, "0c6a 257c02"),
+    ("7", 0x61, 0x400E3272, "92a061 971833", 0x400E32AC, "0c7a a57b02"),
+    ("8", 0x62, 0x400E3266, "92a062 971847", 0x400E32B4, "0c8a 257b02"),
+    ("9", 0x63, 0x400E326C, "92a063 971849", 0x400E32BC, "0c9a a57a02"),
+    ("function16", 0x12, 0x400E3215, "1c29 979802", 0x400E32E5, "1c0a 257802"),
+    ("function17", 0x32, 0x400E3241, "3c29 979802", 0x400E32F0, "1c1a 657702"),
+    ("function18", 0x21, 0x400E321D, "2c19 979802", 0x400E32F8, "1c2a e57602"),
+    ("function19", 0x23, 0x400E3228, "2c39 979802", 0x400E3300, "1c3a 657602"),
+    ("function20", 0x31, 0x400E31FE, "92a031 979802", 0x400E32CF, "1c4a 657902"),
+    ("function21", 0x22, 0x400E320A, "2c29 979802", 0x400E32DA, "1c5a a57802"),
+)
+
+def audit_key_actions(segs):
+    print("\\nOEM ReadKeysTask action mapping (verified against raw instruction bytes):")
+    errors=[]
+    for label,code,compare_at,compare_bytes,action_at,action_bytes in OEM_KEY_ACTIONS:
+        comp=bytes.fromhex(compare_bytes)
+        act=bytes.fromhex(action_bytes)
+        if at(segs,compare_at,len(comp))!=comp or at(segs,action_at,len(act))!=act:
+            errors.append(label)
+            continue
+        row=(code >> 4)-1
+        col=code & 15
+        gpio={1:32,2:33,3:34}.get(col)
+        print("  %-12s key=0x%02X selector=%d GPIO=%s -> app action %s" %
+              (label,code,row,str(gpio),label if label.isdigit() else label[8:]))
+    if errors: raise ValueError("OEM key action signatures changed: "+", ".join(errors))
+    print("  IMPORTANT: function16..21 are internal app action IDs, not confirmed physical labels.")
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("flash",type=Path)
@@ -118,6 +161,7 @@ def main():
         parser.error("These symbol addresses apply only to OTA1 v1.3.0.0; found "+version)
     segs=segments(image)
     audit_event_protocol(segs)
+    audit_key_actions(segs)
     print("PIKO original flash / OTA1 / firmware",version)
     print("OEM keyboard code anchors (entry bytes; disassemble these, not guessed LCD functions):")
     for name,address in SITES.items():
