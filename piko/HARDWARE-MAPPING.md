@@ -265,3 +265,12 @@ The key-mapping report now only labels a row as selected when its sampled input 
 **Next validation:** update OTA and scan just physical 0 and 3 via `/keymap`. Both share GPIO34, so a correctly functioning scanner must yield distinct selected shift bits. If the report still says `UNRESOLVED`, then bit 6 HIGH is not sufficient and the next step is to instrument the factory-style ISR/timeout row-index correlation, rather than claim the matrix is solved.
 
 Source-level documentation: ESP-IDF GPIO guidelines https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/peripherals/gpio.html ; GPIO34 is input-only, no internal pull-up or pull-down.
+
+## External shift-register discussion (Arduino Forum, 2024)
+
+User reference: https://forum.arduino.cc/t/esp32-and-10x-74hc595/1211100/17
+Discussion: reading a large keyboard by selectively enabling 74HC595 outputs. Participants warn that **74HC595 is serial-in / parallel-output, not an input-reading IC** (74HC165 is input shift register). On a push-pull 595, different rows at opposite levels can be electrically connected if multiple keys are depressed and no series resistors/diodes/isolation exist. Therefore the PIKO's external driver **must not be declared a 74HC595** solely from GPIO26/27/14 serial traffic. Exact part and keyboard isolation topology are unknown. The trial scans should be limited to individual key presses until verified.
+
+Relevant TI data sheet: https://www.ti.com/product/SN74HC595 (8-bit serial-in, 8-bit output latch, independent shift/latch clocks, tri-state outputs with OE). The PIKO OEM code at 0x400E3664 transmits **7 bits**, not 8; that discrepancy is another reason not to assume an ordinary 74HC595 and copy its wiring/protocol uncritically.
+
+Current observation: all six shifted selection states return the same column for any one of keys 0/1/2/3. Competing explanations remain: no electrical connection from serialized output to rows, wrong enable or polarity, shift/latch protocol mismatch, or too-short settling time of the overall keypad circuit. The forum itself does not resolve which applies to PIKO; **the 74HC165 recommendation is for designing a new keyboard, not proof that the PIKO uses a 165**.
