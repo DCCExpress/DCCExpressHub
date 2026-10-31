@@ -72,7 +72,7 @@ static const char piko_keymap_html[] =
 " return out.join('; ')+' (samples '+d.samples+')';\n"
 "}\n"
 "function render(){tbody.replaceChildren();records.forEach((r,i)=>{const tr=document.createElement('tr'),key=document.createElement('td'),val=document.createElement('td'),act=document.createElement('td'),input=document.createElement('input'),b=document.createElement('button');input.value=r.key;input.placeholder='Button name';input.oninput=()=>{r.key=input.value;persist()};key.append(input);val.textContent=r.data&&r.held?format(r.data,r.held)+(r.heldWindow?'; '+phaseCompare(r):''):'Not scanned';\n"
-"b.textContent=active===i?(phase===0?'Measuring...':phase===1?'Capture held (keep key pressed)':'Save released (release key first)'):'Start scan (no key pressed)';b.disabled=phase===0||active!==-1&&active!==i;\n"
+"b.textContent=active===i?(phase===0?'Measuring...':phase===1?'Capture held (keep key pressed)':'Save released (release key first)'):'Start scan (no key pressed)';b.disabled=active!==-1&&(phase===0||active!==i);\n"
 "b.className='primary';b.onclick=()=>scan(i);act.append(b);tr.append(key,val,act);tbody.append(tr)})}\n"
 "async function scan(i){\n"
 " const status=document.querySelector('#status');\n"
