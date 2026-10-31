@@ -45,11 +45,14 @@ static const int8_t keycodes[6][3] = {
 typedef struct {
     gpio_num_t gpio;
     uint8_t row_on_irq;
+    uint8_t serial_mask_on_irq;
 } column_event_t;
 
 static QueueHandle_t event_queue;
 static EventGroupHandle_t row_group;
 static portMUX_TYPE state_lock = portMUX_INITIALIZER_UNLOCKED;
+static portMUX_TYPE scan_lock = portMUX_INITIALIZER_UNLOCKED;
+static volatile uint32_t pending_key_events;
 static volatile uint8_t current_row = 0;
 static volatile bool shifting;
 static volatile uint32_t ignored_while_shifting;
@@ -62,6 +65,9 @@ static int last_digit = -1;
 static uint8_t last_code;
 static uint8_t last_row;
 static uint8_t last_gpio;
+static uint8_t last_worker_row;
+static uint8_t last_irq_mask;
+static volatile uint32_t row_races;
 static uint32_t digit_counts[10];
 static volatile bool ready;
 
@@ -97,39 +103,62 @@ static void write_serial(uint8_t mask)
  */
 static void IRAM_ATTR on_column(void *argument)
 {
-    const gpio_num_t gpio = (gpio_num_t)(uintptr_t)argument;
-    if (shifting) {
-        ++ignored_while_shifting;
-        return;
+    const gpio_num_t gpio=(gpio_num_t)(uintptr_t)argument;
+    if(!event_queue) return;
+
+    column_event_t event={.gpio=gpio};
+    bool accepted=false;
+    /* Synchronously inhibit row stepping BEFORE the worker dequeues the
+     * event. The event group alone was too late: the timer could advance.
+     * Never call xEventGroupSetBits() from the ISR. */
+    portENTER_CRITICAL_ISR(&scan_lock);
+    if(shifting) ++ignored_while_shifting;
+    else {
+        event.row_on_irq=current_row;
+        event.serial_mask_on_irq=shadow_mask;
+        ++pending_key_events;
+        accepted=true;
     }
-    if (!event_queue) return;
-    column_event_t event = {
-        .gpio = gpio,
-        .row_on_irq = current_row
-    };
-    BaseType_t higher = pdFALSE;
-    if (xQueueSendFromISR(event_queue, &event, &higher) != pdTRUE)
+    portEXIT_CRITICAL_ISR(&scan_lock);
+    if(!accepted) return;
+
+    BaseType_t higher=pdFALSE;
+    if(xQueueSendFromISR(event_queue,&event,&higher)!=pdTRUE) {
+        portENTER_CRITICAL_ISR(&scan_lock);
+        if(pending_key_events) --pending_key_events;
         ++irq_queue_overflows;
-    if (higher) portYIELD_FROM_ISR();
+        portEXIT_CRITICAL_ISR(&scan_lock);
+    }
+    if(higher) portYIELD_FROM_ISR();
 }
 
 static void row_task(void *arg)
 {
     (void)arg;
-    for (;;) {
-        /* OEM uses event-group bit0 to inhibit row stepping during a key. */
-        if ((xEventGroupGetBits(row_group) & ROW_FREEZE) == 0) {
-            const uint8_t next = (uint8_t)((current_row+1)%ROW_COUNT);
-            shifting = true;
-            uint8_t mask = shadow_mask;
-            mask &= (uint8_t)~(1u << current_row);
-            mask |= (uint8_t)(1u << next);
-            shadow_mask = mask;
-            write_serial(mask);
-            current_row = next;
-            shifting = false;
+    for(;;) {
+        if((xEventGroupGetBits(row_group)&ROW_FREEZE)==0) {
+            bool do_step=false;
+            uint8_t pattern=0;
+            taskENTER_CRITICAL(&scan_lock);
+            /* pending_key_events is set already by ISR, before its queue
+             * message can be received. Keep the selected output untouched. */
+            if(pending_key_events==0) {
+                const uint8_t previous=current_row;
+                const uint8_t next=(uint8_t)((previous+1)%ROW_COUNT);
+                pattern=(uint8_t)((shadow_mask & ~(1u<<previous)) | (1u<<next));
+                current_row=next;
+                shadow_mask=pattern;
+                shifting=true;
+                do_step=true;
+            }
+            taskEXIT_CRITICAL(&scan_lock);
+            if(do_step) {
+                write_serial(pattern);
+                taskENTER_CRITICAL(&scan_lock);
+                shifting=false;
+                taskEXIT_CRITICAL(&scan_lock);
+            }
         }
-        /* OEM waits one FreeRTOS tick, not 1ms hard-coded. */
         vTaskDelay(1);
     }
 }
@@ -153,6 +182,8 @@ static void event_worker(void *arg)
         xEventGroupSetBits(row_group, ROW_FREEZE);
         gpio_intr_disable(evt.gpio);
         const uint8_t row = evt.row_on_irq;
+        const uint8_t worker_row=current_row;
+        if(worker_row!=row) ++row_races;
         const uint8_t code = (uint8_t)(((row+1u)<<4) |
                             (evt.gpio == GPIO_NUM_32 ? 1u :
                              evt.gpio == GPIO_NUM_33 ? 2u : 3u));
@@ -171,14 +202,16 @@ static void event_worker(void *arg)
             last_code = code;
             last_row = row;
             last_gpio = (uint8_t)evt.gpio;
+            last_worker_row = worker_row;
+            last_irq_mask = evt.serial_mask_on_irq;
             if (digit >= 0) digit_counts[digit]++;
             taskEXIT_CRITICAL(&state_lock);
             if (digit >= 0) snprintf(message, sizeof(message),
-                "DIGIT %d CANDIDATE OEM=0x%02X row=%u GPIO%d",
-                digit, code, (unsigned)row, (int)evt.gpio);
+                "DIGIT %d CANDIDATE 0x%02X irqRow=%u workRow=%u GPIO%d",
+                digit, code, (unsigned)row, (unsigned)worker_row, (int)evt.gpio);
             else snprintf(message, sizeof(message),
-                "UNMAPPED key OEM=0x%02X row=%u GPIO%d",
-                code, (unsigned)row, (int)evt.gpio);
+                "UNMAPPED 0x%02X irqRow=%u workRow=%u GPIO%d",
+                code, (unsigned)row, (unsigned)worker_row, (int)evt.gpio);
             log_text(message);
             /* Freeze while held; no repeats; 3s max to avoid a permanent
              * firmware hang on a stuck HIGH input. */
@@ -196,6 +229,10 @@ static void event_worker(void *arg)
          * input is LOW, with finite timeout and explicit warning. */
         if (gpio_get_level(evt.gpio)) {
             /* A permanently HIGH input must not freeze the row driver forever. */
+            /* Release the early ISR freeze, too, so the scanner can run. */
+            taskENTER_CRITICAL(&scan_lock);
+            if(pending_key_events) --pending_key_events;
+            taskEXIT_CRITICAL(&scan_lock);
             xEventGroupClearBits(row_group, ROW_FREEZE);
             char message[LOG_LEN];
             snprintf(message, sizeof(message),
@@ -203,8 +240,13 @@ static void event_worker(void *arg)
                 (int)evt.gpio);
             log_text(message);
             while (gpio_get_level(evt.gpio)) vTaskDelay(pdMS_TO_TICKS(20) ? pdMS_TO_TICKS(20) : 1);
+            gpio_intr_enable(evt.gpio);
+            continue; /* pending count was already released above */
         }
         gpio_intr_enable(evt.gpio);
+        taskENTER_CRITICAL(&scan_lock);
+        if(pending_key_events) --pending_key_events;
+        taskEXIT_CRITICAL(&scan_lock);
         xEventGroupClearBits(row_group, ROW_FREEZE);
     }
 }
@@ -217,22 +259,27 @@ uint32_t hardware_probe_matrix(void)
 void hardware_probe_json(char *out, size_t size)
 {
     int digit;
-    unsigned code, row, gpio;
+    unsigned code, row, gpio, process_row, irq_mask;
     uint32_t counts[10];
     taskENTER_CRITICAL(&state_lock);
     digit=last_digit;
     code=last_code;
     row=last_row;
     gpio=last_gpio;
+    process_row=last_worker_row;
+    irq_mask=last_irq_mask;
     memcpy(counts,digit_counts,sizeof(counts));
     taskEXIT_CRITICAL(&state_lock);
     size_t used=(size_t)snprintf(out,size,
         "{\"mode\":\"oem-numeric\",\"ready\":%s,\"lastDigit\":%d,"
         "\"lastCode\":%u,\"lastRow\":%u,\"lastGpio\":%u,"
-        "\"selectedRow\":%u,\"queued\":%u,\"irqOverflows\":%lu,"
+        "\"selectedRow\":%u,\"workerRow\":%u,\"irqMask\":%u,"
+        "\"queued\":%u,\"pending\":%lu,\"rowRaces\":%lu,\"irqOverflows\":%lu,"
         "\"switchIgnored\":%lu,\"counts\":[",
         ready?"true":"false",digit,code,row,gpio,
-        (unsigned)current_row,event_queue?(unsigned)uxQueueMessagesWaiting(event_queue):0u,
+        (unsigned)current_row,process_row,irq_mask,
+        event_queue?(unsigned)uxQueueMessagesWaiting(event_queue):0u,
+        (unsigned long)pending_key_events,(unsigned long)row_races,
         (unsigned long)irq_queue_overflows,(unsigned long)ignored_while_shifting);
     for (int i=0;i<10 && used<size;i++)
         used+=(size_t)snprintf(out+used,size-used,"%s%lu",i?",":"",
