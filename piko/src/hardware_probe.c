@@ -209,9 +209,15 @@ static void event_worker(void *arg)
             if (digit >= 0) snprintf(message, sizeof(message),
                 "DIGIT %d CANDIDATE 0x%02X irqRow=%u workRow=%u GPIO%d",
                 digit, code, (unsigned)row, (unsigned)worker_row, (int)evt.gpio);
-            else snprintf(message, sizeof(message),
-                "UNMAPPED 0x%02X irqRow=%u workRow=%u GPIO%d",
-                code, (unsigned)row, (unsigned)worker_row, (int)evt.gpio);
+            else {
+                const bool oem_function =
+                    code==0x12 || code==0x21 || code==0x22 ||
+                    code==0x23 || code==0x31 || code==0x32;
+                snprintf(message, sizeof(message),
+                    "%s 0x%02X irqRow=%u workRow=%u GPIO%d",
+                    oem_function?"OTHER OEM KEY":"UNKNOWN CODE",
+                    code, (unsigned)row, (unsigned)worker_row, (int)evt.gpio);
+            }
             log_text(message);
             /* Freeze while held; no repeats; 3s max to avoid a permanent
              * firmware hang on a stuck HIGH input. */
