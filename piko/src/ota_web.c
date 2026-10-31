@@ -70,6 +70,7 @@ static esp_err_t lcd_trial_handler(httpd_req_t *req)
 
 static esp_err_t keymap_handler(httpd_req_t *req)
 {
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store, max-age=0");
     httpd_resp_set_type(req, "text/html; charset=utf-8");
     return httpd_resp_send(req, piko_keymap_html, HTTPD_RESP_USE_STRLEN);
 }
