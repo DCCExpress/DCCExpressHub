@@ -302,3 +302,20 @@ Correction: assign the **next** selector index before shifting/latching, use an 
 Expected next discriminating experiment: two key reports (0 and 3) with `/keymap`. For a real row association, the same selector should consistently produce switching/stable events for repeated presses, with few or no unassigned events. If the same shared-column activity remains under every selected row, the serial-output control's electrical role or latch protocol must be reconsidered.
 
 **Limitations:** changes committed without running an ESP-IDF build or a physical PIKO test in this environment.
+
+## Follow-up scan: why whole-session IRQ histograms cannot identify a key (2026-10-31)
+
+Observed OEM-like one-hot scan at 1ms per row with interrupt attribution:
+
+| Physical key | Column | Stable IRQs by selector | Switching IRQs | Unassigned |
+| --- | --- | --- | --- | --- |
+| 0 | GPIO34 | shift0=14 | shift0=36, shift1=5 | GPIO34=12 |
+| 1 | GPIO32 | shift1=2, shift4=34 | none | 0 |
+| 2 | GPIO33 | shift0=32, shift1=4 | none | 0 |
+| 3 | GPIO34 | shift2=5, shift4=8 | none | 0 |
+
+Despite those counts, all six sampled rows change together for each key. These histograms cover the **entire capture interval**, combining no-key baseline, key press, held state, and release. A higher count in one selector cannot be taken as proof of physical row assignment; the scanner itself generates edges while cycling outputs. GPIO12 has 191–362 transitions during these unrelated tests and is not a reliable selector/STOP signal based on this report.
+
+**Corrected test design:** The `/keymap` browser page now records 800ms idle baseline with no key, then records a **separate, continuously-held 800ms interval** when the user clicks Capture held. It captures cumulative `irqEdges` and `irqSwitchEdges` before and after that held interval and reports the *excess positive-edge rate per 100 scan iterations* (held rate minus idle rate), separately for stable and switching phases. It also preserves the old full-session levels and counts, explicitly labeled as non-key-identifying. No new hardware drive pins, firmware ISR behavior, or experimental LCD pins are changed in this frontend-only patch. Local browser mapping storage key updated to `piko-keymap-v8` so old measurements are not presented as the new phase test.
+
+This is a **diagnostic discriminator**, not a finalized key map. A repeatable held-minus-idle peak for key 0 versus key 3 could support a selector hypothesis; if no stable difference exists, row selection in our firmware still does not match the real hardware or scan scheme. Repeat only 0 and 3 until a distinct pattern emerges. The test has been committed but not physically validated or PlatformIO built in this environment.
