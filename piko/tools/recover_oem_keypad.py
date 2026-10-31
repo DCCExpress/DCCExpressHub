@@ -65,7 +65,7 @@ def main():
         parser.error("Expected the original 16MiB flash backup; never use a new OTA image")
     image=raw[APP_OFFSET:]
     # Standard ESP-IDF app_desc_t: app version is at offset 0x30.
-    version=image[0x30:0x50].split(b"\\0",1)[0].decode("ascii","replace")
+    version=image[0x30:0x50].split(b"\0",1)[0].decode("ascii","replace")
     if version!="1.3.0.0":
         parser.error("These symbol addresses apply only to OTA1 v1.3.0.0; found "+version)
     segs=segments(image)
@@ -74,9 +74,9 @@ def main():
     for name,address in SITES.items():
         prefix=at(segs,address,6)
         print("  %-26s 0x%08X  %s"%(name,address,prefix.hex(" ")))
-        if prefix[:3]!=b"\\x36\\x41\\x00" and name in ("six_pin_setup","serial_write_7_bits","serial_mask_modify","serial_bit6_set","serial_bit6_clear","row_advance_task"):
+        if prefix[:3]!=b"\x36\x41\x00" and name in ("six_pin_setup","serial_write_7_bits","serial_mask_modify","serial_bit6_set","serial_bit6_clear","row_advance_task"):
             print("    WARNING: different Xtensa prologue; verify exact function entry")
-    print("\\nLiteral references resolved from ORIGINAL flash (not runtime values):")
+    print("\nLiteral references resolved from ORIGINAL flash (not runtime values):")
     for name,location in LITERALS.items():
         value=struct.unpack("<I",at(segs,location,4))[0]
         print("  %-26s literal 0x%08X -> 0x%08X"%(name,location,value))
