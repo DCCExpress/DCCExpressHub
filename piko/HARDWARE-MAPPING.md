@@ -184,3 +184,6 @@ output pins to inputs and deliberately excluded rotary pins.
 The updated trace_peripherals.py rebases objdump on every function entry
 to recover disassembly of ReadKeysTask and the LCD task, which were
 previously lost to Xtensa decode alignment.
+
+## Display discovery (2026-10-31)
+The physical flex cable marking reported by the user is **FP-200H05B JY**. An ST7789-family controller is a candidate, not confirmed. A safe LCD discovery scaffold has been added, but **no LCD signals are driven** until SPI host, MOSI, SCLK, DC, reset, CS, backlight and supply are mapped against the original firmware or board. The fully active 3x3 matrix diagnostic was also corrected to compare each column with its all-rows-released baseline, preventing stuck-low inputs from registering as nine pressed keys.
