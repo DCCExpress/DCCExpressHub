@@ -106,14 +106,14 @@ static esp_err_t capture_begin_handler(httpd_req_t *req)
 static esp_err_t capture_end_handler(httpd_req_t *req)
 {
     hardware_probe_capture_end();
-    char json[512];
+    char json[1024];
     hardware_probe_capture_json(json, sizeof(json));
     httpd_resp_set_type(req, "application/json");
     return httpd_resp_sendstr(req, json);
 }
 static esp_err_t capture_status_handler(httpd_req_t *req)
 {
-    char json[512];
+    char json[1024];
     hardware_probe_capture_json(json, sizeof(json));
     httpd_resp_set_type(req, "application/json");
     return httpd_resp_sendstr(req, json);
