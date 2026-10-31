@@ -4,6 +4,7 @@ param(
     [switch]$NoBuild
 )
 $ErrorActionPreference = "Stop"
+Add-Type -AssemblyName System.Net.Http
 $projectDir = $PSScriptRoot
 $firmware = Join-Path $projectDir ".pio\build\piko-handheld\firmware.bin"
 
