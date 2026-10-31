@@ -291,6 +291,10 @@ void hardware_probe_start(void)
     for (int c = 0; c < 3; ++c) {
         gpio_set_direction(cols[c], GPIO_MODE_INPUT);
     }
+    /* The original input initializer also sets pin bias on GPIO32/33;
+       GPIO34 is input-only and has no internal pull resistor. */
+    gpio_set_pull_mode(GPIO_NUM_32, GPIO_PULLDOWN_ONLY);
+    gpio_set_pull_mode(GPIO_NUM_33, GPIO_PULLDOWN_ONLY);
     for (int i = 0; i < 4; ++i) {
         gpio_set_direction(special[i], GPIO_MODE_INPUT);
     }
