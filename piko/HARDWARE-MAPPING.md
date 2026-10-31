@@ -228,3 +228,10 @@ These are **literal reference positions**, not proven function entry points or p
 ## Experimental trial 1: guessed ESP32 VSPI pinout
 
 At user request, trial 1 defaults are **MOSI=23 SCLK=18 CS=5 DC=21 RESET=22**, enabled via `CONFIG_PIKO_LCD_TEST=y`. These are **guesses**, not derived from PIKO wiring! Boot flash/strapping and unrelated peripherals may be affected; stop using the trial if the handheld behaves unexpectedly. The LCD backlight is not driven, so a blank display cannot disprove this pinout. Trial sends an RGB test pattern, not text. The firmware retains Kconfig overrides, so a pre-existing local `sdkconfig` with `CONFIG_PIKO_LCD_TEST=n` stays disabled until changed. See `pio run -t menuconfig` to adjust or disable.
+
+## Phased keypad capture (2026-10-31)
+Observed from user keymap report: physical digits grouped by column: 0/3/6/9→GPIO34, 1/4/7→GPIO32, 2/5/8→GPIO33; all three rows appeared in each raw sample, and GPIO2/GPIO12 changed even on unrelated key tests. This does NOT prove physical row wiring; the previous report latched any transient in a long interval.
+
+Updated `/keymap` to collect three stages: idle baseline, key-held snapshot (explicit click while holding), then released snapshot. Firmware returns baseline/current row levels, idle columns, special pin levels, counts of 10 ms-sampled edges, and rotary delta. Report warns if no stable held-state difference or no return to baseline. This is diagnostic only: it does not yet assign physical key names into a runtime keymap. Older v2 browser mappings remain in storage but v3 begins a new clean measurement set.
+
+LCD observation: user sees extremely faint flicker / apparent backlight with all three experimental SPI test profiles, no rendered RGB image. This is inconclusive; neither controller nor backlight pin is known. No new arbitrary SPI pin scanning was introduced in this keypad update.
