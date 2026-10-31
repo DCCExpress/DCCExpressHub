@@ -205,3 +205,14 @@ proof of a bad LCD: the backlight may be disabled by a separate circuit.
 
 Once the correct bus and pins are known, implement a text renderer for
 "DCCExpress PIKO" and enable it through an explicit test profile.
+
+## Direct OTA_1 binary inspection (2026-10-31)
+
+Input: original 16 MiB flash image, firmware `Firmware-Handheld 1.3.0.0` in `ota_1`, ESP-IDF v5.4.2.
+Direct string inspection of the binary (not a pinout determination) confirmed:
+- Embedded `LGFX` label next to failures for `spi_bus_initialize`, `spi_bus_add_device`, `spi_device_acquire_bus`. This is compelling evidence for a LovyanGFX-style SPI display backend.
+- `LCD-Task` and `LCD` labels; errors `LCD first DAh respond is %x` and `after reset LCD first DAh respond is %x`, i.e. the vendor checks an LCD identification/status byte.
+- `LCD_TEST` and explicit LCD/backlight on/off messages.
+
+**Do not infer LCD GPIOs or controller from these strings.**
+The active LCD driver remains gated by `CONFIG_PIKO_LCD_TEST=n`. Before enabling it, disassemble the functions referencing the LGFX SPI errors and track their bus/device configs to recover MOSI, SCLK, CS, DC, RESET and backlight pins. The image also has a separate keypad scanner on GPIO26/14/27 and inputs GPIO32/33/34.
