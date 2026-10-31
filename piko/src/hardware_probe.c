@@ -327,14 +327,9 @@ static void input_task(void *arg)
         vTaskDelay(pdMS_TO_TICKS(10));
         /* Captures use a slow, one-row-per-iteration experiment. Suppress
            the legacy fast-scan key events while that experiment runs. */
-        if (capture_on) {
-            sample_slow_capture();
-            taskENTER_CRITICAL(&lock);
-            capture_samples++;
-            taskEXIT_CRITICAL(&lock);
-            continue;
-        }
-        uint32_t now = sample_matrix();
+        const bool slow_mode = capture_on;
+        if (slow_mode) sample_slow_capture();
+        uint32_t now = slow_mode ? candidate : sample_matrix();
         if (now == candidate) { if (debounce < 3) debounce++; }
         else { candidate = now; debounce = 0; }
         if (debounce == 3 && stable != candidate) {
@@ -352,6 +347,7 @@ static void input_task(void *arg)
         }
         taskENTER_CRITICAL(&lock);
         if(capture_on) {
+            capture_samples++;
             capture_seen_raw |= matrix_raw ^ capture_base_raw;
             capture_seen_matrix |= matrix ^ capture_base_matrix;
             capture_seen_idle |= columns_idle ^ capture_base_idle;
