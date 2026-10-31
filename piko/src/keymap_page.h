@@ -27,7 +27,7 @@ static const char piko_keymap_html[] =
 "  $('#details').textContent='OEM code: 0x'+Number(data.lastCode||0).toString(16).toUpperCase().padStart(2,'0')+' · IRQ row: '+data.lastRow+' · worker row: '+data.workerRow+' · GPIO'+data.lastGpio;\n"
 "  entries.forEach((div,i)=>{div.classList.toggle('active',i===data.lastDigit);$('#count'+i).textContent=(data.counts?.[i]??0)+' presses'});\n"
 "  $('#events').textContent=allEvents.slice(-30).join('\\n')||'No events';\n"
-"  $('#status').textContent='Selected row '+data.selectedRow+' · queued '+data.queued+' · overflow '+data.irqOverflows+' · ignored during shift '+data.switchIgnored+' · pending '+data.pending+' · row races '+data.rowRaces;\n"
+"  $('#status').textContent='Selected row '+data.selectedRow+' · queued '+data.queued+' · overflow '+data.irqOverflows+' · edges during shift '+data.shiftEdges+' · pending '+data.pending+' · row races '+data.rowRaces;\n"
 " }catch(err){$('#connection').textContent='Offline / '+err.message;}\n"
 "}\n"
 "$('#copy').onclick=async()=>{\n"
