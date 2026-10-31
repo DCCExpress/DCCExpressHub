@@ -284,7 +284,7 @@ void hardware_probe_json(char *out, size_t size)
         "\"lastCode\":%u,\"lastRow\":%u,\"lastGpio\":%u,"
         "\"selectedRow\":%u,\"workerRow\":%u,\"irqMask\":%u,"
         "\"queued\":%u,\"pending\":%lu,\"rowRaces\":%lu,\"irqOverflows\":%lu,"
-        "\"switchIgnored\":%lu,\"counts\":[",
+        "\"shiftEdges\":%lu,\"counts\":[",
         ready?"true":"false",digit,code,row,gpio,
         (unsigned)current_row,process_row,irq_mask,
         event_queue?(unsigned)uxQueueMessagesWaiting(event_queue):0u,
