@@ -3,6 +3,10 @@
 Standalone ESP32-WROOM-32E (16 MB flash) ESP-IDF PlatformIO project.
 It does not use the repository-root firmware source tree.
 
+## OTA firmware updater (alpha9)
+
+A password-protected local Wi-Fi firmware upload page is now available on the PIKO at `http://<device-ip>:8080/` after Wi-Fi is configured. See [OTA.md](OTA.md) for setup, partition layout, initial USB flashing, safety and recovery. This implementation is not yet hardware-validated.
+
 ## Implemented source foundation
 - Wi-Fi station startup and reconnection
 - Z21 UDP client to a configurable DCCExpressHub IP/port
@@ -34,14 +38,13 @@ Configure (local, untracked credentials in `piko/sdkconfig`):
 pio run -d piko -t menuconfig
 ```
 
-**Do not upload yet.** First complete the factory 16 MB flash backup,
+**Do not perform the first serial upload without validating the device partition table and the factory backup.** First complete the factory 16 MB flash backup,
 check security/eFuse settings and restoration, and map the actual hardware.
 Flashing this skeleton would replace the factory handheld application.
 
 ## Current firmware mode: hardware discovery
 
-The main application currently runs **hardware-discovery-only**: no Wi-Fi,
-no Z21 network operations. It prints a heartbeat every second and watches
+The main application currently runs **hardware-discovery + OTA Wi-Fi only**: no Z21 network operations. It prints a heartbeat every second and watches
 7 firmware-derived input pins using GPIO interrupts. It deliberately excludes flash and UART0, and reads boot strapping pins
 2/12/15 only after boot without driving them or modifying their pulls. No display driver is present:
 the screen is expected to stay dark until its controller/bus/power lines
