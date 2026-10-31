@@ -12,7 +12,7 @@
 static const char *TAG = "piko_hw";
 /* Verified from original 1.3.0.0: GPIO26 serial DATA, GPIO27 CLOCK, GPIO14 LATCH.
    The stock 0x400E3664 routine shifts seven bits MSB first, then raises latch.
-   The stock timeout routine cycles only selection bits 0..5, bit 6 stays zero. */
+   The stock timeout routine cycles selection bits 0..5; bit 6 is controlled separately. */
 #define KEYPAD_ROWS 6
 #define KEYPAD_KEYS (KEYPAD_ROWS * 3)
 /* OEM 0x400E36DC sets serial bit 6 in normal operation; the old probe
@@ -32,6 +32,25 @@ static int32_t rotary_position;
 static char records[48][100];
 static uint32_t event_serial;
 static int record_count;
+
+/* Factory KeypadInterrupt (0x400E2DA0) uses the GPIO32/33/34 interrupt
+   source AND the current selector index. Count those rising edges separately
+   from the old held-state readings; no key names are inferred yet. */
+static volatile uint8_t irq_selected_row = 0xff;
+static volatile uint32_t irq_row_edges[KEYPAD_KEYS];
+static volatile uint32_t irq_unassigned[3];
+static uint32_t capture_irq_baseline[KEYPAD_KEYS];
+static uint32_t capture_irq_unassigned_baseline[3];
+
+static void column_rising_irq(void *ctx)
+{
+    const unsigned c=(unsigned)(uintptr_t)ctx;
+    const uint8_t row=irq_selected_row;
+    if (c>=3) return;
+    if (row<KEYPAD_ROWS) ++irq_row_edges[row*3+c];
+    else ++irq_unassigned[c];
+}
+
 
 static bool capture_on;
 static uint32_t capture_base_raw, capture_base_matrix;
@@ -66,6 +85,8 @@ void hardware_probe_capture_begin(void)
     memset(capture_raw_transitions,0,sizeof(capture_raw_transitions));
     memset(capture_pin_transitions,0,sizeof(capture_pin_transitions));
     capture_last_raw=matrix_raw; capture_last_pins=capture_base_pins;
+    for(int i=0;i<KEYPAD_KEYS;i++) capture_irq_baseline[i]=irq_row_edges[i];
+    for(int i=0;i<3;i++) capture_irq_unassigned_baseline[i]=irq_unassigned[i];
     capture_on=true;
     taskEXIT_CRITICAL(&lock);
 }
@@ -117,6 +138,13 @@ void hardware_probe_capture_json(char *out, size_t size)
     pos=put_array(out,size,pos,capture_raw_transitions,KEYPAD_KEYS);
     if(pos<size) pos+=(size_t)snprintf(out+pos,size-pos,",\"pinTransitions\":");
     pos=put_array(out,size,pos,capture_pin_transitions,4);
+    if(pos<size) pos+=(size_t)snprintf(out+pos,size-pos,",\"irqEdges\":");
+    for(int i=0;i<KEYPAD_KEYS;i++) array[i]=(uint16_t)((irq_row_edges[i]-capture_irq_baseline[i])>65535u?65535u:(irq_row_edges[i]-capture_irq_baseline[i]));
+    pos=put_array(out,size,pos,array,KEYPAD_KEYS);
+    if(pos<size) pos+=(size_t)snprintf(out+pos,size-pos,",\"irqUnassigned\":[%lu,%lu,%lu]",
+      (unsigned long)(irq_unassigned[0]-capture_irq_unassigned_baseline[0]),
+      (unsigned long)(irq_unassigned[1]-capture_irq_unassigned_baseline[1]),
+      (unsigned long)(irq_unassigned[2]-capture_irq_unassigned_baseline[2]));
     if(pos<size) snprintf(out+pos,size-pos,"}");
     taskEXIT_CRITICAL(&lock);
 }
@@ -205,11 +233,17 @@ static uint32_t sample_matrix(void)
     uint32_t key_bits=0;
     uint8_t row_levels[KEYPAD_ROWS];
     for (int r=0;r<KEYPAD_ROWS;r++) {
+        irq_selected_row = 0xff;
         shift_rows((uint8_t)(KEYPAD_OEM_BIT6 | (1u<<r)));
+        irq_selected_row = (uint8_t)r;
+        /* Keep each selected row stable long enough to observe its GPIO
+           rising edges. This is slower than the OEM timeout and diagnostic. */
+        esp_rom_delay_us(600);
         const uint8_t level=read_columns();
         row_levels[r]=level;
         key_bits |= ((uint32_t)(level ^ neutral)) << (3*r);
     }
+    irq_selected_row = 0xff;
     shift_rows(KEYPAD_OEM_BIT6 | 0x01);
     taskENTER_CRITICAL(&lock);
     matrix_raw=key_bits;
@@ -310,7 +344,16 @@ void hardware_probe_start(void)
     gpio_set_direction(SR_LATCH,GPIO_MODE_OUTPUT);
     gpio_set_direction(SR_CLOCK,GPIO_MODE_OUTPUT);
     gpio_set_direction(SR_DATA,GPIO_MODE_OUTPUT);
+    irq_selected_row = 0xff;
     shift_rows(KEYPAD_OEM_BIT6 | 0x01);
+    esp_err_t isr_err = gpio_install_isr_service(0);
+    if (isr_err != ESP_OK && isr_err != ESP_ERR_INVALID_STATE)
+        ESP_LOGE(TAG, "Keypad GPIO ISR service unavailable: %s", esp_err_to_name(isr_err));
+    else for (int i=0;i<3;i++) {
+        esp_err_t e=gpio_set_intr_type(cols[i],GPIO_INTR_POSEDGE);
+        if (e==ESP_OK) e=gpio_isr_handler_add(cols[i],column_rising_irq,(void*)(uintptr_t)i);
+        if (e!=ESP_OK) ESP_LOGE(TAG,"GPIO%d edge counter setup: %s",(int)cols[i],esp_err_to_name(e));
+    }
     if (xTaskCreate(input_task, "piko_inputs", 4096, NULL, 3, NULL) != pdPASS)
         ESP_LOGE(TAG, "Input task creation failed");
 }
