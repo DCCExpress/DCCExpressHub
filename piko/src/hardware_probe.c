@@ -65,6 +65,12 @@ static uint8_t capture_base_rows[KEYPAD_ROWS], capture_seen_rows[KEYPAD_ROWS];
 static uint8_t capture_base_pins, capture_seen_pins;
 static int32_t capture_base_rotary;
 static uint32_t capture_samples;
+/* Slow static-row experiment: unlike the fast 6-row scan, hold each selector
+   for a full input-task period (~10ms), count the actual HIGH levels on each
+   GPIO input, and compare idle and held-key windows in the browser. */
+static uint32_t sweep_row_samples[KEYPAD_ROWS];
+static uint32_t sweep_row_high[KEYPAD_ROWS][3];
+static uint8_t sweep_next_row;
 static uint16_t capture_raw_transitions[KEYPAD_KEYS];
 static uint16_t capture_pin_transitions[4];
 static uint32_t capture_last_raw;
@@ -87,6 +93,9 @@ void hardware_probe_capture_begin(void)
     capture_seen_raw=0; capture_seen_matrix=0; capture_seen_idle=0;
     for(int i=0;i<KEYPAD_ROWS;i++) capture_seen_rows[i]=0;
     capture_seen_pins=0; capture_samples=0;
+    memset(sweep_row_samples,0,sizeof(sweep_row_samples));
+    memset(sweep_row_high,0,sizeof(sweep_row_high));
+    sweep_next_row=0;
     memset(capture_raw_transitions,0,sizeof(capture_raw_transitions));
     memset(capture_pin_transitions,0,sizeof(capture_pin_transitions));
     capture_last_raw=matrix_raw; capture_last_pins=capture_base_pins;
@@ -156,7 +165,14 @@ void hardware_probe_capture_json(char *out, size_t size)
       (unsigned long)(irq_unassigned[0]-capture_irq_unassigned_baseline[0]),
       (unsigned long)(irq_unassigned[1]-capture_irq_unassigned_baseline[1]),
       (unsigned long)(irq_unassigned[2]-capture_irq_unassigned_baseline[2]));
-    if(pos<size) snprintf(out+pos,size-pos,"}");
+    if(pos<size) pos+=(size_t)snprintf(out+pos,size-pos,",\"sweepRowSamples\":[");
+    for(int row=0;row<KEYPAD_ROWS&&pos<size;row++)
+        pos+=(size_t)snprintf(out+pos,size-pos,"%s%lu",row?",":"",(unsigned long)sweep_row_samples[row]);
+    if(pos<size) pos+=(size_t)snprintf(out+pos,size-pos,"],\"sweepHigh\":[");
+    for(int row=0;row<KEYPAD_ROWS&&pos<size;row++)
+        for(int c=0;c<3&&pos<size;c++)
+            pos+=(size_t)snprintf(out+pos,size-pos,"%s%lu",(row||c)?",":"",(unsigned long)sweep_row_high[row][c]);
+    if(pos<size) snprintf(out+pos,size-pos,"]}");
     taskEXIT_CRITICAL(&lock);
 }
 
@@ -275,6 +291,27 @@ static uint32_t sample_matrix(void)
     return key_bits;
 }
 
+/* Dedicated captured-input scan. One selector is latched for the entire
+   ~10ms scheduling interval, so every row is given >1ms to settle before
+   measuring; no fast six-row sweep runs in parallel while capture is active.
+   The output patterns are the same six factory-derived selector candidates. */
+static void sample_slow_capture(void)
+{
+    const int row=sweep_next_row;
+    irq_selected_row=(uint8_t)row;
+    irq_switching=true;
+    shift_rows((uint8_t)(KEYPAD_OEM_BIT6 | (1u<<row)));
+    esp_rom_delay_us(1000);
+    irq_switching=false;
+    const uint8_t columns=read_columns();
+    taskENTER_CRITICAL(&lock);
+    sweep_row_samples[row]++;
+    for(int c=0;c<3;c++)
+        if(columns & (1u<<c)) sweep_row_high[row][c]++;
+    taskEXIT_CRITICAL(&lock);
+    sweep_next_row=(uint8_t)((row+1)%KEYPAD_ROWS);
+}
+
 static const int8_t quadrature[16] = {0,-1,1,0, 1,0,0,-1, -1,0,0,1, 0,1,-1,0};
 static void input_task(void *arg)
 {
@@ -288,6 +325,15 @@ static void input_task(void *arg)
     add_event("PIKO serial keyscan: DATA=26 CLOCK=27 LATCH=14; selector bits0..5, bit6 HIGH, inputs32/33/34");
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(10));
+        /* Captures use a slow, one-row-per-iteration experiment. Suppress
+           the legacy fast-scan key events while that experiment runs. */
+        if (capture_on) {
+            sample_slow_capture();
+            taskENTER_CRITICAL(&lock);
+            capture_samples++;
+            taskEXIT_CRITICAL(&lock);
+            continue;
+        }
         uint32_t now = sample_matrix();
         if (now == candidate) { if (debounce < 3) debounce++; }
         else { candidate = now; debounce = 0; }
@@ -306,7 +352,6 @@ static void input_task(void *arg)
         }
         taskENTER_CRITICAL(&lock);
         if(capture_on) {
-            capture_samples++;
             capture_seen_raw |= matrix_raw ^ capture_base_raw;
             capture_seen_matrix |= matrix ^ capture_base_matrix;
             capture_seen_idle |= columns_idle ^ capture_base_idle;
