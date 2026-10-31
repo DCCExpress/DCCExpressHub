@@ -95,10 +95,14 @@ class ModelTests(unittest.TestCase):
 
     def test_serial_one_hot_state(self):
         pad = OemKeypadModel()
-        for _ in range(36):
-            self.assertEqual(pad.serial_mask & 0x40, 0x40)
-            self.assertEqual(pad.serial_mask & 0x3f, 1 << pad.selector)
-            pad.tick()
+        # Bit6 is switched independently in the OEM timeout task; ensure
+        # row stepping preserves it whether currently LOW or HIGH.
+        for bit6 in (0, 0x40):
+            pad.serial_mask = (pad.serial_mask & 0x3f) | bit6
+            for _ in range(36):
+                self.assertEqual(pad.serial_mask & 0x40, bit6)
+                self.assertEqual(pad.serial_mask & 0x3f, 1 << pad.selector)
+                pad.tick()
         self.assertEqual(pad.selector, 0)
 
     def test_enqueue_before_row_freeze_is_a_race(self):
