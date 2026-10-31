@@ -71,7 +71,7 @@ The handheld can control locomotive speed, direction and functions, operate turn
 
 The rotary knob increases speed when turned right, decreases it when turned left, and can change direction when pressed. The STOP button supports the WLANMAUS's configured **track power off** or **emergency stop** mode. This integration has been tested with a physical WLANMAUS newGen and DCC-EX command station; behavior with other hardware may vary.
 
-### DCCExpress S88 Adapter
+### DCCExpress S88 Adapter for DCC-EX
 
 ![DCCExpressHub Gamepad](doc/images/20261030_182549.jpg)
 
