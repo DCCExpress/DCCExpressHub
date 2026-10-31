@@ -71,3 +71,15 @@ selection.
 Implementation committed to alpha9. **Not yet compiled on the target PlatformIO
 environment or physically flashed/tested on the PIKO.** Verify the board's
 actual flash table and the resulting build configuration before the first upload.
+
+## Web dashboard and key discovery
+
+The new home page is at `http://192.168.4.1:8080/` (or `http://piko.local:8080/` where mDNS works).
+- **Home**: navigation to Diag, Console and Firmware update.
+- **Diag**: live, raw 3x3 keypad matrix readings. Rows GPIO26, GPIO14, GPIO27 are scanned sequentially as open-drain low outputs; columns GPIO32, GPIO33, GPIO34 remain input-only with the board's existing electrical bias. Labels are NOT yet assigned to physical keys. Enter the actual key number/name into each cell as you test and use **Copy mapping** to share the result. Entries are saved only in browser localStorage.
+- **Console**: last 48 diagnostic events, including matrix transitions, rotary movement, rotary push and STOP GPIO observations. This is *not* a mirror of all serial/UART output.
+- **Firmware update**: moved from `/` to `/ota`; HTTP API remains `POST /api/update`.
+
+**Hardware caution:** matrix row/column assignments are inferred from the vendor firmware and remain to be verified physically. This diagnostic intentionally drives only the three candidate row pins, as open-drain with nonselected rows released; it does not configure internal pull-ups or manipulate bootstrapping pins as outputs. If readings are unstable or unrelated peripherals react, stop the experiment and review the pin mapping. Test one key at a time.
+
+Changes are committed but the device build/hardware behavior are not verified in this environment.
