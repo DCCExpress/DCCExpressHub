@@ -61,7 +61,7 @@ Configure button assignments on the **Gamepad** page. Settings are saved for the
 
 ![Roco Z21 wlanMAUS](doc/images/20261030_165356.jpg)
 
-DCCExpressHub can act as a **Z21-compatible UDP server** for the **ROCO WLANMAUS newGen** handheld controller. Connect the WLANMAUS to the same Wi-Fi network as the Hub and configure its Z21 IP address to the computer running DCCExpressHub. Enable the **Z21 WLANMAUS** external device in the Hub (default UDP port **21105**).
+DCCExpressHub can act as a **Z21-compatible UDP server** for the **ROCO WLANMAUS newGen** handheld controller. Connect the WLANMAUS to the same Wi-Fi network as the Hub and configure its Z21 IP address to the computer running DCCExpressHub. Enable the **Z21 WLANMAUS** external device in the Hub (default UDP port **21105**). **Firewall:** Allow inbound **UDP port 21105** on the computer running DCCExpressHub (for example, in Windows Defender Firewall), and make sure the handheld can reach the Hub on the local network. Restrict this firewall rule to your trusted/private network.
 
 The handheld can control locomotive speed, direction and functions, operate turnouts, and send track power and emergency-stop commands. Locomotive speed, direction, function states and turnout states are synchronized between the handheld and DCCExpressHub, so changes made from either interface can be reflected on the other.
 
