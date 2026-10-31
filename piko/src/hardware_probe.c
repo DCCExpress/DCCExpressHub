@@ -174,7 +174,7 @@ static void event_worker(void *arg)
             if (digit >= 0) digit_counts[digit]++;
             taskEXIT_CRITICAL(&state_lock);
             if (digit >= 0) snprintf(message, sizeof(message),
-                "DIGIT %d PRESSED OEM=0x%02X row=%u GPIO%d",
+                "DIGIT %d CANDIDATE OEM=0x%02X row=%u GPIO%d",
                 digit, code, (unsigned)row, (int)evt.gpio);
             else snprintf(message, sizeof(message),
                 "UNMAPPED key OEM=0x%02X row=%u GPIO%d",
@@ -310,5 +310,5 @@ void hardware_probe_start(void)
         return;
     }
     ready=true;
-    log_text("OEM-style keypad started. Digits 0..9; STOP not mapped. Physical verification pending.");
+    log_text("OEM numeric decoder started. Digits 0..9 are candidates until physical validation; STOP unmapped.");
 }
