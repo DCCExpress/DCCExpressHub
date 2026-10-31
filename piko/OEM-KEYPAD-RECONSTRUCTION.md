@@ -66,3 +66,13 @@ The OEM serializer uses a **7-bit** mask. Bit6 is initially set to HIGH (`0x40`)
 The source-level offline helper is `piko/tools/recover_oem_keypad.py`. It verifies the original flash firmware/version, function entries, and these literal pointers without flashing or driving any GPIO.
 
 **Safety and completeness:** No physical row mapping or functioning key driver is claimed here. The original firmware is not committed to GitHub. No changes outside `piko/` are needed for this investigation.
+
+## Strong synchronization clue in original disassembly
+
+The vendor code uses **the same shared handle** (literal `0x400D0FB8` → `0x3FFB61F4`) in *both* the event worker and the row-advance task:
+
+- `0x400E2DB9..0x400E2DC0`: after receiving a GPIO event, the worker calls `0x4008DAD0` with the shared handle and argument `1`.
+- `0x400E3709..0x400E3713`: before updating the row mask, the row task calls `0x4008DA78` with the same handle and argument `0`. If the call returns `1`, it branches past the row-update sequence to `0x400E374C`.
+- `0x400E2DC3..0x400E2DC5`: the event worker also passes the received GPIO number to `0x4012209C` immediately afterward.
+
+**Hypothesis (not yet a proven ESP-IDF symbol identification):** this handle synchronizes/suspends row advancement while a GPIO key event is being processed, and the worker temporarily changes the GPIO interrupt enable state. Our homemade scanner never implemented this event/row synchronization. Blindly increasing scan delay cannot substitute for it. The next reverse-engineering step is to resolve the actual functions `0x4008DAD0`, `0x4008DA78`, and `0x4012209C` (using the exact ESP-IDF build/function signatures where possible), before translating this into the replacement keyboard driver.
