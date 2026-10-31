@@ -284,3 +284,21 @@ The original `KeypadInterrupt` at `0x400E2DA0` maps GPIO32/33/34 to column codes
 The new experiment preserves the existing GPIO selection pins but adds a **positive-edge interrupt** handler for GPIO32/33/34. The firmware separately counts edges for each currently selected shift output bit. A diagnostic 600 microsecond stabilization interval is included after each row update; any edges outside a stable selected state are counted as unassigned. `/api/capture` returns `irqEdges[18]` and `irqUnassigned[3]`; the `/keymap` report exposes them. This does NOT implement production key decoding yet, and a row receiving a single IRQ is only a candidate (contact timing could coincide with any row). If no consistent correlation appears over repeated presses, reconsider the serial output's physical role and OEM row timing rather than assuming a 74HC595.
 
 ESP-IDF documented GPIO ISR services and per-pin handlers: https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/gpio.html
+
+## Scan trace 4 and IRQ attribution correction
+
+User's rising-edge report with selection bits 0..5, bit 6 HIGH:
+- Key **0**: GPIO34; 2 edges classified as selector 0, **32** unassigned.
+- Key **1**: GPIO32; 0 classified, **13** unassigned.
+- Key **2**: GPIO33; 0 classified, **45** unassigned.
+- Key **3**: GPIO34; 23 classified as selector 5, **37** unassigned.
+
+The above does **not** establish physical rows 0/5 for keys 0/3: most events were classified "unassigned", and the held-state columns remained active in all six selections.
+
+Identified software attribution error in `hardware_probe.c`: `irq_selected_row` was set to `0xff` **while serial data was clocked and latched**, so any electrical edges triggered by row changes were misclassified as "outside selected row". It was also set to `0xff` after the scanner restored row 0, even though that row remained selected for the inter-scan interval.
+
+Correction: assign the **next** selector index before shifting/latching, use an `irq_switching` flag to count edges **during the transition** separately from edges when the selection is stable, and retain selector index 0 between scans while its pattern remains latched. Settling delay now ~1ms rather than 600us per row. The report prints `irqSwitchEdges[18]`, `irqEdges[18]` and `irqUnassigned[3]` separately. The source-level GPIO interrupt behavior is per ESP-IDF documented service; no extra physical pins are driven or added.
+
+Expected next discriminating experiment: two key reports (0 and 3) with `/keymap`. For a real row association, the same selector should consistently produce switching/stable events for repeated presses, with few or no unassigned events. If the same shared-column activity remains under every selected row, the serial-output control's electrical role or latch protocol must be reconsidered.
+
+**Limitations:** changes committed without running an ESP-IDF build or a physical PIKO test in this environment.
