@@ -1,0 +1,11 @@
+# Mirrors the original PIKO handheld app offsets. Never overwrite the 16MB backup.
+# Name, Type, SubType, Offset, Size
+nvs,data,nvs,0x9000,0x6000
+phy_init,data,phy,0xF000,0x1000
+proddat,data,nvs,0x10000,0x1000
+storage,data,0x82,0x11000,0x100000
+MyNvs,data,nvs,0x111000,0x7D000
+otadata,data,ota,0x18E000,0x2000
+factory,app,factory,0x190000,0x200000
+ota_0,app,ota_0,0x390000,0x200000
+ota_1,app,ota_1,0x590000,0x200000
