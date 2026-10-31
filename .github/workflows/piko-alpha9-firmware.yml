@@ -1,0 +1,36 @@
+name: PIKO alpha9 firmware
+on:
+  push:
+    branches: [alpha9]
+    paths:
+      - 'piko/**'
+      - '.github/workflows/piko-alpha9-firmware.yml'
+  workflow_dispatch:
+
+jobs:
+  firmware:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out alpha9
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: PlatformIO
+        run: python -m pip install --disable-pip-version-check platformio
+      - name: Validate OEM keypad reference model
+        run: python piko/tools/oem_keypad_model.py
+      - name: Build PIKO handheld firmware
+        run: pio run -d piko -e piko-handheld
+      - name: Publish firmware binary and full flash artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: piko-alpha9-oem-numeric-firmware
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            piko/.pio/build/piko-handheld/firmware.bin
+            piko/.pio/build/piko-handheld/bootloader.bin
+            piko/.pio/build/piko-handheld/partitions.bin
