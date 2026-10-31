@@ -69,12 +69,20 @@ void hardware_probe_events_json(char *out, size_t size)
    No input pull resistors or boot-strap pin output modes are changed. */
 static uint16_t sample_matrix(void)
 {
+    /* Measure the idle column levels first. A floating or stuck-low input
+       must not make all three rows appear pressed. */
+    for (int r = 0; r < 3; ++r) gpio_set_level(rows[r], 1);
+    esp_rom_delay_us(150);
+    uint8_t idle[3];
+    for (int c = 0; c < 3; ++c) idle[c] = gpio_get_level(cols[c]);
+
     uint16_t result = 0;
     for (int r = 0; r < 3; ++r) {
         gpio_set_level(rows[r], 0);
-        esp_rom_delay_us(100);
+        esp_rom_delay_us(150);
         for (int c = 0; c < 3; ++c) {
-            if (gpio_get_level(cols[c]) == 0) result |= (uint16_t)(1u << (r * 3 + c));
+            if (idle[c] == 1 && gpio_get_level(cols[c]) == 0)
+                result |= (uint16_t)(1u << (r * 3 + c));
         }
         gpio_set_level(rows[r], 1);
     }
@@ -91,7 +99,7 @@ static void input_task(void *arg)
     int previous_stop = gpio_get_level(GPIO_NUM_13);
     uint16_t candidate = sample_matrix(), stable = candidate;
     unsigned debounce = 0;
-    add_event("Diagnostic keypad scanner started; R1=26 R2=14 R3=27 C1=32 C2=33 C3=34");
+    add_event("Keypad baseline filtering enabled: stuck-low columns ignored; R1=26 R2=14 R3=27 C1=32 C2=33 C3=34");
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(10));
         uint16_t now = sample_matrix();
