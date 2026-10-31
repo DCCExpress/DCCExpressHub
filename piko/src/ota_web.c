@@ -3,9 +3,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include "esp_app_desc.h"
 #include "esp_http_server.h"
-#include "esp_image_format.h"
 #include "esp_log.h"
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
@@ -67,7 +65,7 @@ static esp_err_t update_handler(httpd_req_t *req)
         return httpd_resp_sendstr(req, "An update is already running.");
     }
     const esp_partition_t *target = esp_ota_get_next_update_partition(NULL);
-    if (!target || req->content_len <= (int)sizeof(esp_image_header_t) ||
+    if (!target || req->content_len <= 24 ||
         req->content_len > (int)target->size) {
         httpd_resp_set_status(req, "400 Bad Request");
         return httpd_resp_sendstr(req, "Firmware size invalid or OTA partition unavailable.");
@@ -85,7 +83,7 @@ static esp_err_t update_handler(httpd_req_t *req)
         if (got == HTTPD_SOCK_ERR_TIMEOUT) continue;
         if (got <= 0) { ESP_LOGE(TAG, "Upload interrupted"); goto failure; }
         if (!begun) {
-            if (buffer[0] != ESP_IMAGE_HEADER_MAGIC) {
+            if (buffer[0] != 0xE9) {
                 ESP_LOGE(TAG, "Invalid ESP32 application image");
                 goto failure;
             }
