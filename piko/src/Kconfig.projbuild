@@ -11,6 +11,15 @@ menu "DCCExpress PIKO handheld"
     config PIKO_WIFI_PASSWORD
         string "Wi-Fi password (stored in local sdkconfig, do not commit)"
         default ""
+    config PIKO_AP_SSID
+        string "PIKO standalone Wi-Fi network name"
+        default "PIKO-Update"
+    config PIKO_AP_PASSWORD
+        string "PIKO standalone Wi-Fi password (minimum 8 characters)"
+        default ""
+        help
+            Configure a private 8-63 character WPA2 password before starting the access point.
+            Empty password prevents Wi-Fi from starting.
     config PIKO_OTA_PASSWORD
         string "OTA update password (stored in local sdkconfig, do not commit)"
         default ""
