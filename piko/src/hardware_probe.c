@@ -15,6 +15,9 @@ static const char *TAG = "piko_hw";
    The stock timeout routine cycles only selection bits 0..5, bit 6 stays zero. */
 #define KEYPAD_ROWS 6
 #define KEYPAD_KEYS (KEYPAD_ROWS * 3)
+/* OEM 0x400E36DC sets serial bit 6 in normal operation; the old probe
+   always held it LOW, unlike the factory key-scanning sequence. */
+#define KEYPAD_OEM_BIT6 0x40u
 #define SR_DATA GPIO_NUM_26
 #define SR_CLOCK GPIO_NUM_27
 #define SR_LATCH GPIO_NUM_14
@@ -191,22 +194,23 @@ static uint8_t read_columns(void)
         if (gpio_get_level(cols[col])) result |= (uint8_t)(1u<<col);
     return result;
 }
-/* Stock timeout 0x400E3704 clears previous selection bit and sets the next;
-   it cycles indices 0..5. Scan with one HOT output at a time and keep the
-   seventh shifted output bit cleared; compare against all-zero reference. */
+/* Stock timeout 0x400E3704 clears the previous selection bit and sets the
+   next (indices 0..5). The OEM also sets bit 6 through 0x400E36DC during
+   ordinary operation; retain that bit while scanning. This is a diagnostic
+   experiment, not a proven physical row mapping. */
 static uint32_t sample_matrix(void)
 {
-    shift_rows(0x00);
+    shift_rows(KEYPAD_OEM_BIT6);
     const uint8_t neutral=read_columns();
     uint32_t key_bits=0;
     uint8_t row_levels[KEYPAD_ROWS];
     for (int r=0;r<KEYPAD_ROWS;r++) {
-        shift_rows((uint8_t)(1u<<r));
+        shift_rows((uint8_t)(KEYPAD_OEM_BIT6 | (1u<<r)));
         const uint8_t level=read_columns();
         row_levels[r]=level;
         key_bits |= ((uint32_t)(level ^ neutral)) << (3*r);
     }
-    shift_rows(0x01);
+    shift_rows(KEYPAD_OEM_BIT6 | 0x01);
     taskENTER_CRITICAL(&lock);
     matrix_raw=key_bits;
     columns_idle=neutral;
@@ -225,7 +229,7 @@ static void input_task(void *arg)
     int previous_stop = gpio_get_level(GPIO_NUM_13);
     uint32_t candidate = sample_matrix(), stable = candidate;
     unsigned debounce = 0;
-    add_event("PIKO shift-register keyscan: DATA=26 CLOCK=27 LATCH=14; 6 selected rows x GPIO32/33/34");
+    add_event("PIKO serial keyscan: DATA=26 CLOCK=27 LATCH=14; selector bits0..5, bit6 HIGH, inputs32/33/34");
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(10));
         uint32_t now = sample_matrix();
@@ -306,7 +310,7 @@ void hardware_probe_start(void)
     gpio_set_direction(SR_LATCH,GPIO_MODE_OUTPUT);
     gpio_set_direction(SR_CLOCK,GPIO_MODE_OUTPUT);
     gpio_set_direction(SR_DATA,GPIO_MODE_OUTPUT);
-    shift_rows(0x01);
+    shift_rows(KEYPAD_OEM_BIT6 | 0x01);
     if (xTaskCreate(input_task, "piko_inputs", 4096, NULL, 3, NULL) != pdPASS)
         ESP_LOGE(TAG, "Input task creation failed");
 }
