@@ -48,6 +48,16 @@ ENTRIES = {
         ("StopKeyInterrupt", 0x400E351C),
         ("RotaryTask", 0x400E4D60),
         ("LCD_Task", 0x40105B60),
+        # Direct call targets observed in LCD_Task 1.3.0.0;
+        # candidate display primitives, NOT yet identified SPI/GPIO init.
+        ("LCD_helper_401012F4", 0x401012F4),
+        ("LCD_helper_401013CC", 0x401013CC),
+        ("LCD_helper_40101778", 0x40101778),
+        ("LCD_helper_401018CC", 0x401018CC),
+        ("LCD_helper_401019C4", 0x401019C4),
+        ("LCD_helper_40101B2C", 0x40101B2C),
+        ("LCD_helper_40101BAC", 0x40101BAC),
+        ("LCD_helper_40101DC8", 0x40101DC8),
         ("RotaryInputISR", 0x400E4C60),
         ("RotaryWorkTask", 0x400E5220),
         ("KeypadHelper1", 0x400E3664),
