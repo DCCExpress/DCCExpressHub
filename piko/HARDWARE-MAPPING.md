@@ -235,3 +235,21 @@ Observed from user keymap report: physical digits grouped by column: 0/3/6/9→G
 Updated `/keymap` to collect three stages: idle baseline, key-held snapshot (explicit click while holding), then released snapshot. Firmware returns baseline/current row levels, idle columns, special pin levels, counts of 10 ms-sampled edges, and rotary delta. Report warns if no stable held-state difference or no return to baseline. This is diagnostic only: it does not yet assign physical key names into a runtime keymap. Older v2 browser mappings remain in storage but v3 begins a new clean measurement set.
 
 LCD observation: user sees extremely faint flicker / apparent backlight with all three experimental SPI test profiles, no rendered RGB image. This is inconclusive; neither controller nor backlight pin is known. No new arbitrary SPI pin scanning was introduced in this keypad update.
+
+## Corrected factory keypad topology (2026-10-31)
+
+**Previous "R1 GPIO26, R2 GPIO14, R3 GPIO27" assumption is disproved by factory code.** The OEM `ota_1` image, function `0x400E3664`, produces a **7-bit serialized output**:
+
+1. Set GPIO14 LOW.
+2. For bits 6 down through 0, set GPIO27 LOW, drive GPIO26 to the next bit, set GPIO27 HIGH.
+3. Set GPIO14 HIGH.
+
+Thus GPIO26=serial DATA, GPIO27=shift CLOCK, GPIO14=LATCH (roles inferred from the observed waveform), not three independent matrix rows. The adjacent helper `0x400E36AC` modifies individual bits in a 7-bit selection mask; firmware input initialization `0x400E3780` configures the three output pins with GPIO mode 2 (push-pull output), and GPIO32/33/34 with mode 1 (inputs). This strongly implies an external shift-register or equivalent serial-output decoder driving up to seven keyboard selection lines. The exact chip is **not identified**, and physical key-to-bit mapping needs hardware confirmation.
+
+**New experiment:** `hardware_probe.c` reproduces the serialized 7-bit output via the OEM GPIO order (26/27/14), applies all-high reference `0x7f`, then individually clears each row bit and compares the three sampled input columns with the reference. Restores `0x7f` after each scan. It records 21 possible shift-row/column intersections. Input GPIO32/33 get pull-down configuration; GPIO34 is input-only and has no internal pull resistors. No guessed matrix-row output drive remains.
+
+Source: ESP32 official datasheet and ESP-IDF GPIO documentation:
+- https://documentation.espressif.com/esp32_datasheet_en.html
+- https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/gpio.html
+
+**Testing:** After OTA flash, use `/keymap`. Scan just physical keys 0, 1, 2, 3 with the three-phase procedure. The expected improvement is a *different shifted row index* for 0 and 3 despite their shared GPIO34 column, rather than all three false rows. If all seven rows still appear, investigate the serialized mask polarity / output mapping rather than changing random ESP32 pins. GPIO12 remains unverified/noisy and is not used as a keyboard matrix row.
