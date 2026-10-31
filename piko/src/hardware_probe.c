@@ -15,6 +15,9 @@ static const gpio_num_t cols[3] = { GPIO_NUM_32, GPIO_NUM_33, GPIO_NUM_34 };
 static const gpio_num_t special[4] = { GPIO_NUM_2, GPIO_NUM_15, GPIO_NUM_12, GPIO_NUM_13 };
 static portMUX_TYPE lock = portMUX_INITIALIZER_UNLOCKED;
 static uint16_t matrix;
+static uint16_t matrix_raw;
+static uint8_t columns_idle;
+static uint8_t columns_per_row[3];
 static int32_t rotary_position;
 static char records[48][100];
 static uint32_t event_serial;
@@ -35,18 +38,29 @@ uint16_t hardware_probe_matrix(void)
     taskENTER_CRITICAL(&lock);
     uint16_t result = matrix;
     taskEXIT_CRITICAL(&lock);
+    taskENTER_CRITICAL(&lock);
+    matrix_raw = raw;
+    columns_idle = (uint8_t)(idle[0] | (idle[1] << 1) | (idle[2] << 2));
+    for (int r = 0; r < 3; ++r) columns_per_row[r] = row_bits[r];
+    taskEXIT_CRITICAL(&lock);
     return result;
 }
 
 void hardware_probe_json(char *out, size_t size)
 {
-    uint16_t m = hardware_probe_matrix();
+    uint16_t m;
+    uint16_t raw;
+    uint8_t idle, c0, c1, c2;
     int32_t rotary;
     taskENTER_CRITICAL(&lock);
     rotary = rotary_position;
+    m = matrix;
+    raw = matrix_raw;
+    idle = columns_idle;
+    c0 = columns_per_row[0]; c1 = columns_per_row[1]; c2 = columns_per_row[2];
     taskEXIT_CRITICAL(&lock);
-    snprintf(out, size, "{\"matrix\":%u,\"rotary\":%ld,\"gpio2\":%d,\"gpio15\":%d,\"gpio12\":%d,\"gpio13\":%d,\"uptime\":%lu}",
-             (unsigned)m, (long)rotary, gpio_get_level(GPIO_NUM_2), gpio_get_level(GPIO_NUM_15),
+    snprintf(out, size, "{\"matrix\":%u,\"rawMatrix\":%u,\"idleColumns\":%u,\"rowColumns\":[%u,%u,%u],\"rotary\":%ld,\"gpio2\":%d,\"gpio15\":%d,\"gpio12\":%d,\"gpio13\":%d,\"uptime\":%lu}",
+             (unsigned)m, (unsigned)raw, (unsigned)idle, (unsigned)c0, (unsigned)c1, (unsigned)c2, (long)rotary, gpio_get_level(GPIO_NUM_2), gpio_get_level(GPIO_NUM_15),
              gpio_get_level(GPIO_NUM_12), gpio_get_level(GPIO_NUM_13), (unsigned long)esp_log_timestamp());
 }
 
@@ -77,11 +91,16 @@ static uint16_t sample_matrix(void)
     for (int c = 0; c < 3; ++c) idle[c] = gpio_get_level(cols[c]);
 
     uint16_t result = 0;
+    uint16_t raw = 0;
+    uint8_t row_bits[3] = {0};
     for (int r = 0; r < 3; ++r) {
         gpio_set_level(rows[r], 0);
         esp_rom_delay_us(150);
         for (int c = 0; c < 3; ++c) {
-            if (idle[c] == 1 && gpio_get_level(cols[c]) == 0)
+            const int level = gpio_get_level(cols[c]);
+            if (level) row_bits[r] |= (uint8_t)(1u << c);
+            else raw |= (uint16_t)(1u << (r * 3 + c));
+            if (idle[c] == 1 && level == 0)
                 result |= (uint16_t)(1u << (r * 3 + c));
         }
         gpio_set_level(rows[r], 1);
