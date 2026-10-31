@@ -10,7 +10,7 @@ static const char *TAG = "piko";
 void app_main(void)
 {
     ESP_LOGW(TAG, "PIKO HARDWARE DISCOVERY MODE: Z21 drive commands disabled.");
-    ESP_LOGW(TAG, "Display is not initialized: LCD controller and pins unknown.");
+    ESP_LOGW(TAG, "Experimental LCD RGB trial (candidate GPIOs; not verified PIKO wiring).");
     ESP_LOGW(TAG, "GPIO observations are not yet identified buttons/rotary signals.");
     hardware_probe_start();
     piko_display_start();
