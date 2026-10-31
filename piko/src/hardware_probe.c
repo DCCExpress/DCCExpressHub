@@ -14,6 +14,7 @@
 #include <string.h>
 #include "driver/gpio.h"
 #include "esp_err.h"
+#include "esp_attr.h"
 #include "esp_log.h"
 #include "esp_rom_sys.h"
 #include "esp_timer.h"
@@ -26,7 +27,7 @@
 #define PIN_CLOCK   GPIO_NUM_27
 #define PIN_LATCH   GPIO_NUM_14
 #define ROW_COUNT   6
-#define ROW_FREEZE   BIT0
+#define ROW_FREEZE   (1u << 0)
 #define OEM_BIT6     0x40u
 #define LOG_CAPACITY 48
 #define LOG_LEN      92
@@ -44,7 +45,6 @@ static const int8_t keycodes[6][3] = {
 typedef struct {
     gpio_num_t gpio;
     uint8_t row_on_irq;
-    int64_t timestamp_us;
 } column_event_t;
 
 static QueueHandle_t event_queue;
@@ -63,7 +63,7 @@ static uint8_t last_code;
 static uint8_t last_row;
 static uint8_t last_gpio;
 static uint32_t digit_counts[10];
-static bool ready;
+static volatile bool ready;
 
 static void log_text(const char *message)
 {
@@ -105,8 +105,7 @@ static void IRAM_ATTR on_column(void *argument)
     if (!event_queue) return;
     column_event_t event = {
         .gpio = gpio,
-        .row_on_irq = current_row,
-        .timestamp_us = esp_timer_get_time()
+        .row_on_irq = current_row
     };
     BaseType_t higher = pdFALSE;
     if (xQueueSendFromISR(event_queue, &event, &higher) != pdTRUE)
@@ -196,6 +195,8 @@ static void event_worker(void *arg)
          * We do not fabricate new numeric presses: rearm only after the
          * input is LOW, with finite timeout and explicit warning. */
         if (gpio_get_level(evt.gpio)) {
+            /* A permanently HIGH input must not freeze the row driver forever. */
+            xEventGroupClearBits(row_group, ROW_FREEZE);
             char message[LOG_LEN];
             snprintf(message, sizeof(message),
                 "GPIO%d stayed HIGH; ignoring until next LOW (stuck key)",
