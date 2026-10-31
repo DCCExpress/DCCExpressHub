@@ -274,3 +274,13 @@ Discussion: reading a large keyboard by selectively enabling 74HC595 outputs. Pa
 Relevant TI data sheet: https://www.ti.com/product/SN74HC595 (8-bit serial-in, 8-bit output latch, independent shift/latch clocks, tri-state outputs with OE). The PIKO OEM code at 0x400E3664 transmits **7 bits**, not 8; that discrepancy is another reason not to assume an ordinary 74HC595 and copy its wiring/protocol uncritically.
 
 Current observation: all six shifted selection states return the same column for any one of keys 0/1/2/3. Competing explanations remain: no electrical connection from serialized output to rows, wrong enable or polarity, shift/latch protocol mismatch, or too-short settling time of the overall keypad circuit. The forum itself does not resolve which applies to PIKO; **the 74HC165 recommendation is for designing a new keyboard, not proof that the PIKO uses a 165**.
+
+## Key capture follow-up: GPIO rising-edge interrupt correlation
+
+User test (6-bit selection + bit6 HIGH) still had no stable row identification. Key 0 and 3 shared GPIO34; key 1 GPIO32; key 2 GPIO33. All six selected rows sampled the same level while each key was held, and even the inactive baseline changed. Consequently, **the previous "HELD SR bit0..5" result never established any six row identities**. GPIO12 produced 241-567 edge changes during unrelated key tests; it remains an unreliable candidate.
+
+The original `KeypadInterrupt` at `0x400E2DA0` maps GPIO32/33/34 to column codes 1/2/3 and uses the current selector index (0..5) to construct a combined key code (selector index in high nibble). The stock selector task `0x400E3704` cycles rows and calls `0x400E3664` to serialize the selection mask.
+
+The new experiment preserves the existing GPIO selection pins but adds a **positive-edge interrupt** handler for GPIO32/33/34. The firmware separately counts edges for each currently selected shift output bit. A diagnostic 600 microsecond stabilization interval is included after each row update; any edges outside a stable selected state are counted as unassigned. `/api/capture` returns `irqEdges[18]` and `irqUnassigned[3]`; the `/keymap` report exposes them. This does NOT implement production key decoding yet, and a row receiving a single IRQ is only a candidate (contact timing could coincide with any row). If no consistent correlation appears over repeated presses, reconsider the serial output's physical role and OEM row timing rather than assuming a 74HC595.
+
+ESP-IDF documented GPIO ISR services and per-pin handlers: https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/gpio.html
