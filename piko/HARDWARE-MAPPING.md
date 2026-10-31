@@ -216,3 +216,11 @@ Direct string inspection of the binary (not a pinout determination) confirmed:
 
 **Do not infer LCD GPIOs or controller from these strings.**
 The active LCD driver remains gated by `CONFIG_PIKO_LCD_TEST=n`. Before enabling it, disassemble the functions referencing the LGFX SPI errors and track their bus/device configs to recover MOSI, SCLK, CS, DC, RESET and backlight pins. The image also has a separate keypad scanner on GPIO26/14/27 and inputs GPIO32/33/34.
+
+Binary literal cross-reference results (addresses are firmware virtual addresses):
+- `LGFX` tag `0x3F40DE00` referenced by IROM literal `0x4010FEF0`.
+- `Failed to spi_bus_initialize` string `0x3F40DE08` referenced at `0x4010FEF4`.
+- `Failed to spi_bus_add_device` string `0x3F40DE40` referenced at `0x4010FEFC`.
+- `Failed to spi_device_acquire_bus` string `0x3F40DE78` referenced at `0x4010FF28`.
+- Display `LCD first DAh respond` error text `0x3F407270` referenced at `0x400D1F88`.
+These are **literal reference positions**, not proven function entry points or pin definitions.
