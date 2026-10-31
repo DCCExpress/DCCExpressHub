@@ -46,6 +46,7 @@ typedef struct {
     gpio_num_t gpio;
     uint8_t row_on_irq;
     uint8_t serial_mask_on_irq;
+    bool during_shift;
 } column_event_t;
 
 static QueueHandle_t event_queue;
@@ -112,13 +113,15 @@ static void IRAM_ATTR on_column(void *argument)
      * event. The event group alone was too late: the timer could advance.
      * Never call xEventGroupSetBits() from the ISR. */
     portENTER_CRITICAL_ISR(&scan_lock);
-    if(shifting) ++ignored_while_shifting;
-    else {
-        event.row_on_irq=current_row;
-        event.serial_mask_on_irq=shadow_mask;
-        ++pending_key_events;
-        accepted=true;
-    }
+    /* The OEM row change itself may raise the column GPIO: do NOT drop
+     * IRQs just because the seven serial bits are being latched. The row
+     * task assigns next row before shifting, so it is the target selector. */
+    event.during_shift=shifting;
+    if(shifting) ++ignored_while_shifting; /* legacy name: now COUNTED, not dropped */
+    event.row_on_irq=current_row;
+    event.serial_mask_on_irq=shadow_mask;
+    ++pending_key_events;
+    accepted=true;
     portEXIT_CRITICAL_ISR(&scan_lock);
     if(!accepted) return;
 
@@ -207,16 +210,16 @@ static void event_worker(void *arg)
             if (digit >= 0) digit_counts[digit]++;
             taskEXIT_CRITICAL(&state_lock);
             if (digit >= 0) snprintf(message, sizeof(message),
-                "DIGIT %d CANDIDATE 0x%02X irqRow=%u workRow=%u GPIO%d",
-                digit, code, (unsigned)row, (unsigned)worker_row, (int)evt.gpio);
+                "DIGIT %d? 0x%02X irq=%u work=%u GPIO%d shift=%u",
+                digit, code, (unsigned)row, (unsigned)worker_row, (int)evt.gpio, (unsigned)evt.during_shift);
             else {
                 const bool oem_function =
                     code==0x12 || code==0x21 || code==0x22 ||
                     code==0x23 || code==0x31 || code==0x32;
                 snprintf(message, sizeof(message),
-                    "%s 0x%02X irqRow=%u workRow=%u GPIO%d",
+                    "%s 0x%02X irq=%u work=%u GPIO%d shift=%u",
                     oem_function?"OTHER OEM KEY":"UNKNOWN CODE",
-                    code, (unsigned)row, (unsigned)worker_row, (int)evt.gpio);
+                    code, (unsigned)row, (unsigned)worker_row, (int)evt.gpio, (unsigned)evt.during_shift);
             }
             log_text(message);
             /* Freeze while held; no repeats; 3s max to avoid a permanent
