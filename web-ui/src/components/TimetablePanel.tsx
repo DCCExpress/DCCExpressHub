@@ -446,7 +446,7 @@ export default function TimetablePanel({
           // Current + Offset is relative to starting the timetable scheduler,
           // not to the FastClock. Show its delay explicitly instead of trying
           // to expand it as an HH:MM cron occurrence (which returns no rows).
-          const offsetMatch = /^\\+(\\d{1,3}):([0-5]\\d):([0-5]\\d)$/.exec(entry.cron.trim());
+          const offsetMatch = /^\+(\d{1,3}):([0-5]\d):([0-5]\d)$/.exec(entry.cron.trim());
           const offsetMinutes = offsetMatch
             ? (Number(offsetMatch[1]) * 3600 + Number(offsetMatch[2]) * 60 + Number(offsetMatch[3])) / 60
             : null;
