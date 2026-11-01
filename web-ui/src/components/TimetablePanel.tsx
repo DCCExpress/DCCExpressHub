@@ -443,12 +443,26 @@ export default function TimetablePanel({
             continue;
           }
 
-          const occurrences =
-            enumerateTimetableCronOccurrences(
-              entry.cron,
-              snapshot.timeMs,
-              TIMETABLE_LOOKAHEAD_MINUTES
-            );
+          // Current + Offset is relative to starting the timetable scheduler,
+          // not to the FastClock. Show its delay explicitly instead of trying
+          // to expand it as an HH:MM cron occurrence (which returns no rows).
+          const offsetMatch = /^\+(\d{1,3}):([0-5]\d):([0-5]\d)$/.exec(entry.cron.trim());
+          const offsetMinutes = offsetMatch
+            ? (Number(offsetMatch[1]) * 3600 + Number(offsetMatch[2]) * 60 + Number(offsetMatch[3])) / 60
+            : null;
+          const occurrences = offsetMinutes !== null
+            ? [{
+                absoluteMinute: fastClockMinute + offsetMinutes,
+                minuteOfDay: (fastClockMinute + Math.floor(offsetMinutes)) % (24 * 60),
+                dayOffset: 0,
+                hour: 0,
+                minute: 0,
+              }]
+            : enumerateTimetableCronOccurrences(
+                entry.cron,
+                snapshot.timeMs,
+                TIMETABLE_LOOKAHEAD_MINUTES
+              );
 
           for (
             const occurrence of
@@ -486,10 +500,12 @@ export default function TimetablePanel({
                 key:
                   `${entry.id}:${action.id}:${occurrence.absoluteMinute}`,
                 time:
-                  formatTimetableTime(
-                    occurrence.hour,
-                    occurrence.minute
-                  ),
+                  offsetMinutes !== null
+                    ? entry.cron.trim()
+                    : formatTimetableTime(
+                        occurrence.hour,
+                        occurrence.minute
+                      ),
                 absoluteMinute:
                   occurrence.absoluteMinute,
                 dayOffset:
@@ -513,6 +529,7 @@ export default function TimetablePanel({
                 targetType:
                   action.targetType,
                 isCurrent:
+                  offsetMinutes === null &&
                   occurrence.dayOffset ===
                     0 &&
                   occurrence.absoluteMinute ===
