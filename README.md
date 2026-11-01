@@ -31,7 +31,13 @@ Available for:
 - **Linux** — runs as a server, with the interface available in a web browser.
 - **Android** — standalone app with its own .NET 10 Hub and tablet-optimized interface; it can also serve other devices over the local network. **Tablet recommended.**
 
-On Android, enable **Allow other devices on LAN** to access the Hub from browsers on the same network. Android support is experimental; network command-station connections are available, but USB/serial connections are not yet supported.
+> **⚠️ Android – Layout Editing**
+>
+> Layout creation and editing must be performed on a PC. The Android app is intended for controlling and operating existing layouts.
+
+On Android, enable **Allow other devices on LAN** to access the Hub from browsers on the same network. **This also allows you to create and edit layouts remotely from a PC browser while the Hub runs on your Android device.**
+
+Android support is experimental; network command-station connections are available, but USB/serial connections are not yet supported.
 
 You can also control your railway from a computer, tablet, or phone on the same local network.
 
