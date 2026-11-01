@@ -41,7 +41,14 @@ Android support is experimental; network command-station connections are availab
 
 You can also control your railway from a computer, tablet, or phone on the same local network.
 
-> **DCCExpressHub is not a command station.** Your connected command station generates the track signal; DCCExpressHub provides control, layout, and automation on top of it.
+> [!WARNING]
+> **Important – Command Station & Automation Requirements**
+>
+> **DCCExpressHub is not a command station.** A connected command station generates the DCC track signal. DCCExpressHub provides control, layout management, and automation.
+>
+> **Full automation and Train Tracking require block occupancy detection.** Track blocks must have properly configured occupancy sensors, and the layout must include correct track directions and turnout connections.
+>
+> **Reed contacts and point sensors** do not provide continuous block occupancy detection. They can be used for custom, user-defined automation through **Scripts**, but cannot replace block occupancy sensors for fully automatic operation and reliable Train Tracking.
 
 ![DCCExpressHub screenshot](doc/images/DccExpressHub-2026-10-07%20170732.png)
 
