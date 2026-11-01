@@ -31,7 +31,8 @@ Available for:
 - **Linux** — runs as a server, with the interface available in a web browser.
 - **Android** — standalone app with its own .NET 10 Hub and tablet-optimized interface; it can also serve other devices over the local network. **Tablet recommended.**
 
-> **⚠️ Android – Layout Editing**
+> [!WARNING]
+> **Android – Layout Editing**
 >
 > Layout creation and editing must be performed on a PC. The Android app is intended for controlling and operating existing layouts.
 
