@@ -1024,15 +1024,24 @@ public sealed class MovementRuntime
 
     bool ArrivalSatisfied(
         MovementPlanLegModel leg,
-        long reedArrivalBaseline)
+        long reedArrivalBaseline,
+        int expectedLocoAddress)
     {
-        // A point sensor is an event, not persistent block occupancy.
-        // Require a NEW ON edge after this leg starts. The generation counter
-        // latches even short pulses between Movement polling iterations.
         if (_layout.ReedDetectionMode)
+        {
+            // SetSensor can commit the reserved target BEFORE this coroutine
+            // resumes, or even before its polling baseline was captured.
+            // The authoritative block assignment is therefore also ARRIVED.
+            if (leg.To.BlockId is >= 1 and <= 65535 &&
+                Block(leg.To.BlockId.Value)?.LocoAddress == expectedLocoAddress)
+                return true;
+
+            // Also retain pulse-edge detection if no target promotion happened.
+            // This handles momentary pulses between polling iterations.
             return leg.To.SensorAddress is >= 1 and <= 65535 &&
                    _layout.SensorOnGeneration((ushort)leg.To.SensorAddress.Value) >
                    reedArrivalBaseline;
+        }
 
         if (!ConditionsSatisfied(
                 leg.ArrivedWhen))
@@ -3187,7 +3196,8 @@ public sealed class MovementRuntime
 
             while (!ArrivalSatisfied(
                        leg,
-                       reedArrivalBaseline))
+                       reedArrivalBaseline,
+                       execution.LocoAddress))
             {
                 execution.Cancellation.Token.ThrowIfCancellationRequested();
 
