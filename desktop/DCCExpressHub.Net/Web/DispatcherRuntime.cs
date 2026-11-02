@@ -337,6 +337,9 @@ public sealed class DispatcherRuntime
     (bool Ok, ushort? BlockingSensor) SensorsFree(
         IReadOnlyList<ushort> sensors)
     {
+        if (_runtime.ReedDetectionMode)
+            return (true, null); // Block/segment leases and turnout locks still apply.
+
         foreach (var address in sensors)
         {
             // UNKNOWN is deliberately unsafe.
@@ -552,7 +555,7 @@ public sealed class DispatcherRuntime
                 return "destination_block_busy";
             }
 
-            if (requirement.SensorAddress > 0 &&
+            if (!_runtime.ReedDetectionMode && requirement.SensorAddress > 0 &&
                 (
                     !_runtime.TryGetSensorState(
                         requirement.SensorAddress,
