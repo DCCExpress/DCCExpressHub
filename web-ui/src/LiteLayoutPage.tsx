@@ -930,6 +930,40 @@ function LitePropertyPanel({
 }
 
 function SensorSettingsCard() {
+  const [detectionMode, setDetectionMode] = useState<"occupancy" | "reed">("occupancy");
+  const [detectionSaving, setDetectionSaving] = useState(false);
+  const [detectionError, setDetectionError] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/settings/automation", { cache: "no-store" })
+      .then(response => {
+        if (!response.ok) throw new Error("Could not load automation settings");
+        return response.json();
+      })
+      .then(data => {
+        if (active) setDetectionMode(data.detectionMode === "reed" ? "reed" : "occupancy");
+      })
+      .catch(error => { if (active) setDetectionError(String(error)); });
+    return () => { active = false; };
+  }, []);
+  const saveDetectionMode = async (mode: "occupancy" | "reed") => {
+    setDetectionSaving(true);
+    setDetectionError(null);
+    try {
+      const response = await fetch("/api/settings/automation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ detectionMode: mode }),
+      });
+      if (!response.ok) throw new Error("Could not save automation detection mode");
+      setDetectionMode(mode);
+      showNotification({ message: "Automation detection mode saved", color: "green" });
+    } catch (error) {
+      setDetectionError(String(error));
+    } finally {
+      setDetectionSaving(false);
+    }
+  };
   const [sensorOffMs, setSensorOffMs] = useState<number | string>(250);
   const [commandIntervalMs, setCommandIntervalMs] = useState<number | string>(150);
   const [settlingMs, setSettlingMs] = useState<number | string>(100);
@@ -966,6 +1000,13 @@ function SensorSettingsCard() {
     <Card withBorder p="sm" bg="var(--mantine-color-body)">
       <Stack gap="xs">
         <Group gap="xs"><IconSettings size={17} /><Text fw={600}>Settings</Text></Group>
+        <Text fw={600} size="sm">Automation detection mode</Text>
+        <Text size="xs" c="dimmed">Occupancy uses continuous feedback. Reed uses assigned locomotives and logical block reservations.</Text>
+        <Group gap="xs">
+          <Button size="xs" disabled={detectionSaving} variant={detectionMode === "occupancy" ? "filled" : "outline"} onClick={() => void saveDetectionMode("occupancy")}>Occupancy</Button>
+          <Button size="xs" disabled={detectionSaving} variant={detectionMode === "reed" ? "filled" : "outline"} onClick={() => void saveDetectionMode("reed")}>Reed / Point</Button>
+        </Group>
+        {detectionError && <Text c="red" size="xs">{detectionError}</Text>}
         <NumberInput
           label="Sensor OFF delay (ms)"
           description="ON is immediate; OFF must remain stable for this time."
