@@ -51,6 +51,7 @@ import {
   type AutomationScriptDefinition,
 } from "../../services/automationApi";
 import type { SerializedLayoutDto } from "../../domain/layout/layoutDto";
+import AppModal from "@/components/common/AppModal";
 import {
   filterScriptRoutes,
   generateScriptFromRoute,
@@ -2058,11 +2059,16 @@ export default function AutomationScriptsTable({
         )}
       </ScrollArea>
 
-      <Modal
+      <AppModal
         opened={generateOpened}
         onClose={() => { if (!generateSaving) setGenerateOpened(false); }}
         title="Generate script from route"
         centered
+        draggable
+        resetPositionOnOpen
+        closeOnClickOutside={false}
+        closeOnEscape={!generateSaving}
+        withCloseButton={!generateSaving}
         size="xl"
       >
         <Stack gap="md">
@@ -2192,7 +2198,7 @@ export default function AutomationScriptsTable({
             </Button>
           </Group>
         </Stack>
-      </Modal>
+      </AppModal>
     </Stack>
   );
 }
