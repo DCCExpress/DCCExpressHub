@@ -343,14 +343,19 @@ export class BlockElement extends TrackElement {
     // Keep showing the target locomotive while it is heading to this block.
     // If the occupancy sensor turns ON before the Hub moves the runtime loco
     // assignment, the block turns red but the target locomotive stays visible.
+    // A reserved target is not yet occupied, but its loco number must still
+    // be visible in the amber block in BOTH detection modes. Only suppress
+    // unconfirmed Train Tracking predictions in reed mode.
     const displayLocoAddress =
       hasAssignedLoco
         ? this.locoAddress
-        : BlockElement.reedDetectionMode
-          ? 0
-        : this.runtimeTransitLocoAddress > 0
-          ? this.runtimeTransitLocoAddress
-          : trackingPrediction?.locoAddress ?? 0;
+        : targetAddress > 0
+          ? targetAddress
+          : this.runtimeTransitLocoAddress > 0
+            ? this.runtimeTransitLocoAddress
+            : BlockElement.reedDetectionMode
+              ? 0
+              : trackingPrediction?.locoAddress ?? 0;
 
     const showBlockName = options?.showBlockNames === true && this.name.trim().length > 0;
     const blockNameHeight = showBlockName ? 9 : 0;
