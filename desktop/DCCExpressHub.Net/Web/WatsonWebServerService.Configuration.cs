@@ -18,7 +18,18 @@ public sealed partial class WatsonWebServerService
         Add(server, WatsonHttpMethod.POST, "/api/settings/automation", async ctx =>
         {
             using var input = await ReadBodyStreamAsync(ctx);
-            using var json = await System.Text.Json.JsonDocument.ParseAsync(input, cancellationToken: ctx.Token);
+            System.Text.Json.JsonDocument json;
+            try
+            {
+                json = await System.Text.Json.JsonDocument.ParseAsync(input, cancellationToken: ctx.Token);
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                await SendAsync(ctx, HubApiResponse.Error(400, new { ok = false, message = "Invalid automation settings JSON" }));
+                return;
+            }
+            using (json)
+            {
             var root = json.RootElement;
             var mode = root.ValueKind == System.Text.Json.JsonValueKind.Object &&
                 root.TryGetProperty("detectionMode", out var property) &&
@@ -33,6 +44,7 @@ public sealed partial class WatsonWebServerService
             await SendAsync(ctx, saved
                 ? HubApiResponse.Ok(new { detectionMode = mode })
                 : HubApiResponse.Error(500, new { ok = false, message = "Could not save detection mode" }));
+            }
         });
 
         Add(
