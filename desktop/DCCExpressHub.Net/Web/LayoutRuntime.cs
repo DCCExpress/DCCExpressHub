@@ -190,6 +190,25 @@ public sealed class LayoutRuntime
         }
     }
 
+    // Alpha10: point detectors are pulses; their OFF state is not block vacancy.
+    // The backend owns this mode so Dispatcher and Movement use one authority.
+    public bool ReedDetectionMode
+    {
+        get
+        {
+            try
+            {
+                var path = Path.Combine(_env.ConfigRootPath, "automation-detection.json");
+                if (!File.Exists(path)) return false;
+                using var json = JsonDocument.Parse(File.ReadAllText(path));
+                return json.RootElement.TryGetProperty("detectionMode", out var mode) &&
+                       mode.ValueKind == JsonValueKind.String &&
+                       mode.GetString() == "reed";
+            }
+            catch (Exception) { return false; }
+        }
+    }
+
     public LayoutRuntime(AppPaths env)
     {
         _env = env;
