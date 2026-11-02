@@ -1329,9 +1329,7 @@ public sealed class LayoutRuntime
         CancellationTokenSource? pendingOff = null;
         var reedMode = ReedDetectionMode;
         bool unexpectedReedOn = false;
-        ushort targetBlockId = 0;
-        ushort targetLocoAddress = 0;
-        string? expectedTargetMarker = null;
+        bool reedBlockChanged = false;
 
         lock (_gate)
         {
@@ -1379,11 +1377,15 @@ public sealed class LayoutRuntime
                         blocks[0].TargetOnly &&
                         blocks[0].TargetLocoAddress > 0)
                     {
-                        // Repeated ON reports may still complete a target
-                        // reservation, even when the cached input is already ON.
-                        targetBlockId = blocks[0].Id;
-                        targetLocoAddress = blocks[0].TargetLocoAddress;
-                        expectedTargetMarker = blocks[0].LocoId;
+                        // Promote under the SAME lock used for checking the
+                        // target marker. Finish/Stop may release the marker
+                        // concurrently; a two-stage check + SetBlock used to
+                        // lose a valid reed arrival silently in that window.
+                        // Publish the resulting block change after unlocking.
+                        reedBlockChanged = AssignBlockLocked(
+                            blocks[0],
+                            "",
+                            blocks[0].TargetLocoAddress);
                     }
                     else if (changed &&
                              (blocks.Length > 1 ||
@@ -1401,16 +1403,11 @@ public sealed class LayoutRuntime
             }
         }
 
-        // Commit the target as soon as its reed reports ON. SetBlock clears
-        // the same locomotive from every previous block. Recheck the marker
-        // atomically within SetBlock: a stale sensor event must not overwrite
-        // a target that was reassigned in the meantime.
-        if (targetBlockId > 0 && expectedTargetMarker is not null)
-            SetBlock(
-                targetBlockId,
-                "",
-                targetLocoAddress,
-                expectedTargetMarker);
+        // Block ownership is already committed while holding _gate.
+        // Emit changes only AFTER releasing it, before sensorChanged so
+        // tracking and Movement observers see the authoritative assignment.
+        if (reedBlockChanged)
+            Changed?.Invoke("blockStateChanged", BlockSnapshot());
 
         if (pendingOff is not null)
             _ = ConfirmSensorOffAsync(address, pendingOff);
@@ -1458,13 +1455,58 @@ public sealed class LayoutRuntime
         }
     }
 
+    // Caller must hold _gate. Shared by manual SetBlock and reed arrival,
+    // so they cannot disagree about how a loco transfers between blocks.
+    bool AssignBlockLocked(RuntimeBlock target, string locoId, ushort locoAddress)
+    {
+        bool changed = false;
+        bool clearing = string.IsNullOrEmpty(locoId) && locoAddress == 0;
+
+        if (!clearing)
+        {
+            foreach (var block in _blocks)
+            {
+                if (block.Id == target.Id || !block.Occupied)
+                    continue;
+
+                bool sameAddress = locoAddress > 0 && block.LocoAddress == locoAddress;
+                bool sameId = !string.IsNullOrEmpty(locoId) && block.LocoId == locoId;
+
+                if (!sameAddress && !sameId)
+                    continue;
+
+                block.LocoId = "";
+                block.LocoAddress = 0;
+                changed = true;
+            }
+        }
+
+        if (clearing)
+        {
+            if (target.HasRuntimeState)
+            {
+                target.LocoId = "";
+                target.LocoAddress = 0;
+                changed = true;
+            }
+        }
+        else if (target.LocoId != locoId || target.LocoAddress != locoAddress)
+        {
+            target.LocoId = locoId;
+            target.LocoAddress = locoAddress;
+            changed = true;
+        }
+
+        return changed;
+    }
+
     public bool SetBlock(
         ushort id,
         string locoId,
         ushort locoAddress,
         string? expectedTargetMarker = null)
     {
-        bool changed = false;
+        bool changed;
 
         lock (_gate)
         {
@@ -1481,42 +1523,7 @@ public sealed class LayoutRuntime
                  target.TargetLocoAddress != locoAddress))
                 return false;
 
-            bool clearing = string.IsNullOrEmpty(locoId) && locoAddress == 0;
-
-            if (!clearing)
-            {
-                foreach (var block in _blocks)
-                {
-                    if (block.Id == id || !block.Occupied)
-                        continue;
-
-                    bool sameAddress = locoAddress > 0 && block.LocoAddress == locoAddress;
-                    bool sameId = !string.IsNullOrEmpty(locoId) && block.LocoId == locoId;
-
-                    if (!sameAddress && !sameId)
-                        continue;
-
-                    block.LocoId = "";
-                    block.LocoAddress = 0;
-                    changed = true;
-                }
-            }
-
-            if (clearing)
-            {
-                if (target.HasRuntimeState)
-                {
-                    target.LocoId = "";
-                    target.LocoAddress = 0;
-                    changed = true;
-                }
-            }
-            else if (target.LocoId != locoId || target.LocoAddress != locoAddress)
-            {
-                target.LocoId = locoId;
-                target.LocoAddress = locoAddress;
-                changed = true;
-            }
+            changed = AssignBlockLocked(target, locoId, locoAddress);
         }
 
         if (changed)
