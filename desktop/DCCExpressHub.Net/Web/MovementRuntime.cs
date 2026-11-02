@@ -3791,6 +3791,28 @@ public sealed class MovementRuntime
                 await Task.WhenAll(
                     execution.BackgroundTasks.ToArray());
 
+            // Finishing a Movement (including a timetable/sequential child)
+            // is NOT proof of arrival unless the destination still owns the
+            // locomotive. Never publish "Movement completed" with an empty
+            // reed destination; that previously hid a lost target commit.
+            if (_layout.ReedDetectionMode &&
+                execution.CurrentBlockId is >= 1 and <= 65535)
+            {
+                var arrivedBlock = Block(execution.CurrentBlockId.Value);
+                if (arrivedBlock?.LocoAddress != execution.LocoAddress)
+                    throw new InvalidOperationException(
+                        "reed_arrival_block_assignment_missing: block #" +
+                        execution.CurrentBlockId.Value +
+                        " does not contain locomotive #" +
+                        execution.LocoAddress);
+
+                _log.LogInformation(
+                    "Reed Movement completed: locomotive #{LocoAddress} confirmed in block #{BlockId}, finishRequested={FinishRequested}",
+                    execution.LocoAddress,
+                    execution.CurrentBlockId.Value,
+                    execution.FinishAtNextBlock);
+            }
+
             var stoppedAt = NowMs();
 
             Publish(
