@@ -941,7 +941,7 @@ function SensorSettingsCard() {
         return response.json();
       })
       .then(data => {
-        if (active) setDetectionMode(data.detectionMode === "reed" ? "reed" : "occupancy");
+        if (active) { const mode = data.detectionMode === "reed" ? "reed" : "occupancy"; BlockElement.reedDetectionMode = mode === "reed"; setDetectionMode(mode); }
       })
       .catch(error => { if (active) setDetectionError(String(error)); });
     return () => { active = false; };
@@ -956,6 +956,7 @@ function SensorSettingsCard() {
         body: JSON.stringify({ detectionMode: mode }),
       });
       if (!response.ok) throw new Error("Could not save automation detection mode");
+      BlockElement.reedDetectionMode = mode === "reed";
       setDetectionMode(mode);
       showNotification({ message: "Automation detection mode saved", color: "green" });
     } catch (error) {
@@ -1064,6 +1065,14 @@ export default function LiteLayoutPage({
   tabletMode = false,
 }: LiteLayoutPageProps) {
   useTranslation();
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/settings/automation", { cache: "no-store" })
+      .then(response => response.ok ? response.json() : null)
+      .then(data => { if (active && data) BlockElement.reedDetectionMode = data.detectionMode === "reed"; })
+      .catch(() => { /* Retain occupancy default if settings are unavailable. */ });
+    return () => { active = false; };
+  }, []);
   const commandCenter = useCommandCenter();
   const [
     broadcastAudioEnabled,
