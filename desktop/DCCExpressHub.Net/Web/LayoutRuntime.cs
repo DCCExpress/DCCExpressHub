@@ -173,6 +173,9 @@ public sealed class LayoutRuntime
     public event Action<string, object>? Changed;
     // Safety runs after normal consumers, including TrainTracking, process the sensor change.
     public event Action? SensorTransitionProcessed;
+    // Raised for a new reed ON edge on an unreserved block or on an
+    // ambiguous block-sensor address. Non-block point sensors are excluded.
+    public event Action<ushort>? UnexpectedReedSensorOn;
 
     public int AccessoryCount
     {
@@ -1325,6 +1328,7 @@ public sealed class LayoutRuntime
         bool changed = false;
         CancellationTokenSource? pendingOff = null;
         var reedMode = ReedDetectionMode;
+        bool unexpectedReedOn = false;
         ushort targetBlockId = 0;
         ushort targetLocoAddress = 0;
         string? expectedTargetMarker = null;
@@ -1363,22 +1367,36 @@ public sealed class LayoutRuntime
 
                 if (reedMode)
                 {
-                    // A target marker carries the authoritative expected
-                    // locomotive. Convert ONLY the unambiguous reserved block,
-                    // never guess a loco for an unreserved/occupied block.
-                    var targets = _blocks
-                        .Where(block =>
-                            block.SensorAddress == address &&
-                            block.TargetOnly &&
-                            block.TargetLocoAddress > 0)
+                    // Detect ALL blocks using this input before promoting a
+                    // reservation: even one target is ambiguous if another
+                    // block shares its physical reed contact.
+                    var blocks = _blocks
+                        .Where(block => block.SensorAddress == address)
                         .Take(2)
                         .ToArray();
-                    if (targets.Length == 1)
+
+                    if (blocks.Length == 1 &&
+                        blocks[0].TargetOnly &&
+                        blocks[0].TargetLocoAddress > 0)
                     {
-                        targetBlockId = targets[0].Id;
-                        targetLocoAddress = targets[0].TargetLocoAddress;
-                        expectedTargetMarker = targets[0].LocoId;
+                        // Repeated ON reports may still complete a target
+                        // reservation, even when the cached input is already ON.
+                        targetBlockId = blocks[0].Id;
+                        targetLocoAddress = blocks[0].TargetLocoAddress;
+                        expectedTargetMarker = blocks[0].LocoId;
                     }
+                    else if (changed &&
+                             (blocks.Length > 1 ||
+                              (blocks.Length == 1 && !blocks[0].Occupied)))
+                    {
+                        // A fresh reed contact on an unassigned block has no
+                        // expected locomotive. An already-assigned block is
+                        // known, and repeated ON snapshots must not retrigger
+                        // an alarm after a successful target promotion.
+                        unexpectedReedOn = true;
+                    }
+                    // No block mapping: intermediate point detectors are not
+                    // destination-block arrivals; leave their events alone.
                 }
             }
         }
@@ -1396,6 +1414,9 @@ public sealed class LayoutRuntime
 
         if (pendingOff is not null)
             _ = ConfirmSensorOffAsync(address, pendingOff);
+
+        if (unexpectedReedOn)
+            UnexpectedReedSensorOn?.Invoke(address);
 
         if (changed)
         {
