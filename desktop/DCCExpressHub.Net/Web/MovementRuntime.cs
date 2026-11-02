@@ -290,6 +290,8 @@ public sealed class MovementRuntime
 
         _layout.SensorTransitionProcessed +=
             OnSensorTransitionProcessed;
+        _layout.UnexpectedReedSensorOn +=
+            OnUnexpectedReedSensorOn;
     }
 
     static long NowMs() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -443,6 +445,14 @@ public sealed class MovementRuntime
                     (expectedLocoAddress?.ToString() ?? "?") +
                     ".",
 
+                "unexpected_reed_sensor" =>
+                    "Unexpected reed sensor ON: block " +
+                    BlockLabel(block) +
+                    ", sensor #" +
+                    block.SensorAddress +
+                    " reported a train without an assigned locomotive " +
+                    "or an expected target reservation.",
+
                 _ =>
                     OccupancyError(
                         block)
@@ -530,6 +540,45 @@ public sealed class MovementRuntime
                     .ToArray(),
             EmergencyStopActive:
                 false);
+    }
+
+    void OnUnexpectedReedSensorOn(ushort sensorAddress)
+    {
+        if (!_layout.ReedDetectionMode)
+            return;
+
+        var blocks = _layout.BlocksForPersistence()
+            .Where(block => block.SensorAddress == sensorAddress)
+            .ToArray();
+
+        // Sensors that are not configured as block contacts may be used by
+        // scripts and other detectors; they are not unexpected block arrivals.
+        if (blocks.Length == 0)
+            return;
+
+        Execution[] executions;
+        lock (_gate)
+            executions = _executions.Values.ToArray();
+
+        var ambiguous = blocks.Length > 1;
+        var trip = CreateSafetyTrip(
+            ambiguous ? "ambiguous_reed_sensor" : "unexpected_reed_sensor",
+            blocks[0],
+            executions);
+
+        if (ambiguous)
+            trip = trip with
+            {
+                Reason = "Ambiguous reed sensor ON: sensor #" +
+                    sensorAddress +
+                    " belongs to multiple blocks (" +
+                    string.Join(", ", blocks.Select(BlockLabel)) +
+                    "). Cannot safely identify an arriving train."
+            };
+
+        // An unexpected point contact is a safety problem even without an
+        // active Movement: a manually/script-driven locomotive may be moving.
+        _ = TripOccupancySafetyAsync(trip);
     }
 
     void OnSensorTransitionProcessed()
@@ -637,9 +686,8 @@ public sealed class MovementRuntime
                 executions =
                     _executions.Values.ToArray();
 
-            if (executions.Length == 0)
-                return;
-
+            // Also publish and request E-STOP when no Movement is active.
+            // Reed automation and manual/script-driven trains can still move.
             _log.LogCritical(
                 "{Error} Emergency stop requested.",
                 trip.Reason);
@@ -662,10 +710,17 @@ public sealed class MovementRuntime
                     desiredSpeed:
                         0,
                     info:
-                        trip.Code ==
-                            "target_occupancy_mismatch"
-                            ? "Emergency stop: target occupancy mismatch"
-                            : "Emergency stop: unknown occupancy",
+                        trip.Code switch
+                        {
+                            "target_occupancy_mismatch" =>
+                                "Emergency stop: target occupancy mismatch",
+                            "unexpected_reed_sensor" =>
+                                "Emergency stop: unexpected reed sensor",
+                            "ambiguous_reed_sensor" =>
+                                "Emergency stop: ambiguous reed sensor",
+                            _ =>
+                                "Emergency stop: unknown occupancy"
+                        },
                     setInfo:
                         true,
                     error:
