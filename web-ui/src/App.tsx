@@ -856,6 +856,35 @@ function BackupPage({
 function SettingsPage({ onBack, status }: { onBack: () => void; status: WsConnectionStatus }) {
   useTranslation();
   const [settings, setSettings] = useState<NetworkSettingsDto | null>(null);
+  const [detectionMode, setDetectionMode] = useState<"occupancy" | "reed">("occupancy");
+  const [detectionSaving, setDetectionSaving] = useState(false);
+  const [detectionError, setDetectionError] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/settings/automation", { cache: "no-store" })
+      .then(response => { if (!response.ok) throw new Error("Could not load detection settings"); return response.json(); })
+      .then(data => { if (active) setDetectionMode(data.detectionMode === "reed" ? "reed" : "occupancy"); })
+      .catch(error => { if (active) setDetectionError(String(error)); });
+    return () => { active = false; };
+  }, []);
+  const saveDetectionMode = async (mode: "occupancy" | "reed") => {
+    setDetectionSaving(true);
+    setDetectionError(null);
+    try {
+      const response = await fetch("/api/settings/automation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ detectionMode: mode }),
+      });
+      if (!response.ok) throw new Error("Could not save automation detection mode");
+      setDetectionMode(mode);
+    } catch (error) {
+      setDetectionError(String(error));
+    } finally {
+      setDetectionSaving(false);
+    }
+  };
+
   const [ssid, setSsid] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(true);
@@ -956,6 +985,17 @@ function SettingsPage({ onBack, status }: { onBack: () => void; status: WsConnec
 
       <PageTitle icon={<IconSettings size={24} />} title={i18next.t("ui.settings")} subtitle={i18next.t("ui.deviceAndLocalNetwork")} />
 
+      <Card withBorder radius="xl" p="lg">
+        <Stack gap="sm">
+          <Title order={4}>Automation detection mode</Title>
+          <Text size="sm" c="dimmed">Occupancy requires continuous block feedback. Reed uses the assigned locomotive and logical block reservations, while turnout and route locks remain active.</Text>
+          <Group gap="sm">
+            <Button disabled={detectionSaving} variant={detectionMode === "occupancy" ? "filled" : "outline"} onClick={() => void saveDetectionMode("occupancy")}>Occupancy</Button>
+            <Button disabled={detectionSaving} variant={detectionMode === "reed" ? "filled" : "outline"} onClick={() => void saveDetectionMode("reed")}>Reed / Point</Button>
+          </Group>
+          {detectionError && <Text c="red" size="sm">{detectionError}</Text>}
+        </Stack>
+      </Card>
       <Card withBorder radius="xl" p="lg">
         <Stack gap="md">
           <Group justify="space-between">
