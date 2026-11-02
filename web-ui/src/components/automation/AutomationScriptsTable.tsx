@@ -18,6 +18,7 @@ import {
   Loader,
   Modal,
   ScrollArea,
+  Select,
   Stack,
   Switch,
   Text,
@@ -37,14 +38,22 @@ import {
   IconGripVertical,
   IconPlayerPause,
   IconPlayerPlay,
+  IconRoute,
   IconTrash,
   IconX,
 } from "@tabler/icons-react";
 
 import {
+  createAutomationId,
   saveAutomationScripts,
   type AutomationScriptDefinition,
 } from "../../services/automationApi";
+import type { SerializedLayoutDto } from "../../domain/layout/layoutDto";
+import {
+  generateScriptFromRoute,
+  listScriptRoutes,
+  type ScriptRouteOption,
+} from "../../services/scriptRouteGenerator";
 
 import {
   abortAllSavedClientScripts,
@@ -1065,6 +1074,67 @@ export default function AutomationScriptsTable({
   const commandCenter =
     useCommandCenter();
 
+  const [generateOpened, setGenerateOpened] = useState(false);
+  const [generateLoading, setGenerateLoading] = useState(false);
+  const [generateSaving, setGenerateSaving] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+  const [generateLayout, setGenerateLayout] = useState<SerializedLayoutDto | null>(null);
+  const [generateRoutes, setGenerateRoutes] = useState<ScriptRouteOption[]>([]);
+  const [generateRouteId, setGenerateRouteId] = useState<string | null>(null);
+
+  const openRouteGenerator = async () => {
+    setGenerateOpened(true);
+    setGenerateLoading(true);
+    setGenerateError(null);
+    setGenerateLayout(null);
+    setGenerateRoutes([]);
+    setGenerateRouteId(null);
+    try {
+      const response = await fetch("/api/layout", { cache: "no-store" });
+      if (!response.ok) throw new Error(`Cannot load layout (${response.status}).`);
+      const layout = await response.json() as SerializedLayoutDto;
+      const routes = listScriptRoutes(layout);
+      if (!routes.length) throw new Error("No usable routes found. Generate and save the route graph first.");
+      setGenerateLayout(layout);
+      setGenerateRoutes(routes);
+      setGenerateRouteId(routes[0]!.id);
+    } catch (error) {
+      setGenerateError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setGenerateLoading(false);
+    }
+  };
+
+  const createFromRoute = async () => {
+    const choice = generateRoutes.find(route => route.id === generateRouteId);
+    if (!generateLayout || !choice) return;
+    setGenerateSaving(true);
+    setGenerateError(null);
+    try {
+      const script = generateScriptFromRoute(generateLayout, choice);
+      const next = [...scripts, {
+        id: createAutomationId(),
+        name: `Route: ${choice.path}`,
+        script,
+        startWithAll: false, // Generated scripts require explicit review and start.
+        enabled: true,
+        autoStart: false,
+      }];
+      await saveAutomationScripts(next);
+      onScriptsChange(next);
+      setGenerateOpened(false);
+      showNotification({
+        color: "green",
+        title: "Script generated",
+        message: `Review and edit the generated ${choice.path} script before running it.`,
+      });
+    } catch (error) {
+      setGenerateError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setGenerateSaving(false);
+    }
+  };
+
   const [
     draggedScriptId,
     setDraggedScriptId,
@@ -1809,6 +1879,15 @@ export default function AutomationScriptsTable({
               )
             }
           </Button>
+          <Button
+            size="xs"
+            variant="light"
+            leftSection={<IconRoute size={15} />}
+            disabled={!editorsEnabled}
+            onClick={() => void openRouteGenerator()}
+          >
+            Generate from route
+          </Button>
         </Group>
       </Group>
 
@@ -1962,6 +2041,50 @@ export default function AutomationScriptsTable({
           </Text>
         )}
       </ScrollArea>
+
+      <Modal
+        opened={generateOpened}
+        onClose={() => { if (!generateSaving) setGenerateOpened(false); }}
+        title="Generate script from route"
+        centered
+        size="lg"
+      >
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            Select a saved route. The generated script checks the next block
+            and its target reservation, sets the required turnouts under
+            SwitchMan, waits for the destination sensor, then calls setBlock.
+            Review the script before using it on a layout.
+          </Text>
+          {generateLoading ? <Loader size="sm" /> : (
+            <Select
+              label="Route"
+              searchable
+              data={generateRoutes.map(route => ({ value: route.id, label: route.label }))}
+              value={generateRouteId}
+              onChange={setGenerateRouteId}
+              disabled={generateSaving || !generateRoutes.length}
+              placeholder="Select A1 → B1 → C1..."
+            />
+          )}
+          {generateError && (
+            <Alert color="red" title="Cannot generate script">{generateError}</Alert>
+          )}
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setGenerateOpened(false)} disabled={generateSaving}>
+              Cancel
+            </Button>
+            <Button
+              leftSection={<IconRoute size={15} />}
+              loading={generateSaving}
+              disabled={!generateLayout || !generateRouteId || generateLoading}
+              onClick={() => void createFromRoute()}
+            >
+              Generate script
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   );
 }
