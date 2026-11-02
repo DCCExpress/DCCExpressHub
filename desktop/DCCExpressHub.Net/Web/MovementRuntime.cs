@@ -3281,6 +3281,33 @@ public sealed class MovementRuntime
                 50,
                 execution.Cancellation.Token);
 
+            // An ARRIVED point event is authoritative in reed mode even at
+            // the FINAL block. Commit the destination before any final-stop
+            // command or user ARRIVED action can delay completion. Previously
+            // only intermediate legs committed here, leaving the last target
+            // orange (reserved) until all the final actions and LEAVE steps
+            // completed.
+            if (_layout.ReedDetectionMode &&
+                leg.To.BlockId is >= 1 and <= 65535)
+            {
+                if (!_layout.SetBlock(
+                        (ushort)leg.To.BlockId.Value,
+                        "",
+                        (ushort)execution.LocoAddress))
+                    throw new InvalidOperationException(
+                        "movement_destination_commit_failed");
+
+                execution.CurrentBlockId = leg.To.BlockId;
+                execution.TargetBlockId = null;
+                destinationCommitted = true;
+
+                if (leg.From.BlockId is >= 1 and <= 65535 &&
+                    leg.From.BlockId != leg.To.BlockId)
+                    _layout.RemoveBlock(
+                        (ushort)leg.From.BlockId.Value,
+                        expectedLocoAddress: (ushort)execution.LocoAddress);
+            }
+
             if (finalLeg)
             {
                 // ARRIVED blocking actions are allowed to roll the train a bit
@@ -3319,7 +3346,8 @@ public sealed class MovementRuntime
                  * the train may already be safely inside B1 while A1's leave
                  * detector/action is still catching up.
                  */
-                if (leg.To.BlockId is >= 1 and <= 65535)
+                if (!destinationCommitted &&
+                    leg.To.BlockId is >= 1 and <= 65535)
                 {
                     if (!_layout.SetBlock(
                             (ushort)leg.To.BlockId.Value,
@@ -3328,27 +3356,9 @@ public sealed class MovementRuntime
                         throw new InvalidOperationException(
                             "movement_destination_commit_failed");
 
-                    execution.CurrentBlockId =
-                        leg.To.BlockId;
-
-                    execution.TargetBlockId =
-                        null;
-
-                    destinationCommitted =
-                        true;
-
-                    // Reed contacts only report a passing point. Once the
-                    // destination is committed, transfer the assigned loco
-                    // immediately instead of waiting for a source sensor OFF
-                    // / LEAVE event that may never happen in point mode.
-                    if (_layout.ReedDetectionMode &&
-                        leg.From.BlockId is >= 1 and <= 65535 &&
-                        leg.From.BlockId != leg.To.BlockId)
-                    {
-                        _layout.RemoveBlock(
-                            (ushort)leg.From.BlockId.Value,
-                            expectedLocoAddress: (ushort)execution.LocoAddress);
-                    }
+                    execution.CurrentBlockId = leg.To.BlockId;
+                    execution.TargetBlockId = null;
+                    destinationCommitted = true;
                 }
 
                 /*
