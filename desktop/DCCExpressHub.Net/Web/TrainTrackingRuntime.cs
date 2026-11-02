@@ -1004,7 +1004,8 @@ public sealed class TrainTrackingRuntime
                     current?.CurrentBlockId !=
                     blockId;
 
-                if (current is not null &&
+                if (!_layout.ReedDetectionMode &&
+                    current is not null &&
                     blockChanged &&
                     _movement.IsLocoManaged(
                         locoAddress) &&
@@ -1031,7 +1032,7 @@ public sealed class TrainTrackingRuntime
                     continue;
                 }
 
-                if (blockChanged)
+                if (blockChanged || _layout.ReedDetectionMode)
                     _committedRoutes.Remove(
                         locoAddress);
 
@@ -1054,7 +1055,19 @@ public sealed class TrainTrackingRuntime
                     BlockName(
                         blockId);
 
-                if (sensor > 0 &&
+                if (_layout.ReedDetectionMode)
+                {
+                    // In point-detector mode, SetBlock is authoritative.
+                    // Neither retained ON inputs nor a previous inferred
+                    // section may be presented as physical occupancy.
+                    state.CurrentSensors.Clear();
+                    state.CurrentSectionParts.Clear();
+                    if (blockChanged)
+                        state.LastSensor = null; // Updated only by an actual ON report.
+                    state.Confidence = "certain";
+                    state.UpdatedAt = NowMs();
+                }
+                else if (sensor > 0 &&
                     (blockChanged ||
                      !state.LastSensor.HasValue))
                 {
@@ -1758,6 +1771,37 @@ public sealed class TrainTrackingRuntime
                     on;
             }
 
+            if (_layout.ReedDetectionMode)
+            {
+                // LayoutRuntime has already promoted any reserved target on
+                // this ON report and emitted blockStateChanged. Do not run
+                // graph/direction/turnout inference or emit misleading
+                // "no moving locomotive matches" warnings in reed mode.
+                if (on)
+                {
+                    var blockId = _blockSensorToId.GetValueOrDefault(address.Value);
+                    var assigned = ReadBlockAssignments();
+                    lock (_gate)
+                    {
+                        if (blockId > 0 &&
+                            assigned.TryGetValue(blockId, out var block) &&
+                            block.LocoAddress > 0 &&
+                            _tracking.TryGetValue(block.LocoAddress, out var state) &&
+                            state.CurrentBlockId == blockId)
+                        {
+                            state.LastSensor = address.Value;
+                            AddRecentSensor(state, address.Value);
+                            state.CurrentSensors.Clear();
+                            state.CurrentSectionParts.Clear();
+                            state.Confidence = "certain";
+                            state.UpdatedAt = NowMs();
+                        }
+                    }
+                }
+                Publish();
+                return;
+            }
+
             if (!previous.HasValue ||
                 previous.Value ==
                     on)
@@ -1807,6 +1851,15 @@ public sealed class TrainTrackingRuntime
 
     void SyncPredictions()
     {
+        // Reed mode's only authoritative next-block information is the
+        // Dispatcher target reservation, not a guessed graph route.
+        // Read once per snapshot, never interpret point contact ON as
+        // sustained occupancy.
+        var reedTargets = _layout.ReedDetectionMode
+            ? _layout.BlocksForPersistence()
+                .Where(block => block.TargetOnly && block.TargetLocoAddress > 0)
+                .ToArray()
+            : [];
         foreach (var state in
                  _tracking.Values)
         {
@@ -1814,6 +1867,24 @@ public sealed class TrainTrackingRuntime
                 null;
             state.PredictedNextBlockName =
                 null;
+
+            if (_layout.ReedDetectionMode)
+            {
+                if (_enabled && state.CurrentBlockId.HasValue)
+                {
+                    var targetBlocks = reedTargets
+                        .Where(block => block.TargetLocoAddress == state.LocoAddress &&
+                                        block.Id != state.CurrentBlockId)
+                        .Take(2)
+                        .ToArray();
+                    if (targetBlocks.Length == 1)
+                    {
+                        state.PredictedNextBlockId = targetBlocks[0].Id;
+                        state.PredictedNextBlockName = BlockName(targetBlocks[0].Id);
+                    }
+                }
+                continue;
+            }
 
             if (!_enabled ||
                 !_ready ||
