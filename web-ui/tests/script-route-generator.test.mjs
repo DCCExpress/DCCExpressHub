@@ -2,8 +2,12 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { load } from "./editor-test-runtime.mjs";
 
-const { listScriptRoutes, generateScriptFromRoute } =
-  await load("services/scriptRouteGenerator");
+const {
+  filterScriptRoutes,
+  generateScriptFromRoute,
+  listScriptRoutes,
+  scriptRouteBlockFilterOptions,
+} = await load("services/scriptRouteGenerator");
 
 const layout = {
   layers: [{
@@ -69,4 +73,47 @@ test("missing destination contact fails generation instead of producing an unsaf
     () => generateScriptFromRoute(invalid, listScriptRoutes(invalid)[0]),
     /Missing block sensor in C1/,
   );
+});
+
+test("FROM and TO filters independently select only matching saved routes", () => {
+  const input = structuredClone(layout);
+  const base = input.routeTopology.routeTable[0];
+  input.routeTopology.routeTable.push({
+    ...structuredClone(base),
+    fromBlockId: 2,
+    fromBlockName: "B1",
+    blockPath: base.blockPath.slice(1),
+    edgePath: base.edgePath.slice(2),
+  });
+  input.routeTopology.routeTable.push({
+    ...structuredClone(base),
+    fromBlockId: 1,
+    fromBlockName: "A1",
+    toBlockId: 2,
+    toBlockName: "B1",
+    blockPath: base.blockPath.slice(0, 2),
+    edgePath: base.edgePath.slice(0, 2),
+  });
+
+  const routes = listScriptRoutes(input);
+  assert.equal(routes.length, 3);
+  assert.deepEqual(scriptRouteBlockFilterOptions(routes, "from"), [
+    { value: "1", label: "A1" },
+    { value: "2", label: "B1" },
+  ]);
+  assert.deepEqual(scriptRouteBlockFilterOptions(routes, "to"), [
+    { value: "2", label: "B1" },
+    { value: "3", label: "C1" },
+  ]);
+  assert.equal(filterScriptRoutes(routes, null, null).length, 3);
+  assert.deepEqual(filterScriptRoutes(routes, "1", null).map(route => route.path), [
+    "A1 → B1 → C1", "A1 → B1",
+  ]);
+  assert.deepEqual(filterScriptRoutes(routes, null, "3").map(route => route.path), [
+    "A1 → B1 → C1", "B1 → C1",
+  ]);
+  assert.deepEqual(filterScriptRoutes(routes, "1", "3").map(route => route.path), [
+    "A1 → B1 → C1",
+  ]);
+  assert.deepEqual(filterScriptRoutes(routes, "2", "2"), []);
 });
