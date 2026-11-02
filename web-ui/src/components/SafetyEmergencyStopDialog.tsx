@@ -77,14 +77,13 @@ export default function SafetyEmergencyStopDialog() {
   );
 
   const reasonLabel =
-    trip?.code ===
-      "target_occupancy_mismatch"
-      ? i18next.t(
-          "ui.safetyTargetOccupancyMismatch"
-        )
-      : i18next.t(
-          "ui.safetyUnknownOccupancy"
-        );
+    trip?.code === "target_occupancy_mismatch"
+      ? i18next.t("ui.safetyTargetOccupancyMismatch")
+      : trip?.code === "unexpected_reed_sensor"
+        ? i18next.t("ui.safetyUnexpectedReedSensor")
+        : trip?.code === "ambiguous_reed_sensor"
+          ? i18next.t("ui.safetyAmbiguousReedSensor")
+          : i18next.t("ui.safetyUnknownOccupancy");
 
   const close =
     (): void => {
