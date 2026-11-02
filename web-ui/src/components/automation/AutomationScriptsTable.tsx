@@ -19,7 +19,6 @@ import {
   Loader,
   Modal,
   ScrollArea,
-  Select,
   Radio,
   Stack,
   Table,
@@ -56,7 +55,6 @@ import {
   filterScriptRoutes,
   generateScriptFromRoute,
   listScriptRoutes,
-  scriptRouteBlockFilterOptions,
   type ScriptRouteOption,
 } from "../../services/scriptRouteGenerator";
 
@@ -1086,15 +1084,13 @@ export default function AutomationScriptsTable({
   const [generateLayout, setGenerateLayout] = useState<SerializedLayoutDto | null>(null);
   const [generateRoutes, setGenerateRoutes] = useState<ScriptRouteOption[]>([]);
   const [generateRouteId, setGenerateRouteId] = useState<string | null>(null);
-  const [generateFromBlockId, setGenerateFromBlockId] = useState<string | null>(null);
-  const [generateToBlockId, setGenerateToBlockId] = useState<string | null>(null);
+  const [generateFromFilter, setGenerateFromFilter] = useState("");
+  const [generateToFilter, setGenerateToFilter] = useState("");
 
-  const generateFromOptions = scriptRouteBlockFilterOptions(generateRoutes, "from");
-  const generateToOptions = scriptRouteBlockFilterOptions(generateRoutes, "to");
   const generateVisibleRoutes = filterScriptRoutes(
     generateRoutes,
-    generateFromBlockId,
-    generateToBlockId,
+    generateFromFilter,
+    generateToFilter,
   );
   // Generate only from a row visible under the current filters.
   const selectedGenerateRoute =
@@ -1107,8 +1103,8 @@ export default function AutomationScriptsTable({
     setGenerateLayout(null);
     setGenerateRoutes([]);
     setGenerateRouteId(null);
-    setGenerateFromBlockId(null);
-    setGenerateToBlockId(null);
+    setGenerateFromFilter("");
+    setGenerateToFilter("");
     try {
       const response = await fetch("/api/layout", { cache: "no-store" });
       if (!response.ok) throw new Error(`Cannot load layout (${response.status}).`);
@@ -2079,28 +2075,22 @@ export default function AutomationScriptsTable({
           {generateLoading ? <Loader size="sm" /> : (
             <>
               <Group grow align="flex-end" gap="sm">
-                <Select
+                <TextInput
                   label="FROM block filter"
-                  placeholder="All FROM blocks"
-                  searchable
-                  clearable
-                  data={generateFromOptions}
-                  value={generateFromBlockId}
-                  onChange={value => {
-                    setGenerateFromBlockId(value);
+                  placeholder="Type e.g. A1"
+                  value={generateFromFilter}
+                  onChange={event => {
+                    setGenerateFromFilter(event.currentTarget.value);
                     setGenerateRouteId(null);
                   }}
                   disabled={generateSaving || !generateRoutes.length}
                 />
-                <Select
+                <TextInput
                   label="TO block filter"
-                  placeholder="All TO blocks"
-                  searchable
-                  clearable
-                  data={generateToOptions}
-                  value={generateToBlockId}
-                  onChange={value => {
-                    setGenerateToBlockId(value);
+                  placeholder="Type e.g. C1"
+                  value={generateToFilter}
+                  onChange={event => {
+                    setGenerateToFilter(event.currentTarget.value);
                     setGenerateRouteId(null);
                   }}
                   disabled={generateSaving || !generateRoutes.length}
