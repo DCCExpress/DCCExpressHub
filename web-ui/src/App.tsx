@@ -363,15 +363,13 @@ function HomePage({
           </Text>
         </Card>
 
-        {/* <Card className="action-card" withBorder radius={5} p="lg" onClick={() => onNavigate("settings")}>
+        <Card className="action-card" withBorder radius={5} p="lg" onClick={() => onNavigate("settings")}>
           <ThemeIcon size={48} radius="lg" color="indigo" variant="light">
-            <IconRouter size={27} />
+            <IconSettings size={27} />
           </ThemeIcon>
-          <Title order={4} mt="md">{t("homeHub.cards.network.title")}</Title>
-          <Text size="sm" c="dimmed" mt={4}>
-            {t("homeHub.cards.network.description")}
-          </Text>
-        </Card> */}
+          <Title order={4} mt="md">Settings</Title>
+          <Text size="sm" c="dimmed">Automation detection mode · Occupancy / Reed</Text>
+        </Card>
 
         {/* <Card className="action-card" withBorder radius={5} p="lg" onClick={() => onNavigate("device-config")}>
           <ThemeIcon size={48} radius="lg" color="blue" variant="light">
