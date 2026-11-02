@@ -6,7 +6,6 @@ const {
   filterScriptRoutes,
   generateScriptFromRoute,
   listScriptRoutes,
-  scriptRouteBlockFilterOptions,
 } = await load("services/scriptRouteGenerator");
 
 const layout = {
@@ -97,23 +96,18 @@ test("FROM and TO filters independently select only matching saved routes", () =
 
   const routes = listScriptRoutes(input);
   assert.equal(routes.length, 3);
-  assert.deepEqual(scriptRouteBlockFilterOptions(routes, "from"), [
-    { value: "1", label: "A1" },
-    { value: "2", label: "B1" },
-  ]);
-  assert.deepEqual(scriptRouteBlockFilterOptions(routes, "to"), [
-    { value: "2", label: "B1" },
-    { value: "3", label: "C1" },
-  ]);
-  assert.equal(filterScriptRoutes(routes, null, null).length, 3);
-  assert.deepEqual(filterScriptRoutes(routes, "1", null).map(route => route.path), [
+  assert.equal(filterScriptRoutes(routes, "", "").length, 3);
+  assert.deepEqual(filterScriptRoutes(routes, "A1", "").map(route => route.path), [
     "A1 → B1 → C1", "A1 → B1",
   ]);
-  assert.deepEqual(filterScriptRoutes(routes, null, "3").map(route => route.path), [
+  assert.deepEqual(filterScriptRoutes(routes, "", "C1").map(route => route.path), [
     "A1 → B1 → C1", "B1 → C1",
   ]);
-  assert.deepEqual(filterScriptRoutes(routes, "1", "3").map(route => route.path), [
+  assert.deepEqual(filterScriptRoutes(routes, "a", "c").map(route => route.path), [
     "A1 → B1 → C1",
   ]);
-  assert.deepEqual(filterScriptRoutes(routes, "2", "2"), []);
+  assert.deepEqual(filterScriptRoutes(routes, "  A1 ", " c1 ").map(route => route.path), [
+    "A1 → B1 → C1",
+  ]);
+  assert.deepEqual(filterScriptRoutes(routes, "B1", "B1"), []);
 });
