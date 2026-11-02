@@ -2154,8 +2154,12 @@ export default function AutomationScriptsTable({
                           <Table.Td>{via || "—"}</Table.Td>
                           <Table.Td>{route.route.toBlockName}</Table.Td>
                           <Table.Td>
-                            <Badge size="xs" variant="light">
-                              {route.direction}
+                            <Badge
+                              size="xs"
+                              variant="light"
+                              color={route.direction === "reverse" ? "orange" : "blue"}
+                            >
+                              {i18next.t(route.direction === "reverse" ? "ui.reverse" : "ui.forward")}
                             </Badge>
                           </Table.Td>
                           <Table.Td>
