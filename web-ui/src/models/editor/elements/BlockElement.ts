@@ -346,6 +346,8 @@ export class BlockElement extends TrackElement {
     const displayLocoAddress =
       hasAssignedLoco
         ? this.locoAddress
+        : BlockElement.reedDetectionMode
+          ? 0
         : this.runtimeTransitLocoAddress > 0
           ? this.runtimeTransitLocoAddress
           : trackingPrediction?.locoAddress ?? 0;
