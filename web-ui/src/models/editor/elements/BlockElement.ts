@@ -198,6 +198,7 @@ function normalizeBlockEventConfig(
 }
 
 export class BlockElement extends TrackElement {
+  static reedDetectionMode = false;
   text: string = "HELLO";
   textColor: string = "black";
   locoAddress: number = 0;
@@ -308,7 +309,7 @@ export class BlockElement extends TrackElement {
       );
 
     const sensorOccupied =
-      this.isSensorAddressOccupied(
+      !BlockElement.reedDetectionMode && this.isSensorAddressOccupied(
         this.sensorAddress
       );
 
