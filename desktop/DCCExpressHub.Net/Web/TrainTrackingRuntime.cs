@@ -1779,10 +1779,10 @@ public sealed class TrainTrackingRuntime
                 // "no moving locomotive matches" warnings in reed mode.
                 if (on)
                 {
-                    var blockId = _blockSensorToId.GetValueOrDefault(address.Value);
                     var assigned = ReadBlockAssignments();
                     lock (_gate)
                     {
+                        var blockId = _blockSensorToId.GetValueOrDefault(address.Value);
                         if (blockId > 0 &&
                             assigned.TryGetValue(blockId, out var block) &&
                             block.LocoAddress > 0 &&
@@ -1859,7 +1859,7 @@ public sealed class TrainTrackingRuntime
             ? _layout.BlocksForPersistence()
                 .Where(block => block.TargetOnly && block.TargetLocoAddress > 0)
                 .ToArray()
-            : [];
+            : Array.Empty<RuntimeBlock>();
         foreach (var state in
                  _tracking.Values)
         {
