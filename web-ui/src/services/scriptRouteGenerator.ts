@@ -47,6 +47,39 @@ export function listScriptRoutes(layout: SerializedLayoutDto): ScriptRouteOption
     }));
 }
 
+export type ScriptRouteFilterOption = { value: string; label: string };
+
+export function scriptRouteBlockFilterOptions(
+  routes: readonly ScriptRouteOption[],
+  endpoint: "from" | "to",
+): ScriptRouteFilterOption[] {
+  const options = new Map<number, string>();
+  for (const choice of routes) {
+    const route = choice.route;
+    const id = endpoint === "from" ? route.fromBlockId : route.toBlockId;
+    const name = endpoint === "from" ? route.fromBlockName : route.toBlockName;
+    if (Number.isInteger(id) && id > 0) {
+      options.set(id, String(name || `Block #${id}`));
+    }
+  }
+  return [...options].map(([id, name]) => ({
+    value: String(id),
+    label: name,
+  })).sort((a, b) =>
+    a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: "base" }) ||
+    Number(a.value) - Number(b.value));
+}
+
+export function filterScriptRoutes(
+  routes: readonly ScriptRouteOption[],
+  fromBlockId: string | null,
+  toBlockId: string | null,
+): ScriptRouteOption[] {
+  return routes.filter(choice =>
+    (fromBlockId === null || String(choice.route.fromBlockId) === fromBlockId) &&
+    (toBlockId === null || String(choice.route.toBlockId) === toBlockId));
+}
+
 /** Generate an editable script; it is never executed by this function. */
 export function generateScriptFromRoute(
   layout: SerializedLayoutDto,
