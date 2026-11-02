@@ -1475,19 +1475,6 @@ public sealed class DispatcherRuntime
                     null);
         }
 
-        var sourceError =
-            ValidateSourceBlock(
-                lease.FromBlockId,
-                lease.LocoAddress);
-
-        if (sourceError is not null)
-            return new(
-                false,
-                sourceError,
-                lease,
-                BlockingBlock:
-                    lease.FromBlockId);
-
         var destination =
             FindBlock(
                 lease.ToBlockId);
@@ -1500,11 +1487,36 @@ public sealed class DispatcherRuntime
                 BlockingBlock:
                     lease.ToBlockId);
 
-        if (destination.LocoAddress != 0 ||
-            !string.Equals(
-                destination.LocoId,
-                lease.TargetMarker,
-                StringComparison.Ordinal))
+        // A reed ON report can promote our own target reservation to a real
+        // loco assignment before the Movement coroutine observes ARRIVED.
+        // That also clears the locomotive from its old source block.
+        // This is a valid arrival, not lost source/target authority.
+        var reedArrivalCommitted =
+            _runtime.ReedDetectionMode &&
+            destination.LocoAddress == lease.LocoAddress;
+
+        if (!reedArrivalCommitted)
+        {
+            var sourceError =
+                ValidateSourceBlock(
+                    lease.FromBlockId,
+                    lease.LocoAddress);
+
+            if (sourceError is not null)
+                return new(
+                    false,
+                    sourceError,
+                    lease,
+                    BlockingBlock:
+                        lease.FromBlockId);
+        }
+
+        if (!reedArrivalCommitted &&
+            (destination.LocoAddress != 0 ||
+             !string.Equals(
+                 destination.LocoId,
+                 lease.TargetMarker,
+                 StringComparison.Ordinal)))
             return new(
                 false,
                 "destination_target_lost",
