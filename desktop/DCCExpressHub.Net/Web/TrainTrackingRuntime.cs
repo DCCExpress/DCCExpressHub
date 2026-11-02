@@ -681,13 +681,14 @@ public sealed class TrainTrackingRuntime
                 issues.Add(
                     "Block \"" +
                     pair.Value +
-                    "\" has no occupancy sensor.");
+                    (_layout.ReedDetectionMode ? "\" has no point sensor." : "\" has no occupancy sensor."));
 
-        if (_routes.Count == 0)
+        if (!_layout.ReedDetectionMode && _routes.Count == 0)
             issues.Add(
                 "Route graph has no routes.");
 
-        if (topology.HasValue &&
+        if (!_layout.ReedDetectionMode &&
+            topology.HasValue &&
             topology.Value.ValueKind ==
                 JsonValueKind.Object &&
             topology.Value.TryGetProperty(
