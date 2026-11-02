@@ -209,6 +209,21 @@ public sealed class LayoutRuntime
         }
     }
 
+    public bool SaveDetectionMode(string mode)
+    {
+        if (mode is not ("occupancy" or "reed")) return false;
+        try
+        {
+            var path = Path.Combine(_env.ConfigRootPath, "automation-detection.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            var temp = path + ".tmp";
+            File.WriteAllText(temp, JsonSerializer.Serialize(new { detectionMode = mode }));
+            File.Move(temp, path, true);
+            return true;
+        }
+        catch { return false; }
+    }
+
     public LayoutRuntime(AppPaths env)
     {
         _env = env;
