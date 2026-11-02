@@ -1324,6 +1324,10 @@ public sealed class LayoutRuntime
     {
         bool changed = false;
         CancellationTokenSource? pendingOff = null;
+        var reedMode = ReedDetectionMode;
+        ushort targetBlockId = 0;
+        ushort targetLocoAddress = 0;
+        string? expectedTargetMarker = null;
 
         lock (_gate)
         {
@@ -1347,10 +1351,48 @@ public sealed class LayoutRuntime
                 // an occupied state for sensors which have never reported ON.
                 changed = !_sensorStates.TryGetValue(address, out var old) || old != on;
                 _sensorStates[address] = on;
-                if (changed && on)
+            }
+
+            if (on)
+            {
+                // A repeated ON report is still a valid reed contact report.
+                // Record every ON in reed mode, even if the input was already
+                // ON (for example, a simulator toggle or repeated feedback).
+                if (reedMode || changed)
                     _sensorOnGenerations[address] = ++_sensorOnSequence;
+
+                if (reedMode)
+                {
+                    // A target marker carries the authoritative expected
+                    // locomotive. Convert ONLY the unambiguous reserved block,
+                    // never guess a loco for an unreserved/occupied block.
+                    var targets = _blocks
+                        .Where(block =>
+                            block.SensorAddress == address &&
+                            block.TargetOnly &&
+                            block.TargetLocoAddress > 0)
+                        .Take(2)
+                        .ToArray();
+                    if (targets.Length == 1)
+                    {
+                        targetBlockId = targets[0].Id;
+                        targetLocoAddress = targets[0].TargetLocoAddress;
+                        expectedTargetMarker = targets[0].LocoId;
+                    }
+                }
             }
         }
+
+        // Commit the target as soon as its reed reports ON. SetBlock clears
+        // the same locomotive from every previous block. Recheck the marker
+        // atomically within SetBlock: a stale sensor event must not overwrite
+        // a target that was reassigned in the meantime.
+        if (targetBlockId > 0 && expectedTargetMarker is not null)
+            SetBlock(
+                targetBlockId,
+                "",
+                targetLocoAddress,
+                expectedTargetMarker);
 
         if (pendingOff is not null)
             _ = ConfirmSensorOffAsync(address, pendingOff);
@@ -1395,7 +1437,11 @@ public sealed class LayoutRuntime
         }
     }
 
-    public bool SetBlock(ushort id, string locoId, ushort locoAddress)
+    public bool SetBlock(
+        ushort id,
+        string locoId,
+        ushort locoAddress,
+        string? expectedTargetMarker = null)
     {
         bool changed = false;
 
@@ -1403,6 +1449,15 @@ public sealed class LayoutRuntime
         {
             var target = _blocks.FirstOrDefault(x => x.Id == id);
             if (target is null)
+                return false;
+
+            if (expectedTargetMarker is not null &&
+                (!target.TargetOnly ||
+                 !string.Equals(
+                     target.LocoId,
+                     expectedTargetMarker,
+                     StringComparison.Ordinal) ||
+                 target.TargetLocoAddress != locoAddress))
                 return false;
 
             bool clearing = string.IsNullOrEmpty(locoId) && locoAddress == 0;
