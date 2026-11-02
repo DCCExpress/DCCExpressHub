@@ -1023,16 +1023,20 @@ public sealed class MovementRuntime
     }
 
     bool ArrivalSatisfied(
-        MovementPlanLegModel leg)
+        MovementPlanLegModel leg,
+        long reedArrivalBaseline)
     {
+        // A point sensor is an event, not persistent block occupancy.
+        // Require a NEW ON edge after this leg starts. The generation counter
+        // latches even short pulses between Movement polling iterations.
+        if (_layout.ReedDetectionMode)
+            return leg.To.SensorAddress is >= 1 and <= 65535 &&
+                   _layout.SensorOnGeneration((ushort)leg.To.SensorAddress.Value) >
+                   reedArrivalBaseline;
+
         if (!ConditionsSatisfied(
                 leg.ArrivedWhen))
             return false;
-
-        // In reed mode a point-detector ON edge is the arrival event; it does
-        // not imply persistent physical occupancy of the destination block.
-        if (_layout.ReedDetectionMode)
-            return true;
 
         // A Movement may have additional/custom arrival conditions, but the
         // destination block itself must physically become occupied as well.
@@ -2297,6 +2301,11 @@ public sealed class MovementRuntime
         MovementPlanLegModel leg,
         BlockLeaveState state)
     {
+        // Point sensors cannot prove the trailing end has left a block.
+        // Emit LEAVE only after a confirmed destination arrival.
+        if (_layout.ReedDetectionMode)
+            return;
+
         if (state.Fired ||
             leg.LeaveWhen.Length == 0)
             return;
@@ -2365,6 +2374,9 @@ public sealed class MovementRuntime
         MovementPlanLegModel leg,
         BlockLeaveState state)
     {
+        if (_layout.ReedDetectionMode)
+            return;
+
         if (state.Fired ||
             leg.LeaveWhen.Length == 0)
             return;
@@ -2974,6 +2986,10 @@ public sealed class MovementRuntime
                 "starting",
                 leg.From);
 
+            var reedArrivalBaseline = _layout.ReedDetectionMode &&
+                leg.To.SensorAddress is >= 1 and <= 65535
+                    ? _layout.SensorOnGeneration((ushort)leg.To.SensorAddress.Value)
+                    : 0;
             execution.Moving = true;
             await ApplySpeed(execution, force: true);
 
@@ -3040,7 +3056,12 @@ public sealed class MovementRuntime
             var pendingTurnouts =
                 new List<MovementPlanResourceModel>();
 
-            foreach (var resource in leg.Resources)
+            // In reed mode intermediate section detectors are not continuous
+            // occupancy signals. Do not block a leg on those sensors or emit
+            // speculative resource entry events before the destination reed.
+            foreach (var resource in _layout.ReedDetectionMode
+                         ? Array.Empty<MovementPlanResourceModel>()
+                         : leg.Resources)
             {
                 execution.Cancellation.Token.ThrowIfCancellationRequested();
 
@@ -3155,12 +3176,18 @@ public sealed class MovementRuntime
                 }
             }
 
-            if (leg.ArrivedWhen.Length == 0)
+            if (!_layout.ReedDetectionMode && leg.ArrivedWhen.Length == 0)
                 throw new InvalidOperationException(
                     "movement_destination_has_no_arrival_condition");
 
+            if (_layout.ReedDetectionMode &&
+                leg.To.SensorAddress is not (>= 1 and <= 65535))
+                throw new InvalidOperationException(
+                    "reed_destination_sensor_missing");
+
             while (!ArrivalSatisfied(
-                       leg))
+                       leg,
+                       reedArrivalBaseline))
             {
                 execution.Cancellation.Token.ThrowIfCancellationRequested();
 
@@ -3514,7 +3541,7 @@ public sealed class MovementRuntime
             await DrainReadyResourceLeaves(
                 execution);
 
-            if (leg.LeaveWhen.Length == 0)
+            if (_layout.ReedDetectionMode || leg.LeaveWhen.Length == 0)
             {
                 await RunBlockLeaveFallback(
                     execution,
@@ -4166,6 +4193,23 @@ public sealed class MovementRuntime
                     "and wait for a fresh sensor report after Power ON.");
         }
 
+        if (_layout.ReedDetectionMode)
+        {
+            // Reed mode still requires an actual destination contact, but
+            // does not require an initial ON/OFF snapshot of that contact.
+            foreach (var routeBlock in plan.Blocks.Skip(1))
+            {
+                if (routeBlock.BlockId is not (>= 1 and <= 65535) ||
+                    routeBlock.SensorAddress is not (>= 1 and <= 65535) ||
+                    Block(routeBlock.BlockId.Value) is not { } liveBlock ||
+                    liveBlock.SensorAddress != routeBlock.SensorAddress ||
+                    _layout.FindSensor((ushort)routeBlock.SensorAddress.Value) is null)
+                    return (false,
+                        "Reed movement requires a configured destination point sensor for block " +
+                        routeBlock.Name + ". Check the saved route and block sensor address.");
+            }
+        }
+
         var sourceBlock =
             Block(source.BlockId.Value);
 
@@ -4203,8 +4247,8 @@ public sealed class MovementRuntime
             return (false, duplicateSensorError);
         }
 
-        var unknownOccupancy =
-            FindUnknownOccupiedBlock();
+        var unknownOccupancy = _layout.ReedDetectionMode
+            ? null : FindUnknownOccupiedBlock();
 
         if (unknownOccupancy is not null)
         {
