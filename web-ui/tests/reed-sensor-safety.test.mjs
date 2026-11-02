@@ -48,3 +48,20 @@ test("safety dialog identifies reed errors independently from occupancy", () => 
     assert.ok(translations.safetyAmbiguousReedSensor);
   }
 });
+
+test("reed target assignment and source cleanup happen atomically with the sensor event", () => {
+  const sensor = layout.match(/public bool SetSensor\(ushort address, bool on\)([\s\S]*?)async Task ConfirmSensorOffAsync/)?.[1];
+  assert.ok(sensor, "SetSensor implementation must exist");
+  assert.match(sensor, /lock \(_gate\)[\s\S]*reedBlockChanged = AssignBlockLocked\(/);
+  assert.match(sensor, /if \(reedBlockChanged\)\s*Changed\?\.Invoke\("blockStateChanged", BlockSnapshot\(\)\)/);
+  assert.doesNotMatch(sensor, /SetBlock\(\s*targetBlockId/, "do not promote after releasing the sensor lock");
+  assert.match(layout, /bool AssignBlockLocked\(RuntimeBlock target, string locoId, ushort locoAddress\)/);
+  assert.match(layout, /changed = AssignBlockLocked\(target, locoId, locoAddress\)/);
+});
+
+test("Finishing cannot report a successfully completed reed movement with an empty destination", () => {
+  assert.match(movement, /if \(_layout\.ReedDetectionMode &&\s*execution\.CurrentBlockId is >= 1 and <= 65535\)/);
+  assert.match(movement, /arrivedBlock\?\.LocoAddress != execution\.LocoAddress/);
+  assert.match(movement, /reed_arrival_block_assignment_missing/);
+  assert.match(movement, /Reed Movement completed: locomotive/);
+});
