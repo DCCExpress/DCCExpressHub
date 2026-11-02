@@ -100,6 +100,17 @@ public sealed class LayoutRuntime
     // Authoritative physical runtime state.
     // Sensors are NOT reconciled to the layout. They come from <Q> / Q/q.
     readonly Dictionary<ushort, bool> _sensorStates = new();
+    // Monotonic ON-edge generations. Point detection must not miss short pulses
+    // or treat an ON input left over from a previous route as a new arrival.
+    readonly Dictionary<ushort, long> _sensorOnGenerations = new();
+    long _sensorOnSequence;
+
+    public long SensorOnGeneration(ushort address)
+    {
+        lock (_gate)
+            return _sensorOnGenerations.TryGetValue(address, out var value)
+                ? value : 0;
+    }
     // OFF must remain stable for 250 ms; ON is processed immediately.
     int _sensorOffDelayMs = 250;
     int _turnoutCommandIntervalMs = 150;
@@ -1336,6 +1347,8 @@ public sealed class LayoutRuntime
                 // an occupied state for sensors which have never reported ON.
                 changed = !_sensorStates.TryGetValue(address, out var old) || old != on;
                 _sensorStates[address] = on;
+                if (changed && on)
+                    _sensorOnGenerations[address] = ++_sensorOnSequence;
             }
         }
 
