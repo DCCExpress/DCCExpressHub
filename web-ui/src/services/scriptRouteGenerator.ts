@@ -113,7 +113,7 @@ export function generateScriptFromRoute(
     });
   }
 
-// Match typical names such as A1_to_B1, but handle whitespace/accents too.
+  // Match typical names such as A1_to_B1, but handle whitespace/accents too.
   const identifier = (value: string): string => {
     const normalized = value.normalize("NFKD")
       .replace(/[\u0300-\u036f]/g, "")
@@ -192,7 +192,7 @@ export function generateScriptFromRoute(
       "    dcc.setBlockTargetLoco(TO, loco);",
       "",
       "    try {",
-      `      // ===== BEFORE START: ${label} =====`,
+      `      // ===== beforeStart: ${label} =====`,
       "      // Add commands here:",
       "      // await delay(1000);",
       "      // dcc.setLocoFunction(loco, 2, true);",
@@ -206,7 +206,7 @@ export function generateScriptFromRoute(
       "      // In reed mode the sensor may have done this already.",
       "      dcc.setBlock(TO, loco);",
       "",
-      `      // ===== ARRIVED: ${label} =====`,
+      `      // ===== arrived: ${label} =====`,
       "      // Add arrival commands here:",
       "      // dcc.setLocoFunction(loco, 2, false);",
       "      // await delay(2000);",
