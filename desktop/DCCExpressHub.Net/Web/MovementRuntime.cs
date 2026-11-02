@@ -543,6 +543,8 @@ public sealed class MovementRuntime
         if (executions.Length == 0)
             return;
 
+        if (_layout.ReedDetectionMode) return;
+
         // Keep the fail-closed occupancy check. If a live sensor is shared
         // across blocks, report the mapping conflict rather than pretending
         // the event belongs to whichever block was checked first.
@@ -565,8 +567,8 @@ public sealed class MovementRuntime
             return;
         }
 
-        var unknownOccupancy =
-            FindUnknownOccupiedBlock();
+        var unknownOccupancy = _layout.ReedDetectionMode
+            ? null : FindUnknownOccupiedBlock();
 
         if (unknownOccupancy is not null)
         {
@@ -985,7 +987,7 @@ public sealed class MovementRuntime
         if (block.LocoAddress == 0)
             return (true, 0, "source_block_empty");
 
-        if (block.SensorAddress > 0)
+        if (!_layout.ReedDetectionMode && block.SensorAddress > 0)
         {
             if (!_layout.TryGetSensorState(block.SensorAddress, out var on))
                 return (true, block.LocoAddress,
@@ -1026,6 +1028,11 @@ public sealed class MovementRuntime
         if (!ConditionsSatisfied(
                 leg.ArrivedWhen))
             return false;
+
+        // In reed mode a point-detector ON edge is the arrival event; it does
+        // not imply persistent physical occupancy of the destination block.
+        if (_layout.ReedDetectionMode)
+            return true;
 
         // A Movement may have additional/custom arrival conditions, but the
         // destination block itself must physically become occupied as well.
@@ -1131,6 +1138,9 @@ public sealed class MovementRuntime
         MovementPageModel page,
         MovementPlanLegModel leg)
     {
+        if (_layout.ReedDetectionMode)
+            return []; // Dispatcher still guards logical blocks, routes and turnout locks.
+
         var ignored = page.SafetyRules
             .FirstOrDefault(x =>
                 x.FromBlockId == leg.From.BlockId &&
@@ -1174,6 +1184,7 @@ public sealed class MovementRuntime
 
     bool SafetyFree(IEnumerable<ushort> sensors)
     {
+        if (_layout.ReedDetectionMode) return true;
         foreach (var sensor in sensors)
             if (!_layout.TryGetSensorState(sensor, out var on) || on)
                 return false;
@@ -2479,6 +2490,8 @@ public sealed class MovementRuntime
         if (!string.IsNullOrEmpty(target.LocoId))
             return "destination " + leg.To.Name +
                    " still has an occupied block assignment";
+
+        if (_layout.ReedDetectionMode) return null;
 
         foreach (var sensor in sensors)
         {
@@ -4084,7 +4097,7 @@ public sealed class MovementRuntime
             return (false, "movement_source_missing");
 
         var blockWithoutSensor =
-            plan.Blocks.FirstOrDefault(block =>
+            _layout.ReedDetectionMode ? null : plan.Blocks.FirstOrDefault(block =>
                 block.BlockId is >= 1 and <= 65535 &&
                 block.SensorAddress is not
                     (>= 1 and <= 65535));
@@ -4100,7 +4113,9 @@ public sealed class MovementRuntime
         // resolved route (FROM, VIA and TO) needs a real configured occupancy
         // input and a fresh, known value from the command center. A stored
         // block.sensorAddress alone does not prove the sensor exists.
-        foreach (var routeBlock in plan.Blocks.Where(block => block.BlockId.HasValue))
+        foreach (var routeBlock in _layout.ReedDetectionMode
+                     ? Array.Empty<MovementPlanResourceModel>()
+                     : plan.Blocks.Where(block => block.BlockId.HasValue))
         {
             var blockId = routeBlock.BlockId!.Value;
             var liveBlock = Block(blockId);
@@ -4140,16 +4155,17 @@ public sealed class MovementRuntime
             sourceBlock.LocoAddress == 0)
             return (false, "movement_source_loco_missing");
 
-        if (source.SensorAddress is not
+        if (!_layout.ReedDetectionMode && source.SensorAddress is not
             (>= 1 and <= 65535))
             return (
                 false,
                 "movement_source_sensor_missing");
 
-        if (!_layout.TryGetSensorState(
-                (ushort)source.SensorAddress.Value,
+        if (!_layout.ReedDetectionMode &&
+            (!_layout.TryGetSensorState(
+                (ushort)source.SensorAddress!.Value,
                 out var sourceOccupied) ||
-            !sourceOccupied)
+            !sourceOccupied))
             return (
                 false,
                 "Movement cannot start: locomotive #" +
@@ -4160,8 +4176,8 @@ public sealed class MovementRuntime
                 source.SensorAddress.Value +
                 " is not ON.");
 
-        var duplicateSensorError =
-            DuplicateBlockSensorError(_layout.BlocksForPersistence());
+        var duplicateSensorError = _layout.ReedDetectionMode
+            ? null : DuplicateBlockSensorError(_layout.BlocksForPersistence());
 
         if (duplicateSensorError is not null)
         {
