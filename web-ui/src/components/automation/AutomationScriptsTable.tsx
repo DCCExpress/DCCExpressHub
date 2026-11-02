@@ -973,11 +973,7 @@ function ScriptCard({
             >
               {
                 i18next.t(
-                  "ui.delete",
-                  {
-                    defaultValue:
-                      "Delete",
-                  }
+                  "ui.delete2"
                 )
               }
             </Button>
