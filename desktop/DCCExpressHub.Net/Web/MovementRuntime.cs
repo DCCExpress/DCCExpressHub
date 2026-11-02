@@ -3309,6 +3309,19 @@ public sealed class MovementRuntime
 
                     destinationCommitted =
                         true;
+
+                    // Reed contacts only report a passing point. Once the
+                    // destination is committed, transfer the assigned loco
+                    // immediately instead of waiting for a source sensor OFF
+                    // / LEAVE event that may never happen in point mode.
+                    if (_layout.ReedDetectionMode &&
+                        leg.From.BlockId is >= 1 and <= 65535 &&
+                        leg.From.BlockId != leg.To.BlockId)
+                    {
+                        _layout.RemoveBlock(
+                            (ushort)leg.From.BlockId.Value,
+                            expectedLocoAddress: (ushort)execution.LocoAddress);
+                    }
                 }
 
                 /*
