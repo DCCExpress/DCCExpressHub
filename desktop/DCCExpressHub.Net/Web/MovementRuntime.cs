@@ -3989,10 +3989,15 @@ public sealed class MovementRuntime
             if (block.BlockId is not > 0)
                 return (false, int.MaxValue, "missing_route_block");
             var live = Block(block.BlockId.Value);
-            if (live is null || live.SensorAddress == 0 ||
-                !_layout.TryGetSensorState(live.SensorAddress, out var occupied))
+            if (live is null)
+                return (false, int.MaxValue, "route_block_missing");
+            if (!_layout.ReedDetectionMode &&
+                (live.SensorAddress == 0 ||
+                 !_layout.TryGetSensorState(live.SensorAddress, out _)))
                 return (false, int.MaxValue, "route_sensor_unknown");
-            if (occupied || live.Occupied || live.LocoAddress > 0 ||
+            if ((!_layout.ReedDetectionMode &&
+                 _layout.TryGetSensorState(live.SensorAddress, out var occupied) &&
+                 occupied) || live.Occupied || live.LocoAddress > 0 ||
                 live.TargetLocoAddress > 0)
                 return (false, int.MaxValue, "route_block_occupied_or_reserved");
         }
