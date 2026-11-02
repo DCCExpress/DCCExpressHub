@@ -28,7 +28,7 @@ export type AppSettings = {
   general: GeneralSettings;
   commandCenter: ICommandCenter;
   fastClock: FastClockSettings;
-  automation: AutomationSettings;
+  automation?: AutomationSettings;
 };
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
