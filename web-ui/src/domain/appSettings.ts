@@ -17,11 +17,18 @@ export type FastClockSettings = {
   resetTimeMs: number;
 };
 
+export type AutomationDetectionMode = "occupancy" | "reed";
+
+export type AutomationSettings = {
+  detectionMode: AutomationDetectionMode;
+};
+
 export type AppSettings = {
   version: 1;
   general: GeneralSettings;
   commandCenter: ICommandCenter;
   fastClock: FastClockSettings;
+  automation: AutomationSettings;
 };
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
@@ -50,8 +57,13 @@ export const DEFAULT_COMMAND_CENTER_SETTINGS: ICommandCenter = {
   autoConnect: false,
 };
 
+export const DEFAULT_AUTOMATION_SETTINGS: AutomationSettings = {
+  detectionMode: "occupancy",
+};
+
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   version: 1,
+  automation: DEFAULT_AUTOMATION_SETTINGS,
   general: DEFAULT_GENERAL_SETTINGS,
   commandCenter: DEFAULT_COMMAND_CENTER_SETTINGS,
   fastClock: {
@@ -134,6 +146,9 @@ export function normalizeAppSettings(value: Partial<AppSettings> | null | undefi
   return {
     version: 1,
     general: normalizeGeneralSettings(value?.general),
+    automation: {
+      detectionMode: value?.automation?.detectionMode === "reed" ? "reed" : "occupancy",
+    },
     commandCenter: normalizeCommandCenterSettings(value?.commandCenter),
     fastClock: {
       resetSource,
