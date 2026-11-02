@@ -3301,6 +3301,14 @@ public sealed class MovementRuntime
                 execution.TargetBlockId = null;
                 destinationCommitted = true;
 
+                _log.LogInformation(
+                    "Reed arrival committed: loco #{Loco} {From}->{To}, destination sensor #{Sensor}, finalLeg={FinalLeg}",
+                    execution.LocoAddress,
+                    leg.From.Name,
+                    leg.To.Name,
+                    leg.To.SensorAddress,
+                    finalLeg);
+
                 if (leg.From.BlockId is >= 1 and <= 65535 &&
                     leg.From.BlockId != leg.To.BlockId)
                     _layout.RemoveBlock(
