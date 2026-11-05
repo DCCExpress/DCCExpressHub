@@ -1716,10 +1716,18 @@ public sealed class TrainTrackingRuntime
 
             var candidates = _tracking.Values
                 .Where(state => !_movement.IsLocoManaged(state.LocoAddress))
-                .SelectMany(state => CandidatesForSensor(state, sensor))
-                .Where(candidate => !candidate.ReturningToSource &&
-                    candidate.Route.ToBlockId == destinationBlockId &&
-                    candidate.Route.FromBlockId == candidate.Tracking.CurrentBlockId)
+                .SelectMany(state => _routes
+                    .Where(route => state.CurrentBlockId.HasValue &&
+                        route.FromBlockId == state.CurrentBlockId.Value &&
+                        route.ToBlockId == destinationBlockId &&
+                        route.BlockPath.Length == 2 &&
+                        string.Equals(route.LocoDirection, LocoDirection(state.LocoAddress),
+                            StringComparison.OrdinalIgnoreCase) &&
+                        RouteMatchesTurnouts(route))
+                    .Select(route => CandidateFromRoute(state, route, sensor))
+                    .Where(candidate => candidate is not null)
+                    .Cast<Candidate>()
+                    .Take(1))
                 .ToArray();
 
             if (candidates.Length != 1)
