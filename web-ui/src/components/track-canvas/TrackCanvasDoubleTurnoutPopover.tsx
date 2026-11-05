@@ -205,7 +205,7 @@ function setDoubleTurnoutPosition(
   position: DoubleTurnoutPosition
 ): void {
   if (turnout.locked) {
-    showNotification({ color: "orange", title: i18next.t("ui.turnoutLocked"), message: i18next.t("ui.turnoutLockedMessage") });
+    showNotification({ color: "orange", title: i18next.t("ui.turnoutLocked"), message: i18next.t("ui.turnoutLockedMessage", { value1: `${turnout.turnout1Address}, ${turnout.turnout2Address}` }) });
     return;
   }
 
