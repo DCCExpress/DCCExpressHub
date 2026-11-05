@@ -1714,6 +1714,14 @@ public sealed class TrainTrackingRuntime
                 return;
             }
 
+            // A pulse from a locomotive's already assigned block is not
+            // evidence that the locomotive moved to a different block.
+            if (_tracking.Values.Any(state =>
+                state.CurrentBlockId == destinationBlockId &&
+                state.LocoAddress == destination[0].LocoAddress &&
+                state.LocoAddress > 0))
+                return;
+
             var candidates = _tracking.Values
                 .Where(state => !_movement.IsLocoManaged(state.LocoAddress))
                 .SelectMany(state => _routes
@@ -1735,8 +1743,30 @@ public sealed class TrainTrackingRuntime
                 WriteLog("warn", "Reed #" + sensor + " at " +
                     BlockName(destinationBlockId) + ": " +
                     (candidates.Length == 0
-                        ? "no manually driven locomotive matches graph, direction and turnouts."
-                        : "multiple possible locomotive routes; no block assignment changed."));
+                        ? _tracking.Count == 0
+                            ? "no locomotive assigned to a starting block."
+                            : "no matching route for tracked locomotives: " +
+                              string.Join("; ", _tracking.Values.Select(state =>
+                              {
+                                  var from = state.CurrentBlockId;
+                                  if (!from.HasValue)
+                                      return "#" + state.LocoAddress + " has no source block";
+                                  var routes = _routes.Where(route =>
+                                      route.FromBlockId == from.Value &&
+                                      route.ToBlockId == destinationBlockId &&
+                                      route.BlockPath.Length == 2).ToArray();
+                                  if (routes.Length == 0)
+                                      return "#" + state.LocoAddress + " from " +
+                                          BlockName(from.Value) + ": no direct route";
+                                  if (!routes.Any(route => string.Equals(route.LocoDirection,
+                                          LocoDirection(state.LocoAddress), StringComparison.OrdinalIgnoreCase)))
+                                      return "#" + state.LocoAddress + ": direction mismatch (" +
+                                          LocoDirection(state.LocoAddress) + ")";
+                                  if (!routes.Any(RouteMatchesTurnouts))
+                                      return "#" + state.LocoAddress + ": turnout mismatch";
+                                  return "#" + state.LocoAddress + ": sensor order mismatch";
+                              }))
+                        : "multiple possible locomotives; no block assignment changed."));
                 return;
             }
 
