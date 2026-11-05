@@ -237,7 +237,7 @@ export class TrackTurnoutThreeWayElement extends TrackMultiMotorTurnoutElement {
   setPositionAndSend(position: Exclude<ThreeWayTurnoutPosition, "invalid">): void {
     if (!this.enabled) return;
     if (this.locked) {
-      showNotification({ color: "orange", title: i18next.t("ui.turnoutLocked"), message: i18next.t("ui.turnoutLockedMessage") });
+      showNotification({ color: "orange", title: i18next.t("ui.turnoutLocked"), message: i18next.t("ui.turnoutLockedMessage", { value1: `${this.turnout1Address}, ${this.turnout2Address}` }) });
       return;
     }
 
