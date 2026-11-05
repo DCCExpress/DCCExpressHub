@@ -93,7 +93,7 @@ export abstract class TrackTurnoutElement extends TrackElement {
     if (!this.enabled) return;
 
     if (this.locked) {
-      showNotification({ color: "orange", title: i18next.t("ui.turnoutLocked"), message: i18next.t("ui.turnoutLockedMessage") });
+      showNotification({ color: "orange", title: i18next.t("ui.turnoutLocked"), message: i18next.t("ui.turnoutLockedMessage", { value1: this.turnoutAddress }) });
       return;
     }
 
