@@ -1760,10 +1760,36 @@ public sealed class TrainTrackingRuntime
                                           BlockName(from.Value) + ": no direct route";
                                   if (!routes.Any(route => string.Equals(route.LocoDirection,
                                           LocoDirection(state.LocoAddress), StringComparison.OrdinalIgnoreCase)))
-                                      return "#" + state.LocoAddress + ": direction mismatch (" +
-                                          LocoDirection(state.LocoAddress) + ")";
-                                  if (!routes.Any(RouteMatchesTurnouts))
-                                      return "#" + state.LocoAddress + ": turnout mismatch";
+                                      return "#" + state.LocoAddress + " from " + BlockName(from.Value) +
+                                          ": direction mismatch (loco " + LocoDirection(state.LocoAddress) +
+                                          ", routes " + string.Join("/", routes.Select(route =>
+                                              route.LocoDirection).Distinct()) + ")";
+                                  var directionRoutes = routes.Where(route =>
+                                      string.Equals(route.LocoDirection,
+                                          LocoDirection(state.LocoAddress),
+                                          StringComparison.OrdinalIgnoreCase)).ToArray();
+                                  var turnoutMatches = directionRoutes.Where(RouteMatchesTurnouts).ToArray();
+                                  if (turnoutMatches.Length == 0)
+                                  {
+                                      var mismatchDetails = directionRoutes.Select(route =>
+                                          string.Join(", ", route.Turnouts.Where(turnout =>
+                                          {
+                                              return turnout.Address is < 1 or > 65535 ||
+                                                  !_layout.TryGetTurnoutClosed((ushort)turnout.Address, out var actual) ||
+                                                  actual != turnout.Closed;
+                                          }).Select(turnout =>
+                                          {
+                                              bool actual = false;
+                                              var known = turnout.Address is >= 1 and <= 65535 &&
+                                                  _layout.TryGetTurnoutClosed((ushort)turnout.Address, out actual);
+                                              return "#" + turnout.Address + " expected " +
+                                                  (turnout.Closed ? "Closed" : "Thrown") +
+                                                  ", actual " + (known
+                                                      ? (actual ? "Closed" : "Thrown") : "UNKNOWN");
+                                          }))).Where(detail => detail.Length > 0).Distinct().ToArray();
+                                      return "#" + state.LocoAddress + " from " + BlockName(from.Value) +
+                                          ": turnout mismatch [" + string.Join(" | ", mismatchDetails) + "]";
+                                  }
                                   return "#" + state.LocoAddress + ": sensor order mismatch";
                               }))
                         : "multiple possible locomotives; no block assignment changed."));
