@@ -1415,7 +1415,10 @@ public sealed class LayoutRuntime
         if (unexpectedReedOn)
             UnexpectedReedSensorOn?.Invoke(address);
 
-        if (changed)
+        // A reed contact is an event, not continuous occupancy. A repeated
+        // ON packet must also reach TrainTracking, even if no intervening
+        // OFF was received (e.g. feedback devices coalescing short pulses).
+        if (changed || (reedMode && on))
         {
             Changed?.Invoke("sensorChanged", new { address, on });
             SensorTransitionProcessed?.Invoke();
