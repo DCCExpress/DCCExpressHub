@@ -560,6 +560,12 @@ public sealed class MovementRuntime
         lock (_gate)
             executions = _executions.Values.ToArray();
 
+        // Reed contacts may be triggered during normal manual driving.
+        // Movement safety must not issue a global E-STOP when no automatic
+        // Movement is running; manual train tracking is a separate concern.
+        if (executions.Length == 0)
+            return;
+
         var ambiguous = blocks.Length > 1;
         var trip = CreateSafetyTrip(
             ambiguous ? "ambiguous_reed_sensor" : "unexpected_reed_sensor",
@@ -576,8 +582,8 @@ public sealed class MovementRuntime
                     "). Cannot safely identify an arriving train."
             };
 
-        // An unexpected point contact is a safety problem even without an
-        // active Movement: a manually/script-driven locomotive may be moving.
+        // An unexpected reed arrival during an active Movement remains a
+        // safety violation, even when the contact was triggered manually.
         _ = TripOccupancySafetyAsync(trip);
     }
 
