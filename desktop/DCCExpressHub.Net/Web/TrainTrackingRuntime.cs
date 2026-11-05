@@ -1691,6 +1691,88 @@ public sealed class TrainTrackingRuntime
         Publish();
     }
 
+    // Point contacts are arrival events, not sustained occupancy.
+    // Only a unique, directly reachable destination block may promote a
+    // manually driven locomotive. Dispatcher-managed locomotives retain
+    // their separate target-reservation handling in LayoutRuntime.
+    void HandleManualReedArrival(int sensor)
+    {
+        if (!_enabled || !_ready || _routes.Count == 0)
+            return;
+
+        if (!_blockSensorToId.TryGetValue(sensor, out var destinationBlockId))
+            return;
+
+        lock (_gate)
+        {
+            var blocks = _layout.BlocksForPersistence();
+            var destination = blocks.Where(block => block.SensorAddress == sensor).ToArray();
+            if (destination.Length != 1 || destination[0].Id != destinationBlockId)
+            {
+                WriteLog("warn", "Reed #" + sensor +
+                    " cannot identify a unique destination block.");
+                return;
+            }
+
+            var candidates = _tracking.Values
+                .Where(state => !_movement.IsLocoManaged(state.LocoAddress))
+                .SelectMany(state => CandidatesForSensor(state, sensor))
+                .Where(candidate => !candidate.ReturningToSource &&
+                    candidate.Route.ToBlockId == destinationBlockId &&
+                    candidate.Route.FromBlockId == candidate.Tracking.CurrentBlockId)
+                .ToArray();
+
+            if (candidates.Length != 1)
+            {
+                WriteLog("warn", "Reed #" + sensor + " at " +
+                    BlockName(destinationBlockId) + ": " +
+                    (candidates.Length == 0
+                        ? "no manually driven locomotive matches graph, direction and turnouts."
+                        : "multiple possible locomotive routes; no block assignment changed."));
+                return;
+            }
+
+            var candidate = candidates[0];
+            var state = candidate.Tracking;
+            var target = destination[0];
+
+            // A reserved/occupied destination must never be overwritten.
+            if (target.HasRuntimeState &&
+                (target.TargetOnly || target.LocoAddress != state.LocoAddress))
+            {
+                WriteLog("warn", "Reed #" + sensor + ": destination " +
+                    BlockName(destinationBlockId) + " is already reserved or occupied.");
+                return;
+            }
+
+            // SetBlock atomically transfers this locomotive from its old block.
+            // Its blockStateChanged event will re-seed tracking from the
+            // authoritative runtime assignments.
+            if (!_layout.SetBlock((ushort)destinationBlockId,
+                state.LocoId ?? "", (ushort)state.LocoAddress))
+            {
+                WriteLog("warn", "Reed #" + sensor +
+                    ": manual block transfer was rejected.");
+                return;
+            }
+
+            // SeedFromBlocks is called synchronously by SetBlock.
+            if (_tracking.TryGetValue(state.LocoAddress, out var updated))
+            {
+                updated.LastSensor = sensor;
+                AddRecentSensor(updated, sensor);
+                updated.CurrentSensors.Clear();
+                updated.CurrentSectionParts.Clear();
+                updated.Confidence = "certain";
+                updated.UpdatedAt = NowMs();
+            }
+
+            WriteLog("match", "Manual reed tracking: loco #" +
+                state.LocoAddress + " arrived at " +
+                BlockName(destinationBlockId) + " via sensor #" + sensor + ".");
+        }
+    }
+
     void HandleSensorOff(
         int sensor)
     {
@@ -1774,12 +1856,13 @@ public sealed class TrainTrackingRuntime
 
             if (_layout.ReedDetectionMode)
             {
-                // LayoutRuntime has already promoted any reserved target on
-                // this ON report and emitted blockStateChanged. Do not run
-                // graph/direction/turnout inference or emit misleading
-                // "no moving locomotive matches" warnings in reed mode.
+                // Automatic Movements are promoted by LayoutRuntime using
+                // their Dispatcher target. Manual locomotives may instead
+                // use a uniquely matching direct graph route at a point
+                // detector; intermediate detectors never transfer a block.
                 if (on)
                 {
+                    HandleManualReedArrival(address.Value);
                     var assigned = ReadBlockAssignments();
                     lock (_gate)
                     {
