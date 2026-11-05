@@ -1975,13 +1975,13 @@ public sealed class TrainTrackingRuntime
                         var routes = DirectRoutesFromBlock(
                             state.CurrentBlockId.Value,
                             LocoDirection(state.LocoAddress));
-                        if (routes.Select(route => route.ToBlockId)
+                        if (routes.Select(candidate => candidate.ToBlockId)
                             .Distinct().Count() == 1)
                         {
-                            var route = routes[0];
-                            state.PredictedNextBlockId = route.ToBlockId;
+                            var predictedRoute = routes[0];
+                            state.PredictedNextBlockId = predictedRoute.ToBlockId;
                             state.PredictedNextBlockName =
-                                route.ToBlockName ?? BlockName(route.ToBlockId);
+                                predictedRoute.ToBlockName ?? BlockName(predictedRoute.ToBlockId);
                         }
                     }
                 }
