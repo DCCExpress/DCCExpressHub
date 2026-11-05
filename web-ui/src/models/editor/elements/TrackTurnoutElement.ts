@@ -1,4 +1,5 @@
 import i18next from "i18next";
+import { showNotification } from "@mantine/notifications";
 import type {
   TrackTurnoutElementDto,
   TurnoutOutputModeDto,
@@ -91,6 +92,11 @@ export abstract class TrackTurnoutElement extends TrackElement {
   toggle(): void {
     if (!this.enabled) return;
 
+    if (this.locked) {
+      showNotification({ color: "orange", title: i18next.t("ui.turnoutLocked"), message: i18next.t("ui.turnoutLockedMessage") });
+      return;
+    }
+
     const nextPhysicalValue = !this.turnoutClosed;
 
     if (isSwitchManModeEnabled()) {
@@ -105,19 +111,7 @@ export abstract class TrackTurnoutElement extends TrackElement {
       return;
     }
 
-    /*
-     * SwitchMan lock:
-     *
-     * Keep sending the attempted operation to the backend so the initiating
-     * client receives the authoritative "turnout_locked" notification.
-     *
-     * Do NOT optimistically change the canvas state while locked. Otherwise
-     * the turnout visibly flips and then jumps back when the backend rejects
-     * the command and the runtime snapshot is reapplied.
-     */
-    if (!this.locked) {
-      this.turnoutClosed = nextPhysicalValue;
-    }
+    this.turnoutClosed = nextPhysicalValue;
 
     sendTurnoutOutput(String(this.outputMode), this.turnoutAddress, nextPhysicalValue, {
       closedValue: this.turnoutClosedValue,
