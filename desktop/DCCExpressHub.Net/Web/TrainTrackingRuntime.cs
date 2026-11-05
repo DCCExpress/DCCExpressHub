@@ -1966,6 +1966,24 @@ public sealed class TrainTrackingRuntime
                         state.PredictedNextBlockId = targetBlocks[0].Id;
                         state.PredictedNextBlockName = BlockName(targetBlocks[0].Id);
                     }
+                    else if (targetBlocks.Length == 0 && _ready &&
+                             !_movement.IsLocoManaged(state.LocoAddress) &&
+                             LocoMoving(state.LocoAddress))
+                    {
+                        // Prediction is only a hint. Actual manual reed
+                        // arrivals still require a unique validated match.
+                        var routes = DirectRoutesFromBlock(
+                            state.CurrentBlockId.Value,
+                            LocoDirection(state.LocoAddress));
+                        if (routes.Select(route => route.ToBlockId)
+                            .Distinct().Count() == 1)
+                        {
+                            var route = routes[0];
+                            state.PredictedNextBlockId = route.ToBlockId;
+                            state.PredictedNextBlockName =
+                                route.ToBlockName ?? BlockName(route.ToBlockId);
+                        }
+                    }
                 }
                 continue;
             }
