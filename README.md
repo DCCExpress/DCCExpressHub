@@ -36,7 +36,7 @@ You can also control your railway from a computer, tablet, or phone on the same 
 > [!WARNING]
 > **DCCExpressHub is not a command station.** A connected command station generates the track signal; the Hub provides control, layout and automation on top of it.
 >
-> **Automation and train tracking require reliable feedback and a correctly configured layout.** In **Occupancy** mode, use continuous block occupancy sensors for automatic position/availability tracking. Alpha10 also offers **Reed / Point** mode for momentary contacts: this requires correct sensor-to-block mapping, known locomotive assignments, directions and turnout states; it does **not** continuously prove that a block is clear. Verify reservations and scripts before running trains unattended.
+> **Automatic Movements and train tracking work in both Occupancy and Reed / Point mode — no scripts required.** Occupancy sensors provide continuous block feedback. In **Reed / Point** mode, the Hub uses momentary contacts together with the saved route graph, locomotive assignments and block reservations to run built-in automatic movements and track train arrivals. A reed pulse does **not** continuously prove that a block is free: correct sensor-to-block mapping, turnout states, direction and logical reservations remain essential. Test routes and safety behavior carefully before unattended operation.
 
 ![DCCExpressHub screenshot](doc/images/DccExpressHub-2026-10-07%20170732.png)
 
@@ -45,8 +45,8 @@ You can also control your railway from a computer, tablet, or phone on the same 
 - **Locomotive control** — speed, direction, and functions.
 - **Turnouts and signals** — operate accessories from the control panel or track layout.
 - **Visual layout editor** — create and manage your model railway track plan.
-- **Occupancy and train tracking** — monitor block feedback or use Alpha10's Reed / Point detection mode with appropriate safeguards.
-- **Routes and automatic movements** — plan train movements across your layout.
+- **Occupancy and train tracking** — built-in locomotive tracking with continuous occupancy sensors or Alpha10's Reed / Point contacts, including manual driving.
+- **Routes and automatic movements** — automate movements with occupancy or reed contacts, without writing scripts.
 - **Timetables** — schedule automatic operations.
 - **Flows and scripts** — set up event-driven automation; generate a starter script from a saved route graph.
 - **Sound** — use audio announcements and other event-driven actions.
@@ -57,17 +57,22 @@ You can also control your railway from a computer, tablet, or phone on the same 
 
 ## What's new in Alpha10
 
-- **Reed / Point detection mode** — switch between continuous **Occupancy** and momentary **Reed / Point** detection in the layout's automation settings.
+- **Built-in automatic operation with reed contacts** — Automatic Movements, Sequential Movements and timetable-controlled movements can use destination reed pulses for arrival confirmation and logical block transitions. **No user script is needed.** Select **Reed / Point** instead of continuous **Occupancy** feedback in the layout's automation settings.
 - **Manual driving with reed feedback** — the Hub attempts to match reed arrivals to an assigned locomotive using the saved route graph, travel direction and current turnout states. Unmatched or ambiguous arrivals are reported.
 - **Sensor safety checks** — unexpected or ambiguous reed triggers may result in an automatic safety E-STOP, including when a movement is active. Investigate the indicated sensor, block and assignment before resuming.
-- **Route-based script generation** — generate an editable script from a saved, direction-aware route graph. Review generated turnout commands, sensor conditions and locomotive assignments before use.
+- **Optional route-based scripting** — generate an editable script from a saved, direction-aware route graph for custom automation. Scripts are **not required** for the built-in reed-based Movements, sequences or timetables.
 - **Tracking and movement refinements** — improvements to block transitions, route handling, visual feedback and turnout lock indicators.
 
 **PIKO SmartControl WLAN is postponed.** It is deliberately not offered in Alpha10's **External Devices** dialog. The experimental integration remains under development and is not a supported Alpha10 controller.
 
 ### Occupancy vs Reed / Point
 
-Choose the detection mode in the layout's automation settings. **Occupancy** uses continuous sensor states and is the recommended mode for full block-based automatic operation. **Reed / Point** uses individual contact events, and cannot infer ongoing occupancy from a contact that has switched off. Before using reed tracking or movement automation, assign locomotives to their starting blocks, configure each contact's block, verify the route graph and turnouts, and test safety behavior at low speed.
+Choose the detection mode in the layout's automation settings. **Both modes support the Hub's built-in automatic movement system; scripts are optional.**
+
+- **Occupancy** — continuous block feedback allows the Hub to monitor physically detected occupancy throughout a movement.
+- **Reed / Point** — momentary contacts confirm a train's arrival at a configured block. Automatic Movements, Sequential Movements and timetable-controlled movements use the saved route graph, turnout states and logical block reservations; the destination reed event confirms arrival and advances the block assignment. Manually driven locomotives can also be tracked when exactly one locomotive and valid route match the sensor event.
+
+For example, an automatic A1 → B1 Movement can run using a reed sensor assigned to B1: the Hub manages the movement and records arrival when that sensor is triggered, **without a custom script**. Before operation, assign locomotives to their starting blocks, map block reed sensors, verify directions and turnouts, and test the route and safety behavior at low speed. Reed contacts do **not** prove continuous occupancy or physical clearance between pulses; logical free/reserved states depend on the accuracy of the layout and tracking.
 
 ### Gamepad control
 
