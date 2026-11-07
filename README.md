@@ -3,23 +3,21 @@
 [![Release](https://img.shields.io/github/v/release/DCCExpress/DCCExpressHub?include_prereleases&label=Release)](https://github.com/DCCExpress/DCCExpressHub/releases)
 [![Last Commit](https://img.shields.io/github/last-commit/DCCExpress/DCCExpressHub/main)](https://github.com/DCCExpress/DCCExpressHub/commits/main)
 
+![Windows](https://img.shields.io/badge/Platform-Windows-0078D4?logo=windows)
+![Linux](https://img.shields.io/badge/Platform-Linux-FCC624?logo=linux&logoColor=black)
+![Android](https://img.shields.io/badge/Platform-Android-3DDC84?logo=android&logoColor=white)
+![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)
+![React](https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-blue?logo=typescript&logoColor=white)
+![Mantine](https://img.shields.io/badge/Mantine-9-339AF0?logo=mantine&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)
+
 ![DCC-EX](https://img.shields.io/badge/DCC--EX-Supported-E67E22)
 ![YaMoRC](https://img.shields.io/badge/YaMoRC-Supported-1B8B58)
 ![Z21](https://img.shields.io/badge/Z21-Supported-0077B6)
 ![LocoNet](https://img.shields.io/badge/LocoNet-Supported-7952B3)
 
-![Windows](https://img.shields.io/badge/Platform-Windows-0078D4?logo=windows)
-![Linux](https://img.shields.io/badge/Platform-Linux-FCC624?logo=linux&logoColor=black)
-![Android](https://img.shields.io/badge/Platform-Android-3DDC84?logo=android&logoColor=white)
-
-![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)
-![TypeScript](https://img.shields.io/badge/TypeScript-blue?logo=typescript&logoColor=white)
-![React](https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white)
-![Mantine](https://img.shields.io/badge/Mantine-9-339AF0?logo=mantine&logoColor=white)
-![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)
-
-
-**Version: 0.1.0-alpha.9**
+**Version: 0.1.0-alpha.10**
 
 **DCCExpressHub** is a model railway control and automation application supporting the **DCC-EX**, **Z21 + R-BUS**, and **LocoNet** protocols.
 
@@ -43,13 +41,9 @@ Android support is experimental; network command-station connections are availab
 You can also control your railway from a computer, tablet, or phone on the same local network.
 
 > [!WARNING]
-> **Important – Command Station & Automation Requirements**
+> **DCCExpressHub is not a command station.** A connected command station generates the track signal; the Hub provides control, layout and automation on top of it.
 >
-> **DCCExpressHub is not a command station.** A connected command station generates the DCC track signal. DCCExpressHub provides control, layout management, and automation.
->
-> **Full automation and Train Tracking require block occupancy detection.** Track blocks must have properly configured occupancy sensors, and the layout must include correct track directions and turnout connections.
->
-> **Reed contacts and point sensors** do not provide continuous block occupancy detection. They can be used for custom, user-defined automation through **Scripts**, but cannot replace block occupancy sensors for fully automatic operation and reliable Train Tracking.
+> **Automatic Movements and train tracking work in both Occupancy and Reed / Point mode — no scripts required.** Occupancy sensors provide continuous block feedback. In **Reed / Point** mode, the Hub uses momentary contacts together with the saved route graph, locomotive assignments and block reservations to run built-in automatic movements and track train arrivals. A reed pulse does **not** continuously prove that a block is free: correct sensor-to-block mapping, turnout states, direction and logical reservations remain essential. Test routes and safety behavior carefully before unattended operation.
 
 ![DCCExpressHub screenshot](doc/images/DccExpressHub-2026-10-07%20170732.png)
 
@@ -58,14 +52,34 @@ You can also control your railway from a computer, tablet, or phone on the same 
 - **Locomotive control** — speed, direction, and functions.
 - **Turnouts and signals** — operate accessories from the control panel or track layout.
 - **Visual layout editor** — create and manage your model railway track plan.
-- **Occupancy and train tracking** — view sensor feedback and locomotive positions.
-- **Routes and automatic movements** — plan train movements across your layout.
+- **Occupancy and train tracking** — built-in locomotive tracking with continuous occupancy sensors or Alpha10's Reed / Point contacts, including manual driving.
+- **Routes and automatic movements** — automate movements with occupancy or reed contacts, without writing scripts.
 - **Timetables** — schedule automatic operations.
-- **Flows and scripts** — set up event-driven automation.
+- **Flows and scripts** — set up event-driven automation; generate a starter script from a saved route graph.
 - **Sound** — use audio announcements and other event-driven actions.
 - **Decoder programming** — read and write supported CVs.
-- **External devices** — DCCExpress S88 Adapter, ROCO Z21 WLANMAUS newGen and compatible Bluetooth gamepads.
+- **External devices** — DCCExpress S88 Adapter and ROCO Z21 WLANMAUS newGen handheld integration.
+- **Gamepad control** — use compatible Bluetooth or USB controllers.
 - **Multiple devices** — access the same railway from PCs, tablets, and phones.
+
+## What's new in Alpha10
+
+- **Built-in automatic operation with reed contacts** — Automatic Movements, Sequential Movements and timetable-controlled movements can use destination reed pulses for arrival confirmation and logical block transitions. **No user script is needed.** Select **Reed / Point** instead of continuous **Occupancy** feedback in the layout's automation settings.
+- **Manual driving with reed feedback** — the Hub attempts to match reed arrivals to an assigned locomotive using the saved route graph, travel direction and current turnout states. Unmatched or ambiguous arrivals are reported.
+- **Sensor safety checks** — unexpected or ambiguous reed triggers may result in an automatic safety E-STOP, including when a movement is active. Investigate the indicated sensor, block and assignment before resuming.
+- **Optional route-based scripting** — generate an editable script from a saved, direction-aware route graph for custom automation. Scripts are **not required** for the built-in reed-based Movements, sequences or timetables.
+- **Tracking and movement refinements** — improvements to block transitions, route handling, visual feedback and turnout lock indicators.
+
+**PIKO SmartControl WLAN is postponed.** It is deliberately not offered in Alpha10's **External Devices** dialog. The experimental integration remains under development and is not a supported Alpha10 controller.
+
+### Occupancy vs Reed / Point
+
+Choose the detection mode in the layout's automation settings. **Both modes support the Hub's built-in automatic movement system; scripts are optional.**
+
+- **Occupancy** — continuous block feedback allows the Hub to monitor physically detected occupancy throughout a movement.
+- **Reed / Point** — momentary contacts confirm a train's arrival at a configured block. Automatic Movements, Sequential Movements and timetable-controlled movements use the saved route graph, turnout states and logical block reservations; the destination reed event confirms arrival and advances the block assignment. Manually driven locomotives can also be tracked when exactly one locomotive and valid route match the sensor event.
+
+For example, an automatic A1 → B1 Movement can run using a reed sensor assigned to B1: the Hub manages the movement and records arrival when that sensor is triggered, **without a custom script**. Before operation, assign locomotives to their starting blocks, map block reed sensors, verify directions and turnouts, and test the route and safety behavior at low speed. Reed contacts do **not** prove continuous occupancy or physical clearance between pulses; logical free/reserved states depend on the accuracy of the layout and tracking.
 
 ### Gamepad control
 
@@ -77,7 +91,7 @@ Configure button assignments on the **Gamepad** page. Settings are saved for the
 
 ### ROCO Z21 WLANMAUS newGen
 
-![Roco Z21 wlanMAUS](doc/images/20261030_165356.jpg)
+![ROCO Z21 WLANMAUS newGen](doc/images/20261030_165356.jpg)
 
 DCCExpressHub can act as a **Z21-compatible UDP server** for the **ROCO WLANMAUS newGen** handheld controller. Connect the WLANMAUS to the same Wi-Fi network as the Hub and configure its Z21 IP address to the computer running DCCExpressHub. Enable the **Z21 WLANMAUS** external device in the Hub (default UDP port **21105**). **Firewall:** Allow inbound **UDP port 21105** on the computer running DCCExpressHub (for example, in Windows Defender Firewall), and make sure the handheld can reach the Hub on the local network. Restrict this firewall rule to your trusted/private network.
 
@@ -166,6 +180,7 @@ There is no prepackaged Linux release yet. Install the prerequisites if needed (
 ```bash
 git clone https://github.com/DCCExpress/DCCExpressHub.git
 cd DCCExpressHub
+git switch alpha10
 ./run-linux.sh --build
 ./run-linux.sh
 ```
@@ -276,7 +291,7 @@ Log out and back in for the group change to take effect.
 ## Notes
 
 - Use the **emergency stop** controls whenever immediate intervention is needed.
-- Automatic operation depends on correct layout configuration, sensor feedback, and turnout settings. Always test routes on your own railway before leaving movements unattended.
+- Automatic operation depends on correct layout configuration, sensor feedback, turnout states and locomotive assignments. Reed/point events alone do not guarantee a free block. Always test routes on your railway before leaving movements unattended.
 - This is **alpha software**. Features and supported hardware behavior may change, and issues may still occur.
 
 ## Links

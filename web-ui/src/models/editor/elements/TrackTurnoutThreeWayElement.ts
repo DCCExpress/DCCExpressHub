@@ -1,4 +1,5 @@
 import i18next from "i18next";
+import { showNotification } from "@mantine/notifications";
 import { getDirectionXy } from "../../../domain/helpers";
 import { ELEMENT_TYPES } from "../../../domain/layout/elementTypes";
 import "../../../domain/layout/threeWayTurnoutDtoAugmentation";
@@ -235,6 +236,10 @@ export class TrackTurnoutThreeWayElement extends TrackMultiMotorTurnoutElement {
   }
   setPositionAndSend(position: Exclude<ThreeWayTurnoutPosition, "invalid">): void {
     if (!this.enabled) return;
+    if (this.locked) {
+      showNotification({ color: "orange", title: i18next.t("ui.turnoutLocked"), message: i18next.t("ui.turnoutLockedMessage", { value1: `${this.turnout1Address}, ${this.turnout2Address}` }) });
+      return;
+    }
 
     const bits = this.getBitsForPosition(position);
 
@@ -255,8 +260,6 @@ export class TrackTurnoutThreeWayElement extends TrackMultiMotorTurnoutElement {
       ]);
       return;
     }
-
-    if (this.locked) return;
 
     this.turnout1Closed = bits.first;
     this.turnout2Closed = bits.second;

@@ -681,13 +681,14 @@ public sealed class TrainTrackingRuntime
                 issues.Add(
                     "Block \"" +
                     pair.Value +
-                    "\" has no occupancy sensor.");
+                    (_layout.ReedDetectionMode ? "\" has no point sensor." : "\" has no occupancy sensor."));
 
-        if (_routes.Count == 0)
+        if (!_layout.ReedDetectionMode && _routes.Count == 0)
             issues.Add(
                 "Route graph has no routes.");
 
-        if (topology.HasValue &&
+        if (!_layout.ReedDetectionMode &&
+            topology.HasValue &&
             topology.Value.ValueKind ==
                 JsonValueKind.Object &&
             topology.Value.TryGetProperty(
@@ -1004,7 +1005,8 @@ public sealed class TrainTrackingRuntime
                     current?.CurrentBlockId !=
                     blockId;
 
-                if (current is not null &&
+                if (!_layout.ReedDetectionMode &&
+                    current is not null &&
                     blockChanged &&
                     _movement.IsLocoManaged(
                         locoAddress) &&
@@ -1031,7 +1033,7 @@ public sealed class TrainTrackingRuntime
                     continue;
                 }
 
-                if (blockChanged)
+                if (blockChanged || _layout.ReedDetectionMode)
                     _committedRoutes.Remove(
                         locoAddress);
 
@@ -1054,7 +1056,19 @@ public sealed class TrainTrackingRuntime
                     BlockName(
                         blockId);
 
-                if (sensor > 0 &&
+                if (_layout.ReedDetectionMode)
+                {
+                    // In point-detector mode, SetBlock is authoritative.
+                    // Neither retained ON inputs nor a previous inferred
+                    // section may be presented as physical occupancy.
+                    state.CurrentSensors.Clear();
+                    state.CurrentSectionParts.Clear();
+                    if (blockChanged)
+                        state.LastSensor = null; // Updated only by an actual ON report.
+                    state.Confidence = "certain";
+                    state.UpdatedAt = NowMs();
+                }
+                else if (sensor > 0 &&
                     (blockChanged ||
                      !state.LastSensor.HasValue))
                 {
@@ -1677,6 +1691,152 @@ public sealed class TrainTrackingRuntime
         Publish();
     }
 
+    // Point contacts are arrival events, not sustained occupancy.
+    // Only a unique, directly reachable destination block may promote a
+    // manually driven locomotive. Dispatcher-managed locomotives retain
+    // their separate target-reservation handling in LayoutRuntime.
+    void HandleManualReedArrival(int sensor)
+    {
+        if (!_enabled || !_ready || _routes.Count == 0)
+            return;
+
+        if (!_blockSensorToId.TryGetValue(sensor, out var destinationBlockId))
+            return;
+
+        lock (_gate)
+        {
+            var blocks = _layout.BlocksForPersistence();
+            var destination = blocks.Where(block => block.SensorAddress == sensor).ToArray();
+            if (destination.Length != 1 || destination[0].Id != destinationBlockId)
+            {
+                WriteLog("warn", "Reed #" + sensor +
+                    " cannot identify a unique destination block.");
+                return;
+            }
+
+            // A pulse from a locomotive's already assigned block is not
+            // evidence that the locomotive moved to a different block.
+            if (_tracking.Values.Any(state =>
+                state.CurrentBlockId == destinationBlockId &&
+                state.LocoAddress == destination[0].LocoAddress &&
+                state.LocoAddress > 0))
+                return;
+
+            var candidates = _tracking.Values
+                .Where(state => !_movement.IsLocoManaged(state.LocoAddress))
+                .SelectMany(state => _routes
+                    .Where(route => state.CurrentBlockId.HasValue &&
+                        route.FromBlockId == state.CurrentBlockId.Value &&
+                        route.ToBlockId == destinationBlockId &&
+                        route.BlockPath.Length == 2 &&
+                        string.Equals(route.LocoDirection, LocoDirection(state.LocoAddress),
+                            StringComparison.OrdinalIgnoreCase) &&
+                        RouteMatchesTurnouts(route))
+                    .Select(route => CandidateFromRoute(state, route, sensor))
+                    .Where(candidate => candidate is not null)
+                    .Cast<Candidate>()
+                    .Take(1))
+                .ToArray();
+
+            if (candidates.Length != 1)
+            {
+                WriteLog("warn", "Reed #" + sensor + " at " +
+                    BlockName(destinationBlockId) + ": " +
+                    (candidates.Length == 0
+                        ? _tracking.Count == 0
+                            ? "no locomotive assigned to a starting block."
+                            : "no matching route for tracked locomotives: " +
+                              string.Join("; ", _tracking.Values.Select(state =>
+                              {
+                                  var from = state.CurrentBlockId;
+                                  if (!from.HasValue)
+                                      return "#" + state.LocoAddress + " has no source block";
+                                  var routes = _routes.Where(route =>
+                                      route.FromBlockId == from.Value &&
+                                      route.ToBlockId == destinationBlockId &&
+                                      route.BlockPath.Length == 2).ToArray();
+                                  if (routes.Length == 0)
+                                      return "#" + state.LocoAddress + " from " +
+                                          BlockName(from.Value) + ": no direct route";
+                                  if (!routes.Any(route => string.Equals(route.LocoDirection,
+                                          LocoDirection(state.LocoAddress), StringComparison.OrdinalIgnoreCase)))
+                                      return "#" + state.LocoAddress + " from " + BlockName(from.Value) +
+                                          ": direction mismatch (loco " + LocoDirection(state.LocoAddress) +
+                                          ", routes " + string.Join("/", routes.Select(route =>
+                                              route.LocoDirection).Distinct()) + ")";
+                                  var directionRoutes = routes.Where(route =>
+                                      string.Equals(route.LocoDirection,
+                                          LocoDirection(state.LocoAddress),
+                                          StringComparison.OrdinalIgnoreCase)).ToArray();
+                                  var turnoutMatches = directionRoutes.Where(RouteMatchesTurnouts).ToArray();
+                                  if (turnoutMatches.Length == 0)
+                                  {
+                                      var mismatchDetails = directionRoutes.Select(route =>
+                                          string.Join(", ", route.Turnouts.Where(turnout =>
+                                          {
+                                              return turnout.Address is < 1 or > 65535 ||
+                                                  !_layout.TryGetTurnoutClosed((ushort)turnout.Address, out var actual) ||
+                                                  actual != turnout.Closed;
+                                          }).Select(turnout =>
+                                          {
+                                              bool actual = false;
+                                              var known = turnout.Address is >= 1 and <= 65535 &&
+                                                  _layout.TryGetTurnoutClosed((ushort)turnout.Address, out actual);
+                                              return "#" + turnout.Address + " expected " +
+                                                  (turnout.Closed ? "Closed" : "Thrown") +
+                                                  ", actual " + (known
+                                                      ? (actual ? "Closed" : "Thrown") : "UNKNOWN");
+                                          }))).Where(detail => detail.Length > 0).Distinct().ToArray();
+                                      return "#" + state.LocoAddress + " from " + BlockName(from.Value) +
+                                          ": turnout mismatch [" + string.Join(" | ", mismatchDetails) + "]";
+                                  }
+                                  return "#" + state.LocoAddress + ": sensor order mismatch";
+                              }))
+                        : "multiple possible locomotives; no block assignment changed."));
+                return;
+            }
+
+            var candidate = candidates[0];
+            var state = candidate.Tracking;
+            var target = destination[0];
+
+            // A reserved/occupied destination must never be overwritten.
+            if (target.HasRuntimeState &&
+                (target.TargetOnly || target.LocoAddress != state.LocoAddress))
+            {
+                WriteLog("warn", "Reed #" + sensor + ": destination " +
+                    BlockName(destinationBlockId) + " is already reserved or occupied.");
+                return;
+            }
+
+            // SetBlock atomically transfers this locomotive from its old block.
+            // Its blockStateChanged event will re-seed tracking from the
+            // authoritative runtime assignments.
+            if (!_layout.SetBlock((ushort)destinationBlockId,
+                state.LocoId ?? "", (ushort)state.LocoAddress))
+            {
+                WriteLog("warn", "Reed #" + sensor +
+                    ": manual block transfer was rejected.");
+                return;
+            }
+
+            // SeedFromBlocks is called synchronously by SetBlock.
+            if (_tracking.TryGetValue(state.LocoAddress, out var updated))
+            {
+                updated.LastSensor = sensor;
+                AddRecentSensor(updated, sensor);
+                updated.CurrentSensors.Clear();
+                updated.CurrentSectionParts.Clear();
+                updated.Confidence = "certain";
+                updated.UpdatedAt = NowMs();
+            }
+
+            WriteLog("match", "Manual reed tracking: loco #" +
+                state.LocoAddress + " arrived at " +
+                BlockName(destinationBlockId) + " via sensor #" + sensor + ".");
+        }
+    }
+
     void HandleSensorOff(
         int sensor)
     {
@@ -1758,6 +1918,38 @@ public sealed class TrainTrackingRuntime
                     on;
             }
 
+            if (_layout.ReedDetectionMode)
+            {
+                // Automatic Movements are promoted by LayoutRuntime using
+                // their Dispatcher target. Manual locomotives may instead
+                // use a uniquely matching direct graph route at a point
+                // detector; intermediate detectors never transfer a block.
+                if (on)
+                {
+                    HandleManualReedArrival(address.Value);
+                    var assigned = ReadBlockAssignments();
+                    lock (_gate)
+                    {
+                        var blockId = _blockSensorToId.GetValueOrDefault(address.Value);
+                        if (blockId > 0 &&
+                            assigned.TryGetValue(blockId, out var block) &&
+                            block.LocoAddress > 0 &&
+                            _tracking.TryGetValue(block.LocoAddress, out var state) &&
+                            state.CurrentBlockId == blockId)
+                        {
+                            state.LastSensor = address.Value;
+                            AddRecentSensor(state, address.Value);
+                            state.CurrentSensors.Clear();
+                            state.CurrentSectionParts.Clear();
+                            state.Confidence = "certain";
+                            state.UpdatedAt = NowMs();
+                        }
+                    }
+                }
+                Publish();
+                return;
+            }
+
             if (!previous.HasValue ||
                 previous.Value ==
                     on)
@@ -1807,6 +1999,15 @@ public sealed class TrainTrackingRuntime
 
     void SyncPredictions()
     {
+        // Reed mode's only authoritative next-block information is the
+        // Dispatcher target reservation, not a guessed graph route.
+        // Read once per snapshot, never interpret point contact ON as
+        // sustained occupancy.
+        var reedTargets = _layout.ReedDetectionMode
+            ? _layout.BlocksForPersistence()
+                .Where(block => block.TargetOnly && block.TargetLocoAddress > 0)
+                .ToArray()
+            : Array.Empty<RuntimeBlock>();
         foreach (var state in
                  _tracking.Values)
         {
@@ -1814,6 +2015,42 @@ public sealed class TrainTrackingRuntime
                 null;
             state.PredictedNextBlockName =
                 null;
+
+            if (_layout.ReedDetectionMode)
+            {
+                if (_enabled && state.CurrentBlockId.HasValue)
+                {
+                    var targetBlocks = reedTargets
+                        .Where(block => block.TargetLocoAddress == state.LocoAddress &&
+                                        block.Id != state.CurrentBlockId)
+                        .Take(2)
+                        .ToArray();
+                    if (targetBlocks.Length == 1)
+                    {
+                        state.PredictedNextBlockId = targetBlocks[0].Id;
+                        state.PredictedNextBlockName = BlockName(targetBlocks[0].Id);
+                    }
+                    else if (targetBlocks.Length == 0 && _ready &&
+                             !_movement.IsLocoManaged(state.LocoAddress) &&
+                             LocoMoving(state.LocoAddress))
+                    {
+                        // Prediction is only a hint. Actual manual reed
+                        // arrivals still require a unique validated match.
+                        var routes = DirectRoutesFromBlock(
+                            state.CurrentBlockId.Value,
+                            LocoDirection(state.LocoAddress));
+                        if (routes.Select(candidate => candidate.ToBlockId)
+                            .Distinct().Count() == 1)
+                        {
+                            var predictedRoute = routes[0];
+                            state.PredictedNextBlockId = predictedRoute.ToBlockId;
+                            state.PredictedNextBlockName =
+                                predictedRoute.ToBlockName ?? BlockName(predictedRoute.ToBlockId);
+                        }
+                    }
+                }
+                continue;
+            }
 
             if (!_enabled ||
                 !_ready ||

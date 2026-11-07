@@ -100,6 +100,17 @@ public sealed class LayoutRuntime
     // Authoritative physical runtime state.
     // Sensors are NOT reconciled to the layout. They come from <Q> / Q/q.
     readonly Dictionary<ushort, bool> _sensorStates = new();
+    // Monotonic ON-edge generations. Point detection must not miss short pulses
+    // or treat an ON input left over from a previous route as a new arrival.
+    readonly Dictionary<ushort, long> _sensorOnGenerations = new();
+    long _sensorOnSequence;
+
+    public long SensorOnGeneration(ushort address)
+    {
+        lock (_gate)
+            return _sensorOnGenerations.TryGetValue(address, out var value)
+                ? value : 0;
+    }
     // OFF must remain stable for 250 ms; ON is processed immediately.
     int _sensorOffDelayMs = 250;
     int _turnoutCommandIntervalMs = 150;
@@ -162,6 +173,9 @@ public sealed class LayoutRuntime
     public event Action<string, object>? Changed;
     // Safety runs after normal consumers, including TrainTracking, process the sensor change.
     public event Action? SensorTransitionProcessed;
+    // Raised for a new reed ON edge on an unreserved block or on an
+    // ambiguous block-sensor address. Non-block point sensors are excluded.
+    public event Action<ushort>? UnexpectedReedSensorOn;
 
     public int AccessoryCount
     {
@@ -188,6 +202,40 @@ public sealed class LayoutRuntime
             lock (_gate)
                 return _blocks.Count;
         }
+    }
+
+    // Alpha10: point detectors are pulses; their OFF state is not block vacancy.
+    // The backend owns this mode so Dispatcher and Movement use one authority.
+    public bool ReedDetectionMode
+    {
+        get
+        {
+            try
+            {
+                var path = Path.Combine(_env.ConfigRootPath, "automation-detection.json");
+                if (!File.Exists(path)) return false;
+                using var json = JsonDocument.Parse(File.ReadAllText(path));
+                return json.RootElement.TryGetProperty("detectionMode", out var mode) &&
+                       mode.ValueKind == JsonValueKind.String &&
+                       mode.GetString() == "reed";
+            }
+            catch (Exception) { return false; }
+        }
+    }
+
+    public bool SaveDetectionMode(string mode)
+    {
+        if (mode is not ("occupancy" or "reed")) return false;
+        try
+        {
+            var path = Path.Combine(_env.ConfigRootPath, "automation-detection.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            var temp = path + ".tmp";
+            File.WriteAllText(temp, JsonSerializer.Serialize(new { detectionMode = mode }));
+            File.Move(temp, path, true);
+            return true;
+        }
+        catch { return false; }
     }
 
     public LayoutRuntime(AppPaths env)
@@ -1279,6 +1327,9 @@ public sealed class LayoutRuntime
     {
         bool changed = false;
         CancellationTokenSource? pendingOff = null;
+        var reedMode = ReedDetectionMode;
+        bool unexpectedReedOn = false;
+        bool reedBlockChanged = false;
 
         lock (_gate)
         {
@@ -1303,12 +1354,71 @@ public sealed class LayoutRuntime
                 changed = !_sensorStates.TryGetValue(address, out var old) || old != on;
                 _sensorStates[address] = on;
             }
+
+            if (on)
+            {
+                // A repeated ON report is still a valid reed contact report.
+                // Record every ON in reed mode, even if the input was already
+                // ON (for example, a simulator toggle or repeated feedback).
+                if (reedMode || changed)
+                    _sensorOnGenerations[address] = ++_sensorOnSequence;
+
+                if (reedMode)
+                {
+                    // Detect ALL blocks using this input before promoting a
+                    // reservation: even one target is ambiguous if another
+                    // block shares its physical reed contact.
+                    var blocks = _blocks
+                        .Where(block => block.SensorAddress == address)
+                        .Take(2)
+                        .ToArray();
+
+                    if (blocks.Length == 1 &&
+                        blocks[0].TargetOnly &&
+                        blocks[0].TargetLocoAddress > 0)
+                    {
+                        // Promote under the SAME lock used for checking the
+                        // target marker. Finish/Stop may release the marker
+                        // concurrently; a two-stage check + SetBlock used to
+                        // lose a valid reed arrival silently in that window.
+                        // Publish the resulting block change after unlocking.
+                        reedBlockChanged = AssignBlockLocked(
+                            blocks[0],
+                            "",
+                            blocks[0].TargetLocoAddress);
+                    }
+                    else if (changed &&
+                             (blocks.Length > 1 ||
+                              (blocks.Length == 1 && !blocks[0].Occupied)))
+                    {
+                        // A fresh reed contact on an unassigned block has no
+                        // expected locomotive. An already-assigned block is
+                        // known, and repeated ON snapshots must not retrigger
+                        // an alarm after a successful target promotion.
+                        unexpectedReedOn = true;
+                    }
+                    // No block mapping: intermediate point detectors are not
+                    // destination-block arrivals; leave their events alone.
+                }
+            }
         }
+
+        // Block ownership is already committed while holding _gate.
+        // Emit changes only AFTER releasing it, before sensorChanged so
+        // tracking and Movement observers see the authoritative assignment.
+        if (reedBlockChanged)
+            Changed?.Invoke("blockStateChanged", BlockSnapshot());
 
         if (pendingOff is not null)
             _ = ConfirmSensorOffAsync(address, pendingOff);
 
-        if (changed)
+        if (unexpectedReedOn)
+            UnexpectedReedSensorOn?.Invoke(address);
+
+        // A reed contact is an event, not continuous occupancy. A repeated
+        // ON packet must also reach TrainTracking, even if no intervening
+        // OFF was received (e.g. feedback devices coalescing short pulses).
+        if (changed || (reedMode && on))
         {
             Changed?.Invoke("sensorChanged", new { address, on });
             SensorTransitionProcessed?.Invoke();
@@ -1348,9 +1458,58 @@ public sealed class LayoutRuntime
         }
     }
 
-    public bool SetBlock(ushort id, string locoId, ushort locoAddress)
+    // Caller must hold _gate. Shared by manual SetBlock and reed arrival,
+    // so they cannot disagree about how a loco transfers between blocks.
+    bool AssignBlockLocked(RuntimeBlock target, string locoId, ushort locoAddress)
     {
         bool changed = false;
+        bool clearing = string.IsNullOrEmpty(locoId) && locoAddress == 0;
+
+        if (!clearing)
+        {
+            foreach (var block in _blocks)
+            {
+                if (block.Id == target.Id || !block.Occupied)
+                    continue;
+
+                bool sameAddress = locoAddress > 0 && block.LocoAddress == locoAddress;
+                bool sameId = !string.IsNullOrEmpty(locoId) && block.LocoId == locoId;
+
+                if (!sameAddress && !sameId)
+                    continue;
+
+                block.LocoId = "";
+                block.LocoAddress = 0;
+                changed = true;
+            }
+        }
+
+        if (clearing)
+        {
+            if (target.HasRuntimeState)
+            {
+                target.LocoId = "";
+                target.LocoAddress = 0;
+                changed = true;
+            }
+        }
+        else if (target.LocoId != locoId || target.LocoAddress != locoAddress)
+        {
+            target.LocoId = locoId;
+            target.LocoAddress = locoAddress;
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    public bool SetBlock(
+        ushort id,
+        string locoId,
+        ushort locoAddress,
+        string? expectedTargetMarker = null)
+    {
+        bool changed;
 
         lock (_gate)
         {
@@ -1358,42 +1517,16 @@ public sealed class LayoutRuntime
             if (target is null)
                 return false;
 
-            bool clearing = string.IsNullOrEmpty(locoId) && locoAddress == 0;
+            if (expectedTargetMarker is not null &&
+                (!target.TargetOnly ||
+                 !string.Equals(
+                     target.LocoId,
+                     expectedTargetMarker,
+                     StringComparison.Ordinal) ||
+                 target.TargetLocoAddress != locoAddress))
+                return false;
 
-            if (!clearing)
-            {
-                foreach (var block in _blocks)
-                {
-                    if (block.Id == id || !block.Occupied)
-                        continue;
-
-                    bool sameAddress = locoAddress > 0 && block.LocoAddress == locoAddress;
-                    bool sameId = !string.IsNullOrEmpty(locoId) && block.LocoId == locoId;
-
-                    if (!sameAddress && !sameId)
-                        continue;
-
-                    block.LocoId = "";
-                    block.LocoAddress = 0;
-                    changed = true;
-                }
-            }
-
-            if (clearing)
-            {
-                if (target.HasRuntimeState)
-                {
-                    target.LocoId = "";
-                    target.LocoAddress = 0;
-                    changed = true;
-                }
-            }
-            else if (target.LocoId != locoId || target.LocoAddress != locoAddress)
-            {
-                target.LocoId = locoId;
-                target.LocoAddress = locoAddress;
-                changed = true;
-            }
+            changed = AssignBlockLocked(target, locoId, locoAddress);
         }
 
         if (changed)
