@@ -33,4 +33,3 @@ Other ESP32 boards are not official release targets.
 
 External Devices in Alpha10:
 - DCCExpress S88 Adapter, ROCO Z21 WLANMAUS newGen and gamepad support.
-- PIKO SmartControl WLAN is on hold and hidden from the interface.
