@@ -70,8 +70,6 @@ You can also control your railway from a computer, tablet, or phone on the same 
 - **Optional route-based scripting** — generate an editable script from a saved, direction-aware route graph for custom automation. Scripts are **not required** for the built-in reed-based Movements, sequences or timetables.
 - **Tracking and movement refinements** — improvements to block transitions, route handling, visual feedback and turnout lock indicators.
 
-**PIKO SmartControl WLAN is postponed.** It is deliberately not offered in Alpha10's **External Devices** dialog. The experimental integration remains under development and is not a supported Alpha10 controller.
-
 ### Occupancy vs Reed / Point
 
 Choose the detection mode in the layout's automation settings. **Both modes support the Hub's built-in automatic movement system; scripts are optional.**
