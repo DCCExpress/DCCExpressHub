@@ -10,6 +10,7 @@ import i18next from "i18next";
 
 import {
   ActionIcon,
+  Alert,
   Badge,
   Button,
   Paper,
@@ -18,7 +19,9 @@ import {
   Loader,
   Modal,
   ScrollArea,
+  Radio,
   Stack,
+  Table,
   Switch,
   Text,
   TextInput,
@@ -37,14 +40,24 @@ import {
   IconGripVertical,
   IconPlayerPause,
   IconPlayerPlay,
+  IconRoute,
   IconTrash,
   IconX,
 } from "@tabler/icons-react";
 
 import {
+  createAutomationId,
   saveAutomationScripts,
   type AutomationScriptDefinition,
 } from "../../services/automationApi";
+import type { SerializedLayoutDto } from "../../domain/layout/layoutDto";
+import AppModal from "@/components/common/AppModal";
+import {
+  filterScriptRoutes,
+  generateScriptFromRoute,
+  listScriptRoutes,
+  type ScriptRouteOption,
+} from "../../services/scriptRouteGenerator";
 
 import {
   abortAllSavedClientScripts,
@@ -960,11 +973,7 @@ function ScriptCard({
             >
               {
                 i18next.t(
-                  "ui.delete",
-                  {
-                    defaultValue:
-                      "Delete",
-                  }
+                  "ui.delete2"
                 )
               }
             </Button>
@@ -1064,6 +1073,80 @@ export default function AutomationScriptsTable({
 }: Props) {
   const commandCenter =
     useCommandCenter();
+
+  const [generateOpened, setGenerateOpened] = useState(false);
+  const [generateLoading, setGenerateLoading] = useState(false);
+  const [generateSaving, setGenerateSaving] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+  const [generateLayout, setGenerateLayout] = useState<SerializedLayoutDto | null>(null);
+  const [generateRoutes, setGenerateRoutes] = useState<ScriptRouteOption[]>([]);
+  const [generateRouteId, setGenerateRouteId] = useState<string | null>(null);
+  const [generateFromFilter, setGenerateFromFilter] = useState("");
+  const [generateToFilter, setGenerateToFilter] = useState("");
+
+  const generateVisibleRoutes = filterScriptRoutes(
+    generateRoutes,
+    generateFromFilter,
+    generateToFilter,
+  );
+  // Generate only from a row visible under the current filters.
+  const selectedGenerateRoute =
+    generateVisibleRoutes.find(route => route.id === generateRouteId);
+
+  const openRouteGenerator = async () => {
+    setGenerateOpened(true);
+    setGenerateLoading(true);
+    setGenerateError(null);
+    setGenerateLayout(null);
+    setGenerateRoutes([]);
+    setGenerateRouteId(null);
+    setGenerateFromFilter("");
+    setGenerateToFilter("");
+    try {
+      const response = await fetch("/api/layout", { cache: "no-store" });
+      if (!response.ok) throw new Error(`Cannot load layout (${response.status}).`);
+      const layout = await response.json() as SerializedLayoutDto;
+      const routes = listScriptRoutes(layout);
+      if (!routes.length) throw new Error("No usable routes found. Generate and save the route graph first.");
+      setGenerateLayout(layout);
+      setGenerateRoutes(routes);
+      // Explicit row selection prevents accidentally generating the first route.
+    } catch (error) {
+      setGenerateError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setGenerateLoading(false);
+    }
+  };
+
+  const createFromRoute = async () => {
+    const choice = selectedGenerateRoute;
+    if (!generateLayout || !choice) return;
+    setGenerateSaving(true);
+    setGenerateError(null);
+    try {
+      const script = generateScriptFromRoute(generateLayout, choice);
+      const next = [...scripts, {
+        id: createAutomationId(),
+        name: `Route: ${choice.path}`,
+        script,
+        startWithAll: false, // Generated scripts require explicit review and start.
+        enabled: true,
+        autoStart: false,
+      }];
+      await saveAutomationScripts(next);
+      onScriptsChange(next);
+      setGenerateOpened(false);
+      showNotification({
+        color: "green",
+        title: "Script generated",
+        message: `Review and edit the generated ${choice.path} script before running it.`,
+      });
+    } catch (error) {
+      setGenerateError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setGenerateSaving(false);
+    }
+  };
 
   const [
     draggedScriptId,
@@ -1809,6 +1892,15 @@ export default function AutomationScriptsTable({
               )
             }
           </Button>
+          <Button
+            size="xs"
+            variant="light"
+            leftSection={<IconRoute size={15} />}
+            disabled={!editorsEnabled}
+            onClick={() => void openRouteGenerator()}
+          >
+            Generate from route
+          </Button>
         </Group>
       </Group>
 
@@ -1962,6 +2054,151 @@ export default function AutomationScriptsTable({
           </Text>
         )}
       </ScrollArea>
+
+      <AppModal
+        opened={generateOpened}
+        onClose={() => { if (!generateSaving) setGenerateOpened(false); }}
+        title="Generate script from route"
+        centered
+        draggable
+        resetPositionOnOpen
+        closeOnClickOutside={false}
+        closeOnEscape={!generateSaving}
+        withCloseButton={!generateSaving}
+        size="xl"
+      >
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            Select a saved route. The generated script checks the next block
+            and its target reservation, sets the required turnouts under
+            SwitchMan, waits for the destination sensor, then calls setBlock.
+            Review the script before using it on a layout.
+          </Text>
+          {generateLoading ? <Loader size="sm" /> : (
+            <>
+              <Group grow align="flex-end" gap="sm">
+                <TextInput
+                  label="FROM block filter"
+                  placeholder="Type e.g. A1"
+                  value={generateFromFilter}
+                  onChange={event => {
+                    setGenerateFromFilter(event.currentTarget.value);
+                    setGenerateRouteId(null);
+                  }}
+                  disabled={generateSaving || !generateRoutes.length}
+                />
+                <TextInput
+                  label="TO block filter"
+                  placeholder="Type e.g. C1"
+                  value={generateToFilter}
+                  onChange={event => {
+                    setGenerateToFilter(event.currentTarget.value);
+                    setGenerateRouteId(null);
+                  }}
+                  disabled={generateSaving || !generateRoutes.length}
+                />
+              </Group>
+
+              <Text size="xs" c="dimmed">
+                {generateVisibleRoutes.length} of {generateRoutes.length} routes
+                {selectedGenerateRoute ? ` · Selected: ${selectedGenerateRoute.path}` : " · Select a route below"}
+              </Text>
+
+              <ScrollArea h={340} type="auto" offsetScrollbars>
+                <Table striped highlightOnHover withTableBorder withColumnBorders>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th w={36}></Table.Th>
+                      <Table.Th>FROM</Table.Th>
+                      <Table.Th>VIA</Table.Th>
+                      <Table.Th>TO</Table.Th>
+                      <Table.Th>Direction</Table.Th>
+                      <Table.Th>Turnouts</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {generateVisibleRoutes.map(route => {
+                      const isSelected = generateRouteId === route.id;
+                      const via = route.route.blockPath
+                        .slice(1, -1)
+                        .map(block => block.name)
+                        .join(" → ");
+                      return (
+                        <Table.Tr
+                          key={route.id}
+                          aria-selected={isSelected}
+                          tabIndex={0}
+                          onClick={() => setGenerateRouteId(route.id)}
+                          onKeyDown={event => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              setGenerateRouteId(route.id);
+                            }
+                          }}
+                          style={{
+                            cursor: "pointer",
+                            backgroundColor: isSelected
+                              ? "var(--mantine-primary-color-light)"
+                              : undefined,
+                          }}
+                        >
+                          <Table.Td>
+                            <Radio
+                              size="xs"
+                              checked={isSelected}
+                              onChange={() => setGenerateRouteId(route.id)}
+                              aria-label={`Select route ${route.label}`}
+                            />
+                          </Table.Td>
+                          <Table.Td>{route.route.fromBlockName}</Table.Td>
+                          <Table.Td>{via || "—"}</Table.Td>
+                          <Table.Td>{route.route.toBlockName}</Table.Td>
+                          <Table.Td>
+                            <Badge
+                              size="xs"
+                              variant="light"
+                              color={route.direction === "reverse" ? "orange" : "blue"}
+                            >
+                              {i18next.t(route.direction === "reverse" ? "ui.reverse" : "ui.forward")}
+                            </Badge>
+                          </Table.Td>
+                          <Table.Td>
+                            {route.route.turnoutStates?.length
+                              ? route.route.turnoutStates.map(turnout =>
+                                `#${turnout.address} ${turnout.closed ? "C" : "T"}`).join(", ")
+                              : "—"}
+                          </Table.Td>
+                        </Table.Tr>
+                      );
+                    })}
+                  </Table.Tbody>
+                </Table>
+                {!generateVisibleRoutes.length && (
+                  <Text size="sm" c="dimmed" ta="center" p="lg">
+                    No routes match the selected FROM / TO filters.
+                  </Text>
+                )}
+              </ScrollArea>
+            </>
+          )}
+          {generateError && (
+            <Alert color="red" title="Cannot generate script">{generateError}</Alert>
+          )}
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setGenerateOpened(false)} disabled={generateSaving}>
+              Cancel
+            </Button>
+            <Button
+              leftSection={<IconRoute size={15} />}
+              loading={generateSaving}
+              disabled={!generateLayout || !selectedGenerateRoute || generateLoading}
+              onClick={() => void createFromRoute()}
+            >
+              Generate script
+            </Button>
+          </Group>
+        </Stack>
+      </AppModal>
     </Stack>
   );
 }

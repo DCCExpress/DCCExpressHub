@@ -290,6 +290,8 @@ public sealed class MovementRuntime
 
         _layout.SensorTransitionProcessed +=
             OnSensorTransitionProcessed;
+        _layout.UnexpectedReedSensorOn +=
+            OnUnexpectedReedSensorOn;
     }
 
     static long NowMs() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -443,6 +445,14 @@ public sealed class MovementRuntime
                     (expectedLocoAddress?.ToString() ?? "?") +
                     ".",
 
+                "unexpected_reed_sensor" =>
+                    "Unexpected reed sensor ON: block " +
+                    BlockLabel(block) +
+                    ", sensor #" +
+                    block.SensorAddress +
+                    " reported a train without an assigned locomotive " +
+                    "or an expected target reservation.",
+
                 _ =>
                     OccupancyError(
                         block)
@@ -532,6 +542,51 @@ public sealed class MovementRuntime
                 false);
     }
 
+    void OnUnexpectedReedSensorOn(ushort sensorAddress)
+    {
+        if (!_layout.ReedDetectionMode)
+            return;
+
+        var blocks = _layout.BlocksForPersistence()
+            .Where(block => block.SensorAddress == sensorAddress)
+            .ToArray();
+
+        // Sensors that are not configured as block contacts may be used by
+        // scripts and other detectors; they are not unexpected block arrivals.
+        if (blocks.Length == 0)
+            return;
+
+        Execution[] executions;
+        lock (_gate)
+            executions = _executions.Values.ToArray();
+
+        // Reed contacts may be triggered during normal manual driving.
+        // Movement safety must not issue a global E-STOP when no automatic
+        // Movement is running; manual train tracking is a separate concern.
+        if (executions.Length == 0)
+            return;
+
+        var ambiguous = blocks.Length > 1;
+        var trip = CreateSafetyTrip(
+            ambiguous ? "ambiguous_reed_sensor" : "unexpected_reed_sensor",
+            blocks[0],
+            executions);
+
+        if (ambiguous)
+            trip = trip with
+            {
+                Reason = "Ambiguous reed sensor ON: sensor #" +
+                    sensorAddress +
+                    " belongs to multiple blocks (" +
+                    string.Join(", ", blocks.Select(BlockLabel)) +
+                    "). Cannot safely identify an arriving train."
+            };
+
+        // An unexpected reed arrival during an active Movement remains a
+        // safety violation, even when the contact was triggered manually.
+        _ = TripOccupancySafetyAsync(trip);
+    }
+
     void OnSensorTransitionProcessed()
     {
         Execution[] executions;
@@ -542,6 +597,8 @@ public sealed class MovementRuntime
 
         if (executions.Length == 0)
             return;
+
+        if (_layout.ReedDetectionMode) return;
 
         // Keep the fail-closed occupancy check. If a live sensor is shared
         // across blocks, report the mapping conflict rather than pretending
@@ -565,8 +622,8 @@ public sealed class MovementRuntime
             return;
         }
 
-        var unknownOccupancy =
-            FindUnknownOccupiedBlock();
+        var unknownOccupancy = _layout.ReedDetectionMode
+            ? null : FindUnknownOccupiedBlock();
 
         if (unknownOccupancy is not null)
         {
@@ -635,9 +692,8 @@ public sealed class MovementRuntime
                 executions =
                     _executions.Values.ToArray();
 
-            if (executions.Length == 0)
-                return;
-
+            // Also publish and request E-STOP when no Movement is active.
+            // Reed automation and manual/script-driven trains can still move.
             _log.LogCritical(
                 "{Error} Emergency stop requested.",
                 trip.Reason);
@@ -660,10 +716,17 @@ public sealed class MovementRuntime
                     desiredSpeed:
                         0,
                     info:
-                        trip.Code ==
-                            "target_occupancy_mismatch"
-                            ? "Emergency stop: target occupancy mismatch"
-                            : "Emergency stop: unknown occupancy",
+                        trip.Code switch
+                        {
+                            "target_occupancy_mismatch" =>
+                                "Emergency stop: target occupancy mismatch",
+                            "unexpected_reed_sensor" =>
+                                "Emergency stop: unexpected reed sensor",
+                            "ambiguous_reed_sensor" =>
+                                "Emergency stop: ambiguous reed sensor",
+                            _ =>
+                                "Emergency stop: unknown occupancy"
+                        },
                     setInfo:
                         true,
                     error:
@@ -985,7 +1048,7 @@ public sealed class MovementRuntime
         if (block.LocoAddress == 0)
             return (true, 0, "source_block_empty");
 
-        if (block.SensorAddress > 0)
+        if (!_layout.ReedDetectionMode && block.SensorAddress > 0)
         {
             if (!_layout.TryGetSensorState(block.SensorAddress, out var on))
                 return (true, block.LocoAddress,
@@ -1021,8 +1084,26 @@ public sealed class MovementRuntime
     }
 
     bool ArrivalSatisfied(
-        MovementPlanLegModel leg)
+        MovementPlanLegModel leg,
+        long reedArrivalBaseline,
+        int expectedLocoAddress)
     {
+        if (_layout.ReedDetectionMode)
+        {
+            // SetSensor can commit the reserved target BEFORE this coroutine
+            // resumes, or even before its polling baseline was captured.
+            // The authoritative block assignment is therefore also ARRIVED.
+            if (leg.To.BlockId is >= 1 and <= 65535 &&
+                Block(leg.To.BlockId.Value)?.LocoAddress == expectedLocoAddress)
+                return true;
+
+            // Also retain pulse-edge detection if no target promotion happened.
+            // This handles momentary pulses between polling iterations.
+            return leg.To.SensorAddress is >= 1 and <= 65535 &&
+                   _layout.SensorOnGeneration((ushort)leg.To.SensorAddress.Value) >
+                   reedArrivalBaseline;
+        }
+
         if (!ConditionsSatisfied(
                 leg.ArrivedWhen))
             return false;
@@ -1131,6 +1212,9 @@ public sealed class MovementRuntime
         MovementPageModel page,
         MovementPlanLegModel leg)
     {
+        if (_layout.ReedDetectionMode)
+            return []; // Dispatcher still guards logical blocks, routes and turnout locks.
+
         var ignored = page.SafetyRules
             .FirstOrDefault(x =>
                 x.FromBlockId == leg.From.BlockId &&
@@ -1174,6 +1258,7 @@ public sealed class MovementRuntime
 
     bool SafetyFree(IEnumerable<ushort> sensors)
     {
+        if (_layout.ReedDetectionMode) return true;
         foreach (var sensor in sensors)
             if (!_layout.TryGetSensorState(sensor, out var on) || on)
                 return false;
@@ -2286,6 +2371,11 @@ public sealed class MovementRuntime
         MovementPlanLegModel leg,
         BlockLeaveState state)
     {
+        // Point sensors cannot prove the trailing end has left a block.
+        // Emit LEAVE only after a confirmed destination arrival.
+        if (_layout.ReedDetectionMode)
+            return;
+
         if (state.Fired ||
             leg.LeaveWhen.Length == 0)
             return;
@@ -2354,6 +2444,9 @@ public sealed class MovementRuntime
         MovementPlanLegModel leg,
         BlockLeaveState state)
     {
+        if (_layout.ReedDetectionMode)
+            return;
+
         if (state.Fired ||
             leg.LeaveWhen.Length == 0)
             return;
@@ -2479,6 +2572,8 @@ public sealed class MovementRuntime
         if (!string.IsNullOrEmpty(target.LocoId))
             return "destination " + leg.To.Name +
                    " still has an occupied block assignment";
+
+        if (_layout.ReedDetectionMode) return null;
 
         foreach (var sensor in sensors)
         {
@@ -2961,6 +3056,10 @@ public sealed class MovementRuntime
                 "starting",
                 leg.From);
 
+            var reedArrivalBaseline = _layout.ReedDetectionMode &&
+                leg.To.SensorAddress is >= 1 and <= 65535
+                    ? _layout.SensorOnGeneration((ushort)leg.To.SensorAddress.Value)
+                    : 0;
             execution.Moving = true;
             await ApplySpeed(execution, force: true);
 
@@ -3027,7 +3126,12 @@ public sealed class MovementRuntime
             var pendingTurnouts =
                 new List<MovementPlanResourceModel>();
 
-            foreach (var resource in leg.Resources)
+            // In reed mode intermediate section detectors are not continuous
+            // occupancy signals. Do not block a leg on those sensors or emit
+            // speculative resource entry events before the destination reed.
+            foreach (var resource in _layout.ReedDetectionMode
+                         ? Array.Empty<MovementPlanResourceModel>()
+                         : leg.Resources)
             {
                 execution.Cancellation.Token.ThrowIfCancellationRequested();
 
@@ -3142,12 +3246,19 @@ public sealed class MovementRuntime
                 }
             }
 
-            if (leg.ArrivedWhen.Length == 0)
+            if (!_layout.ReedDetectionMode && leg.ArrivedWhen.Length == 0)
                 throw new InvalidOperationException(
                     "movement_destination_has_no_arrival_condition");
 
+            if (_layout.ReedDetectionMode &&
+                leg.To.SensorAddress is not (>= 1 and <= 65535))
+                throw new InvalidOperationException(
+                    "reed_destination_sensor_missing");
+
             while (!ArrivalSatisfied(
-                       leg))
+                       leg,
+                       reedArrivalBaseline,
+                       execution.LocoAddress))
             {
                 execution.Cancellation.Token.ThrowIfCancellationRequested();
 
@@ -3241,6 +3352,41 @@ public sealed class MovementRuntime
                 50,
                 execution.Cancellation.Token);
 
+            // An ARRIVED point event is authoritative in reed mode even at
+            // the FINAL block. Commit the destination before any final-stop
+            // command or user ARRIVED action can delay completion. Previously
+            // only intermediate legs committed here, leaving the last target
+            // orange (reserved) until all the final actions and LEAVE steps
+            // completed.
+            if (_layout.ReedDetectionMode &&
+                leg.To.BlockId is >= 1 and <= 65535)
+            {
+                if (!_layout.SetBlock(
+                        (ushort)leg.To.BlockId.Value,
+                        "",
+                        (ushort)execution.LocoAddress))
+                    throw new InvalidOperationException(
+                        "movement_destination_commit_failed");
+
+                execution.CurrentBlockId = leg.To.BlockId;
+                execution.TargetBlockId = null;
+                destinationCommitted = true;
+
+                _log.LogInformation(
+                    "Reed arrival committed: loco #{Loco} {From}->{To}, destination sensor #{Sensor}, finalLeg={FinalLeg}",
+                    execution.LocoAddress,
+                    leg.From.Name,
+                    leg.To.Name,
+                    leg.To.SensorAddress,
+                    finalLeg);
+
+                if (leg.From.BlockId is >= 1 and <= 65535 &&
+                    leg.From.BlockId != leg.To.BlockId)
+                    _layout.RemoveBlock(
+                        (ushort)leg.From.BlockId.Value,
+                        expectedLocoAddress: (ushort)execution.LocoAddress);
+            }
+
             if (finalLeg)
             {
                 // ARRIVED blocking actions are allowed to roll the train a bit
@@ -3279,7 +3425,8 @@ public sealed class MovementRuntime
                  * the train may already be safely inside B1 while A1's leave
                  * detector/action is still catching up.
                  */
-                if (leg.To.BlockId is >= 1 and <= 65535)
+                if (!destinationCommitted &&
+                    leg.To.BlockId is >= 1 and <= 65535)
                 {
                     if (!_layout.SetBlock(
                             (ushort)leg.To.BlockId.Value,
@@ -3288,14 +3435,9 @@ public sealed class MovementRuntime
                         throw new InvalidOperationException(
                             "movement_destination_commit_failed");
 
-                    execution.CurrentBlockId =
-                        leg.To.BlockId;
-
-                    execution.TargetBlockId =
-                        null;
-
-                    destinationCommitted =
-                        true;
+                    execution.CurrentBlockId = leg.To.BlockId;
+                    execution.TargetBlockId = null;
+                    destinationCommitted = true;
                 }
 
                 /*
@@ -3488,7 +3630,7 @@ public sealed class MovementRuntime
             await DrainReadyResourceLeaves(
                 execution);
 
-            if (leg.LeaveWhen.Length == 0)
+            if (_layout.ReedDetectionMode || leg.LeaveWhen.Length == 0)
             {
                 await RunBlockLeaveFallback(
                     execution,
@@ -3654,6 +3796,28 @@ public sealed class MovementRuntime
             if (!execution.BackgroundTasks.IsEmpty)
                 await Task.WhenAll(
                     execution.BackgroundTasks.ToArray());
+
+            // Finishing a Movement (including a timetable/sequential child)
+            // is NOT proof of arrival unless the destination still owns the
+            // locomotive. Never publish "Movement completed" with an empty
+            // reed destination; that previously hid a lost target commit.
+            if (_layout.ReedDetectionMode &&
+                execution.CurrentBlockId is >= 1 and <= 65535)
+            {
+                var arrivedBlock = Block(execution.CurrentBlockId.Value);
+                if (arrivedBlock?.LocoAddress != execution.LocoAddress)
+                    throw new InvalidOperationException(
+                        "reed_arrival_block_assignment_missing: block #" +
+                        execution.CurrentBlockId.Value +
+                        " does not contain locomotive #" +
+                        execution.LocoAddress);
+
+                _log.LogInformation(
+                    "Reed Movement completed: locomotive #{LocoAddress} confirmed in block #{BlockId}, finishRequested={FinishRequested}",
+                    execution.LocoAddress,
+                    execution.CurrentBlockId.Value,
+                    execution.FinishAtNextBlock);
+            }
 
             var stoppedAt = NowMs();
 
@@ -3976,10 +4140,15 @@ public sealed class MovementRuntime
             if (block.BlockId is not > 0)
                 return (false, int.MaxValue, "missing_route_block");
             var live = Block(block.BlockId.Value);
-            if (live is null || live.SensorAddress == 0 ||
-                !_layout.TryGetSensorState(live.SensorAddress, out var occupied))
+            if (live is null)
+                return (false, int.MaxValue, "route_block_missing");
+            if (!_layout.ReedDetectionMode &&
+                (live.SensorAddress == 0 ||
+                 !_layout.TryGetSensorState(live.SensorAddress, out _)))
                 return (false, int.MaxValue, "route_sensor_unknown");
-            if (occupied || live.Occupied || live.LocoAddress > 0 ||
+            if ((!_layout.ReedDetectionMode &&
+                 _layout.TryGetSensorState(live.SensorAddress, out var occupied) &&
+                 occupied) || live.Occupied || live.LocoAddress > 0 ||
                 live.TargetLocoAddress > 0)
                 return (false, int.MaxValue, "route_block_occupied_or_reserved");
         }
@@ -4084,7 +4253,7 @@ public sealed class MovementRuntime
             return (false, "movement_source_missing");
 
         var blockWithoutSensor =
-            plan.Blocks.FirstOrDefault(block =>
+            _layout.ReedDetectionMode ? null : plan.Blocks.FirstOrDefault(block =>
                 block.BlockId is >= 1 and <= 65535 &&
                 block.SensorAddress is not
                     (>= 1 and <= 65535));
@@ -4100,7 +4269,9 @@ public sealed class MovementRuntime
         // resolved route (FROM, VIA and TO) needs a real configured occupancy
         // input and a fresh, known value from the command center. A stored
         // block.sensorAddress alone does not prove the sensor exists.
-        foreach (var routeBlock in plan.Blocks.Where(block => block.BlockId.HasValue))
+        foreach (var routeBlock in _layout.ReedDetectionMode
+                     ? Array.Empty<MovementPlanResourceModel>()
+                     : plan.Blocks.Where(block => block.BlockId.HasValue))
         {
             var blockId = routeBlock.BlockId!.Value;
             var liveBlock = Block(blockId);
@@ -4133,6 +4304,23 @@ public sealed class MovementRuntime
                     "and wait for a fresh sensor report after Power ON.");
         }
 
+        if (_layout.ReedDetectionMode)
+        {
+            // Reed mode still requires an actual destination contact, but
+            // does not require an initial ON/OFF snapshot of that contact.
+            foreach (var routeBlock in plan.Blocks.Skip(1))
+            {
+                if (routeBlock.BlockId is not (>= 1 and <= 65535) ||
+                    routeBlock.SensorAddress is not (>= 1 and <= 65535) ||
+                    Block(routeBlock.BlockId.Value) is not { } liveBlock ||
+                    liveBlock.SensorAddress != routeBlock.SensorAddress ||
+                    _layout.FindSensor((ushort)routeBlock.SensorAddress.Value) is null)
+                    return (false,
+                        "Reed movement requires a configured destination point sensor for block " +
+                        routeBlock.Name + ". Check the saved route and block sensor address.");
+            }
+        }
+
         var sourceBlock =
             Block(source.BlockId.Value);
 
@@ -4140,16 +4328,17 @@ public sealed class MovementRuntime
             sourceBlock.LocoAddress == 0)
             return (false, "movement_source_loco_missing");
 
-        if (source.SensorAddress is not
+        if (!_layout.ReedDetectionMode && source.SensorAddress is not
             (>= 1 and <= 65535))
             return (
                 false,
                 "movement_source_sensor_missing");
 
-        if (!_layout.TryGetSensorState(
-                (ushort)source.SensorAddress.Value,
+        if (!_layout.ReedDetectionMode &&
+            (!_layout.TryGetSensorState(
+                (ushort)source.SensorAddress!.Value,
                 out var sourceOccupied) ||
-            !sourceOccupied)
+            !sourceOccupied))
             return (
                 false,
                 "Movement cannot start: locomotive #" +
@@ -4160,8 +4349,8 @@ public sealed class MovementRuntime
                 source.SensorAddress.Value +
                 " is not ON.");
 
-        var duplicateSensorError =
-            DuplicateBlockSensorError(_layout.BlocksForPersistence());
+        var duplicateSensorError = _layout.ReedDetectionMode
+            ? null : DuplicateBlockSensorError(_layout.BlocksForPersistence());
 
         if (duplicateSensorError is not null)
         {
@@ -4169,8 +4358,8 @@ public sealed class MovementRuntime
             return (false, duplicateSensorError);
         }
 
-        var unknownOccupancy =
-            FindUnknownOccupiedBlock();
+        var unknownOccupancy = _layout.ReedDetectionMode
+            ? null : FindUnknownOccupiedBlock();
 
         if (unknownOccupancy is not null)
         {

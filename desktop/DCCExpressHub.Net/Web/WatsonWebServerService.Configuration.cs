@@ -9,6 +9,44 @@ public sealed partial class WatsonWebServerService
     void RegisterConfigurationRoutes(
         Webserver server)
     {
+        Add(server, WatsonHttpMethod.GET, "/api/settings/automation", async ctx =>
+        {
+            var mode = Service<LayoutRuntime>().ReedDetectionMode ? "reed" : "occupancy";
+            await SendAsync(ctx, HubApiResponse.Ok(new { detectionMode = mode }));
+        });
+
+        Add(server, WatsonHttpMethod.POST, "/api/settings/automation", async ctx =>
+        {
+            using var input = await ReadBodyStreamAsync(ctx);
+            System.Text.Json.JsonDocument json;
+            try
+            {
+                json = await System.Text.Json.JsonDocument.ParseAsync(input, cancellationToken: ctx.Token);
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                await SendAsync(ctx, HubApiResponse.Error(400, new { ok = false, message = "Invalid automation settings JSON" }));
+                return;
+            }
+            using (json)
+            {
+            var root = json.RootElement;
+            var mode = root.ValueKind == System.Text.Json.JsonValueKind.Object &&
+                root.TryGetProperty("detectionMode", out var property) &&
+                property.ValueKind == System.Text.Json.JsonValueKind.String
+                    ? property.GetString() : null;
+            if (mode is not ("occupancy" or "reed"))
+            {
+                await SendAsync(ctx, HubApiResponse.Error(400, new { ok = false, message = "Invalid detection mode" }));
+                return;
+            }
+            var saved = Service<LayoutRuntime>().SaveDetectionMode(mode);
+            await SendAsync(ctx, saved
+                ? HubApiResponse.Ok(new { detectionMode = mode })
+                : HubApiResponse.Error(500, new { ok = false, message = "Could not save detection mode" }));
+            }
+        });
+
         Add(
             server,
             WatsonHttpMethod.GET,

@@ -1,4 +1,5 @@
 import i18next from "i18next";
+import { showNotification } from "@mantine/notifications";
 import {
   Box,
   Group,
@@ -203,6 +204,11 @@ function setDoubleTurnoutPosition(
   turnout: TrackTurnoutDoubleElement,
   position: DoubleTurnoutPosition
 ): void {
+  if (turnout.locked) {
+    showNotification({ color: "orange", title: i18next.t("ui.turnoutLocked"), message: i18next.t("ui.turnoutLockedMessage", { value1: `${turnout.turnout1Address}, ${turnout.turnout2Address}` }) });
+    return;
+  }
+
   const bits =
     getConfiguredBits(
       turnout,

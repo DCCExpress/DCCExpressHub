@@ -245,4 +245,4 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host ""
 Write-Host "Release tag pushed successfully." -ForegroundColor Green
-Write-Host "GitHub Actions will build the official DCC-EX firmware release for $Tag." -ForegroundColor Green
+Write-Host "GitHub Actions will build the configured DCCExpressHub firmware targets and publish $Tag." -ForegroundColor Green
