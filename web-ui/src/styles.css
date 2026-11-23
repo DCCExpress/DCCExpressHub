@@ -418,6 +418,7 @@ button,
 
 /* Shared F0-F28 palette across layout, drive and tablet throttles. */
 .mantine-Button-root.loco-function-button {
+  border-radius: 7px;
   background-color: #171b22;
   border: 1px solid #414952;
   color: #fff;
@@ -501,7 +502,7 @@ button,
   display: flex;
   flex-direction: column;
   width: 100%;
-  gap: 8px;
+  gap: 4px;
 }
 
 .mobile-throttle-fit--viewport {
@@ -773,7 +774,6 @@ button,
   background: transparent;
 }
 .tablet-shell .tablet-floating-layout .mobile-throttle-functions .mantine-Button-root {
-  border-radius: 7px;
   min-height: 0;
 }
 @media (max-width: 760px) {
