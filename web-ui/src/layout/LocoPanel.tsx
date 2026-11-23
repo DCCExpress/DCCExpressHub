@@ -848,7 +848,7 @@ export default function LocoPanel({
     <Card
       withBorder
       radius="sm"
-      p="xs"
+      p={6}
       h="100%"
       opacity={alive ? 1 : 0.75}
       className={mobileViewport ? "mobile-loco-controller-card" : undefined}
