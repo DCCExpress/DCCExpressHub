@@ -416,6 +416,24 @@ button,
   padding-left: 0;
 }
 
+/* Shared F0-F28 palette across layout, drive and tablet throttles. */
+.mantine-Button-root.loco-function-button {
+  background-color: #171b22;
+  border: 1px solid #414952;
+  color: #fff;
+}
+.mantine-Button-root.loco-function-button--active {
+  background-color: var(--mantine-primary-color-filled);
+  border-color: var(--mantine-primary-color-filled);
+  color: #fff;
+}
+.mantine-Button-root.loco-function-button:not(:disabled):hover {
+  border-color: var(--mantine-primary-color-filled-hover);
+}
+.mantine-Button-root.loco-function-button--active:not(:disabled):hover {
+  background-color: var(--mantine-primary-color-filled-hover);
+}
+
 .function-button {
   min-height: 54px;
   user-select: none;
@@ -853,37 +871,6 @@ button,
   }
 }
 
-/* Floating tablet controls: make inactive function keys readable against
-   the dark overlay without changing their active color semantics. */
-.tablet-shell .tablet-floating-layout .mobile-throttle-functions .mantine-Button-root {
-  border: 1px solid rgba(150, 179, 205, 0.52);
-  background-color: rgba(48, 63, 82, 0.72);
-  color: var(--mantine-color-gray-0);
-}
-.tablet-shell .tablet-floating-layout .mobile-throttle-functions .mantine-Button-root[data-active],
-.tablet-shell .tablet-floating-layout .mobile-throttle-functions .mantine-Button-root[data-variant="filled"] {
-  background-color: var(--mantine-primary-color-filled);
-  border-color: var(--mantine-primary-color-filled);
-}
-.tablet-shell .tablet-floating-layout .mobile-throttle-functions .mantine-Button-root:hover {
-  border-color: rgba(131, 216, 255, 0.9);
-}
-
-/* Use the same function-key palette in both tablet locomotive layouts. */
-.tablet-shell .tablet-sidebar-layout .mobile-throttle-functions .mantine-Button-root {
-  border: 1px solid rgba(150, 179, 205, 0.52);
-  background-color: rgba(48, 63, 82, 0.72);
-  color: var(--mantine-color-gray-0);
-}
-.tablet-shell .tablet-sidebar-layout .mobile-throttle-functions .mantine-Button-root[data-active],
-.tablet-shell .tablet-sidebar-layout .mobile-throttle-functions .mantine-Button-root[data-variant="filled"] {
-  background-color: var(--mantine-primary-color-filled);
-  border-color: var(--mantine-primary-color-filled);
-}
-.tablet-shell .tablet-sidebar-layout .mobile-throttle-functions .mantine-Button-root:hover {
-  border-color: rgba(131, 216, 255, 0.9);
-}
-
 /* Right-hand tablet locomotive pane uses the same fitted function layout as the left. */
 .tablet-shell .lite-right-loco-panel .tablet-throttle-fit {
   position: relative;
@@ -965,20 +952,6 @@ button,
   padding-left: 0;
   border-left: 0;
 }
-.tablet-shell .lite-right-loco-panel .mobile-throttle-functions .mantine-Button-root {
-  border: 1px solid rgba(150, 179, 205, 0.52);
-  background-color: rgba(48, 63, 82, 0.72);
-  color: var(--mantine-color-gray-0);
-}
-.tablet-shell .lite-right-loco-panel .mobile-throttle-functions .mantine-Button-root[data-variant="filled"] {
-  background-color: var(--mantine-primary-color-filled);
-  border-color: var(--mantine-primary-color-filled);
-}
-.tablet-shell .lite-right-loco-panel .mobile-throttle-functions .mantine-Button-root:hover {
-  border-color: rgba(131, 216, 255, 0.9);
-}
-
-
 /* Tablet floating throttle drag handle: only the grip starts dragging,
    leaving speed controls and function buttons fully interactive. */
 .tablet-shell .tablet-floating-layout .tablet-floating-grip {
