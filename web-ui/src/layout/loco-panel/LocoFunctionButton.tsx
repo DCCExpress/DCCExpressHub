@@ -67,6 +67,7 @@ export default function LocoFunctionButton({
       size="xs"
       variant={active ? "filled" : "light"}
       color={active ? "blue" : "gray"}
+      className={active ? "loco-function-button loco-function-button--active" : "loco-function-button"}
       disabled={disabled}
       style={{
         height: fitHeight ? "100%" : 48,
