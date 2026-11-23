@@ -60,8 +60,8 @@ export default function LocoFunctionGrid({
         >
           <SimpleGrid
             cols={5}
-            spacing="xs"
-            verticalSpacing="xs"
+            spacing={3}
+            verticalSpacing={3}
           >
             {buttons}
           </SimpleGrid>
